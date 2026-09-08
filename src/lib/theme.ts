@@ -1,5 +1,5 @@
-// Site-wide light/dark toggle for all visitors. Defaults to the OS/browser
-// preference (prefers-color-scheme, handled in global.css); an explicit
+// Site-wide light/dark toggle for all visitors. Defaults to dark for every
+// visitor regardless of OS preference (handled in global.css); an explicit
 // choice here overrides it via a cookie so it persists across visits.
 const COOKIE_NAME = 'bwb-theme';
 
@@ -20,9 +20,7 @@ export function getExplicitTheme(): Theme | null {
 }
 
 export function getEffectiveTheme(): Theme {
-  return (
-    getExplicitTheme() ?? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-  );
+  return getExplicitTheme() ?? 'dark';
 }
 
 export function setTheme(theme: Theme): void {

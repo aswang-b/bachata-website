@@ -33,9 +33,8 @@ const {
     />
     <script is:inline>
       // Applied before paint to avoid a flash of the wrong theme. Only sets
-      // an explicit override; with no cookie, the prefers-color-scheme
-      // media query in global.css handles the system-default look on its
-      // own (and keeps responding live to OS theme changes).
+      // an explicit override; with no cookie, global.css's base (dark)
+      // theme applies on its own.
       try {
         var m = document.cookie.match(/(?:^|; )bwb-theme=([^;]*)/);
         if (m) document.documentElement.setAttribute('data-theme', decodeURIComponent(m[1]));
