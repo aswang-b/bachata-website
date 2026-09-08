@@ -145,7 +145,7 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
                 {price && <p class="text-sm font-semibold text-ink">{price}</p>}
                 {offering.description && (
                   <div
-                    class={`border-l-4 pl-4 text-base font-normal leading-relaxed text-ink/80 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 ${borderClass(offering.color)}/60`}
+                    class={`text-base font-normal leading-relaxed text-ink/80 sm:border-l-4 sm:pl-4 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 ${borderClass(offering.color)}/60`}
                     set:html={offering.description}
                   />
                 )}
