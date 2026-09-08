@@ -11,6 +11,15 @@ export const prerender = false;
 // submission itself is never blocked by this, only the notification email.
 const EMAIL_DAILY_CAP = Number(env('RESEND_DAILY_CAP')) || 200;
 
+// Server-side backstop matching the client's own limits (register.astro's
+// MAX_DANCERS), since a direct POST can otherwise bypass client-side caps
+// entirely and insert an unbounded row into intake_submissions.
+const MAX_DANCERS = 5;
+const MAX_NAME_LENGTH = 100;
+const MAX_CONTACT_LENGTH = 200;
+const MAX_COMMENTS_LENGTH = 2000;
+const MAX_CLASS_LENGTH = 200;
+
 interface Dancer {
   firstName: string;
   lastName: string;
@@ -53,13 +62,24 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 
     if (
       !className ||
+      className.length > MAX_CLASS_LENGTH ||
       !paymentMethod ||
       !dancers ||
       dancers.length === 0 ||
-      !dancers.every((d) => d.firstName && d.lastName && d.role)
+      dancers.length > MAX_DANCERS ||
+      !dancers.every(
+        (d) =>
+          d.firstName &&
+          d.firstName.length <= MAX_NAME_LENGTH &&
+          d.lastName &&
+          d.lastName.length <= MAX_NAME_LENGTH &&
+          d.role &&
+          (!d.phone || d.phone.length <= MAX_CONTACT_LENGTH) &&
+          (!d.email || d.email.length <= MAX_CONTACT_LENGTH)
+      )
     ) {
       return new Response(
-        'Missing required fields: a class, a payment method, and each dancer\'s first name, last name, and role.',
+        `Missing or invalid fields: a class, a payment method, and each dancer's first name, last name, and role (max ${MAX_DANCERS} dancers).`,
         { status: 400 }
       );
     }
@@ -80,11 +100,25 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     // least one of these; other registration types only require an email.
     const hasAnyContactMethod = email || phone || instagram || whatsapp;
 
-    if (!firstName || !lastName || !hasAnyContactMethod) {
-      return new Response('Missing required fields: First Name, Last Name, and a way to contact you are required.', {
+    if (
+      !firstName ||
+      firstName.length > MAX_NAME_LENGTH ||
+      !lastName ||
+      lastName.length > MAX_NAME_LENGTH ||
+      !hasAnyContactMethod ||
+      email.length > MAX_CONTACT_LENGTH ||
+      phone.length > MAX_CONTACT_LENGTH ||
+      instagram.length > MAX_CONTACT_LENGTH ||
+      whatsapp.length > MAX_CONTACT_LENGTH
+    ) {
+      return new Response('Missing or invalid fields: First Name, Last Name, and a way to contact you are required.', {
         status: 400,
       });
     }
+  }
+
+  if (className.length > MAX_CLASS_LENGTH || comments.length > MAX_COMMENTS_LENGTH) {
+    return new Response('One of the fields is too long.', { status: 400 });
   }
 
   const { data: row, error } = await supabase

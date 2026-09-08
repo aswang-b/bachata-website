@@ -1,9 +1,16 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
+import { checkAndIncrementUsage } from '../../lib/apiUsage';
+import { env } from '../../lib/env';
 
 export const prerender = false;
 
-export const POST: APIRoute = async ({ request, redirect }) => {
+// Backstop against a scripted client flooding class_checkins with fake
+// attendance from a single source; generous enough that a shared check-in
+// kiosk IP (one device at the door, many students) won't hit it in a day.
+const CHECKIN_DAILY_CAP_PER_IP = Number(env('CHECKIN_DAILY_CAP_PER_IP')) || 300;
+
+export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   const formData = await request.formData();
 
   const firstName = String(formData.get('first_name') ?? '').trim();
@@ -14,6 +21,21 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (!firstName || !lastName || !phone || !eventId) {
     return new Response('Missing required fields: First Name, Last Name, Phone, and a class are required.', {
       status: 400,
+    });
+  }
+
+  let ip = 'unknown';
+  try {
+    ip = clientAddress;
+  } catch {
+    // clientAddress can throw if the adapter doesn't support it — fall back
+    // to a shared bucket rather than letting that crash the request.
+  }
+
+  const allowed = await checkAndIncrementUsage(`checkin:${ip}`, CHECKIN_DAILY_CAP_PER_IP);
+  if (!allowed) {
+    return new Response('Too many check-ins from this network today. Please ask an instructor for help.', {
+      status: 429,
     });
   }
 
