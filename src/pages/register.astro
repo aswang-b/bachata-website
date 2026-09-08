@@ -213,7 +213,12 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
       </div>
 
       <div class="flex items-center justify-between rounded-xl border border-border bg-surface p-4">
-        <span class="text-sm font-medium text-ink/80">Subtotal</span>
+        <span class="flex items-center gap-2 text-sm font-medium text-ink/80">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.821-4.804 2.16-7.428.055-.433-.284-.808-.72-.808H5.106M7.5 14.25 5.106 5.272M6 18.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm9.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+          </svg>
+          Subtotal
+        </span>
         <span id="subtotal-value" class="text-lg font-bold text-ink">$0</span>
       </div>
 
