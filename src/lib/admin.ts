@@ -1,16 +1,21 @@
 import { supabase } from './supabase';
 import { env } from './env';
 
-const ADMIN_EMAIL = env('ADMIN_EMAIL');
+// Comma-separated list — ADMIN_EMAIL=alice@example.com,bob@example.com.
+// A single address still works fine as a list of one.
+const ADMIN_EMAILS = (env('ADMIN_EMAIL') ?? '')
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
 
 export function isAdminEmail(email: string | null | undefined): boolean {
-  if (!ADMIN_EMAIL || !email) return false;
-  return email.trim().toLowerCase() === ADMIN_EMAIL.trim().toLowerCase();
+  if (!email || ADMIN_EMAILS.length === 0) return false;
+  return ADMIN_EMAILS.includes(email.trim().toLowerCase());
 }
 
 /**
  * Verifies the Supabase access token from an Authorization: Bearer header
- * and confirms the associated user's email matches ADMIN_EMAIL. Used to
+ * and confirms the associated user's email is in ADMIN_EMAIL. Used to
  * gate admin-only API routes without full SSR session/cookie plumbing.
  */
 export async function requireAdmin(request: Request) {
