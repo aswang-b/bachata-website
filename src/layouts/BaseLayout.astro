@@ -1,0 +1,55 @@
+---
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import CookieConsent from '../components/CookieConsent.astro';
+import PreviewBanner from '../components/PreviewBanner.astro';
+import AnnouncementBanner from '../components/AnnouncementBanner.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const {
+  title,
+  description = 'Bachata lessons, private coaching, and social events.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="description" content={description} />
+    <title>{title} | Bachata with B</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      // Applied before paint to avoid a flash of the wrong theme. Only sets
+      // an explicit override; with no cookie, the prefers-color-scheme
+      // media query in global.css handles the system-default look on its
+      // own (and keeps responding live to OS theme changes).
+      try {
+        var m = document.cookie.match(/(?:^|; )bwb-theme=([^;]*)/);
+        if (m) document.documentElement.setAttribute('data-theme', decodeURIComponent(m[1]));
+      } catch {}
+    </script>
+  </head>
+  <body class="flex min-h-screen flex-col">
+    <PreviewBanner />
+    <AnnouncementBanner />
+    <Header />
+    <main class="flex-1">
+      <slot />
+    </main>
+    <Footer />
+    <CookieConsent />
+  </body>
+</html>

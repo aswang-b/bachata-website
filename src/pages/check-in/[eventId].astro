@@ -1,0 +1,75 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { supabase } from '../../lib/supabase';
+import { TIME_ZONE } from '../../lib/classSeries';
+
+const { eventId } = Astro.params;
+
+const { data: event } = await supabase
+  .from('events')
+  .select('id, title, start_time, end_time')
+  .eq('id', eventId)
+  .maybeSingle();
+
+const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TIME_ZONE });
+const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TIME_ZONE });
+
+const scheduleLabel = event
+  ? `${dateFormatter.format(new Date(event.start_time))}, ${timeFormatter.format(new Date(event.start_time))}–${timeFormatter.format(new Date(event.end_time))}`
+  : '';
+
+const inputClass =
+  'rounded-xl border border-border bg-surface px-3 py-2.5 text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20';
+---
+
+<BaseLayout title="Class Check-In">
+  <div class="mx-auto max-w-xl px-6 py-16">
+    {!event ? (
+      <>
+        <h1 class="font-display text-3xl font-bold text-ink">Check-In Link Not Found</h1>
+        <p class="mt-2 text-sm text-muted">
+          This check-in link isn't valid anymore. Ask the front desk for a current QR code, or
+          <a href="/check-in" class="font-semibold text-accent underline">check in here</a> instead.
+        </p>
+      </>
+    ) : (
+      <>
+        <h1 class="font-display text-3xl font-bold text-ink">Check In for Class</h1>
+        <div class="mt-4 rounded-xl border border-border bg-surface px-4 py-3">
+          <p class="font-semibold text-ink">{event.title}</p>
+          <p class="text-sm text-muted">{scheduleLabel}</p>
+        </div>
+
+        <form method="POST" action="/api/submit-checkin" class="mt-8 flex flex-col gap-5">
+          <input type="hidden" name="event_id" value={event.id} />
+
+          <div class="grid gap-5 sm:grid-cols-2">
+            <label class="flex flex-col gap-1.5">
+              <span class="text-sm font-medium text-ink/80">First Name<span class="text-accent"> *</span></span>
+              <input type="text" name="first_name" required class={inputClass} />
+            </label>
+
+            <label class="flex flex-col gap-1.5">
+              <span class="text-sm font-medium text-ink/80">Last Name<span class="text-accent"> *</span></span>
+              <input type="text" name="last_name" required class={inputClass} />
+            </label>
+          </div>
+
+          <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-ink/80">Phone<span class="text-accent"> *</span></span>
+            <input type="tel" name="phone" required class={inputClass} />
+          </label>
+
+          <button
+            type="submit"
+            class="gradient-accent mt-2 rounded-full px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+          >
+            Check In
+          </button>
+        </form>
+      </>
+    )}
+  </div>
+</BaseLayout>

@@ -1,0 +1,572 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { supabase } from '../lib/supabase';
+
+const TIME_ZONE = 'America/Chicago';
+
+interface ClassOccurrence {
+  id: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  start_time: string;
+  end_time: string;
+  color: string;
+  google_recurring_event_id: string | null;
+  price_whole_series: number | null;
+  price_drop_in: number | null;
+  price_student: number | null;
+}
+
+const { data: classEvents, error } = await supabase
+  .from('events')
+  .select(
+    'id, title, description, location, start_time, end_time, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student'
+  )
+  .eq('visibility', 'public')
+  .eq('event_type', 'class')
+  .gte('start_time', new Date().toISOString())
+  .order('start_time', { ascending: true });
+
+if (error) console.error('Failed to load class events:', error);
+
+const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: TIME_ZONE });
+const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TIME_ZONE });
+const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: TIME_ZONE });
+
+// Group occurrences into one button per series (or per standalone class).
+const seriesMap = new Map<string, ClassOccurrence[]>();
+for (const event of (classEvents ?? []) as ClassOccurrence[]) {
+  const key = event.google_recurring_event_id ?? event.id;
+  const existing = seriesMap.get(key) ?? [];
+  existing.push(event);
+  seriesMap.set(key, existing);
+}
+
+const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
+  const sorted = [...occurrences].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const isSeries = sorted.length > 1;
+
+  const weekday = weekdayFormatter.format(new Date(first.start_time));
+  const timeRange = `${timeFormatter.format(new Date(first.start_time))}–${timeFormatter.format(new Date(first.end_time))}`;
+  const dateRange = isSeries
+    ? `${dateFormatter.format(new Date(first.start_time))}–${dateFormatter.format(new Date(last.start_time))}`
+    : dateFormatter.format(new Date(first.start_time));
+
+  return {
+    key,
+    title: first.title,
+    color: first.color,
+    isSeries,
+    occurrenceCount: sorted.length,
+    subLabel: `${weekday}s, ${timeRange} (${dateRange})`,
+    description: first.description,
+    location: first.location,
+    priceWholeSeries: first.price_whole_series,
+    priceDropIn: first.price_drop_in,
+    priceStudent: first.price_student,
+  };
+});
+
+function locationHref(location: string): string {
+  if (/^https?:\/\//i.test(location)) return location;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+}
+
+function formatPrice(value: number): string {
+  return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
+}
+
+function seriesTypeLabel(s: (typeof seriesList)[number]): string {
+  return s.isSeries ? `${s.occurrenceCount}-Week Series` : 'Workshop';
+}
+---
+
+<BaseLayout title="Register — Group Lessons">
+  <div class="mx-auto max-w-xl px-6 py-16">
+    <h1 class="font-display text-3xl font-bold text-ink">Register for a Group Lesson</h1>
+    <p class="mt-2 text-sm text-muted">Fill out the form below to reserve your spot!</p>
+
+    <form method="POST" action="/api/submit-intake" class="mt-8 flex flex-col gap-6">
+      <input type="hidden" name="registration_type" value="group" />
+      <input type="hidden" name="class" id="class-value" />
+      <input type="hidden" name="dancers" id="dancers-value" />
+
+      <div class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-ink/80">Classes<span class="text-accent"> *</span></span>
+        <p class="text-xs text-muted">Select any classes you'd like to register for — you can pick more than one.</p>
+
+        {seriesList.length === 0 ? (
+          <p class="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
+            No upcoming group classes are scheduled yet — leave a note below and we'll follow up.
+          </p>
+        ) : (
+          <div id="series-list" class="flex flex-col gap-2">
+            {seriesList.map((s) => (
+              <div
+                class="series-item rounded-xl border border-border bg-surface"
+                data-key={s.key}
+                data-title={s.title}
+                data-sub-label={s.subLabel}
+                data-is-series={String(s.isSeries)}
+                data-price-whole={s.priceWholeSeries ?? ''}
+                data-price-drop-in={s.priceDropIn ?? ''}
+              >
+                <div
+                  role="button"
+                  tabindex="0"
+                  class="series-toggle-btn flex w-full cursor-pointer flex-col items-start gap-1 rounded-t-xl px-4 py-3 text-left transition-colors last:rounded-b-xl hover:bg-bg"
+                >
+                  <div class="flex w-full flex-wrap items-center gap-1.5">
+                    <span class="font-semibold text-ink">{s.title}</span>
+                    <span class="font-semibold text-ink/50">·</span>
+                    <span class="font-semibold text-ink">{seriesTypeLabel(s)}</span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span class="text-xs text-muted">{s.subLabel}</span>
+                    {s.location && (
+                      <>
+                        <span class="text-muted/50">·</span>
+                        <a
+                          href={locationHref(s.location)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onclick="event.stopPropagation()"
+                          class="text-xs font-semibold text-accent underline"
+                        >
+                          📍 {s.location}
+                        </a>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {s.description && (
+                  <div class="series-details hidden flex-col gap-1 border-t border-border bg-bg px-4 py-3 last:rounded-b-xl">
+                    <div class="text-sm text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5" set:html={s.description} />
+                  </div>
+                )}
+
+                {s.isSeries && (
+                  <div class="series-subchoice hidden flex-col gap-3 border-t border-border bg-bg p-4 last:rounded-b-xl">
+                    <label class="flex items-center justify-between gap-2 text-sm text-ink">
+                      <span class="flex items-center gap-2">
+                        <input type="radio" name={`series_mode_${s.key}`} value="whole" checked class="series-mode-radio h-4 w-4" />
+                        Whole Series
+                      </span>
+                      {s.priceWholeSeries != null && <span class="font-semibold text-ink">{formatPrice(s.priceWholeSeries)}</span>}
+                    </label>
+                    <label class="flex items-center justify-between gap-2 text-sm text-ink">
+                      <span class="flex items-center gap-2">
+                        <input type="radio" name={`series_mode_${s.key}`} value="dropin" class="series-mode-radio h-4 w-4" />
+                        Drop In
+                        <span class="group relative inline-flex">
+                          <button
+                            type="button"
+                            class="flex h-4 w-4 items-center justify-center rounded-full border border-muted text-[10px] font-bold text-muted"
+                            aria-label="Drop-in policy"
+                          >
+                            i
+                          </button>
+                          <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-3 text-left text-xs text-ink/70 shadow-xl group-hover:block">
+                            <strong class="text-ink">Quick Note</strong> — These classes follow a progressive
+                            curriculum, so I'm unable to adjust content or otherwise accommodate dancers who missed
+                            previous classes in a series. If you've missed multiple classes, you're welcome to
+                            contact me about private lessons!
+                          </div>
+                        </span>
+                      </span>
+                      {s.priceDropIn != null && <span class="font-semibold text-ink">{formatPrice(s.priceDropIn)}/class</span>}
+                    </label>
+                    {s.priceStudent != null && (
+                      <p class="pl-6 text-xs text-muted">
+                        Student discount: {formatPrice(s.priceStudent)}/class (whole series or drop-in)
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p id="class-error" class="hidden text-xs font-semibold text-red-600">Please select at least one class.</p>
+      </div>
+
+      <div class="flex flex-col gap-4">
+        <span class="text-sm font-medium text-ink/80">Dancers<span class="text-accent"> *</span></span>
+        <div id="dancers-container" class="flex flex-col gap-4"></div>
+        <button
+          type="button"
+          id="add-dancer-btn"
+          class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+        >
+          + Add Another Dancer
+        </button>
+        <p id="dancers-error" class="hidden text-xs font-semibold text-red-600">
+          Please fill in first name, last name, and role for each dancer.
+        </p>
+      </div>
+
+      <div class="flex items-center justify-between rounded-xl border border-border bg-surface p-4">
+        <span class="text-sm font-medium text-ink/80">Subtotal</span>
+        <span id="subtotal-value" class="text-lg font-bold text-ink">$0</span>
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-ink/80">How will you pay?<span class="text-accent"> *</span></span>
+        <input type="hidden" name="payment_method" id="payment-method-value" />
+
+        <div class="flex flex-col gap-2">
+          <div class="payment-item overflow-hidden rounded-xl border border-border bg-surface" data-value="cash">
+            <button
+              type="button"
+              class="payment-toggle-btn flex w-full items-center rounded-t-xl px-4 py-3 text-left transition-colors hover:bg-bg"
+            >
+              <span class="font-semibold text-ink">Pay Cash at the Door</span>
+            </button>
+            <div class="payment-details hidden flex-col gap-1 border-t border-border bg-bg px-4 py-3">
+              <p class="text-sm text-ink/70">
+                You'll pay <span class="payment-amount font-semibold text-ink">$0</span> in cash before class begins.
+              </p>
+            </div>
+          </div>
+
+          <div class="payment-item overflow-hidden rounded-xl border border-border bg-surface" data-value="venmo">
+            <button
+              type="button"
+              class="payment-toggle-btn flex w-full items-center rounded-t-xl px-4 py-3 text-left transition-colors hover:bg-bg"
+            >
+              <span class="font-semibold text-ink">Pay with Venmo</span>
+            </button>
+            <div class="payment-details hidden flex-col items-center gap-3 border-t border-border bg-bg p-5 text-center">
+              <p class="text-xs text-ink/70">
+                Your subtotal (<span class="payment-amount font-semibold text-ink">$0</span>) is due before class
+                begins. Scan the code below or tap to open Venmo.
+              </p>
+              <p class="text-sm font-semibold text-ink">You are paying <span class="text-accent">@amumira</span></p>
+              <img src="/venmo-qr.png" alt="Venmo QR code" class="h-40 w-40" />
+              <a
+                href="https://venmo.com/code?user_id=2024335518728192092&created=1788834419"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="gradient-accent rounded-full px-5 py-2 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+              >
+                Open in Venmo
+              </a>
+            </div>
+          </div>
+        </div>
+        <p id="payment-error" class="hidden text-xs font-semibold text-red-600">Please choose a payment method.</p>
+      </div>
+
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-ink/80">Notes</span>
+        <textarea
+          name="comments"
+          rows="4"
+          class="rounded-xl border border-border bg-surface px-3 py-2.5 text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+        ></textarea>
+      </label>
+
+      <button
+        type="submit"
+        class="gradient-accent mt-2 rounded-full px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+      >
+        Submit
+      </button>
+    </form>
+  </div>
+</BaseLayout>
+
+<script>
+  interface Dancer {
+    firstName: string;
+    lastName: string;
+    role: 'leader' | 'follower' | '';
+    phone: string;
+    email: string;
+  }
+
+  const inputClass =
+    'rounded-xl border border-border bg-surface px-3 py-2.5 text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20';
+
+  const MAX_DANCERS = 5;
+  const dancersContainer = document.getElementById('dancers-container')!;
+  const addDancerBtn = document.getElementById('add-dancer-btn') as HTMLButtonElement;
+  let dancerCount = 0;
+
+  function updateAddDancerButton() {
+    const atLimit = dancersContainer.children.length >= MAX_DANCERS;
+    addDancerBtn.classList.toggle('hidden', atLimit);
+  }
+
+  function addDancerBlock() {
+    if (dancersContainer.children.length >= MAX_DANCERS) return;
+    dancerCount += 1;
+    const index = dancerCount;
+
+    const block = document.createElement('div');
+    block.className = 'dancer-block flex flex-col gap-3 rounded-xl border border-border bg-bg p-4';
+    block.dataset.index = String(index);
+    block.innerHTML = `
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-semibold text-ink">Dancer ${index}</p>
+        ${index > 1 ? `<button type="button" class="remove-dancer-btn text-xs font-semibold text-red-600 hover:underline">Remove</button>` : ''}
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="flex flex-col gap-1.5">
+          <span class="text-sm font-medium text-ink/80">First Name<span class="text-accent"> *</span></span>
+          <input type="text" class="dancer-first-name ${inputClass}" />
+        </label>
+        <label class="flex flex-col gap-1.5">
+          <span class="text-sm font-medium text-ink/80">Last Name<span class="text-accent"> *</span></span>
+          <input type="text" class="dancer-last-name ${inputClass}" />
+        </label>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-ink/80">Role<span class="text-accent"> *</span></span>
+        <div class="flex gap-2">
+          <button type="button" data-role="leader" class="dancer-role-btn flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
+            Leader
+          </button>
+          <button type="button" data-role="follower" class="dancer-role-btn flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
+            Follower
+          </button>
+        </div>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="flex flex-col gap-1.5">
+          <span class="text-sm font-medium text-ink/80">Phone</span>
+          <input type="tel" class="dancer-phone ${inputClass}" />
+        </label>
+        <label class="flex flex-col gap-1.5">
+          <span class="text-sm font-medium text-ink/80">Email</span>
+          <input type="email" class="dancer-email ${inputClass}" />
+        </label>
+      </div>
+    `;
+
+    const roleButtons = Array.from(block.querySelectorAll<HTMLButtonElement>('.dancer-role-btn'));
+
+    function renderRoleButtons() {
+      for (const btn of roleButtons) {
+        const active = btn.dataset.role === block.dataset.role;
+        btn.classList.toggle('gradient-accent', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('border-transparent', active);
+        btn.classList.toggle('text-ink/70', !active);
+        btn.classList.toggle('border-border', !active);
+      }
+    }
+
+    roleButtons.forEach((btn) =>
+      btn.addEventListener('click', () => {
+        block.dataset.role = btn.dataset.role;
+        renderRoleButtons();
+      })
+    );
+
+    block.querySelector('.remove-dancer-btn')?.addEventListener('click', () => {
+      block.remove();
+      updateAddDancerButton();
+      updateSubtotal();
+    });
+
+    dancersContainer.appendChild(block);
+    updateAddDancerButton();
+    updateSubtotal();
+  }
+
+  // Class selection — multiple classes can be selected at once, each with
+  // its own Whole Series / Drop In choice when applicable.
+  interface ClassSelection {
+    title: string;
+    subLabel: string;
+    isSeries: boolean;
+    mode: 'whole' | 'dropin';
+    priceWhole: number | null;
+    priceDropIn: number | null;
+  }
+
+  const classValueInput = document.getElementById('class-value') as HTMLInputElement;
+  const classError = document.getElementById('class-error')!;
+  const selections = new Map<string, ClassSelection>();
+  const subtotalValue = document.getElementById('subtotal-value')!;
+
+  function formatPrice(value: number): string {
+    return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
+  }
+
+  function updateSubtotal() {
+    const dancerCountNow = dancersContainer.children.length;
+    const perDancerTotal = Array.from(selections.values()).reduce((sum, sel) => {
+      const price = sel.mode === 'dropin' ? sel.priceDropIn : sel.priceWhole;
+      return sum + (price ?? 0);
+    }, 0);
+    const total = perDancerTotal * dancerCountNow;
+    subtotalValue.textContent = formatPrice(total);
+    document.querySelectorAll('.payment-amount').forEach((el) => (el.textContent = formatPrice(total)));
+  }
+
+  function updateClassValue() {
+    const parts = Array.from(selections.values()).map((sel) =>
+      sel.isSeries
+        ? `${sel.title} — ${sel.subLabel} — ${sel.mode === 'dropin' ? 'Drop In' : 'Whole Series'}`
+        : `${sel.title} — ${sel.subLabel}`
+    );
+    classValueInput.value = parts.join('; ');
+    if (parts.length) classError.classList.add('hidden');
+    updateSubtotal();
+  }
+
+  document.querySelectorAll<HTMLElement>('.series-item').forEach((item) => {
+    const key = item.dataset.key ?? '';
+    const title = item.dataset.title ?? '';
+    const subLabel = item.dataset.subLabel ?? '';
+    const isSeries = item.dataset.isSeries === 'true';
+    const priceWhole = item.dataset.priceWhole ? Number(item.dataset.priceWhole) : null;
+    const priceDropIn = item.dataset.priceDropIn ? Number(item.dataset.priceDropIn) : null;
+    const toggleBtn = item.querySelector('.series-toggle-btn') as HTMLElement;
+    const subchoice = item.querySelector<HTMLElement>('.series-subchoice');
+    const details = item.querySelector<HTMLElement>('.series-details');
+    const modeRadios = Array.from(item.querySelectorAll<HTMLInputElement>('.series-mode-radio'));
+
+    function deselectSeries() {
+      selections.delete(key);
+      toggleBtn.classList.remove('bg-bg');
+      item.classList.remove('border-accent');
+      subchoice?.classList.add('hidden');
+      subchoice?.classList.remove('flex');
+      details?.classList.add('hidden');
+      details?.classList.remove('flex');
+      modeRadios.forEach((r) => (r.checked = false));
+      updateClassValue();
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      if (selections.has(key)) {
+        deselectSeries();
+      } else {
+        modeRadios.forEach((r) => (r.checked = r.value === 'whole'));
+        selections.set(key, { title, subLabel, isSeries, mode: 'whole', priceWhole, priceDropIn });
+        toggleBtn.classList.add('bg-bg');
+        item.classList.add('border-accent');
+        subchoice?.classList.remove('hidden');
+        subchoice?.classList.add('flex');
+        details?.classList.remove('hidden');
+        details?.classList.add('flex');
+        updateClassValue();
+      }
+    });
+
+    // toggleBtn is a div[role=button] (a real <button> can't contain the
+    // location <a> nested inside it), so Enter/Space activation needs to be
+    // wired up manually to keep it keyboard-accessible.
+    toggleBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleBtn.click();
+      }
+    });
+
+    // Clicking the already-selected Whole Series / Drop In option again
+    // deselects this class entirely — radios don't do this natively, so it's
+    // handled on click (by the time a 'change' event would fire, .checked
+    // has already flipped) by comparing against the currently stored mode.
+    modeRadios.forEach((radio) =>
+      radio.addEventListener('click', () => {
+        const selection = selections.get(key);
+        if (selection && selection.mode === radio.value) {
+          deselectSeries();
+        } else if (selection) {
+          selection.mode = radio.value as 'whole' | 'dropin';
+          updateClassValue();
+        }
+      })
+    );
+  });
+
+  // Payment method — click a card to select it; the Venmo card expands
+  // in place to show the QR code and payment link.
+  const paymentMethodValue = document.getElementById('payment-method-value') as HTMLInputElement;
+  const paymentError = document.getElementById('payment-error')!;
+
+  document.querySelectorAll<HTMLElement>('.payment-item').forEach((item) => {
+    const value = item.dataset.value ?? '';
+    const toggleBtn = item.querySelector('.payment-toggle-btn') as HTMLButtonElement;
+    const details = item.querySelector<HTMLElement>('.payment-details');
+
+    toggleBtn.addEventListener('click', () => {
+      document.querySelectorAll<HTMLElement>('.payment-item').forEach((other) => {
+        other.classList.remove('border-accent');
+        if (other !== item) {
+          other.querySelector('.payment-details')?.classList.add('hidden');
+          other.querySelector('.payment-details')?.classList.remove('flex');
+        }
+      });
+      item.classList.add('border-accent');
+      paymentMethodValue.value = value;
+      paymentError.classList.add('hidden');
+      details?.classList.remove('hidden');
+      details?.classList.add('flex');
+    });
+  });
+
+  document.querySelector('form')?.addEventListener('submit', (e) => {
+    let hasError = false;
+
+    if (!classValueInput.value) {
+      classError.classList.remove('hidden');
+      hasError = true;
+    }
+
+    if (!paymentMethodValue.value) {
+      paymentError.classList.remove('hidden');
+      hasError = true;
+    }
+
+    const dancerBlocks = Array.from(document.querySelectorAll<HTMLElement>('.dancer-block'));
+    const dancers: Dancer[] = dancerBlocks.map((block) => ({
+      firstName: (block.querySelector('.dancer-first-name') as HTMLInputElement).value.trim(),
+      lastName: (block.querySelector('.dancer-last-name') as HTMLInputElement).value.trim(),
+      role: (block.dataset.role as Dancer['role']) ?? '',
+      phone: (block.querySelector('.dancer-phone') as HTMLInputElement).value.trim(),
+      email: (block.querySelector('.dancer-email') as HTMLInputElement).value.trim(),
+    }));
+
+    const dancersError = document.getElementById('dancers-error')!;
+    const dancersValid = dancers.every((d) => d.firstName && d.lastName && d.role);
+    if (!dancersValid) {
+      dancersError.classList.remove('hidden');
+      hasError = true;
+    } else {
+      dancersError.classList.add('hidden');
+    }
+
+    if (hasError) {
+      e.preventDefault();
+      return;
+    }
+
+    (document.getElementById('dancers-value') as HTMLInputElement).value = JSON.stringify(dancers);
+  });
+
+  // Bootstrap the first dancer block now that updateSubtotal (and everything
+  // it depends on) is defined above.
+  addDancerBlock();
+  addDancerBtn.addEventListener('click', addDancerBlock);
+
+  // Preselect a class when arriving via a homepage offering panel's
+  // "Register Now" link (?series=<key>).
+  const preselectKey = new URLSearchParams(window.location.search).get('series');
+  if (preselectKey) {
+    const targetItem = document.querySelector<HTMLElement>(`.series-item[data-key="${CSS.escape(preselectKey)}"]`);
+    targetItem?.querySelector<HTMLElement>('.series-toggle-btn')?.click();
+    targetItem?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+</script>

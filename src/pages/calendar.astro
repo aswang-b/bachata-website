@@ -1,0 +1,1268 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { supabase } from '../lib/supabase';
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+const monthParam = Astro.url.searchParams.get('month');
+const now = new Date();
+let year = now.getFullYear();
+let month = now.getMonth();
+if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+  const [y, m] = monthParam.split('-').map(Number);
+  year = y;
+  month = m - 1;
+}
+
+const firstOfMonth = new Date(year, month, 1);
+const startWeekday = firstOfMonth.getDay();
+const daysInMonth = new Date(year, month + 1, 0).getDate();
+const monthLabel = firstOfMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const prevMonthDate = new Date(year, month - 1, 1);
+const nextMonthDate = new Date(year, month + 1, 1);
+const prevMonthParam = `${prevMonthDate.getFullYear()}-${pad2(prevMonthDate.getMonth() + 1)}`;
+const nextMonthParam = `${nextMonthDate.getFullYear()}-${pad2(nextMonthDate.getMonth() + 1)}`;
+
+const monthStart = new Date(year, month, 1);
+const monthEnd = new Date(year, month + 1, 1);
+
+const EVENT_COLUMNS =
+  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url';
+
+const { data: monthEvents, error: monthError } = await supabase
+  .from('events')
+  .select(EVENT_COLUMNS)
+  .eq('visibility', 'public')
+  .gte('start_time', monthStart.toISOString())
+  .lt('start_time', monthEnd.toISOString())
+  .order('start_time', { ascending: true });
+
+const { data: upcomingEvents, error: upcomingError } = await supabase
+  .from('events')
+  .select(EVENT_COLUMNS)
+  .eq('visibility', 'public')
+  .gte('start_time', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+  .order('start_time', { ascending: true })
+  .limit(20);
+
+if (monthError) console.error('Failed to load month events:', monthError);
+if (upcomingError) console.error('Failed to load upcoming events:', upcomingError);
+
+const gridEvents = monthEvents ?? [];
+const sidebarEvents = upcomingEvents ?? [];
+
+// Position within the series (1-indexed), for the "Week N" tag on any event
+// that's part of a recurring series. Computed from every occurrence sharing
+// that recurring id — not just this month's — so numbering stays correct
+// regardless of which month is being viewed.
+const recurringIds = [...new Set(gridEvents.map((e) => e.google_recurring_event_id).filter((id): id is string => Boolean(id)))];
+const weekNumberByEventId = new Map<string, number>();
+if (recurringIds.length > 0) {
+  const { data: seriesOccurrences, error: seriesError } = await supabase
+    .from('events')
+    .select('id, google_recurring_event_id, start_time')
+    .in('google_recurring_event_id', recurringIds)
+    .order('start_time', { ascending: true });
+
+  if (seriesError) console.error('Failed to load series occurrences for week numbering:', seriesError);
+
+  const bySeriesKey = new Map<string, { id: string }[]>();
+  for (const occ of seriesOccurrences ?? []) {
+    const key = occ.google_recurring_event_id as string;
+    const list = bySeriesKey.get(key) ?? [];
+    list.push(occ);
+    bySeriesKey.set(key, list);
+  }
+  for (const occs of bySeriesKey.values()) {
+    occs.forEach((occ, idx) => weekNumberByEventId.set(occ.id, idx + 1));
+  }
+}
+
+// 'accent' and 'yellow' are kept here (though no longer offered in the admin
+// picker) so existing events with those legacy colors still render correctly.
+const dotColorClasses: Record<string, string> = {
+  green: 'bg-green-500',
+  blue: 'bg-blue-500',
+  red: 'bg-red-500',
+  orange: 'bg-orange-500',
+  purple: 'bg-purple-400',
+  accent: 'bg-accent',
+  yellow: 'bg-yellow-500',
+};
+const textColorClasses: Record<string, string> = {
+  green: 'text-green-600',
+  blue: 'text-blue-600',
+  red: 'text-red-600',
+  orange: 'text-orange-600',
+  purple: 'text-purple-600',
+  accent: 'text-accent',
+  yellow: 'text-yellow-600',
+};
+const dotClass = (color: string | null) => dotColorClasses[color ?? 'accent'] ?? 'bg-accent';
+const textClass = (color: string | null) => textColorClasses[color ?? 'accent'] ?? 'text-accent';
+
+function locationHref(location: string): string {
+  if (/^https?:\/\//i.test(location)) return location;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+}
+
+function formatPrice(value: number): string {
+  return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
+}
+
+function buildPriceLines(event: { price_whole_series: number | null; price_drop_in: number | null; price_student: number | null }): {
+  main: string;
+  student: string;
+} {
+  const parts: string[] = [];
+  if (event.price_whole_series != null) parts.push(`Whole Series: ${formatPrice(event.price_whole_series)}`);
+  if (event.price_drop_in != null) parts.push(`Drop In: ${formatPrice(event.price_drop_in)}/class`);
+  const student = event.price_student != null ? `Student Discount: ${formatPrice(event.price_student)}/class` : '';
+  return { main: parts.join(' · '), student };
+}
+
+const eventsByDate = new Map<string, typeof gridEvents>();
+for (const event of gridEvents) {
+  const key = new Date(event.start_time).toDateString();
+  const existing = eventsByDate.get(key) ?? [];
+  existing.push(event);
+  eventsByDate.set(key, existing);
+}
+
+const cells: { date: Date | null }[] = [];
+for (let i = 0; i < startWeekday; i++) cells.push({ date: null });
+for (let day = 1; day <= daysInMonth; day++) cells.push({ date: new Date(year, month, day) });
+
+const today = new Date();
+const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+const MAX_BANNERS_PER_DAY = 3;
+---
+
+<BaseLayout title="Calendar">
+  <div class="mx-auto max-w-[1700px] px-6 py-16">
+    <div class="relative mb-10 flex items-center justify-center gap-6">
+      <a
+        href={`/calendar?month=${prevMonthParam}`}
+        aria-label="Previous month"
+        class="flex h-9 w-9 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface"
+      >
+        &larr;
+      </a>
+      <div class="text-center">
+        <p class="text-sm font-bold uppercase tracking-[0.3em] text-accent">Upcoming</p>
+        <h1 class="mt-1 font-display text-3xl font-extrabold text-ink">{monthLabel}</h1>
+      </div>
+      <a
+        href={`/calendar?month=${nextMonthParam}`}
+        aria-label="Next month"
+        class="flex h-9 w-9 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface"
+      >
+        &rarr;
+      </a>
+      <button
+        id="add-event-btn"
+        class="gradient-accent absolute right-0 top-1/2 hidden -translate-y-1/2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+      >
+        + Add Event
+      </button>
+    </div>
+
+    <div class="flex flex-col items-start gap-4 lg:flex-row lg:justify-center">
+      <div class="w-full lg:w-auto">
+        <div
+          id="calendar-grid"
+          data-year={year}
+          data-month={month}
+          class="mx-auto max-w-6xl rounded-3xl border border-border bg-bg p-4 shadow-[0_2px_16px_rgba(0,0,0,0.05)]"
+        >
+          <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold uppercase tracking-wider text-muted">
+            {weekdayLabels.map((label) => <div class="py-2">{label}</div>)}
+          </div>
+          <div id="calendar-cells" class="grid grid-cols-7 gap-1">
+            {cells.map(({ date }) => {
+              const dayEvents = date ? eventsByDate.get(date.toDateString()) ?? [] : [];
+              const isToday = date ? date.toDateString() === today.toDateString() : false;
+              const dateKey = date
+                ? `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+                : '';
+              // Banners get roomy treatment (wrap, show the full title) for
+              // the common case of 1-2 events a day. A busier day — meant to
+              // stay rare — shrinks back to compact truncated banners rather
+              // than ballooning the cell height.
+              const isCompact = dayEvents.length > 2;
+              return (
+                <div
+                  class={`calendar-cell flex flex-col gap-1 rounded-xl p-1 text-sm ${isCompact ? 'min-h-[6rem] sm:min-h-[6.5rem]' : 'min-h-[7rem] sm:min-h-[7.5rem]'}`}
+                  data-date={dateKey}
+                >
+                  {date && (
+                    <span class={`text-xs ${isToday ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent font-bold text-white' : 'text-ink/70'}`}>
+                      {date.getDate()}
+                    </span>
+                  )}
+                  <div class="day-banners flex flex-1 flex-col gap-1">
+                    {dayEvents.slice(0, MAX_BANNERS_PER_DAY).map((event) => {
+                      const weekNumber = weekNumberByEventId.get(event.id) ?? null;
+                      return (
+                      <div class="event-banner group relative cursor-pointer" data-event={JSON.stringify({ ...event, weekNumber })}>
+                        <div
+                          class={
+                            isCompact
+                              ? `truncate rounded px-1 py-0.5 text-[10px] font-semibold text-white ${dotClass(event.color)}`
+                              : `whitespace-normal break-words rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug text-white ${dotClass(event.color)}`
+                          }
+                        >
+                          {weekNumber && <span class="mr-1 whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk {weekNumber}</span>}
+                          {event.title}
+                        </div>
+                        <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-64 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
+                          <p class={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider ${textClass(event.color)}`}>
+                            <span class={`h-2 w-2 rounded-full ${dotClass(event.color)}`}></span>
+                            {event.event_type === 'event' ? 'Event' : 'Class'}
+                            {weekNumber && <span class="font-bold text-ink">&middot; Week {weekNumber}</span>}
+                          </p>
+                          <p class="mt-1 font-display font-bold text-ink">{event.title}</p>
+                          <p class="mt-1 text-xs text-muted">
+                            {dateFormatter.format(new Date(event.start_time))} &middot; {timeFormatter.format(new Date(event.start_time))}
+                          </p>
+                          {event.description && (
+                            <div class="mt-1 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-4 [&_ul]:list-disc [&_ul]:pl-4" set:html={event.description} />
+                          )}
+                          {buildPriceLines(event).main && <p class="mt-1 text-xs font-semibold text-ink">{buildPriceLines(event).main}</p>}
+                          {buildPriceLines(event).student && <p class="text-xs font-semibold text-ink">{buildPriceLines(event).student}</p>}
+                          {event.location && (
+                            <a
+                              href={locationHref(event.location)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="pointer-events-auto mt-1 block text-xs font-semibold text-accent underline"
+                              onclick="event.stopPropagation()"
+                            >
+                              📍 {event.location}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      );
+                    })}
+                    {dayEvents.length > MAX_BANNERS_PER_DAY && (
+                      <p class="text-[10px] font-semibold text-muted">+{dayEvents.length - MAX_BANNERS_PER_DAY} more</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div class="w-full lg:w-[460px] lg:shrink-0">
+        <div id="event-detail-panel" class="sticky top-24 rounded-3xl border border-border bg-bg p-5 shadow-[0_2px_16px_rgba(0,0,0,0.05)]">
+          <p id="detail-placeholder" class="text-sm text-muted">Click an event to see details here.</p>
+          <div id="detail-content" class="hidden flex-col gap-2">
+            <p id="detail-type" class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider"></p>
+            <p id="detail-title" class="font-display text-lg font-bold text-ink"></p>
+            <p id="detail-datetime" class="text-sm text-muted"></p>
+            <div id="detail-description" class="text-sm text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"></div>
+            <p id="detail-price" class="hidden text-sm font-semibold text-ink"></p>
+            <p id="detail-price-student" class="hidden text-sm font-semibold text-ink"></p>
+            <a
+              id="detail-location"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="hidden text-sm font-semibold text-accent underline"
+            ></a>
+            <div id="detail-admin-actions" class="admin-only mt-3 hidden flex-wrap gap-2">
+              <button id="detail-edit-btn" class="rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white">
+                Edit
+              </button>
+              <button id="detail-delete-btn" class="rounded-full border border-red-300 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-red-600 transition-colors hover:bg-red-600 hover:text-white">
+                Delete
+              </button>
+              <button id="detail-delete-series-btn" class="hidden rounded-full border border-red-300 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-red-600 transition-colors hover:bg-red-600 hover:text-white">
+                Delete Series
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="event-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
+    <div class="w-full max-w-md rounded-2xl bg-bg p-6 shadow-2xl">
+      <h3 id="modal-heading" class="font-display text-lg font-bold text-ink">Add Event</h3>
+      <input
+        id="event-title"
+        type="text"
+        placeholder="Add title"
+        class="mt-4 w-full border-b border-border pb-2 text-xl font-semibold text-ink focus:border-accent focus:outline-none"
+      />
+      <div class="mt-4 flex flex-col gap-3">
+        <input
+          id="event-date"
+          type="date"
+          class="rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none"
+        />
+        <div class="flex items-center gap-2">
+          <input
+            id="event-start-time"
+            type="time"
+            class="flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none"
+          />
+          <span class="text-sm text-muted">to</span>
+          <input
+            id="event-end-time"
+            type="time"
+            class="flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none"
+          />
+        </div>
+        <p class="text-xs text-muted">Times use your browser's local timezone.</p>
+
+        <div class="flex gap-2">
+          <button type="button" data-type="class" class="event-type-btn flex-1 rounded-full border px-3 py-1.5 text-sm font-semibold">
+            Class
+          </button>
+          <button type="button" data-type="event" class="event-type-btn flex-1 rounded-full border px-3 py-1.5 text-sm font-semibold">
+            Event
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <span class="text-sm text-muted">Color</span>
+          <button type="button" data-color="green" class="event-color-btn h-7 w-7 rounded-full bg-green-500"></button>
+          <button type="button" data-color="blue" class="event-color-btn h-7 w-7 rounded-full bg-blue-500"></button>
+          <button type="button" data-color="red" class="event-color-btn h-7 w-7 rounded-full bg-red-500"></button>
+          <button type="button" data-color="orange" class="event-color-btn h-7 w-7 rounded-full bg-orange-500"></button>
+          <button type="button" data-color="purple" class="event-color-btn h-7 w-7 rounded-full bg-purple-400"></button>
+        </div>
+
+        <input
+          id="event-location"
+          type="text"
+          placeholder="Location"
+          class="rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none"
+        />
+
+        <div class="flex flex-col gap-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-muted">Homepage thumbnail (optional)</span>
+          <input id="event-image-url" type="hidden" />
+          <div class="flex items-center gap-3">
+            <img id="event-image-preview" class="hidden h-14 w-14 rounded-lg border border-border object-cover" alt="" />
+            <label class="cursor-pointer rounded-full border border-border px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-surface">
+              <span id="event-image-upload-label">Upload Image</span>
+              <input id="event-image-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" />
+            </label>
+            <button
+              type="button"
+              id="event-image-remove"
+              class="hidden text-xs font-semibold text-red-600 hover:underline"
+            >
+              Remove
+            </button>
+          </div>
+          <p id="event-image-error" class="hidden text-xs font-semibold text-red-600"></p>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-muted">Pricing (optional)</span>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-muted">Whole series</span>
+              <input
+                id="event-price-whole-series"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="$"
+                class="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-muted">Drop-in</span>
+              <input
+                id="event-price-drop-in"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="$"
+                class="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-muted">Student /class</span>
+              <input
+                id="event-price-student"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="$"
+                class="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
+              />
+            </label>
+          </div>
+        </div>
+
+        <label class="flex items-center gap-2 text-sm text-ink/80">
+          <input id="event-private" type="checkbox" class="h-4 w-4 rounded border-border" />
+          Private (only visible to admins)
+        </label>
+
+        <div id="event-recurrence-row" class="flex flex-col gap-2 text-sm text-ink/80">
+          <label class="flex items-center gap-2">
+            <input id="event-repeat" type="checkbox" class="h-4 w-4 rounded border-border" />
+            This is a recurring event
+          </label>
+          <p id="event-recurrence-hint" class="hidden pl-6 text-xs text-muted"></p>
+
+          <div id="event-repeat-options" class="hidden flex-col gap-3 pl-6">
+            <label class="flex items-center gap-2">
+              Every
+              <input id="event-repeat-interval" type="number" min="1" max="52" value="1" class="w-14 rounded-lg border border-border bg-surface px-2 py-1" />
+              week(s)
+            </label>
+
+            <div class="flex gap-1">
+              {[
+                ['SU', 'S'],
+                ['MO', 'M'],
+                ['TU', 'T'],
+                ['WE', 'W'],
+                ['TH', 'T'],
+                ['FR', 'F'],
+                ['SA', 'S'],
+              ].map(([value, label]) => (
+                <button
+                  type="button"
+                  data-day={value}
+                  class="repeat-day-btn flex h-7 w-7 items-center justify-center rounded-full border border-border text-xs font-semibold text-ink/70"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <span class="text-xs font-semibold uppercase tracking-wider text-muted">Ends</span>
+              <label class="flex items-center gap-2">
+                <input type="radio" name="repeat-end" value="count" checked class="h-4 w-4" />
+                After
+                <input id="event-repeat-count" type="number" min="1" max="52" value="4" class="w-14 rounded-lg border border-border bg-surface px-2 py-1" />
+                occurrences
+              </label>
+              <label class="flex items-center gap-2">
+                <input type="radio" name="repeat-end" value="until" class="h-4 w-4" />
+                On
+                <input id="event-repeat-until" type="date" class="rounded-lg border border-border bg-surface px-2 py-1" disabled />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <div class="flex flex-wrap gap-1 border-b border-border pb-1.5">
+            <button type="button" data-cmd="bold" class="description-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
+            <button type="button" data-cmd="italic" class="description-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
+            <button type="button" data-cmd="underline" class="description-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
+            <button type="button" data-cmd="strikeThrough" class="description-format-btn rounded-lg px-2.5 py-1 text-sm line-through text-ink/70 hover:bg-bg">S</button>
+            <button type="button" data-cmd="insertUnorderedList" class="description-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
+            <button type="button" data-cmd="insertOrderedList" class="description-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
+            <button type="button" id="event-description-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+          </div>
+          <div
+            id="event-description"
+            contenteditable="true"
+            role="textbox"
+            aria-multiline="true"
+            aria-label="Description"
+            data-placeholder="Description"
+            class="event-description-editor min-h-20 rounded-xl border border-border bg-surface px-3 py-2 text-ink empty:before:text-muted/60 empty:before:content-[attr(data-placeholder)] focus:border-accent focus:outline-none [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+          ></div>
+        </div>
+      </div>
+
+      <div class="mt-6 flex items-center justify-between">
+        <div class="flex gap-3">
+          <button id="event-delete" class="hidden text-sm font-semibold text-red-600 hover:underline">Delete</button>
+          <button id="event-delete-series" class="hidden text-sm font-semibold text-red-600 hover:underline">Delete Series</button>
+        </div>
+        <div class="ml-auto flex gap-2">
+          <button id="event-cancel" class="rounded-full border border-border px-4 py-2 text-sm font-semibold text-ink/70 transition-colors hover:bg-surface">
+            Cancel
+          </button>
+          <button id="event-save" class="gradient-accent rounded-full px-5 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90">
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    id="sync-indicator"
+    class="fixed bottom-6 right-6 z-50 hidden items-center gap-2 rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white shadow-lg transition-opacity"
+  >
+    <span id="sync-indicator-text">Syncing&hellip;</span>
+  </div>
+</BaseLayout>
+
+<script>
+  import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { isPreviewingAsPublic } from '../lib/previewMode';
+
+  interface SiteEvent {
+    id: string;
+    title: string;
+    description: string | null;
+    location: string | null;
+    event_type: string;
+    color: string;
+    visibility: 'public' | 'private';
+    start_time: string;
+    end_time: string;
+    google_recurring_event_id: string | null;
+    price_whole_series: number | null;
+    price_drop_in: number | null;
+    price_student: number | null;
+    image_url: string | null;
+    weekNumber?: number | null;
+  }
+
+  let selectedType: 'class' | 'event' = 'class';
+  let selectedColor = 'green';
+  let editingId: string | null = null;
+  let adminModeActive = false;
+  let detailEvent: SiteEvent | null = null;
+  let selectedRepeatDays = new Set<string>();
+  let cachedAllEvents: SiteEvent[] = [];
+  let editingRecurringId: string | null = null;
+  let originalPattern: { byDay: string[]; count: number; interval: number } | null = null;
+
+  // 'accent' and 'yellow' are legacy colors kept only so older events still render correctly.
+  const dotColorClasses: Record<string, string> = {
+    green: 'bg-green-500',
+    blue: 'bg-blue-500',
+    red: 'bg-red-500',
+    orange: 'bg-orange-500',
+    purple: 'bg-purple-400',
+    accent: 'bg-accent',
+    yellow: 'bg-yellow-500',
+  };
+  const textColorClasses: Record<string, string> = {
+    green: 'text-green-600',
+    blue: 'text-blue-600',
+    red: 'text-red-600',
+    orange: 'text-orange-600',
+    purple: 'text-purple-600',
+    accent: 'text-accent',
+    yellow: 'text-yellow-600',
+  };
+  const dotClass = (c: string) => dotColorClasses[c] ?? 'bg-accent';
+  const textClass = (c: string) => textColorClasses[c] ?? 'text-accent';
+
+  function locationHref(location: string): string {
+    if (/^https?:\/\//i.test(location)) return location;
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+  }
+
+  declare const google: any;
+  let mapsBootstrapped = false;
+  let locationAutocomplete: any = null;
+
+  // Google's official dynamic-library-import bootstrap loader. Deliberately
+  // NOT the simpler `<script src="...&libraries=places&loading=async">` +
+  // onload approach — that races the `places` library against the main
+  // script's load event and can silently leave `google.maps.places`
+  // undefined on a cold load (it only "worked" in earlier manual testing
+  // because the browser had a warm cache). `importLibrary` awaits the
+  // specific library actually being ready.
+  function bootstrapGoogleMaps(apiKey: string) {
+    if (mapsBootstrapped) return;
+    mapsBootstrapped = true;
+    (g => {
+      let h: any, a: any, k: string, p = 'The Google Maps JavaScript API', c = 'google', l = 'importLibrary', q = '__ib__',
+        m = document, b: any = window;
+      b = b[c] || (b[c] = {});
+      let d = b.maps || (b.maps = {}), r = new Set<string>(), e = new URLSearchParams(),
+        u = () => h || (h = new Promise(async (f: any, n: any) => {
+          await (a = m.createElement('script'));
+          e.set('libraries', [...r] + '');
+          for (k in g) e.set(k.replace(/[A-Z]/g, (t) => '_' + t[0].toLowerCase()), (g as any)[k]);
+          e.set('callback', c + '.maps.' + q);
+          a.src = `https://maps.${c}apis.com/maps/api/js?` + e;
+          d[q] = f;
+          a.onerror = () => (h = n(new Error(p + ' could not load.')));
+          a.nonce = (m.querySelector('script[nonce]') as HTMLScriptElement | null)?.nonce || '';
+          m.head.append(a);
+        }));
+      d[l] ? console.warn(p + ' only loads once. Ignoring:', g) : (d[l] = (f: any, ...n: any[]) => r.add(f) && u().then(() => d[l](f, ...n)));
+    })({ key: apiKey, v: 'weekly' });
+  }
+
+  async function initLocationAutocomplete() {
+    if (locationAutocomplete) return;
+
+    try {
+      const headers = await withAuthHeader();
+      if (!headers) return;
+      const usageRes = await fetch('/api/admin/places-usage-check', { headers });
+      const { allowed } = await usageRes.json();
+      if (!allowed) {
+        console.warn('Daily Places Autocomplete usage cap reached — location field will accept plain text only today.');
+        return;
+      }
+
+      const apiKey = import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY;
+      if (!apiKey) throw new Error('Missing PUBLIC_GOOGLE_MAPS_API_KEY.');
+      bootstrapGoogleMaps(apiKey);
+      const { Autocomplete } = await google.maps.importLibrary('places');
+
+      locationAutocomplete = new Autocomplete(locationInput, {
+        fields: ['name', 'formatted_address'],
+      });
+      locationAutocomplete.addListener('place_changed', () => {
+        const place = locationAutocomplete.getPlace();
+        locationInput.value = place?.name || place?.formatted_address || locationInput.value;
+      });
+    } catch (err) {
+      console.error('Failed to initialize location autocomplete:', err);
+    }
+  }
+
+  const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+  const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+  const modal = document.getElementById('event-modal')!;
+  const modalHeading = document.getElementById('modal-heading')!;
+  const titleInput = document.getElementById('event-title') as HTMLInputElement;
+  const dateInput = document.getElementById('event-date') as HTMLInputElement;
+  const startTimeInput = document.getElementById('event-start-time') as HTMLInputElement;
+  const endTimeInput = document.getElementById('event-end-time') as HTMLInputElement;
+  const descriptionInput = document.getElementById('event-description') as HTMLElement;
+  const locationInput = document.getElementById('event-location') as HTMLInputElement;
+  const priceWholeSeriesInput = document.getElementById('event-price-whole-series') as HTMLInputElement;
+  const priceDropInInput = document.getElementById('event-price-drop-in') as HTMLInputElement;
+  const priceStudentInput = document.getElementById('event-price-student') as HTMLInputElement;
+  const imageUrlInput = document.getElementById('event-image-url') as HTMLInputElement;
+  const imageFileInput = document.getElementById('event-image-file') as HTMLInputElement;
+  const imagePreview = document.getElementById('event-image-preview') as HTMLImageElement;
+  const imageUploadLabel = document.getElementById('event-image-upload-label')!;
+  const imageRemoveBtn = document.getElementById('event-image-remove') as HTMLButtonElement;
+  const imageError = document.getElementById('event-image-error')!;
+  const privateInput = document.getElementById('event-private') as HTMLInputElement;
+  const repeatInput = document.getElementById('event-repeat') as HTMLInputElement;
+  const repeatOptions = document.getElementById('event-repeat-options')!;
+  const repeatIntervalInput = document.getElementById('event-repeat-interval') as HTMLInputElement;
+  const repeatDayButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.repeat-day-btn'));
+  const repeatCountInput = document.getElementById('event-repeat-count') as HTMLInputElement;
+  const repeatUntilInput = document.getElementById('event-repeat-until') as HTMLInputElement;
+  const repeatEndRadios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="repeat-end"]'));
+  const recurrenceRow = document.getElementById('event-recurrence-row')!;
+  const recurrenceHint = document.getElementById('event-recurrence-hint')!;
+  const deleteBtn = document.getElementById('event-delete')!;
+  const deleteSeriesBtn = document.getElementById('event-delete-series')!;
+  const typeButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.event-type-btn'));
+  const colorButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.event-color-btn'));
+  const syncIndicator = document.getElementById('sync-indicator')!;
+  const syncIndicatorText = document.getElementById('sync-indicator-text')!;
+
+  const detailPlaceholder = document.getElementById('detail-placeholder')!;
+  const detailContent = document.getElementById('detail-content')!;
+  const detailType = document.getElementById('detail-type')!;
+  const detailTitle = document.getElementById('detail-title')!;
+  const detailDatetime = document.getElementById('detail-datetime')!;
+  const detailDescription = document.getElementById('detail-description')!;
+  const detailPrice = document.getElementById('detail-price')!;
+  const detailPriceStudent = document.getElementById('detail-price-student')!;
+  const detailLocation = document.getElementById('detail-location') as HTMLAnchorElement;
+
+  function formatPrice(value: number): string {
+    return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
+  }
+
+  function buildPriceLines(event: SiteEvent): { main: string; student: string } {
+    const parts: string[] = [];
+    if (event.price_whole_series != null) parts.push(`Whole Series: ${formatPrice(event.price_whole_series)}`);
+    if (event.price_drop_in != null) parts.push(`Drop In: ${formatPrice(event.price_drop_in)}/class`);
+    const student = event.price_student != null ? `Student Discount: ${formatPrice(event.price_student)}/class` : '';
+    return { main: parts.join(' · '), student };
+  }
+  const detailAdminActions = document.getElementById('detail-admin-actions')!;
+  const detailDeleteSeriesBtn = document.getElementById('detail-delete-series-btn')!;
+
+  function renderTypeButtons() {
+    for (const btn of typeButtons) {
+      const active = btn.dataset.type === selectedType;
+      btn.classList.toggle('gradient-accent', active);
+      btn.classList.toggle('text-white', active);
+      btn.classList.toggle('border-transparent', active);
+      btn.classList.toggle('text-ink/70', !active);
+      btn.classList.toggle('border-border', !active);
+    }
+  }
+
+  function renderColorButtons() {
+    for (const btn of colorButtons) {
+      const active = btn.dataset.color === selectedColor;
+      btn.classList.toggle('ring-2', active);
+      btn.classList.toggle('ring-offset-2', active);
+      btn.classList.toggle('ring-ink', active);
+    }
+  }
+
+  function renderRepeatDayButtons() {
+    for (const btn of repeatDayButtons) {
+      const active = selectedRepeatDays.has(btn.dataset.day ?? '');
+      btn.classList.toggle('gradient-accent', active);
+      btn.classList.toggle('text-white', active);
+      btn.classList.toggle('border-transparent', active);
+      btn.classList.toggle('text-ink/70', !active);
+      btn.classList.toggle('border-border', !active);
+    }
+  }
+
+  const WEEKDAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+
+  function toLocalParts(iso: string) {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return {
+      date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+      time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    };
+  }
+
+  function fromLocalParts(date: string, time: string) {
+    return new Date(`${date}T${time}:00`).toISOString();
+  }
+
+  function showEventDetail(event: SiteEvent) {
+    detailEvent = event;
+    detailPlaceholder.classList.add('hidden');
+    detailContent.classList.remove('hidden');
+    detailContent.classList.add('flex');
+
+    const lock = event.visibility === 'private' ? '🔒 ' : '';
+    detailType.className = `flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${textClass(event.color)}`;
+    detailType.innerHTML = `<span class="h-2 w-2 rounded-full ${dotClass(event.color)}"></span>${event.event_type === 'event' ? 'Event' : 'Class'}${event.weekNumber ? `<span class="font-bold text-ink">&middot; Week ${event.weekNumber}</span>` : ''}`;
+    detailTitle.textContent = `${lock}${event.title}`;
+    detailDatetime.textContent = `${dateFormatter.format(new Date(event.start_time))} · ${timeFormatter.format(new Date(event.start_time))}–${timeFormatter.format(new Date(event.end_time))}`;
+    detailDescription.innerHTML = event.description ?? '';
+    detailDescription.classList.toggle('hidden', !event.description);
+
+    const priceLines = buildPriceLines(event);
+    detailPrice.textContent = priceLines.main;
+    detailPrice.classList.toggle('hidden', !priceLines.main);
+    detailPriceStudent.textContent = priceLines.student;
+    detailPriceStudent.classList.toggle('hidden', !priceLines.student);
+
+    if (event.location) {
+      detailLocation.href = locationHref(event.location);
+      detailLocation.textContent = `📍 ${event.location}`;
+      detailLocation.classList.remove('hidden');
+    } else {
+      detailLocation.classList.add('hidden');
+    }
+
+    detailDeleteSeriesBtn.classList.toggle('hidden', !event.google_recurring_event_id);
+
+    if (adminModeActive) {
+      detailAdminActions.classList.remove('hidden');
+      detailAdminActions.classList.add('flex');
+    }
+  }
+
+  function openModal(mode: 'add' | 'edit', event?: SiteEvent, presetDate?: string) {
+    editingId = event?.id ?? null;
+    editingRecurringId = event?.google_recurring_event_id ?? null;
+    modalHeading.textContent = mode === 'add' ? 'Add Event' : 'Edit Event';
+    titleInput.value = event?.title ?? '';
+    descriptionInput.innerHTML = event?.description ?? '';
+    locationInput.value = event?.location ?? '';
+    priceWholeSeriesInput.value = event?.price_whole_series != null ? String(event.price_whole_series) : '';
+    priceDropInInput.value = event?.price_drop_in != null ? String(event.price_drop_in) : '';
+    priceStudentInput.value = event?.price_student != null ? String(event.price_student) : '';
+    imageUrlInput.value = event?.image_url ?? '';
+    imageError.classList.add('hidden');
+    updateImagePreview();
+    selectedType = event?.event_type === 'event' ? 'event' : 'class';
+    selectedColor = event?.color ?? 'green';
+    privateInput.checked = event?.visibility === 'private';
+
+    const isSeriesOccurrence = mode === 'edit' && Boolean(editingRecurringId);
+    recurrenceRow.classList.toggle('hidden', !(mode === 'add' || isSeriesOccurrence));
+
+    repeatOptions.classList.add('hidden');
+    repeatOptions.classList.remove('flex');
+    repeatIntervalInput.value = '1';
+    repeatCountInput.value = '4';
+    repeatUntilInput.disabled = true;
+    repeatCountInput.disabled = false;
+    repeatEndRadios.forEach((r) => (r.checked = r.value === 'count'));
+    recurrenceHint.classList.add('hidden');
+    originalPattern = null;
+
+    if (isSeriesOccurrence && event) {
+      const weekday = WEEKDAY_CODES[new Date(event.start_time).getDay()];
+      selectedRepeatDays = new Set([weekday]);
+      const siblingCount = cachedAllEvents.filter((e) => e.google_recurring_event_id === editingRecurringId).length || 1;
+      repeatCountInput.value = String(siblingCount);
+      // Existing series data doesn't track a stored interval, so default to 1 (weekly).
+      repeatIntervalInput.value = '1';
+      originalPattern = { byDay: [weekday], count: siblingCount, interval: 1 };
+
+      repeatInput.checked = true;
+      repeatOptions.classList.remove('hidden');
+      repeatOptions.classList.add('flex');
+      recurrenceHint.textContent = "This occurrence is part of a series. Uncheck 'This is a recurring event' to edit just this one instead of the whole series.";
+      recurrenceHint.classList.remove('hidden');
+    } else {
+      repeatInput.checked = false;
+    }
+
+    if (event) {
+      const start = toLocalParts(event.start_time);
+      const end = toLocalParts(event.end_time);
+      dateInput.value = start.date;
+      startTimeInput.value = start.time;
+      endTimeInput.value = end.time;
+      if (!isSeriesOccurrence) {
+        selectedRepeatDays = new Set([WEEKDAY_CODES[new Date(event.start_time).getDay()]]);
+      }
+    } else {
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const targetDate = presetDate ? new Date(`${presetDate}T00:00:00`) : now;
+      dateInput.value = presetDate ?? `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      startTimeInput.value = '18:00';
+      endTimeInput.value = '19:00';
+      selectedRepeatDays = new Set([WEEKDAY_CODES[targetDate.getDay()]]);
+    }
+    renderRepeatDayButtons();
+    updateDateLockForSeriesEdit();
+
+    deleteBtn.classList.toggle('hidden', mode === 'add');
+    deleteSeriesBtn.classList.toggle('hidden', mode === 'add' || !editingRecurringId);
+    renderTypeButtons();
+    renderColorButtons();
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // Deferred until the modal (and its location input) is actually visible —
+    // Google's Autocomplete widget measures the input's width when it's
+    // constructed, and gets it wrong (an invisible, zero-width dropdown) if
+    // that happens while the input is still display:none.
+    if (adminModeActive) initLocationAutocomplete();
+  }
+
+  function closeModal() {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    editingId = null;
+  }
+
+  function updateImagePreview() {
+    const url = imageUrlInput.value;
+    if (url) {
+      imagePreview.src = url;
+      imagePreview.classList.remove('hidden');
+      imageRemoveBtn.classList.remove('hidden');
+      imageUploadLabel.textContent = 'Replace Image';
+    } else {
+      imagePreview.classList.add('hidden');
+      imagePreview.removeAttribute('src');
+      imageRemoveBtn.classList.add('hidden');
+      imageUploadLabel.textContent = 'Upload Image';
+    }
+  }
+
+  imageFileInput.addEventListener('change', async () => {
+    const file = imageFileInput.files?.[0];
+    if (!file) return;
+
+    imageError.classList.add('hidden');
+    imageUploadLabel.textContent = 'Uploading…';
+
+    const headers = await withAuthHeader();
+    if (!headers) {
+      updateImagePreview();
+      return;
+    }
+
+    const body = new FormData();
+    body.append('file', file);
+
+    try {
+      const res = await fetch('/api/admin/upload-event-image', { method: 'POST', headers, body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? 'Failed to upload image.');
+      imageUrlInput.value = data.url;
+    } catch (err) {
+      imageError.textContent = err instanceof Error ? err.message : 'Failed to upload image.';
+      imageError.classList.remove('hidden');
+    } finally {
+      imageFileInput.value = '';
+      updateImagePreview();
+    }
+  });
+
+  imageRemoveBtn.addEventListener('click', () => {
+    imageUrlInput.value = '';
+    updateImagePreview();
+  });
+
+  function showSync(text: string, autoHide: boolean) {
+    syncIndicatorText.textContent = text;
+    syncIndicator.classList.remove('hidden');
+    syncIndicator.classList.add('flex');
+    syncIndicator.style.opacity = '1';
+    if (autoHide) {
+      setTimeout(() => {
+        syncIndicator.style.opacity = '0';
+        setTimeout(() => {
+          syncIndicator.classList.add('hidden');
+          syncIndicator.classList.remove('flex');
+        }, 300);
+      }, 1500);
+    }
+  }
+
+  async function withAuthHeader() {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    return session ? { Authorization: `Bearer ${session.access_token}` } : null;
+  }
+
+  async function performDelete(id: string, deleteSeries = false) {
+    const confirmMsg = deleteSeries
+      ? 'Delete the ENTIRE series? This removes every occurrence from the site and Google Calendar.'
+      : 'Delete this event? This also removes it from Google Calendar.';
+    if (!confirm(confirmMsg)) return;
+    const headers = await withAuthHeader();
+    if (!headers) return;
+
+    showSync('Syncing to Google Calendar…', false);
+    const res = await fetch('/api/admin/delete-event', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId: id, deleteSeries }),
+    });
+
+    if (res.ok) {
+      showSync('Synced!', true);
+      setTimeout(() => window.location.reload(), 900);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showSync(`Failed: ${data.error ?? 'unknown error'}`, true);
+    }
+  }
+
+  typeButtons.forEach((btn) =>
+    btn.addEventListener('click', () => {
+      selectedType = btn.dataset.type as 'class' | 'event';
+      renderTypeButtons();
+    })
+  );
+
+  colorButtons.forEach((btn) =>
+    btn.addEventListener('click', () => {
+      selectedColor = btn.dataset.color as typeof selectedColor;
+      renderColorButtons();
+    })
+  );
+
+  document.querySelectorAll<HTMLButtonElement>('.description-format-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      descriptionInput.focus();
+      document.execCommand(btn.dataset.cmd!, false);
+    });
+  });
+
+  document.getElementById('event-description-link-btn')?.addEventListener('click', () => {
+    const url = prompt('Link URL (must start with https:// or /):');
+    if (!url) return;
+    descriptionInput.focus();
+    document.execCommand('createLink', false, url);
+  });
+
+  repeatInput.addEventListener('change', () => {
+    repeatOptions.classList.toggle('hidden', !repeatInput.checked);
+    repeatOptions.classList.toggle('flex', repeatInput.checked);
+    recurrenceHint.classList.toggle('hidden', !(editingId && editingRecurringId));
+    updateDateLockForSeriesEdit();
+  });
+
+  repeatDayButtons.forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const day = btn.dataset.day ?? '';
+      if (selectedRepeatDays.has(day)) selectedRepeatDays.delete(day);
+      else selectedRepeatDays.add(day);
+      renderRepeatDayButtons();
+    })
+  );
+
+  repeatEndRadios.forEach((radio) =>
+    radio.addEventListener('change', () => {
+      repeatCountInput.disabled = radio.value !== 'count' || !radio.checked;
+      repeatUntilInput.disabled = radio.value !== 'until' || !radio.checked;
+    })
+  );
+
+  function updateDateLockForSeriesEdit() {
+    const lockDate = Boolean(editingId && editingRecurringId && repeatInput.checked);
+    dateInput.disabled = lockDate;
+    dateInput.classList.toggle('opacity-50', lockDate);
+  }
+
+  document.getElementById('add-event-btn')?.addEventListener('click', () => openModal('add'));
+  document.getElementById('event-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('event-delete')?.addEventListener('click', () => editingId && performDelete(editingId));
+  document.getElementById('event-delete-series')?.addEventListener('click', () => editingId && performDelete(editingId, true));
+
+  document.getElementById('detail-edit-btn')?.addEventListener('click', () => {
+    if (detailEvent) openModal('edit', detailEvent);
+  });
+  document.getElementById('detail-delete-btn')?.addEventListener('click', () => {
+    if (detailEvent) performDelete(detailEvent.id);
+  });
+  document.getElementById('detail-delete-series-btn')?.addEventListener('click', () => {
+    if (detailEvent) performDelete(detailEvent.id, true);
+  });
+
+  // Delegated so it keeps working after client-side re-rendering.
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+
+    const banner = target.closest('.event-banner');
+    if (banner) {
+      const event = JSON.parse((banner as HTMLElement).dataset.event ?? '{}');
+      showEventDetail(event);
+      return;
+    }
+
+    // Empty space inside a day cell (not on a specific event) — admins only.
+    const cell = target.closest('.calendar-cell');
+    if (cell && adminModeActive) {
+      const dateKey = (cell as HTMLElement).dataset.date;
+      if (dateKey) openModal('add', undefined, dateKey);
+    }
+  });
+
+  document.getElementById('event-save')?.addEventListener('click', async () => {
+    const headers = await withAuthHeader();
+    if (!headers) return;
+
+    if (!titleInput.value.trim() || !dateInput.value || !startTimeInput.value || !endTimeInput.value) {
+      return;
+    }
+
+    const payload: Record<string, unknown> = {
+      id: editingId ?? undefined,
+      title: titleInput.value.trim(),
+      description: descriptionInput.innerHTML.trim(),
+      location: locationInput.value.trim(),
+      priceWholeSeries: priceWholeSeriesInput.value.trim(),
+      priceDropIn: priceDropInInput.value.trim(),
+      priceStudent: priceStudentInput.value.trim(),
+      imageUrl: imageUrlInput.value.trim(),
+      eventType: selectedType,
+      color: selectedColor,
+      visibility: privateInput.checked ? 'private' : 'public',
+      startTime: fromLocalParts(dateInput.value, startTimeInput.value),
+      endTime: fromLocalParts(dateInput.value, endTimeInput.value),
+    };
+
+    if (!editingId && repeatInput.checked) {
+      if (selectedRepeatDays.size === 0) {
+        alert('Pick at least one day of the week for the recurrence.');
+        return;
+      }
+      const endType = repeatEndRadios.find((r) => r.checked)?.value === 'until' ? 'until' : 'count';
+      if (endType === 'until' && !repeatUntilInput.value) {
+        alert('Pick an end date for the recurrence.');
+        return;
+      }
+      payload.recurrence = {
+        byDay: WEEKDAY_CODES.filter((d) => selectedRepeatDays.has(d)),
+        interval: Number(repeatIntervalInput.value) || 1,
+        endType,
+        count: endType === 'count' ? Number(repeatCountInput.value) || 4 : undefined,
+        until: endType === 'until' ? repeatUntilInput.value : undefined,
+      };
+    }
+
+    if (editingId && editingRecurringId && repeatInput.checked) {
+      payload.applyToSeries = true;
+
+      const currentByDay = WEEKDAY_CODES.filter((d) => selectedRepeatDays.has(d));
+      const endType = repeatEndRadios.find((r) => r.checked)?.value === 'until' ? 'until' : 'count';
+      const currentCount = Number(repeatCountInput.value) || 4;
+      const currentInterval = Number(repeatIntervalInput.value) || 1;
+
+      const patternChanged =
+        endType === 'until' ||
+        JSON.stringify([...currentByDay].sort()) !== JSON.stringify([...(originalPattern?.byDay ?? [])].sort()) ||
+        currentCount !== originalPattern?.count ||
+        currentInterval !== originalPattern?.interval;
+
+      if (patternChanged) {
+        if (endType === 'until' && !repeatUntilInput.value) {
+          alert('Pick an end date for the recurrence.');
+          return;
+        }
+        payload.rebuildSeries = true;
+        payload.recurrence = {
+          byDay: currentByDay,
+          interval: currentInterval,
+          endType,
+          count: endType === 'count' ? currentCount : undefined,
+          until: endType === 'until' ? repeatUntilInput.value : undefined,
+        };
+      }
+    }
+
+    const endpoint = editingId ? '/api/admin/update-event' : '/api/admin/create-event';
+    closeModal();
+    showSync('Syncing to Google Calendar…', false);
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok) {
+      showSync(
+        data.calendarSyncSkipped ? 'Saved, but Google Calendar sync failed — it will retry on the next scheduled sync.' : 'Synced!',
+        true
+      );
+      setTimeout(() => window.location.reload(), data.calendarSyncSkipped ? 2500 : 900);
+    } else {
+      showSync(`Failed: ${data.error ?? 'unknown error'}`, true);
+    }
+  });
+
+  function buildBannerHTML(event: SiteEvent, isCompact: boolean): string {
+    const bannerClass = isCompact
+      ? `truncate rounded px-1 py-0.5 text-[10px] font-semibold text-white ${dotClass(event.color)}`
+      : `whitespace-normal break-words rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug text-white ${dotClass(event.color)}`;
+    const weekTag = event.weekNumber
+      ? `<span class="mr-1 whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk ${event.weekNumber}</span>`
+      : '';
+    return `
+      <div class="event-banner group relative cursor-pointer" data-event='${JSON.stringify(event).replace(/'/g, '&#39;')}'>
+        <div class="${bannerClass}">${weekTag}${event.visibility === 'private' ? '🔒 ' : ''}${escapeHtml(event.title)}</div>
+        <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-64 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
+          <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider ${textClass(event.color)}">
+            <span class="h-2 w-2 rounded-full ${dotClass(event.color)}"></span>
+            ${event.event_type === 'event' ? 'Event' : 'Class'}
+            ${event.weekNumber ? `<span class="font-bold text-ink">&middot; Week ${event.weekNumber}</span>` : ''}
+          </p>
+          <p class="mt-1 font-display font-bold text-ink">${escapeHtml(event.title)}</p>
+          <p class="mt-1 text-xs text-muted">${dateFormatter.format(new Date(event.start_time))} &middot; ${timeFormatter.format(new Date(event.start_time))}</p>
+          ${event.description ? `<div class="mt-1 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-4 [&_ul]:list-disc [&_ul]:pl-4">${event.description}</div>` : ''}
+          ${buildPriceLines(event).main ? `<p class="mt-1 text-xs font-semibold text-ink">${escapeHtml(buildPriceLines(event).main)}</p>` : ''}
+          ${buildPriceLines(event).student ? `<p class="text-xs font-semibold text-ink">${escapeHtml(buildPriceLines(event).student)}</p>` : ''}
+          ${
+            event.location
+              ? `<a href="${locationHref(event.location)}" target="_blank" rel="noopener noreferrer" class="pointer-events-auto mt-1 block text-xs font-semibold text-accent underline" onclick="event.stopPropagation()">📍 ${escapeHtml(event.location)}</a>`
+              : ''
+          }
+        </div>
+      </div>`;
+  }
+
+  function escapeHtml(str: string): string {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function computeWeekNumbers(allEvents: SiteEvent[]): Map<string, number> {
+    const bySeriesKey = new Map<string, SiteEvent[]>();
+    for (const e of allEvents) {
+      if (!e.google_recurring_event_id) continue;
+      const list = bySeriesKey.get(e.google_recurring_event_id) ?? [];
+      list.push(e);
+      bySeriesKey.set(e.google_recurring_event_id, list);
+    }
+    const weekNumberByEventId = new Map<string, number>();
+    for (const occurrences of bySeriesKey.values()) {
+      occurrences
+        .slice()
+        .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+        .forEach((occ, idx) => weekNumberByEventId.set(occ.id, idx + 1));
+    }
+    return weekNumberByEventId;
+  }
+
+  function rerenderWithMergedEvents(allEvents: SiteEvent[]) {
+    const grid = document.getElementById('calendar-grid')!;
+    const gridYear = Number(grid.dataset.year);
+    const gridMonth = Number(grid.dataset.month);
+    const weekNumberByEventId = computeWeekNumbers(allEvents);
+
+    document.querySelectorAll('.calendar-cell').forEach((cell) => {
+      const dateKey = (cell as HTMLElement).dataset.date;
+      if (!dateKey) return;
+      const dayEvents = allEvents.filter((e) => {
+        const d = new Date(e.start_time);
+        return (
+          d.getFullYear() === gridYear &&
+          d.getMonth() === gridMonth &&
+          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === dateKey
+        );
+      });
+      const container = cell.querySelector('.day-banners')!;
+      const MAX = 3;
+      const isCompact = dayEvents.length > 2;
+
+      cell.classList.remove('min-h-[7rem]', 'sm:min-h-[7.5rem]', 'min-h-[6rem]', 'sm:min-h-[6.5rem]');
+      cell.classList.add(...(isCompact ? ['min-h-[6rem]', 'sm:min-h-[6.5rem]'] : ['min-h-[7rem]', 'sm:min-h-[7.5rem]']));
+
+      container.innerHTML =
+        dayEvents
+          .slice(0, MAX)
+          .map((e) => buildBannerHTML({ ...e, weekNumber: weekNumberByEventId.get(e.id) ?? null }, isCompact))
+          .join('') + (dayEvents.length > MAX ? `<p class="text-[10px] font-semibold text-muted">+${dayEvents.length - MAX} more</p>` : '');
+    });
+  }
+
+  async function revealAdminControlsIfAdmin() {
+    if (isPreviewingAsPublic()) return;
+
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const res = await fetch('/api/admin/check', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const { isAdmin } = await res.json();
+    if (!isAdmin) return;
+
+    adminModeActive = true;
+    document.getElementById('add-event-btn')?.classList.remove('hidden');
+
+    const allEventsRes = await fetch('/api/admin/all-events', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (allEventsRes.ok) {
+      const { events } = await allEventsRes.json();
+      cachedAllEvents = events;
+      rerenderWithMergedEvents(events);
+    }
+  }
+
+  revealAdminControlsIfAdmin();
+</script>

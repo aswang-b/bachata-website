@@ -1,0 +1,16 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import IntakeForm from '../components/IntakeForm.astro';
+---
+
+<BaseLayout title="Contact Me">
+  <IntakeForm
+    registrationType="private"
+    heading="Contact Me"
+    subtext="Fill out the form below and I'll be in touch to get you started."
+    commentsLabel="Message"
+    contactMethodPicker={true}
+    requireAll={true}
+    requireComments={true}
+  />
+</BaseLayout>

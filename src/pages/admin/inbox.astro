@@ -1,0 +1,111 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Inbox">
+  <div class="mx-auto max-w-4xl px-6 py-16">
+    <div class="flex items-center justify-between gap-4">
+      <h1 class="font-display text-3xl font-extrabold text-ink">Inbox</h1>
+      <a href="/admin" class="text-sm font-semibold text-accent hover:underline">&larr; Admin Tools</a>
+    </div>
+    <p class="mt-2 text-sm text-muted">Messages submitted through the Contact page.</p>
+
+    <p id="loading" class="mt-8 text-sm text-muted">Loading&hellip;</p>
+
+    <div id="signed-out" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">Sign in as an admin to view this page.</p>
+      <a href="/admin" class="text-sm font-semibold text-accent hover:underline">Go to Admin Tools</a>
+    </div>
+
+    <div id="not-admin" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">This account isn't authorized as an admin.</p>
+    </div>
+
+    <div id="messages-list" class="mt-8 hidden flex-col gap-4"></div>
+    <p id="messages-empty" class="mt-8 hidden text-sm text-muted">No messages yet.</p>
+  </div>
+</BaseLayout>
+
+<script>
+  import { supabaseBrowser } from '../../lib/supabaseBrowser';
+
+  const panels = {
+    loading: document.getElementById('loading')!,
+    signedOut: document.getElementById('signed-out')!,
+    notAdmin: document.getElementById('not-admin')!,
+  };
+
+  function showPanel(name: keyof typeof panels) {
+    for (const [key, el] of Object.entries(panels)) {
+      el.classList.toggle('hidden', key !== name);
+      el.classList.toggle('flex', key === name);
+    }
+  }
+
+  function escapeHtml(str: string): string {
+    const div = document.createElement('div');
+    div.textContent = str ?? '';
+    return div.innerHTML;
+  }
+
+  const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+  async function init() {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+
+    if (!session) {
+      showPanel('signedOut');
+      return;
+    }
+
+    const checkRes = await fetch('/api/admin/check', { headers: { Authorization: `Bearer ${session.access_token}` } });
+    const { isAdmin } = await checkRes.json();
+    if (!isAdmin) {
+      showPanel('notAdmin');
+      return;
+    }
+
+    const res = await fetch('/api/admin/inbox-data', { headers: { Authorization: `Bearer ${session.access_token}` } });
+    if (!res.ok) {
+      showPanel('notAdmin');
+      return;
+    }
+
+    const { messages } = await res.json();
+
+    Object.values(panels).forEach((el) => {
+      el.classList.add('hidden');
+      el.classList.remove('flex');
+    });
+
+    const list = document.getElementById('messages-list')!;
+    const empty = document.getElementById('messages-empty')!;
+
+    if (messages.length === 0) {
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    list.classList.remove('hidden');
+    list.classList.add('flex');
+    list.innerHTML = messages
+      .map((m: any) => {
+        const contactParts = [m.email, m.phone, m.instagram, m.whatsapp && `WhatsApp: ${m.whatsapp}`].filter(Boolean).map(escapeHtml);
+        return `
+          <div class="rounded-2xl border border-border bg-surface p-5">
+            <div class="flex items-baseline justify-between gap-3">
+              <p class="font-display text-lg font-bold text-ink">${escapeHtml(m.first_name)} ${escapeHtml(m.last_name)}</p>
+              <p class="text-xs text-muted">${dateFormatter.format(new Date(m.created_at))}</p>
+            </div>
+            <p class="mt-1 text-sm text-ink/70">${contactParts.join(' · ')}</p>
+            ${m.preferred_contact_method ? `<p class="mt-1 text-xs text-muted">Preferred contact: ${escapeHtml(m.preferred_contact_method)}</p>` : ''}
+            ${m.comments ? `<p class="mt-3 text-sm text-ink">${escapeHtml(m.comments)}</p>` : ''}
+          </div>`;
+      })
+      .join('');
+  }
+
+  init();
+</script>

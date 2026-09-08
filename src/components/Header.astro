@@ -1,0 +1,203 @@
+---
+const navItems = [
+  { label: 'Home', href: '/' },
+  { label: 'About', href: '/about', settingsKey: 'hide_about_nav' },
+  { label: 'Calendar', href: '/calendar' },
+  { label: 'Contact', href: '/contact', settingsKey: 'hide_contact_nav' },
+  { label: 'Check In', href: '/check-in', settingsKey: 'hide_checkin_nav' },
+];
+
+const currentPath = Astro.url.pathname;
+const isAdminPage = currentPath === '/admin';
+---
+
+<header class="sticky top-0 z-50 border-b border-border bg-bg/90 backdrop-blur">
+  <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+    <a href="/" class="font-display text-xl font-extrabold tracking-tight text-ink">
+      Bachata with <span class="text-gradient-accent">B</span>
+    </a>
+
+    <div class="flex items-center gap-4">
+      <nav class="hidden gap-8 md:flex">
+        {navItems.map((item) => {
+          const isActive = currentPath === item.href;
+          return (
+            <a
+              href={item.href}
+              data-settings-key={item.settingsKey}
+              class={`text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
+                isActive ? 'text-accent' : 'text-ink/70'
+              }`}
+            >
+              {item.label}
+            </a>
+          );
+        })}
+        <a
+          href="/admin"
+          class={`admin-nav-link hidden text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
+            isAdminPage ? 'text-accent' : 'text-ink/70'
+          }`}
+        >
+          Admin
+        </a>
+        <a
+          href="/admin/analytics"
+          class={`admin-nav-link hidden text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
+            currentPath === '/admin/analytics' ? 'text-accent' : 'text-ink/70'
+          }`}
+        >
+          Data &amp; Analytics
+        </a>
+      </nav>
+
+      <a
+        href="/admin/inbox"
+        id="inbox-link"
+        aria-label="Inbox"
+        class="admin-nav-link relative hidden h-9 w-9 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 0 0 2.22 0L21 8M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z" />
+        </svg>
+        <span id="inbox-dot" class="absolute -right-0.5 -top-0.5 hidden h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-bg"></span>
+      </a>
+
+      <button
+        id="theme-toggle"
+        role="switch"
+        aria-checked="false"
+        aria-label="Toggle dark mode"
+        class="relative flex h-7 w-12 shrink-0 items-center rounded-full bg-border px-1 transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute left-1.5 h-3.5 w-3.5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1.5m0 15V21m9-9h-1.5M4.5 12H3m15.36-6.36-1.06 1.06M6.7 17.3l-1.06 1.06m0-12.72L6.7 6.7m10.6 10.6 1.06 1.06M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute right-1.5 h-3.5 w-3.5 text-ink/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
+        </svg>
+        <span id="theme-toggle-knob" class="relative z-10 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+      </button>
+
+      <button
+        id="nav-toggle"
+        class="text-ink md:hidden"
+        aria-label="Toggle navigation menu"
+        aria-expanded="false"
+        aria-controls="mobile-nav"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <nav id="mobile-nav" class="hidden flex-col gap-1 border-t border-border px-6 py-4 md:hidden">
+    {navItems.map((item) => (
+      <a
+        href={item.href}
+        data-settings-key={item.settingsKey}
+        class="rounded-full px-3 py-2 text-sm font-semibold uppercase tracking-wider text-ink/70 hover:bg-surface hover:text-accent"
+      >
+        {item.label}
+      </a>
+    ))}
+    <a
+      href="/admin"
+      class="admin-nav-link hidden rounded-full px-3 py-2 text-sm font-semibold uppercase tracking-wider text-ink/70 hover:bg-surface hover:text-accent"
+    >
+      Admin
+    </a>
+    <a
+      href="/admin/analytics"
+      class="admin-nav-link hidden rounded-full px-3 py-2 text-sm font-semibold uppercase tracking-wider text-ink/70 hover:bg-surface hover:text-accent"
+    >
+      Data &amp; Analytics
+    </a>
+    <a
+      href="/admin/inbox"
+      class="admin-nav-link hidden rounded-full px-3 py-2 text-sm font-semibold uppercase tracking-wider text-ink/70 hover:bg-surface hover:text-accent"
+    >
+      Inbox
+    </a>
+  </nav>
+</header>
+
+<script>
+  import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { isPreviewingAsPublic } from '../lib/previewMode';
+  import { getEffectiveTheme, setTheme } from '../lib/theme';
+
+  const toggle = document.getElementById('nav-toggle');
+  const mobileNav = document.getElementById('mobile-nav');
+
+  toggle?.addEventListener('click', () => {
+    const isHidden = mobileNav?.classList.contains('hidden');
+    mobileNav?.classList.toggle('hidden');
+    mobileNav?.classList.toggle('flex');
+    toggle.setAttribute('aria-expanded', String(Boolean(isHidden)));
+  });
+
+  const themeToggle = document.getElementById('theme-toggle')!;
+  const themeToggleKnob = document.getElementById('theme-toggle-knob')!;
+
+  function updateThemeToggle(theme: 'light' | 'dark') {
+    const isDark = theme === 'dark';
+    themeToggle.setAttribute('aria-checked', String(isDark));
+    themeToggleKnob.classList.toggle('translate-x-5', isDark);
+  }
+
+  updateThemeToggle(getEffectiveTheme());
+
+  themeToggle.addEventListener('click', () => {
+    const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    updateThemeToggle(next);
+  });
+
+  async function revealAdminNavLinkIfAdmin() {
+    if (isPreviewingAsPublic()) return;
+
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const res = await fetch('/api/admin/check', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const { isAdmin } = await res.json();
+    if (!isAdmin) return;
+
+    document.querySelectorAll('.admin-nav-link').forEach((el) => el.classList.remove('hidden'));
+    document.getElementById('inbox-link')?.classList.add('flex');
+
+    try {
+      const countRes = await fetch('/api/admin/unseen-count', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const { count } = await countRes.json();
+      document.getElementById('inbox-dot')?.classList.toggle('hidden', !count);
+    } catch {
+      // If the count can't be fetched, just leave the dot hidden.
+    }
+  }
+
+  revealAdminNavLinkIfAdmin();
+
+  async function hideDisabledNavLinks() {
+    try {
+      const res = await fetch('/api/settings');
+      const settings = await res.json();
+      for (const [key, hidden] of Object.entries(settings)) {
+        if (!hidden) continue;
+        document.querySelectorAll(`[data-settings-key="${key}"]`).forEach((el) => el.classList.add('hidden'));
+      }
+    } catch {
+      // If settings can't be fetched, fail open and leave nav links visible.
+    }
+  }
+
+  hideDisabledNavLinks();
+</script>

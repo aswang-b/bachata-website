@@ -1,0 +1,1122 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Data & Analytics">
+  <div class="mx-auto max-w-6xl px-6 py-16">
+    <div class="flex items-center justify-between gap-4">
+      <h1 class="font-display text-3xl font-extrabold text-ink">Data &amp; Analytics</h1>
+      <a href="/admin" class="text-sm font-semibold text-accent hover:underline">&larr; Admin Tools</a>
+    </div>
+
+    <p id="loading" class="mt-8 text-sm text-muted">Loading&hellip;</p>
+
+    <div id="signed-out" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">Sign in as an admin to view this page.</p>
+      <a href="/admin" class="text-sm font-semibold text-accent hover:underline">Go to Admin Tools</a>
+    </div>
+
+    <div id="not-admin" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">This account isn't authorized as an admin.</p>
+    </div>
+
+    <div id="dashboard" class="mt-8 hidden flex-col gap-10">
+      <div class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-end">
+        <label class="flex flex-1 flex-col gap-1.5">
+          <span class="text-xs font-semibold uppercase tracking-wider text-muted">Search by dancer name</span>
+          <input
+            id="name-search"
+            type="text"
+            placeholder="e.g. Jane Doe"
+            class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
+          />
+        </label>
+        <label class="flex flex-1 flex-col gap-1.5">
+          <span class="text-xs font-semibold uppercase tracking-wider text-muted">Filter by class</span>
+          <select id="class-filter" class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none">
+            <option value="">All classes</option>
+          </select>
+        </label>
+        <button
+          id="clear-filters"
+          class="rounded-full border border-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-bg"
+        >
+          Clear
+        </button>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface p-4">
+        <button
+          id="lock-btn"
+          class="rounded-full border border-accent px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+        >
+          Try Lock to Edit
+        </button>
+        <p id="lock-status" class="text-xs text-muted"></p>
+      </div>
+
+      <section>
+        <div class="flex items-baseline justify-between">
+          <h2 class="font-display text-xl font-bold text-ink">Sign-Ups</h2>
+          <p id="signups-count" class="text-xs text-muted"></p>
+        </div>
+        <p id="signups-checkin-hint" class="mt-1 hidden text-xs text-muted">
+          The <strong>Checked In</strong> column shows who's shown up for this class, out of everyone registered.
+        </p>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            id="add-signup-btn"
+            class="add-row-btn hidden rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            + Add Sign-Up
+          </button>
+          <button
+            id="show-deleted-signups-btn"
+            class="rounded-full border border-border px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-surface"
+          >
+            Recently Deleted
+          </button>
+        </div>
+
+        <div id="deleted-signups-panel" class="mt-3 hidden flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+          <div class="flex items-baseline justify-between">
+            <p class="text-xs font-semibold uppercase tracking-wider text-muted">Deleted in the last 7 days</p>
+            <p id="deleted-signups-count" class="text-xs text-muted"></p>
+          </div>
+          <div class="overflow-x-auto rounded-xl border border-border">
+            <table class="w-full min-w-[640px] text-left text-sm">
+              <thead class="bg-bg text-xs font-semibold uppercase tracking-wider text-muted">
+                <tr>
+                  <th class="px-4 py-2.5">Name</th>
+                  <th class="px-4 py-2.5">Class</th>
+                  <th class="px-4 py-2.5">Deleted</th>
+                  <th class="px-4 py-2.5">By</th>
+                  <th class="px-4 py-2.5">Restore</th>
+                </tr>
+              </thead>
+              <tbody id="deleted-signups-body"></tbody>
+            </table>
+            <p id="deleted-signups-empty" class="hidden px-4 py-6 text-center text-sm text-muted">Nothing deleted in the last 7 days.</p>
+          </div>
+        </div>
+
+        <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
+          <table class="w-full min-w-[1040px] text-left text-sm">
+            <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
+              <tr>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="firstName">First Name</th>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="lastName">Last Name</th>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="email">Email</th>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="phone">Phone</th>
+                <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[220px]" data-table="signups" data-column="class">Class</th>
+                <th class="px-4 py-3">Series</th>
+                <th class="px-4 py-3">Payment</th>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paid">Paid</th>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="createdAt">Registered</th>
+                <th id="signups-checkin-header" class="hidden px-4 py-3">Checked In</th>
+                <th class="signups-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="signups-body"></tbody>
+          </table>
+          <p id="signups-empty" class="hidden px-4 py-6 text-center text-sm text-muted">No sign-ups match these filters.</p>
+        </div>
+      </section>
+
+      <section>
+        <div class="flex items-baseline justify-between">
+          <h2 class="font-display text-xl font-bold text-ink">Check-Ins</h2>
+          <p id="checkins-count" class="text-xs text-muted"></p>
+        </div>
+        <button
+          id="add-checkin-btn"
+          class="add-row-btn mt-2 hidden rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+        >
+          + Add Check-In
+        </button>
+        <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
+          <table class="w-full min-w-[560px] text-left text-sm">
+            <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
+              <tr>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="firstName">First Name</th>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="lastName">Last Name</th>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="phone">Phone</th>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classTitle">Class</th>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classDate">Class Date</th>
+                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="createdAt">Checked In At</th>
+                <th class="checkins-actions-header hidden px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="checkins-body"></tbody>
+          </table>
+          <p id="checkins-empty" class="hidden px-4 py-6 text-center text-sm text-muted">No check-ins match these filters.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { supabaseBrowser } from '../../lib/supabaseBrowser';
+
+  // The index signatures below exist only so sortRows()'s generic
+  // `T extends Record<string, unknown>` constraint is satisfied — they don't
+  // change runtime behavior, just let TS verify the sort logic is type-safe.
+  interface Signup {
+    submissionId: string;
+    createdAt: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    registrationType: string;
+    class: string | null;
+    paymentMethod: string | null;
+    paid: boolean;
+    dancerIndex: number | null;
+    dancerCount: number;
+    [key: string]: unknown;
+  }
+
+  interface Checkin {
+    id: string;
+    createdAt: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    classTitle: string;
+    eventId: string | null;
+    classDate: string | null;
+    [key: string]: unknown;
+  }
+
+  interface ClassSeriesOccurrence {
+    id: string;
+    label: string;
+    startTime: string;
+  }
+
+  interface ClassSeriesEntry {
+    key: string;
+    title: string;
+    isSeries: boolean;
+    subLabel: string;
+    singleEventId: string | null;
+    occurrences: ClassSeriesOccurrence[];
+    priceWholeSeries: number | null;
+    priceDropIn: number | null;
+  }
+
+  const panels = {
+    loading: document.getElementById('loading')!,
+    signedOut: document.getElementById('signed-out')!,
+    notAdmin: document.getElementById('not-admin')!,
+    dashboard: document.getElementById('dashboard')!,
+  };
+
+  function showPanel(name: keyof typeof panels) {
+    for (const [key, el] of Object.entries(panels)) {
+      const isTarget = key === name;
+      el.classList.toggle('hidden', !isTarget);
+      el.classList.toggle('flex', isTarget && key !== 'loading' && key !== 'dashboard');
+    }
+    panels.dashboard.classList.toggle('hidden', name !== 'dashboard');
+    panels.dashboard.classList.toggle('flex', name === 'dashboard');
+  }
+
+  let allSignups: Signup[] = [];
+  let allCheckins: Checkin[] = [];
+  let classSeries: ClassSeriesEntry[] = [];
+
+  function findSeriesForEventId(eventId: string | null): { series: ClassSeriesEntry; occurrenceId: string } | null {
+    if (!eventId) return null;
+    for (const series of classSeries) {
+      if (series.singleEventId === eventId) return { series, occurrenceId: series.singleEventId };
+      const occurrence = series.occurrences.find((o) => o.id === eventId);
+      if (occurrence) return { series, occurrenceId: occurrence.id };
+    }
+    return null;
+  }
+
+  const DATE_COLUMNS = new Set(['createdAt', 'classDate']);
+
+  let signupSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
+  let checkinSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
+
+  // --- Editing lock ---
+  // A conservative pessimistic lock: only the tab that holds it may add,
+  // edit, or delete rows, so two concurrent edits can never clobber each
+  // other. holderId is per-tab (sessionStorage), so reloading the same tab
+  // keeps ownership; a new tab gets a new identity and must lock separately.
+  let holderId = '';
+  try {
+    holderId = sessionStorage.getItem('bwb-analytics-holder') ?? '';
+  } catch {
+    // ignore
+  }
+  if (!holderId) {
+    holderId = crypto.randomUUID();
+    try {
+      sessionStorage.setItem('bwb-analytics-holder', holderId);
+    } catch {
+      // ignore — lock still works for this page load, just won't survive a reload.
+    }
+  }
+
+  let isLockedByMe = false;
+  let lockHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  let editingSignupKey: string | null = null;
+  let editingCheckinKey: string | null = null;
+  let addingSignup = false;
+  let addingCheckin = false;
+
+  const lockBtn = document.getElementById('lock-btn') as HTMLButtonElement;
+  const lockStatus = document.getElementById('lock-status')!;
+  const addSignupBtn = document.getElementById('add-signup-btn') as HTMLButtonElement;
+  const addCheckinBtn = document.getElementById('add-checkin-btn') as HTMLButtonElement;
+
+  function signupRowKey(s: Signup): string {
+    return `${s.submissionId}:${s.dancerIndex ?? 'x'}`;
+  }
+
+  const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+
+  function setEditModeUI(locked: boolean) {
+    document.querySelectorAll('.add-row-btn').forEach((el) => el.classList.toggle('hidden', !locked));
+    document.querySelectorAll('.signups-actions-header, .checkins-actions-header').forEach((el) => el.classList.toggle('hidden', !locked));
+    if (!locked) {
+      editingSignupKey = null;
+      editingCheckinKey = null;
+      addingSignup = false;
+      addingCheckin = false;
+    }
+  }
+
+  async function refreshLockStatus() {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const res = await fetch('/api/admin/lock-status', { headers: { Authorization: `Bearer ${session.access_token}` } });
+    if (!res.ok) return;
+    const { locked, lockedBy, expiresAt } = await res.json();
+
+    const myFullId = `${session.user.email}::${holderId}`;
+    isLockedByMe = locked && lockedBy === myFullId;
+
+    if (isLockedByMe) {
+      lockBtn.textContent = 'Release Lock';
+      lockStatus.textContent = `Editing enabled — expires ${timeFormatter.format(new Date(expiresAt))} (auto-extends while this tab is open).`;
+    } else if (locked) {
+      const email = String(lockedBy).split('::')[0];
+      lockBtn.textContent = 'Try Lock to Edit';
+      lockStatus.textContent = `🔒 Locked for editing by ${email} until ${timeFormatter.format(new Date(expiresAt))}.`;
+    } else {
+      lockBtn.textContent = 'Try Lock to Edit';
+      lockStatus.textContent = 'Not locked — click to enable adding, editing, and deleting rows.';
+    }
+
+    setEditModeUI(isLockedByMe);
+    render();
+  }
+
+  async function tryLock() {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    if (isLockedByMe) {
+      const res = await fetch('/api/admin/release-lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ holderId }),
+      });
+      if (res.ok && lockHeartbeatTimer) {
+        clearInterval(lockHeartbeatTimer);
+        lockHeartbeatTimer = null;
+      }
+      await refreshLockStatus();
+      return;
+    }
+
+    const res = await fetch('/api/admin/acquire-lock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ holderId }),
+    });
+    const data = await res.json();
+
+    if (res.ok && data.acquired) {
+      if (!lockHeartbeatTimer) {
+        // Re-acquiring on the same holderId extends the lock, so this both
+        // detects an expired lock and refreshes an active one.
+        lockHeartbeatTimer = setInterval(tryLock, 2 * 60 * 1000);
+      }
+    } else if (res.ok) {
+      lockStatus.textContent = `🔒 Locked for editing by ${data.lockedByEmail} until ${timeFormatter.format(new Date(data.expiresAt))}.`;
+    }
+    await refreshLockStatus();
+  }
+
+  lockBtn.addEventListener('click', () => tryLock());
+
+  const nameSearchInput = document.getElementById('name-search') as HTMLInputElement;
+  const classFilterSelect = document.getElementById('class-filter') as HTMLSelectElement;
+  const signupsBody = document.getElementById('signups-body')!;
+  const checkinsBody = document.getElementById('checkins-body')!;
+  const signupsEmpty = document.getElementById('signups-empty')!;
+  const checkinsEmpty = document.getElementById('checkins-empty')!;
+  const signupsCount = document.getElementById('signups-count')!;
+  const checkinsCount = document.getElementById('checkins-count')!;
+  const signupsCheckinHeader = document.getElementById('signups-checkin-header')!;
+  const signupsCheckinHint = document.getElementById('signups-checkin-hint')!;
+
+  const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+  function escapeHtml(str: string): string {
+    const div = document.createElement('div');
+    div.textContent = str ?? '';
+    return div.innerHTML;
+  }
+
+  function matchesName(firstName: string, lastName: string, query: string): boolean {
+    if (!query) return true;
+    const full = `${firstName} ${lastName}`.toLowerCase();
+    return full.includes(query.toLowerCase());
+  }
+
+  function matchesClass(classText: string | null, filter: string): boolean {
+    if (!filter) return true;
+    return Boolean(classText && classText.includes(filter));
+  }
+
+  function sortRows<T extends Record<string, unknown>>(rows: T[], sort: { column: string; direction: 'asc' | 'desc' }): T[] {
+    const sorted = [...rows].sort((a, b) => {
+      const av = a[sort.column];
+      const bv = b[sort.column];
+      let cmp: number;
+
+      if (DATE_COLUMNS.has(sort.column)) {
+        cmp = (av ? new Date(av as string).getTime() : 0) - (bv ? new Date(bv as string).getTime() : 0);
+      } else if (typeof av === 'boolean' || typeof bv === 'boolean') {
+        cmp = Number(Boolean(av)) - Number(Boolean(bv));
+      } else {
+        cmp = String(av ?? '').localeCompare(String(bv ?? ''), undefined, { sensitivity: 'base' });
+      }
+
+      return sort.direction === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }
+
+  interface ClassSelectionEntry {
+    label: string;
+    title: string;
+    mode: 'whole' | 'dropin' | null;
+  }
+
+  // The stored `class` value is a single string built by joining each
+  // selected class with "; ", where a series-type class also carries its
+  // Whole Series / Drop In choice as a " — Mode" suffix (see group.astro's
+  // updateClassValue()). Split it back out so each class can get its own
+  // table row with an explicit Series/Drop-In column. `title` is kept
+  // separately from the full label — group.astro builds its own subLabel
+  // text (with a trailing date range) independently of classSeries.ts's
+  // version, so title is the only part guaranteed to match for price lookup.
+  function parseClassSelections(raw: string | null): ClassSelectionEntry[] {
+    const value = (raw ?? '').trim();
+    if (!value) return [{ label: '', title: '', mode: null }];
+
+    return value
+      .split(';')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const segments = part.split('—').map((s) => s.trim());
+        const last = segments[segments.length - 1];
+        const title = segments[0] ?? part;
+        if (last === 'Whole Series' || last === 'Drop In') {
+          return { label: segments.slice(0, -1).join(' — '), title, mode: last === 'Whole Series' ? 'whole' : 'dropin' } as ClassSelectionEntry;
+        }
+        return { label: part, title, mode: null } as ClassSelectionEntry;
+      });
+  }
+
+  function formatPrice(value: number): string {
+    return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
+  }
+
+  const EDIT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.5-9.5a2.121 2.121 0 0 1 3 3L12 16l-4 1 1-4 9.5-9.5Z" /></svg>`;
+  const TRASH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 .867 12.142A2 2 0 0 0 9.862 21h4.276a2 2 0 0 0 1.995-1.858L17 7M10 11v6m4-6v6" /></svg>`;
+
+  // Matches a parsed class entry back to its series (by title alone — the
+  // registration form's own subLabel text doesn't match classSeries.ts's) to
+  // look up the price for the mode it was registered under. Falls back to
+  // null (shown as "—") if the class was since renamed and no longer matches.
+  function findSubtotal(entry: ClassSelectionEntry): number | null {
+    if (!entry.title) return null;
+    const series = classSeries.find((s) => s.title === entry.title);
+    if (!series) return null;
+    const price = entry.mode === 'dropin' ? series.priceDropIn : series.priceWholeSeries;
+    return price ?? null;
+  }
+
+  function render() {
+    const nameQuery = nameSearchInput.value.trim();
+    const classFilter = classFilterSelect.value;
+
+    const filteredCheckins = allCheckins.filter((c) => matchesName(c.firstName, c.lastName, nameQuery) && matchesClass(c.classTitle, classFilter));
+    const filteredSignups = allSignups.filter((s) => matchesName(s.firstName, s.lastName, nameQuery) && matchesClass(s.class, classFilter));
+
+    const sortedSignups = sortRows(filteredSignups, signupSort);
+    const sortedCheckins = sortRows(filteredCheckins, checkinSort);
+
+    const showCheckinColumn = Boolean(classFilter);
+    signupsCheckinHeader.classList.toggle('hidden', !showCheckinColumn);
+    signupsCheckinHint.classList.toggle('hidden', !showCheckinColumn);
+
+    const checkedInNames = new Set(filteredCheckins.map((c) => `${c.firstName} ${c.lastName}`.toLowerCase().trim()));
+
+    function escapeAttr(str: string): string {
+      return escapeHtml(str).replace(/"/g, '&quot;');
+    }
+
+    function paymentSelectHtml(current: string | null): string {
+      const opts: [string, string][] = [
+        ['', '—'],
+        ['cash', 'Cash'],
+        ['venmo', 'Venmo'],
+      ];
+      return `<select class="edit-input rounded-lg border border-border bg-bg px-2 py-1 text-xs">${opts
+        .map(([value, label]) => `<option value="${value}" ${current === value || (!current && !value) ? 'selected' : ''}>${label}</option>`)
+        .join('')}</select>`;
+    }
+
+    function signupClassPickerHtml(currentClassRaw: string): string {
+      const optionsHtml = classSeries
+        .map((series) => {
+          const optionBase = `${series.title} — ${series.subLabel}`;
+          const modeControlsHtml = series.isSeries
+            ? `
+              <span class="class-mode-controls ml-5 hidden gap-2">
+                <label class="flex items-center gap-1 text-[10px] text-ink/70">
+                  <input type="radio" name="signup-class-mode-${escapeAttr(series.key)}" class="signup-class-mode h-3 w-3" value="whole" checked />
+                  Whole
+                </label>
+                <label class="flex items-center gap-1 text-[10px] text-ink/70">
+                  <input type="radio" name="signup-class-mode-${escapeAttr(series.key)}" class="signup-class-mode h-3 w-3" value="dropin" />
+                  Drop-in
+                </label>
+              </span>`
+            : '';
+          return `
+            <div class="flex flex-col gap-0.5">
+              <label class="flex items-start gap-1.5 text-xs text-ink">
+                <input type="checkbox" class="signup-class-checkbox mt-0.5 h-3.5 w-3.5" data-base="${escapeAttr(optionBase)}" data-is-series="${String(series.isSeries)}" />
+                <span>${escapeHtml(series.title)} <span class="text-muted">(${escapeHtml(series.subLabel)})</span></span>
+              </label>
+              ${modeControlsHtml}
+            </div>`;
+        })
+        .join('');
+
+      return `
+        <div class="flex max-h-32 w-44 flex-col gap-1.5 overflow-y-auto rounded-lg border border-border bg-bg p-2">
+          ${classSeries.length ? optionsHtml : '<span class="text-xs text-muted">No classes found.</span>'}
+        </div>
+        <p class="mt-1 w-44 truncate text-[10px] text-muted" title="${escapeAttr(currentClassRaw)}">Current: ${escapeHtml(currentClassRaw || '—')}</p>`;
+    }
+
+    function signupEditRowHtml(s: Partial<Signup>, mode: 'edit' | 'add'): string {
+      const submissionId = s.submissionId ?? '';
+      const dancerIndex = s.dancerIndex ?? '';
+      const originalClass = s.class ?? '';
+      return `
+        <tr class="border-t border-accent bg-accent/5" data-signup-edit-row="1" data-original-class="${escapeAttr(originalClass)}">
+          <td class="px-2 py-2"><input class="edit-input first-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.firstName ?? '')}" placeholder="First name" /></td>
+          <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.lastName ?? '')}" placeholder="Last name" /></td>
+          <td class="px-2 py-2"><input class="edit-input email w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.email ?? '')}" placeholder="Email" /></td>
+          <td class="px-2 py-2"><input class="edit-input phone w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.phone ?? '')}" placeholder="Phone" /></td>
+          <td class="px-2 py-2 signup-class-cell">${signupClassPickerHtml(originalClass)}</td>
+          <td class="px-2 py-2 text-xs text-muted">—</td>
+          <td class="px-2 py-2 payment-select-cell">${paymentSelectHtml(s.paymentMethod ?? null)}</td>
+          <td class="px-2 py-2"><input type="checkbox" class="edit-input paid h-4 w-4" ${s.paid ? 'checked' : ''} /></td>
+          <td class="px-2 py-2 text-xs text-muted">—</td>
+          ${showCheckinColumn ? '<td></td>' : ''}
+          <td class="px-2 py-2">
+            <div class="flex gap-2">
+              <button class="save-signup-btn text-xs font-bold text-green-600 hover:underline" data-mode="${mode}" data-submission-id="${submissionId}" data-dancer-index="${dancerIndex}">Save</button>
+              <button class="cancel-signup-edit-btn text-xs font-semibold text-ink/60 hover:underline">Cancel</button>
+            </div>
+          </td>
+        </tr>`;
+    }
+
+    const addSignupRowHtml = addingSignup ? signupEditRowHtml({}, 'add') : '';
+
+    signupsBody.innerHTML =
+      addSignupRowHtml +
+      sortedSignups
+        .flatMap((s) => {
+          const key = signupRowKey(s);
+          if (editingSignupKey === key) return [signupEditRowHtml(s, 'edit')];
+
+          const isCheckedIn = checkedInNames.has(`${s.firstName} ${s.lastName}`.toLowerCase().trim());
+          const paymentLabel = s.paymentMethod === 'venmo' ? 'Venmo' : s.paymentMethod === 'cash' ? 'Cash' : '—';
+          const classEntries = parseClassSelections(s.class);
+
+          // One row per class the dancer is registered for, so multiple
+          // classes (or dancers) never get crammed into a single cell.
+          // Continuation rows for the same dancer repeat only the Class /
+          // Series columns and butt up against the row above them.
+          return classEntries.map((entry, entryIndex) => {
+            const isFirst = entryIndex === 0;
+            const modeLabel = entry.mode === 'whole' ? 'Whole Series' : entry.mode === 'dropin' ? 'Drop In' : '—';
+            const subtotal = findSubtotal(entry);
+            const paymentSubtotalLabel =
+              paymentLabel === '—' && subtotal == null ? '—' : `${paymentLabel}${subtotal != null ? ` — ${formatPrice(subtotal)}` : ''}`;
+            return `
+          <tr class="${isFirst ? 'border-t border-border' : 'border-t-0'}">
+            <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.firstName) : ''}</td>
+            <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.lastName) : ''}</td>
+            <td class="px-4 py-2.5 text-ink/70">${isFirst ? escapeHtml(s.email) : ''}</td>
+            <td class="px-4 py-2.5 text-ink/70">${isFirst ? escapeHtml(s.phone) : ''}</td>
+            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.label || '—')}</td>
+            <td class="px-4 py-2.5 text-ink/70">${modeLabel}</td>
+            <td class="px-4 py-2.5 text-ink/70">${isFirst ? paymentSubtotalLabel : ''}</td>
+            <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" class="paid-checkbox h-4 w-4" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
+            <td class="px-4 py-2.5 text-ink/70">${isFirst ? dateFormatter.format(new Date(s.createdAt)) : ''}</td>
+            ${showCheckinColumn ? `<td class="px-4 py-2.5">${isFirst ? (isCheckedIn ? '<span class="font-bold text-green-600">✓</span>' : '<span class="text-ink/30">—</span>') : ''}</td>` : ''}
+            ${
+              isLockedByMe
+                ? isFirst
+                  ? `<td class="px-4 py-2.5"><div class="flex gap-3">
+                      <button class="edit-signup-btn text-ink/60 transition-colors hover:text-accent" aria-label="Edit" data-key="${key}">${EDIT_ICON_SVG}</button>
+                      <button class="delete-signup-btn text-ink/60 transition-colors hover:text-red-600" aria-label="Delete" data-submission-id="${s.submissionId}" data-dancer-index="${s.dancerIndex ?? ''}" data-dancer-count="${s.dancerCount}">${TRASH_ICON_SVG}</button>
+                    </div></td>`
+                  : '<td class="px-4 py-2.5"></td>'
+                : ''
+            }
+          </tr>`;
+          });
+        })
+        .join('');
+
+    function checkinEditRowHtml(c: Partial<Checkin>, mode: 'edit' | 'add'): string {
+      const match = findSeriesForEventId(c.eventId ?? null);
+      const selectedKey = match?.series.key ?? '';
+      const selectedOccurrenceId = match?.occurrenceId ?? '';
+      const selectedIsSeries = match?.series.isSeries ?? false;
+
+      const seriesOptionsHtml = classSeries
+        .map((series) => `<option value="${escapeAttr(series.key)}" ${series.key === selectedKey ? 'selected' : ''}>${escapeHtml(series.title)} — ${escapeHtml(series.subLabel)}</option>`)
+        .join('');
+
+      const occurrenceOptionsHtml = selectedIsSeries
+        ? match!.series.occurrences
+            .map((occ) => `<option value="${escapeAttr(occ.id)}" ${occ.id === selectedOccurrenceId ? 'selected' : ''}>${escapeHtml(occ.label)}</option>`)
+            .join('')
+        : '';
+
+      return `
+        <tr class="border-t border-accent bg-accent/5" data-checkin-edit-row="1">
+          <td class="px-2 py-2"><input class="edit-input first-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(c.firstName ?? '')}" placeholder="First name" /></td>
+          <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(c.lastName ?? '')}" placeholder="Last name" /></td>
+          <td class="px-2 py-2"><input class="edit-input phone w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(c.phone ?? '')}" placeholder="Phone" /></td>
+          <td class="px-2 py-2">
+            <select class="edit-input checkin-class-select w-36 rounded-lg border border-border bg-bg px-2 py-1 text-xs">
+              <option value="">Select class…</option>
+              ${seriesOptionsHtml}
+            </select>
+          </td>
+          <td class="px-2 py-2">
+            <select class="edit-input checkin-date-select w-36 rounded-lg border border-border bg-bg px-2 py-1 text-xs" ${selectedIsSeries ? '' : 'disabled'}>
+              <option value="">${selectedIsSeries ? 'Select date…' : '—'}</option>
+              ${occurrenceOptionsHtml}
+            </select>
+          </td>
+          <td class="px-2 py-2 text-xs text-muted">—</td>
+          <td class="px-2 py-2">
+            <div class="flex gap-2">
+              <button class="save-checkin-btn text-xs font-bold text-green-600 hover:underline" data-mode="${mode}" data-id="${c.id ?? ''}">Save</button>
+              <button class="cancel-checkin-edit-btn text-xs font-semibold text-ink/60 hover:underline">Cancel</button>
+            </div>
+          </td>
+        </tr>`;
+    }
+
+    const addCheckinRowHtml = addingCheckin ? checkinEditRowHtml({}, 'add') : '';
+
+    checkinsBody.innerHTML =
+      addCheckinRowHtml +
+      sortedCheckins
+        .map((c) => {
+          if (editingCheckinKey === c.id) return checkinEditRowHtml(c, 'edit');
+          return `
+          <tr class="border-t border-border">
+            <td class="px-4 py-2.5 text-ink">${escapeHtml(c.firstName)}</td>
+            <td class="px-4 py-2.5 text-ink">${escapeHtml(c.lastName)}</td>
+            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(c.phone)}</td>
+            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(c.classTitle)}</td>
+            <td class="px-4 py-2.5 text-ink/70">${c.classDate ? dateFormatter.format(new Date(c.classDate)) : '—'}</td>
+            <td class="px-4 py-2.5 text-ink/70">${dateFormatter.format(new Date(c.createdAt))}</td>
+            ${
+              isLockedByMe
+                ? `<td class="px-4 py-2.5"><div class="flex gap-2">
+                    <button class="edit-checkin-btn text-xs font-semibold text-accent hover:underline" data-id="${c.id}">Edit</button>
+                    <button class="delete-checkin-btn text-xs font-semibold text-red-600 hover:underline" data-id="${c.id}">Delete</button>
+                  </div></td>`
+                : ''
+            }
+          </tr>`;
+        })
+        .join('');
+
+    async function withAuthHeader(): Promise<Record<string, string> | null> {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session) return null;
+      return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
+    }
+
+    document.querySelectorAll<HTMLInputElement>('.paid-checkbox').forEach((checkbox) => {
+      checkbox.addEventListener('change', async () => {
+        const submissionId = checkbox.dataset.submissionId!;
+        const paid = checkbox.checked;
+        checkbox.disabled = true;
+
+        const headers = await withAuthHeader();
+        if (!headers) {
+          checkbox.disabled = false;
+          return;
+        }
+
+        const res = await fetch('/api/admin/update-signup', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ submissionId, paid, holderId }),
+        });
+
+        if (res.ok) {
+          allSignups.forEach((s) => {
+            if (s.submissionId === submissionId) s.paid = paid;
+          });
+        } else {
+          checkbox.checked = !paid;
+        }
+        checkbox.disabled = false;
+      });
+    });
+
+    // --- Sign-up row editing ---
+    document.querySelectorAll<HTMLButtonElement>('.edit-signup-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        editingSignupKey = btn.dataset.key!;
+        addingSignup = false;
+        render();
+      });
+    });
+
+    document.querySelectorAll<HTMLInputElement>('.signup-class-checkbox').forEach((checkbox) => {
+      checkbox.addEventListener('change', () => {
+        const modeControls = checkbox.closest('.flex.flex-col')?.querySelector('.class-mode-controls');
+        if (!modeControls) return;
+        modeControls.classList.toggle('hidden', !checkbox.checked);
+        modeControls.classList.toggle('flex', checkbox.checked);
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.cancel-signup-edit-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        editingSignupKey = null;
+        addingSignup = false;
+        render();
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.delete-signup-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const dancerCount = Number(btn.dataset.dancerCount ?? '0');
+        const confirmMsg =
+          dancerCount > 1 ? 'Remove this dancer from the registration?' : 'Delete this entire sign-up?';
+        if (!confirm(confirmMsg)) return;
+
+        const headers = await withAuthHeader();
+        if (!headers) return;
+
+        const dancerIndexRaw = btn.dataset.dancerIndex;
+        const res = await fetch('/api/admin/edit-signup', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            action: 'delete',
+            holderId,
+            submissionId: btn.dataset.submissionId,
+            dancerIndex: dancerIndexRaw ? Number(dancerIndexRaw) : null,
+          }),
+        });
+
+        if (res.ok) {
+          await reloadData();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error ?? 'Failed to delete.');
+        }
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.save-signup-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const row = btn.closest('tr')!;
+        const get = (cls: string) => (row.querySelector(`.${cls}`) as HTMLInputElement)?.value.trim() ?? '';
+        const paymentMethod = (row.querySelector('.payment-select-cell select') as HTMLSelectElement)?.value ?? '';
+        const paid = (row.querySelector('.paid') as HTMLInputElement)?.checked ?? false;
+
+        const firstName = get('first-name');
+        const lastName = get('last-name');
+        if (!firstName || !lastName) {
+          alert('First and last name are required.');
+          return;
+        }
+
+        const headers = await withAuthHeader();
+        if (!headers) return;
+
+        // Class is a checkbox picker, not free text — if nothing is checked
+        // the admin didn't intend to touch it, so keep whatever was there
+        // rather than silently clearing it out. Series classes carry their
+        // Whole Series / Drop In choice as a " — Mode" suffix, matching the
+        // string the public registration form builds.
+        const checkedClasses = Array.from(row.querySelectorAll<HTMLInputElement>('.signup-class-checkbox:checked')).map((checkbox) => {
+          const base = checkbox.dataset.base ?? '';
+          if (checkbox.dataset.isSeries !== 'true') return base;
+          const modeRadio = checkbox.closest('.flex.flex-col')?.querySelector<HTMLInputElement>('.signup-class-mode:checked');
+          const mode = modeRadio?.value === 'dropin' ? 'Drop In' : 'Whole Series';
+          return `${base} — ${mode}`;
+        });
+        const originalClass = row.getAttribute('data-original-class') ?? '';
+        const className = checkedClasses.length > 0 ? checkedClasses.join('; ') : originalClass;
+
+        const mode = btn.dataset.mode;
+        const payload: Record<string, unknown> = {
+          action: mode === 'add' ? 'create' : 'update',
+          holderId,
+          firstName,
+          lastName,
+          email: get('email'),
+          phone: get('phone'),
+          className,
+          paymentMethod,
+          paid,
+        };
+        if (mode === 'edit') {
+          payload.submissionId = btn.dataset.submissionId;
+          const dancerIndexRaw = btn.dataset.dancerIndex;
+          payload.dancerIndex = dancerIndexRaw ? Number(dancerIndexRaw) : null;
+        }
+
+        const res = await fetch('/api/admin/edit-signup', { method: 'POST', headers, body: JSON.stringify(payload) });
+        if (res.ok) {
+          editingSignupKey = null;
+          addingSignup = false;
+          await reloadData();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error ?? 'Failed to save.');
+        }
+      });
+    });
+
+    // --- Check-in row editing ---
+    document.querySelectorAll<HTMLButtonElement>('.edit-checkin-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        editingCheckinKey = btn.dataset.id!;
+        addingCheckin = false;
+        render();
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.cancel-checkin-edit-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        editingCheckinKey = null;
+        addingCheckin = false;
+        render();
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.delete-checkin-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this check-in?')) return;
+        const headers = await withAuthHeader();
+        if (!headers) return;
+
+        const res = await fetch('/api/admin/edit-checkin', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'delete', holderId, id: btn.dataset.id }),
+        });
+
+        if (res.ok) {
+          await reloadData();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error ?? 'Failed to delete.');
+        }
+      });
+    });
+
+    document.querySelectorAll<HTMLSelectElement>('.checkin-class-select').forEach((select) => {
+      select.addEventListener('change', () => {
+        const row = select.closest('tr')!;
+        const dateSelect = row.querySelector('.checkin-date-select') as HTMLSelectElement;
+        const series = classSeries.find((s) => s.key === select.value);
+
+        if (series && series.isSeries) {
+          dateSelect.disabled = false;
+          dateSelect.innerHTML =
+            '<option value="">Select date…</option>' +
+            series.occurrences.map((o) => `<option value="${escapeAttr(o.id)}">${escapeHtml(o.label)}</option>`).join('');
+        } else {
+          dateSelect.disabled = true;
+          dateSelect.innerHTML = '<option value="">—</option>';
+        }
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.save-checkin-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const row = btn.closest('tr')!;
+        const get = (cls: string) => (row.querySelector(`.${cls}`) as HTMLInputElement)?.value.trim() ?? '';
+
+        const firstName = get('first-name');
+        const lastName = get('last-name');
+        const phone = get('phone');
+
+        const seriesKey = (row.querySelector('.checkin-class-select') as HTMLSelectElement)?.value ?? '';
+        const series = classSeries.find((s) => s.key === seriesKey);
+        const eventId = series ? (series.isSeries ? (row.querySelector('.checkin-date-select') as HTMLSelectElement)?.value ?? '' : series.singleEventId ?? '') : '';
+
+        if (!firstName || !lastName || !phone || !eventId) {
+          alert("First name, last name, phone, and a class (with date, if it's a series) are required.");
+          return;
+        }
+
+        const headers = await withAuthHeader();
+        if (!headers) return;
+
+        const mode = btn.dataset.mode;
+        const payload: Record<string, unknown> = {
+          action: mode === 'add' ? 'create' : 'update',
+          holderId,
+          firstName,
+          lastName,
+          phone: get('phone'),
+          eventId,
+        };
+        if (mode === 'edit') payload.id = btn.dataset.id;
+
+        const res = await fetch('/api/admin/edit-checkin', { method: 'POST', headers, body: JSON.stringify(payload) });
+        if (res.ok) {
+          editingCheckinKey = null;
+          addingCheckin = false;
+          await reloadData();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error ?? 'Failed to save.');
+        }
+      });
+    });
+
+    signupsEmpty.classList.toggle('hidden', sortedSignups.length > 0);
+    checkinsEmpty.classList.toggle('hidden', sortedCheckins.length > 0);
+    signupsCount.textContent = `${sortedSignups.length} ${sortedSignups.length === 1 ? 'result' : 'results'}`;
+    checkinsCount.textContent = `${sortedCheckins.length} ${sortedCheckins.length === 1 ? 'result' : 'results'}`;
+
+    document.querySelectorAll<HTMLElement>('.sort-header').forEach((th) => {
+      const table = th.dataset.table;
+      const column = th.dataset.column ?? '';
+      const sort = table === 'signups' ? signupSort : checkinSort;
+      const isActive = sort.column === column;
+      th.textContent = th.textContent!.replace(/ [↑↓]$/, '') + (isActive ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : '');
+    });
+  }
+
+  document.querySelectorAll<HTMLElement>('.sort-header').forEach((th) => {
+    th.addEventListener('click', () => {
+      const table = th.dataset.table;
+      const column = th.dataset.column ?? '';
+      const sort = table === 'signups' ? signupSort : checkinSort;
+      if (sort.column === column) {
+        sort.direction = sort.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        sort.column = column;
+        sort.direction = 'asc';
+      }
+      render();
+    });
+  });
+
+  nameSearchInput.addEventListener('input', render);
+  classFilterSelect.addEventListener('change', render);
+  document.getElementById('clear-filters')?.addEventListener('click', () => {
+    nameSearchInput.value = '';
+    classFilterSelect.value = '';
+    render();
+  });
+
+  addSignupBtn.addEventListener('click', () => {
+    editingSignupKey = null;
+    addingSignup = true;
+    render();
+  });
+
+  addCheckinBtn.addEventListener('click', () => {
+    editingCheckinKey = null;
+    addingCheckin = true;
+    render();
+  });
+
+  // --- Recently deleted sign-ups (7-day audit trail, with restore) ---
+  const deletedSignupsPanel = document.getElementById('deleted-signups-panel')!;
+  const deletedSignupsBody = document.getElementById('deleted-signups-body')!;
+  const deletedSignupsEmpty = document.getElementById('deleted-signups-empty')!;
+  const deletedSignupsCount = document.getElementById('deleted-signups-count')!;
+  const showDeletedBtn = document.getElementById('show-deleted-signups-btn') as HTMLButtonElement;
+  const deletedDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+  async function getAuthHeaders(): Promise<Record<string, string> | null> {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return null;
+    return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
+  }
+
+  interface DeletedSignupEntry {
+    auditId: string;
+    deletedAt: string;
+    deletedBy: string | null;
+    firstName: string;
+    lastName: string;
+    class: string | null;
+  }
+
+  async function loadDeletedSignups() {
+    const headers = await getAuthHeaders();
+    if (!headers) return;
+
+    const res = await fetch('/api/admin/deleted-signups', { headers });
+    if (!res.ok) return;
+    const { entries } = (await res.json()) as { entries: DeletedSignupEntry[] };
+
+    deletedSignupsCount.textContent = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
+    deletedSignupsEmpty.classList.toggle('hidden', entries.length > 0);
+
+    deletedSignupsBody.innerHTML = entries
+      .map(
+        (e) => `
+      <tr class="border-t border-border">
+        <td class="px-4 py-2.5 text-ink">${escapeHtml(`${e.firstName} ${e.lastName}`.trim() || '—')}</td>
+        <td class="px-4 py-2.5 text-ink/70">${escapeHtml(e.class ?? '—')}</td>
+        <td class="px-4 py-2.5 text-ink/70">${deletedDateFormatter.format(new Date(e.deletedAt))}</td>
+        <td class="px-4 py-2.5 text-ink/70">${escapeHtml(e.deletedBy ?? '—')}</td>
+        <td class="px-4 py-2.5">
+          ${
+            isLockedByMe
+              ? `<button class="restore-signup-btn text-xs font-semibold text-accent hover:underline" data-audit-id="${e.auditId}">Restore</button>`
+              : '<span class="text-xs text-muted">Lock to restore</span>'
+          }
+        </td>
+      </tr>`
+      )
+      .join('');
+
+    document.querySelectorAll<HTMLButtonElement>('.restore-signup-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const restoreHeaders = await getAuthHeaders();
+        if (!restoreHeaders) return;
+        btn.disabled = true;
+
+        const res2 = await fetch('/api/admin/restore-signup', {
+          method: 'POST',
+          headers: restoreHeaders,
+          body: JSON.stringify({ auditId: btn.dataset.auditId, holderId }),
+        });
+
+        if (res2.ok) {
+          await reloadData();
+          await loadDeletedSignups();
+        } else {
+          const data = await res2.json().catch(() => ({}));
+          alert(data.error ?? 'Failed to restore.');
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  showDeletedBtn.addEventListener('click', () => {
+    const isHidden = deletedSignupsPanel.classList.contains('hidden');
+    deletedSignupsPanel.classList.toggle('hidden', !isHidden);
+    deletedSignupsPanel.classList.toggle('flex', isHidden);
+    if (isHidden) loadDeletedSignups();
+  });
+
+  async function reloadData() {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const dataRes = await fetch('/api/admin/analytics-data', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!dataRes.ok) return;
+
+    const { signups, checkins, classTitles, classSeries: series } = await dataRes.json();
+    allSignups = signups;
+    allCheckins = checkins;
+    classSeries = series ?? [];
+
+    const existingOptions = new Set(Array.from(classFilterSelect.options).map((o) => o.value));
+    for (const title of classTitles as string[]) {
+      if (existingOptions.has(title)) continue;
+      const option = document.createElement('option');
+      option.value = title;
+      option.textContent = title;
+      classFilterSelect.appendChild(option);
+    }
+
+    render();
+  }
+
+  async function init() {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+
+    if (!session) {
+      showPanel('signedOut');
+      return;
+    }
+
+    const checkRes = await fetch('/api/admin/check', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const { isAdmin } = await checkRes.json();
+
+    if (!isAdmin) {
+      showPanel('notAdmin');
+      return;
+    }
+
+    await reloadData();
+    showPanel('dashboard');
+    await refreshLockStatus();
+  }
+
+  init();
+</script>

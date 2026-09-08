@@ -1,0 +1,168 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { supabase } from '../../lib/supabase';
+import { listFaqs } from '../../lib/faqs';
+
+const faqs = await listFaqs();
+
+interface Dancer {
+  firstName?: string;
+  lastName?: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+}
+
+const REGISTRATION_TYPE_LABELS: Record<string, string> = {
+  group: 'Group Lesson',
+  private: 'Private Instruction',
+  events: 'Event / Workshop',
+};
+
+const id = Astro.url.searchParams.get('id');
+let submission: {
+  created_at: string;
+  registration_type: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  instagram: string | null;
+  preferred_contact_method: string | null;
+  class: string | null;
+  comments: string | null;
+  dancers: Dancer[] | null;
+  payment_method: string | null;
+} | null = null;
+
+if (id) {
+  const { data } = await supabase
+    .from('intake_submissions')
+    .select(
+      'created_at, registration_type, first_name, last_name, email, phone, instagram, preferred_contact_method, class, comments, dancers, payment_method'
+    )
+    .eq('id', id)
+    .maybeSingle();
+  submission = data;
+}
+
+const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+---
+
+<BaseLayout title="Registration Confirmed">
+  <div class="mx-auto flex max-w-xl flex-col items-center px-6 py-24 text-center print:py-8">
+    <div class="gradient-accent mb-4 flex h-16 w-16 items-center justify-center rounded-full print:hidden">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+      </svg>
+    </div>
+    <h1 class="font-display text-3xl font-extrabold text-ink">Your Registration is Confirmed!</h1>
+    <p class="mt-3 text-muted">See you in class!</p>
+
+    {submission && (
+      <div class="mt-8 w-full rounded-2xl border border-border bg-surface p-6 text-left">
+        <p class="text-xs font-bold uppercase tracking-wider text-accent">
+          {REGISTRATION_TYPE_LABELS[submission.registration_type] ?? submission.registration_type}
+        </p>
+        <p class="mt-1 text-xs text-muted">Submitted {dateFormatter.format(new Date(submission.created_at))}</p>
+
+        <div class="mt-4 flex flex-col gap-2 text-sm text-ink">
+          {submission.dancers && submission.dancers.length > 0 ? (
+            submission.dancers.map((d, i) => (
+              <div class="flex flex-col">
+                <span class="font-semibold">Dancer {i + 1}: {d.firstName} {d.lastName}</span>
+                <span class="text-ink/70">
+                  {d.role}
+                  {d.phone ? ` · ${d.phone}` : ''}
+                  {d.email ? ` · ${d.email}` : ''}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div class="flex flex-col">
+              <span class="font-semibold">{submission.first_name} {submission.last_name}</span>
+              <span class="text-ink/70">
+                {submission.email ?? ''}
+                {submission.phone ? ` · ${submission.phone}` : ''}
+                {submission.instagram ? ` · ${submission.instagram}` : ''}
+              </span>
+              {submission.preferred_contact_method && (
+                <span class="text-xs text-muted">Preferred contact: {submission.preferred_contact_method}</span>
+              )}
+            </div>
+          )}
+
+          {submission.class && (
+            <div class="mt-2 flex flex-col border-t border-border pt-2">
+              <span class="text-xs font-semibold uppercase tracking-wider text-muted">Class</span>
+              <span>{submission.class}</span>
+            </div>
+          )}
+
+          {submission.payment_method && (
+            <div class="flex flex-col">
+              <span class="text-xs font-semibold uppercase tracking-wider text-muted">Payment</span>
+              <span>{submission.payment_method === 'venmo' ? 'Venmo' : 'Cash at the door'}</span>
+            </div>
+          )}
+
+          {submission.comments && (
+            <div class="flex flex-col">
+              <span class="text-xs font-semibold uppercase tracking-wider text-muted">Notes</span>
+              <span>{submission.comments}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+
+    {submission && (
+      <p class="mt-4 text-xs text-muted print:hidden">
+        This page is your confirmation — print it or save it for your records.
+      </p>
+    )}
+
+    {submission && faqs.length > 0 && (
+      <div class="mt-8 w-full text-left print:hidden">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-muted">A Few Reminders</h2>
+        <div class="mt-3 flex flex-col gap-2">
+          {faqs.map((faq) => (
+            <details class="group rounded-xl border border-border bg-surface open:bg-bg">
+              <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                {faq.question}
+                <span class="shrink-0 text-muted transition-transform group-open:rotate-180">⌄</span>
+              </summary>
+              <div
+                class="border-t border-border px-4 py-3 text-sm leading-relaxed text-ink/70 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5"
+                set:html={faq.answer}
+              />
+            </details>
+          ))}
+        </div>
+      </div>
+    )}
+
+    <div class="mt-8 flex gap-3 print:hidden">
+      {submission && (
+        <button
+          id="print-btn"
+          class="rounded-full border border-border px-6 py-2 text-sm font-semibold text-ink/70 transition-colors hover:bg-surface"
+        >
+          Print
+        </button>
+      )}
+      <a
+        href="/"
+        class="rounded-full border-2 border-accent px-6 py-2 text-sm font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+      >
+        Back to Home
+      </a>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  document.getElementById('print-btn')?.addEventListener('click', () => window.print());
+</script>

@@ -1,0 +1,51 @@
+---
+---
+
+<div id="announcement-banner" class="hidden items-center justify-center gap-3 bg-accent px-4 py-2.5 text-center text-sm font-semibold text-white">
+  <span id="announcement-banner-content"></span>
+  <button id="announcement-banner-close" aria-label="Dismiss announcement" class="shrink-0 text-white/80 transition-colors hover:text-white">
+    ✕
+  </button>
+</div>
+
+<script>
+  const SESSION_DISMISS_KEY = 'bwb-banner-dismissed';
+
+  async function initBanner() {
+    const banner = document.getElementById('announcement-banner')!;
+    const content = document.getElementById('announcement-banner-content')!;
+    const closeBtn = document.getElementById('announcement-banner-close')!;
+
+    try {
+      const res = await fetch('/api/banner');
+      const { enabled, content: html } = await res.json();
+      if (!enabled || !html) return;
+
+      let dismissed = '';
+      try {
+        dismissed = sessionStorage.getItem(SESSION_DISMISS_KEY) ?? '';
+      } catch {
+        // Private browsing / storage blocked — treat as not dismissed.
+      }
+      if (dismissed === html) return;
+
+      content.innerHTML = html;
+      banner.classList.remove('hidden');
+      banner.classList.add('flex');
+
+      closeBtn.addEventListener('click', () => {
+        banner.classList.add('hidden');
+        banner.classList.remove('flex');
+        try {
+          sessionStorage.setItem(SESSION_DISMISS_KEY, html);
+        } catch {
+          // Ignore storage failures — worst case it reappears next load.
+        }
+      });
+    } catch {
+      // If the banner can't be fetched, just don't show it.
+    }
+  }
+
+  initBanner();
+</script>

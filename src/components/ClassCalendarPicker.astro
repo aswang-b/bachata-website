@@ -1,0 +1,267 @@
+---
+interface ClassEvent {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  color: string;
+  google_recurring_event_id: string | null;
+}
+
+interface Props {
+  events: ClassEvent[];
+  required?: boolean;
+  emptyMessage?: string;
+}
+
+const {
+  events,
+  required = false,
+  emptyMessage = "No upcoming classes are scheduled yet — leave a note below and we'll follow up.",
+} = Astro.props;
+---
+
+<div class="flex flex-col gap-1.5">
+  <span class="text-sm font-medium text-ink/80">Class{required && <span class="text-accent"> *</span>}</span>
+  <input type="hidden" name="class" id="class-picker-value" />
+
+  {events.length === 0 ? (
+    <p class="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
+      {emptyMessage}
+    </p>
+  ) : (
+    <div
+      id="class-picker"
+      class="rounded-xl border border-border bg-surface p-3"
+      data-events={JSON.stringify(events)}
+      data-required={String(required)}
+    >
+      <div class="mb-2 flex items-center justify-between">
+        <button
+          type="button"
+          id="picker-prev"
+          aria-label="Previous month"
+          class="flex h-7 w-7 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-bg"
+        >
+          &larr;
+        </button>
+        <p id="picker-month-label" class="text-sm font-semibold text-ink"></p>
+        <button
+          type="button"
+          id="picker-next"
+          aria-label="Next month"
+          class="flex h-7 w-7 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-bg"
+        >
+          &rarr;
+        </button>
+      </div>
+
+      <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+      </div>
+      <div id="picker-cells" class="mt-1 grid grid-cols-7 gap-1"></div>
+
+      <div id="picker-options" class="mt-3 flex flex-col gap-2"></div>
+
+      <div id="picker-series-choice" class="mt-3 hidden flex-col gap-1.5 rounded-lg border border-border bg-bg p-3">
+        <span class="text-xs font-semibold uppercase tracking-wider text-muted">This class is part of a series</span>
+        <label class="flex items-center gap-2 text-sm text-ink">
+          <input type="radio" name="series_choice_radio" value="single" checked class="h-4 w-4" />
+          Just this class
+        </label>
+        <label class="flex items-center gap-2 text-sm text-ink">
+          <input type="radio" name="series_choice_radio" value="series" class="h-4 w-4" />
+          The entire series
+        </label>
+      </div>
+
+      <p id="picker-selected" class="mt-2 hidden text-xs font-semibold text-accent"></p>
+      <p id="picker-error" class="mt-2 hidden text-xs font-semibold text-red-600">Please select a class.</p>
+    </div>
+  )}
+</div>
+
+<script>
+  interface ClassEvent {
+    id: string;
+    title: string;
+    start_time: string;
+    end_time: string;
+    color: string;
+    google_recurring_event_id: string | null;
+  }
+
+  const picker = document.getElementById('class-picker');
+  if (picker) {
+    const events: ClassEvent[] = JSON.parse(picker.dataset.events ?? '[]');
+    const isRequired = picker.dataset.required === 'true';
+    const hiddenInput = document.getElementById('class-picker-value') as HTMLInputElement;
+    const cellsEl = document.getElementById('picker-cells')!;
+    const monthLabelEl = document.getElementById('picker-month-label')!;
+    const optionsEl = document.getElementById('picker-options')!;
+    const selectedEl = document.getElementById('picker-selected')!;
+    const errorEl = document.getElementById('picker-error')!;
+    const seriesChoiceEl = document.getElementById('picker-series-choice')!;
+    const seriesRadios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="series_choice_radio"]'));
+
+    const dotClass: Record<string, string> = { green: 'bg-green-500', blue: 'bg-blue-500', accent: 'bg-accent', yellow: 'bg-yellow-500' };
+
+    const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+    const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
+
+    const firstEventDate = events.length ? new Date(events[0].start_time) : new Date();
+    let viewYear = firstEventDate.getFullYear();
+    let viewMonth = firstEventDate.getMonth();
+    let selectedEvent: ClassEvent | null = null;
+
+    function eventsOnDate(date: Date) {
+      return events.filter((e) => {
+        const d = new Date(e.start_time);
+        return d.getFullYear() === date.getFullYear() && d.getMonth() === date.getMonth() && d.getDate() === date.getDate();
+      });
+    }
+
+    function updateHiddenValue() {
+      if (!selectedEvent) return;
+      const isSeries = Boolean(selectedEvent.google_recurring_event_id);
+      const seriesChoice = seriesRadios.find((r) => r.checked)?.value ?? 'single';
+      const suffix = isSeries ? (seriesChoice === 'series' ? ' (registering for the entire series)' : ' (single class only)') : '';
+      const label = `${selectedEvent.title} — ${dateFormatter.format(new Date(selectedEvent.start_time))}, ${timeFormatter.format(new Date(selectedEvent.start_time))}${suffix}`;
+      hiddenInput.value = label;
+      selectedEl.textContent = `Selected: ${label}`;
+      selectedEl.classList.remove('hidden');
+      errorEl.classList.add('hidden');
+    }
+
+    seriesRadios.forEach((r) => r.addEventListener('change', updateHiddenValue));
+
+    function renderOptionsForDate(date: Date) {
+      const dayEvents = eventsOnDate(date);
+      optionsEl.innerHTML = '';
+      seriesChoiceEl.classList.add('hidden');
+      seriesChoiceEl.classList.remove('flex');
+      if (dayEvents.length === 0) return;
+
+      for (const event of dayEvents) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className =
+          'flex items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-left text-sm text-ink transition-colors hover:border-accent';
+        btn.dataset.eventId = event.id;
+        btn.innerHTML = `<span class="h-2 w-2 rounded-full ${dotClass[event.color] ?? dotClass.accent}"></span>${event.title} — ${timeFormatter.format(new Date(event.start_time))}`;
+        btn.addEventListener('click', () => {
+          optionsEl.querySelectorAll('button').forEach((b) => b.classList.remove('border-accent', 'bg-surface'));
+          btn.classList.add('border-accent', 'bg-surface');
+          selectedEvent = event;
+
+          if (event.google_recurring_event_id) {
+            seriesChoiceEl.classList.remove('hidden');
+            seriesChoiceEl.classList.add('flex');
+            seriesRadios.forEach((r) => (r.checked = r.value === 'single'));
+          } else {
+            seriesChoiceEl.classList.add('hidden');
+            seriesChoiceEl.classList.remove('flex');
+          }
+          updateHiddenValue();
+        });
+        optionsEl.appendChild(btn);
+      }
+    }
+
+    function render() {
+      monthLabelEl.textContent = monthFormatter.format(new Date(viewYear, viewMonth, 1));
+      cellsEl.innerHTML = '';
+
+      const startWeekday = new Date(viewYear, viewMonth, 1).getDay();
+      const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+      for (let i = 0; i < startWeekday; i++) {
+        cellsEl.appendChild(document.createElement('div'));
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(viewYear, viewMonth, day);
+        const dayEvents = eventsOnDate(date);
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        const hasEvents = dayEvents.length > 0;
+        cell.className = `flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg text-xs ${
+          hasEvents ? 'text-ink hover:bg-bg' : 'text-ink/30'
+        }`;
+        cell.disabled = !hasEvents;
+        cell.dataset.day = String(day);
+        cell.innerHTML = `<span>${day}</span>`;
+        if (hasEvents) {
+          const dotsWrap = document.createElement('div');
+          dotsWrap.className = 'flex gap-0.5';
+          const uniqueColors = [...new Set(dayEvents.map((e) => e.color))];
+          for (const color of uniqueColors) {
+            const dot = document.createElement('span');
+            dot.className = `h-1 w-1 rounded-full ${dotClass[color] ?? dotClass.accent}`;
+            dotsWrap.appendChild(dot);
+          }
+          cell.appendChild(dotsWrap);
+          cell.addEventListener('click', () => {
+            cellsEl.querySelectorAll('button').forEach((b) => b.classList.remove('bg-accent', 'text-white'));
+            cell.classList.add('bg-accent', 'text-white');
+            renderOptionsForDate(date);
+          });
+        }
+        cellsEl.appendChild(cell);
+      }
+    }
+
+    document.getElementById('picker-prev')?.addEventListener('click', () => {
+      viewMonth -= 1;
+      if (viewMonth < 0) {
+        viewMonth = 11;
+        viewYear -= 1;
+      }
+      optionsEl.innerHTML = '';
+      render();
+    });
+
+    document.getElementById('picker-next')?.addEventListener('click', () => {
+      viewMonth += 1;
+      if (viewMonth > 11) {
+        viewMonth = 0;
+        viewYear += 1;
+      }
+      optionsEl.innerHTML = '';
+      render();
+    });
+
+    if (isRequired) {
+      const form = picker.closest('form');
+      form?.addEventListener('submit', (e) => {
+        if (!hiddenInput.value) {
+          e.preventDefault();
+          errorEl.classList.remove('hidden');
+          picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    }
+
+    render();
+
+    // Preselect an event when arriving via a homepage offering panel's
+    // "Register Now" link (?series=<key>) — jumps to that event's month,
+    // opens its date, and picks the soonest matching occurrence.
+    const preselectKey = new URLSearchParams(window.location.search).get('series');
+    if (preselectKey) {
+      const target = events.find((e) => (e.google_recurring_event_id ?? e.id) === preselectKey);
+      if (target) {
+        const targetDate = new Date(target.start_time);
+        viewYear = targetDate.getFullYear();
+        viewMonth = targetDate.getMonth();
+        render();
+        const cell = cellsEl.querySelector<HTMLButtonElement>(`button[data-day="${targetDate.getDate()}"]`);
+        cell?.click();
+        const optionBtn = optionsEl.querySelector<HTMLButtonElement>(`button[data-event-id="${target.id}"]`);
+        optionBtn?.click();
+        picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }
+</script>

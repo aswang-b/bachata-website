@@ -1,0 +1,640 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Admin">
+  <div class="mx-auto flex max-w-4xl flex-col items-center px-6 py-16 text-center">
+    <h1 class="font-display text-3xl font-extrabold text-ink">Admin Tools</h1>
+
+    <p id="account-loading" class="mt-8 text-sm text-muted">Loading&hellip;</p>
+
+    <div id="account-signed-out" class="mt-8 hidden flex-col items-center gap-4">
+      <p class="text-sm text-muted">Sign in with the studio's Google account to manage the calendar sync.</p>
+      <button
+        id="google-signin"
+        class="gradient-accent rounded-full px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+      >
+        Sign in with Google
+      </button>
+    </div>
+
+    <div id="account-not-admin" class="mt-8 hidden flex-col items-center gap-4">
+      <p class="text-sm text-muted">
+        Signed in as <span id="not-admin-email" class="font-semibold text-ink"></span>, but this account isn't
+        authorized as an admin.
+      </p>
+      <button
+        id="signout-not-admin"
+        class="rounded-full border border-border px-6 py-2 text-sm font-semibold text-ink/70 transition-colors hover:bg-surface"
+      >
+        Sign out
+      </button>
+    </div>
+
+    <div id="account-admin" class="mt-8 hidden w-full flex-col items-center gap-6">
+      <div class="flex flex-wrap items-center justify-center gap-4">
+        <p class="text-sm text-muted">
+          Signed in as <span id="admin-email" class="font-semibold text-ink"></span>
+        </p>
+        <button
+          id="sync-now"
+          class="gradient-accent rounded-full px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+        >
+          Sync Google Calendar
+        </button>
+        <a
+          href="/admin/checkin-qr"
+          class="rounded-full border border-accent px-6 py-3 text-sm font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+        >
+          Check-In QR Codes
+        </a>
+      </div>
+      <p id="sync-status" class="-mt-4 min-h-5 text-sm text-muted"></p>
+
+      <div class="grid w-full gap-6 text-left md:grid-cols-2">
+        <div class="flex flex-col gap-3">
+          <p class="self-start text-xs font-bold uppercase tracking-wider text-muted">General Settings</p>
+
+          <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
+            <div>
+              <p class="text-sm font-semibold text-ink">Preview as public user</p>
+              <p class="text-xs text-muted">See the site without admin controls, while staying signed in.</p>
+            </div>
+            <button
+              id="preview-toggle"
+              role="switch"
+              aria-checked="false"
+              class="relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
+            >
+              <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+            </button>
+          </div>
+
+          <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
+            <div>
+              <p class="text-sm font-semibold text-ink">Site-wide announcement banner</p>
+              <p class="text-xs text-muted">Shows at the top of every page for all visitors.</p>
+            </div>
+            <button
+              id="banner-toggle"
+              role="switch"
+              aria-checked="false"
+              class="relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
+            >
+              <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-3">
+          <p class="self-start text-xs font-bold uppercase tracking-wider text-muted">Site Visibility</p>
+
+          <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
+            <div>
+              <p class="text-sm font-semibold text-ink">About page link</p>
+              <p class="text-xs text-muted">Hide the About link in the nav header for everyone.</p>
+            </div>
+            <button
+              data-settings-toggle="hide_about_nav"
+              role="switch"
+              aria-checked="false"
+              class="settings-toggle relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
+            >
+              <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+            </button>
+          </div>
+
+          <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
+            <div>
+              <p class="text-sm font-semibold text-ink">Contact page link</p>
+              <p class="text-xs text-muted">Hide the Contact link in the nav header for everyone.</p>
+            </div>
+            <button
+              data-settings-toggle="hide_contact_nav"
+              role="switch"
+              aria-checked="false"
+              class="settings-toggle relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
+            >
+              <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+            </button>
+          </div>
+
+          <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
+            <div>
+              <p class="text-sm font-semibold text-ink">Check In page link</p>
+              <p class="text-xs text-muted">Hide the Check In link in the nav header for everyone.</p>
+            </div>
+            <button
+              data-settings-toggle="hide_checkin_nav"
+              role="switch"
+              aria-checked="false"
+              class="settings-toggle relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
+            >
+              <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+            </button>
+          </div>
+          <p id="settings-status" class="min-h-4 text-xs text-muted"></p>
+        </div>
+      </div>
+
+      <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+        <p class="text-xs font-bold uppercase tracking-wider text-muted">Announcement Banner Content</p>
+        <div class="flex gap-1 border-b border-border pb-2">
+          <button type="button" data-cmd="bold" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
+          <button type="button" data-cmd="italic" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
+          <button type="button" data-cmd="underline" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
+          <button type="button" id="banner-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+        </div>
+        <div
+          id="banner-editor"
+          contenteditable="true"
+          class="min-h-16 rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+        ></div>
+        <button
+          id="banner-save"
+          class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+        >
+          Save Banner
+        </button>
+        <p id="banner-status" class="min-h-4 text-xs text-muted"></p>
+      </div>
+
+      <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+        <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage Lesson Overview</p>
+        <div class="flex flex-wrap gap-1 border-b border-border pb-2">
+          <button type="button" data-cmd="bold" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
+          <button type="button" data-cmd="italic" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
+          <button type="button" data-cmd="underline" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
+          <button type="button" data-cmd="insertUnorderedList" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">&#8226;&nbsp;List</button>
+          <button type="button" id="overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+        </div>
+        <div
+          id="overview-editor"
+          contenteditable="true"
+          class="min-h-24 rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+        ></div>
+        <button
+          id="overview-save"
+          class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+        >
+          Save Overview
+        </button>
+        <p id="overview-status" class="min-h-4 text-xs text-muted"></p>
+      </div>
+
+      <div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
+        <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage FAQs</p>
+        <div id="faq-list" class="flex flex-col gap-3"></div>
+        <button
+          id="faq-add-btn"
+          type="button"
+          class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+        >
+          + Add FAQ
+        </button>
+        <p id="faq-status" class="min-h-4 text-xs text-muted"></p>
+      </div>
+
+      <button
+        id="signout-admin"
+        class="mt-2 rounded-full border border-border px-6 py-2 text-sm font-semibold text-ink/70 transition-colors hover:bg-surface"
+      >
+        Sign out
+      </button>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { isPreviewingAsPublic, setPreviewAsPublic } from '../lib/previewMode';
+
+  const panels = {
+    loading: document.getElementById('account-loading')!,
+    signedOut: document.getElementById('account-signed-out')!,
+    notAdmin: document.getElementById('account-not-admin')!,
+    admin: document.getElementById('account-admin')!,
+  };
+
+  const showPanel = (name: keyof typeof panels) => {
+    for (const [key, el] of Object.entries(panels)) {
+      const isTarget = key === name;
+      el.classList.toggle('hidden', !isTarget);
+      el.classList.toggle('flex', isTarget && key !== 'loading');
+    }
+  };
+
+  async function init() {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+
+    if (!session) {
+      showPanel('signedOut');
+      return;
+    }
+
+    // Right after a fresh Google OAuth login, the session carries Google's
+    // tokens. Capture the refresh token now — it won't be here on later
+    // session refreshes.
+    const providerRefreshToken = (session as unknown as { provider_refresh_token?: string })
+      .provider_refresh_token;
+    if (providerRefreshToken) {
+      await fetch('/api/admin/store-google-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ refreshToken: providerRefreshToken }),
+      });
+    }
+
+    const checkRes = await fetch('/api/admin/check', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const { isAdmin } = await checkRes.json();
+
+    if (isAdmin) {
+      document.getElementById('admin-email')!.textContent = session.user.email ?? '';
+      renderPreviewToggle();
+      loadSiteSettings();
+      loadBanner();
+      loadOverview();
+      loadFaqs();
+      showPanel('admin');
+    } else {
+      document.getElementById('not-admin-email')!.textContent = session.user.email ?? '';
+      showPanel('notAdmin');
+    }
+  }
+
+  function renderPreviewToggle() {
+    const toggle = document.getElementById('preview-toggle')!;
+    const knob = toggle.querySelector('span')!;
+    const on = isPreviewingAsPublic();
+    toggle.setAttribute('aria-checked', String(on));
+    toggle.classList.toggle('bg-accent', on);
+    toggle.classList.toggle('bg-border', !on);
+    knob.classList.toggle('translate-x-5', on);
+  }
+
+  document.getElementById('preview-toggle')?.addEventListener('click', () => {
+    setPreviewAsPublic(!isPreviewingAsPublic());
+    renderPreviewToggle();
+  });
+
+  function renderSettingsToggle(button: HTMLButtonElement, on: boolean) {
+    const knob = button.querySelector('span')!;
+    button.setAttribute('aria-checked', String(on));
+    button.classList.toggle('bg-accent', on);
+    button.classList.toggle('bg-border', !on);
+    knob.classList.toggle('translate-x-5', on);
+  }
+
+  async function loadSiteSettings() {
+    try {
+      const res = await fetch('/api/settings');
+      const settings = await res.json();
+      document.querySelectorAll<HTMLButtonElement>('.settings-toggle').forEach((btn) => {
+        const key = btn.dataset.settingsToggle ?? '';
+        renderSettingsToggle(btn, Boolean(settings[key]));
+      });
+    } catch {
+      // Leave toggles at their default (off) state if settings can't be loaded.
+    }
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('.settings-toggle').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const key = btn.dataset.settingsToggle ?? '';
+      const nextValue = btn.getAttribute('aria-checked') !== 'true';
+      renderSettingsToggle(btn, nextValue);
+
+      const statusEl = document.getElementById('settings-status')!;
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch('/api/admin/update-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ key, enabled: nextValue }),
+      });
+
+      if (res.ok) {
+        statusEl.textContent = 'Saved.';
+        setTimeout(() => (statusEl.textContent = ''), 1500);
+      } else {
+        renderSettingsToggle(btn, !nextValue);
+        statusEl.textContent = 'Failed to save — try again.';
+      }
+    });
+  });
+
+  function renderBannerToggle(on: boolean) {
+    const toggle = document.getElementById('banner-toggle')!;
+    const knob = toggle.querySelector('span')!;
+    toggle.setAttribute('aria-checked', String(on));
+    toggle.classList.toggle('bg-accent', on);
+    toggle.classList.toggle('bg-border', !on);
+    knob.classList.toggle('translate-x-5', on);
+  }
+
+  async function loadBanner() {
+    try {
+      const res = await fetch('/api/banner');
+      const { enabled, content } = await res.json();
+      renderBannerToggle(Boolean(enabled));
+      (document.getElementById('banner-editor') as HTMLElement).innerHTML = content ?? '';
+    } catch {
+      // Leave the editor blank and the toggle off if the banner can't load.
+    }
+  }
+
+  async function saveBanner(patch: { enabled?: boolean; content?: string }) {
+    const statusEl = document.getElementById('banner-status')!;
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const res = await fetch('/api/admin/update-banner', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify(patch),
+    });
+
+    statusEl.textContent = res.ok ? 'Saved.' : 'Failed to save — try again.';
+    if (res.ok) setTimeout(() => (statusEl.textContent = ''), 1500);
+  }
+
+  document.getElementById('banner-toggle')?.addEventListener('click', async () => {
+    const toggle = document.getElementById('banner-toggle')!;
+    const nextValue = toggle.getAttribute('aria-checked') !== 'true';
+    renderBannerToggle(nextValue);
+    await saveBanner({ enabled: nextValue });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('.banner-format-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.getElementById('banner-editor')?.focus();
+      document.execCommand(btn.dataset.cmd!, false);
+    });
+  });
+
+  document.getElementById('banner-link-btn')?.addEventListener('click', () => {
+    const url = prompt('Link URL (must start with https:// or /):');
+    if (!url) return;
+    document.getElementById('banner-editor')?.focus();
+    document.execCommand('createLink', false, url);
+  });
+
+  document.getElementById('banner-save')?.addEventListener('click', () => {
+    const html = (document.getElementById('banner-editor') as HTMLElement).innerHTML;
+    saveBanner({ content: html });
+  });
+
+  async function loadOverview() {
+    try {
+      const res = await fetch('/api/homepage-content');
+      const { lessonOverview } = await res.json();
+      (document.getElementById('overview-editor') as HTMLElement).innerHTML = lessonOverview ?? '';
+    } catch {
+      // Leave the editor blank if it can't load.
+    }
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('.overview-format-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.getElementById('overview-editor')?.focus();
+      document.execCommand(btn.dataset.cmd!, false);
+    });
+  });
+
+  document.getElementById('overview-link-btn')?.addEventListener('click', () => {
+    const url = prompt('Link URL (must start with https:// or /):');
+    if (!url) return;
+    document.getElementById('overview-editor')?.focus();
+    document.execCommand('createLink', false, url);
+  });
+
+  document.getElementById('overview-save')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('overview-status')!;
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const html = (document.getElementById('overview-editor') as HTMLElement).innerHTML;
+    const res = await fetch('/api/admin/update-homepage-content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ lessonOverview: html }),
+    });
+
+    statusEl.textContent = res.ok ? 'Saved.' : 'Failed to save — try again.';
+    if (res.ok) setTimeout(() => (statusEl.textContent = ''), 1500);
+  });
+
+  interface FaqRow {
+    id: string;
+    question: string;
+    answer: string;
+  }
+
+  const faqListEl = document.getElementById('faq-list')!;
+
+  function escapeAttr(str: string): string {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function buildFaqItem(faq?: FaqRow): HTMLElement {
+    const item = document.createElement('div');
+    item.className = 'faq-item flex flex-col gap-2 rounded-xl border border-border bg-bg p-3';
+    if (faq) item.dataset.id = faq.id;
+    item.innerHTML = `
+      <input type="text" class="faq-question rounded-lg border border-border bg-surface px-3 py-2 text-sm font-semibold text-ink focus:border-accent focus:outline-none" placeholder="Question" value="${faq ? escapeAttr(faq.question) : ''}" />
+      <div class="flex flex-wrap gap-1 border-b border-border pb-1">
+        <button type="button" data-cmd="bold" class="faq-format-btn rounded-lg px-2 py-1 text-xs font-bold text-ink/70 hover:bg-surface">B</button>
+        <button type="button" data-cmd="italic" class="faq-format-btn rounded-lg px-2 py-1 text-xs italic text-ink/70 hover:bg-surface">I</button>
+        <button type="button" data-cmd="underline" class="faq-format-btn rounded-lg px-2 py-1 text-xs underline text-ink/70 hover:bg-surface">U</button>
+        <button type="button" data-cmd="insertUnorderedList" class="faq-format-btn rounded-lg px-2 py-1 text-xs text-ink/70 hover:bg-surface">&#8226;&nbsp;List</button>
+        <button type="button" class="faq-link-btn rounded-lg px-2 py-1 text-xs text-ink/70 hover:bg-surface">Link</button>
+      </div>
+      <div class="faq-answer min-h-16 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none" contenteditable="true">${faq ? faq.answer : ''}</div>
+      <div class="flex items-center justify-between">
+        <div class="flex gap-1">
+          <button type="button" class="faq-move-up rounded-lg border border-border px-2 py-1 text-xs font-semibold text-ink/70 hover:bg-surface">&uarr;</button>
+          <button type="button" class="faq-move-down rounded-lg border border-border px-2 py-1 text-xs font-semibold text-ink/70 hover:bg-surface">&darr;</button>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" class="faq-delete rounded-full border border-red-300 px-3 py-1 text-xs font-bold uppercase tracking-wider text-red-600 transition-colors hover:bg-red-600 hover:text-white">Delete</button>
+          <button type="button" class="faq-save rounded-full border border-accent px-3 py-1 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white">Save</button>
+        </div>
+      </div>
+      <p class="faq-item-status min-h-4 text-xs text-muted"></p>
+    `;
+
+    const questionInput = item.querySelector('.faq-question') as HTMLInputElement;
+    const answerEditor = item.querySelector('.faq-answer') as HTMLElement;
+    const statusEl = item.querySelector('.faq-item-status') as HTMLElement;
+
+    item.querySelectorAll<HTMLButtonElement>('.faq-format-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        answerEditor.focus();
+        document.execCommand(btn.dataset.cmd!, false);
+      });
+    });
+
+    item.querySelector('.faq-link-btn')?.addEventListener('click', () => {
+      const url = prompt('Link URL (must start with https:// or /):');
+      if (!url) return;
+      answerEditor.focus();
+      document.execCommand('createLink', false, url);
+    });
+
+    item.querySelector('.faq-save')?.addEventListener('click', async () => {
+      const question = questionInput.value.trim();
+      if (!question) {
+        statusEl.textContent = 'Question is required.';
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session) return;
+
+      const answer = answerEditor.innerHTML;
+      const existingId = item.dataset.id;
+      const res = await fetch(existingId ? '/api/admin/update-faq' : '/api/admin/create-faq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify(existingId ? { id: existingId, question, answer } : { question, answer }),
+      });
+
+      if (res.ok) {
+        if (!existingId) {
+          const { faq } = await res.json();
+          item.dataset.id = faq.id;
+        }
+        statusEl.textContent = 'Saved.';
+        setTimeout(() => (statusEl.textContent = ''), 1500);
+      } else {
+        statusEl.textContent = 'Failed to save — try again.';
+      }
+    });
+
+    item.querySelector('.faq-delete')?.addEventListener('click', async () => {
+      const existingId = item.dataset.id;
+      if (existingId) {
+        const {
+          data: { session },
+        } = await supabaseBrowser.auth.getSession();
+        if (!session) return;
+
+        const res = await fetch('/api/admin/delete-faq', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ id: existingId }),
+        });
+        if (!res.ok) {
+          statusEl.textContent = 'Failed to delete — try again.';
+          return;
+        }
+      }
+      item.remove();
+    });
+
+    item.querySelector('.faq-move-up')?.addEventListener('click', () => moveFaq(item));
+    item.querySelector('.faq-move-down')?.addEventListener('click', () => moveFaq(item, 'down'));
+
+    return item;
+  }
+
+  async function moveFaq(item: HTMLElement, direction: 'up' | 'down' = 'up') {
+    const id = item.dataset.id;
+    if (!id) return;
+
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    await fetch('/api/admin/reorder-faq', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ id, direction }),
+    });
+    await loadFaqs();
+  }
+
+  async function loadFaqs() {
+    try {
+      const res = await fetch('/api/faqs');
+      const { faqs } = await res.json();
+      faqListEl.innerHTML = '';
+      (faqs as FaqRow[]).forEach((faq) => faqListEl.appendChild(buildFaqItem(faq)));
+    } catch {
+      // Leave the list empty if it can't load.
+    }
+  }
+
+  document.getElementById('faq-add-btn')?.addEventListener('click', () => {
+    faqListEl.appendChild(buildFaqItem());
+  });
+
+  document.getElementById('google-signin')?.addEventListener('click', () => {
+    supabaseBrowser.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        scopes: 'https://www.googleapis.com/auth/calendar',
+        queryParams: { access_type: 'offline', prompt: 'consent' },
+        redirectTo: `${window.location.origin}/admin`,
+      },
+    });
+  });
+
+  document.getElementById('signout-not-admin')?.addEventListener('click', async () => {
+    await supabaseBrowser.auth.signOut();
+    showPanel('signedOut');
+  });
+
+  document.getElementById('signout-admin')?.addEventListener('click', async () => {
+    await supabaseBrowser.auth.signOut();
+    showPanel('signedOut');
+  });
+
+  document.getElementById('sync-now')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('sync-status')!;
+    statusEl.textContent = 'Syncing…';
+
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) {
+      statusEl.textContent = 'Session expired — please sign in again.';
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/sync-calendar', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        statusEl.textContent = `Sync failed: ${data.error ?? 'unknown error'}`;
+        return;
+      }
+      const fmt = (r: any) => `${r.pulledCreated} added, ${r.pulledUpdated} updated, ${r.pulledDeleted} removed, ${r.pushedCreated} pushed`;
+      statusEl.textContent = `Synced — Public: ${fmt(data.public)}. Private: ${fmt(data.private)}.`;
+    } catch {
+      statusEl.textContent = 'Sync failed — check your connection and try again.';
+    }
+  });
+
+  init();
+</script>

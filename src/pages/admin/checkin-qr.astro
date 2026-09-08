@@ -1,0 +1,275 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Check-In QR Codes">
+  <div class="mx-auto max-w-xl px-6 py-16">
+    <div class="flex items-center justify-between gap-4">
+      <h1 class="font-display text-3xl font-extrabold text-ink">Check-In QR Codes</h1>
+      <a href="/admin" class="text-sm font-semibold text-accent hover:underline">&larr; Admin Tools</a>
+    </div>
+    <p class="mt-2 text-sm text-muted">Pick a class (and date, if it's a series) to generate a QR code and link for that specific check-in.</p>
+
+    <p id="loading" class="mt-8 text-sm text-muted">Loading&hellip;</p>
+
+    <div id="signed-out" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">Sign in as an admin to view this page.</p>
+      <a href="/admin" class="text-sm font-semibold text-accent hover:underline">Go to Admin Tools</a>
+    </div>
+
+    <div id="not-admin" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">This account isn't authorized as an admin.</p>
+    </div>
+
+    <div id="dashboard" class="mt-8 hidden flex-col gap-6">
+      <div class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-ink/80">Class</span>
+
+        <p id="no-classes" class="hidden rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
+          No classes are scheduled for today or later.
+        </p>
+        <div id="class-list" class="flex flex-col gap-2"></div>
+      </div>
+
+      <button
+        id="generate-btn"
+        disabled
+        class="gradient-accent self-start rounded-full px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Generate QR Code &amp; Link
+      </button>
+      <p id="generate-error" class="hidden text-xs font-semibold text-red-600"></p>
+
+      <div id="result" class="hidden flex-col items-center gap-4 rounded-2xl border border-border bg-surface p-6 text-center">
+        <p id="result-title" class="font-display text-lg font-bold text-ink"></p>
+        <p id="result-schedule" class="text-sm text-muted"></p>
+        <img id="result-qr" class="h-56 w-56 rounded-xl border border-border bg-white p-2" alt="Check-in QR code" />
+        <a id="result-download" download="check-in-qr.png" class="text-sm font-semibold text-accent hover:underline">Download QR Code</a>
+        <div class="flex w-full items-center gap-2">
+          <input id="result-url" readonly class="flex-1 truncate rounded-xl border border-border bg-bg px-3 py-2 text-xs text-ink/70" />
+          <button id="result-copy" class="shrink-0 rounded-full border border-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-bg">
+            Copy Link
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { supabaseBrowser } from '../../lib/supabaseBrowser';
+  import type { ClassSeriesEntry } from '../../lib/classSeries';
+
+  const panels = {
+    loading: document.getElementById('loading')!,
+    signedOut: document.getElementById('signed-out')!,
+    notAdmin: document.getElementById('not-admin')!,
+  };
+
+  function showPanel(name: keyof typeof panels | 'dashboard') {
+    const dashboard = document.getElementById('dashboard')!;
+    for (const [key, el] of Object.entries(panels)) {
+      el.classList.toggle('hidden', key !== name);
+      el.classList.toggle('flex', key === name);
+    }
+    dashboard.classList.toggle('hidden', name !== 'dashboard');
+    dashboard.classList.toggle('flex', name === 'dashboard');
+  }
+
+  let selectedEventId = '';
+  const generateBtn = document.getElementById('generate-btn') as HTMLButtonElement;
+  const generateError = document.getElementById('generate-error')!;
+  const resultBox = document.getElementById('result')!;
+  const resultTitle = document.getElementById('result-title')!;
+  const resultSchedule = document.getElementById('result-schedule')!;
+  const resultQr = document.getElementById('result-qr') as HTMLImageElement;
+  const resultDownload = document.getElementById('result-download') as HTMLAnchorElement;
+  const resultUrl = document.getElementById('result-url') as HTMLInputElement;
+  const resultCopy = document.getElementById('result-copy') as HTMLButtonElement;
+
+  function setSelectedEventId(id: string) {
+    selectedEventId = id;
+    generateBtn.disabled = !id;
+    resultBox.classList.add('hidden');
+    resultBox.classList.remove('flex');
+    generateError.classList.add('hidden');
+  }
+
+  const classList = document.getElementById('class-list')!;
+  const noClasses = document.getElementById('no-classes')!;
+
+  function attachClassItemHandlers() {
+    document.querySelectorAll<HTMLElement>('.class-item').forEach((item) => {
+      const isSeries = item.dataset.isSeries === 'true';
+      const singleEventId = item.dataset.singleEventId ?? '';
+      const toggleBtn = item.querySelector('.class-select-btn') as HTMLButtonElement;
+      const picker = item.querySelector<HTMLElement>('.occurrence-picker');
+      const occurrenceButtons = Array.from(item.querySelectorAll<HTMLButtonElement>('.occurrence-btn'));
+
+      function selectItem() {
+        document.querySelectorAll('.class-item').forEach((other) => {
+          other.classList.remove('border-accent');
+          if (other !== item) {
+            other.querySelector('.occurrence-picker')?.classList.add('hidden');
+            other.querySelector('.occurrence-picker')?.classList.remove('flex');
+          }
+        });
+        item.classList.add('border-accent');
+      }
+
+      toggleBtn.addEventListener('click', () => {
+        selectItem();
+        if (isSeries) {
+          setSelectedEventId('');
+          occurrenceButtons.forEach((b) => {
+            b.classList.remove('gradient-accent', 'text-white', 'border-transparent');
+            b.classList.add('border-border', 'text-ink/70');
+          });
+          picker?.classList.remove('hidden');
+          picker?.classList.add('flex');
+        } else {
+          setSelectedEventId(singleEventId);
+        }
+      });
+
+      occurrenceButtons.forEach((btn) =>
+        btn.addEventListener('click', () => {
+          occurrenceButtons.forEach((b) => {
+            b.classList.remove('gradient-accent', 'text-white', 'border-transparent');
+            b.classList.add('border-border', 'text-ink/70');
+          });
+          btn.classList.add('gradient-accent', 'text-white', 'border-transparent');
+          btn.classList.remove('border-border', 'text-ink/70');
+          setSelectedEventId(btn.dataset.eventId ?? '');
+        })
+      );
+    });
+  }
+
+  function renderClassList(seriesList: ClassSeriesEntry[]) {
+    classList.innerHTML = '';
+    noClasses.classList.toggle('hidden', seriesList.length > 0);
+
+    for (const s of seriesList) {
+      const item = document.createElement('div');
+      item.className = 'class-item overflow-hidden rounded-xl border border-border bg-surface';
+      item.dataset.key = s.key;
+      item.dataset.isSeries = String(s.isSeries);
+      item.dataset.singleEventId = s.singleEventId ?? '';
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className =
+        'class-select-btn flex w-full flex-col items-start gap-0.5 px-4 py-3 text-left transition-colors hover:bg-bg';
+
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'font-semibold text-ink';
+      titleSpan.textContent = s.title;
+
+      const subSpan = document.createElement('span');
+      subSpan.className = 'text-xs text-muted';
+      subSpan.textContent = s.subLabel;
+
+      toggleBtn.append(titleSpan, subSpan);
+      item.appendChild(toggleBtn);
+
+      if (s.isSeries) {
+        const picker = document.createElement('div');
+        picker.className = 'occurrence-picker hidden flex-wrap gap-2 border-t border-border bg-bg p-4';
+
+        for (const occ of s.occurrences) {
+          const occBtn = document.createElement('button');
+          occBtn.type = 'button';
+          occBtn.className =
+            'occurrence-btn rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-ink/70 transition-colors';
+          occBtn.dataset.eventId = occ.id;
+          occBtn.textContent = occ.label;
+          picker.appendChild(occBtn);
+        }
+
+        item.appendChild(picker);
+      }
+
+      classList.appendChild(item);
+    }
+
+    attachClassItemHandlers();
+  }
+
+  generateBtn.addEventListener('click', async () => {
+    if (!selectedEventId) return;
+
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    generateBtn.disabled = true;
+    generateError.classList.add('hidden');
+
+    try {
+      const res = await fetch('/api/admin/generate-checkin-qr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ eventId: selectedEventId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to generate QR code.');
+
+      resultTitle.textContent = data.title;
+      resultSchedule.textContent = data.scheduleLabel;
+      resultQr.src = data.qrDataUrl;
+      resultDownload.href = data.qrDataUrl;
+      resultUrl.value = data.url;
+      resultBox.classList.remove('hidden');
+      resultBox.classList.add('flex');
+      resultBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (err) {
+      generateError.textContent = err instanceof Error ? err.message : 'Failed to generate QR code.';
+      generateError.classList.remove('hidden');
+    } finally {
+      generateBtn.disabled = !selectedEventId;
+    }
+  });
+
+  resultCopy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(resultUrl.value);
+      resultCopy.textContent = 'Copied!';
+      setTimeout(() => (resultCopy.textContent = 'Copy Link'), 1500);
+    } catch {
+      resultUrl.select();
+    }
+  });
+
+  async function init() {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+
+    if (!session) {
+      showPanel('signedOut');
+      return;
+    }
+
+    const checkRes = await fetch('/api/admin/check', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const { isAdmin } = await checkRes.json();
+
+    if (!isAdmin) {
+      showPanel('notAdmin');
+      return;
+    }
+
+    const classesRes = await fetch('/api/admin/checkin-classes', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const classesData = await classesRes.json();
+    renderClassList(classesRes.ok ? (classesData.classSeries as ClassSeriesEntry[]) : []);
+
+    showPanel('dashboard');
+  }
+
+  init();
+</script>

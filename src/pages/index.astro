@@ -1,0 +1,185 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { supabase } from '../lib/supabase';
+import { buildClassSeriesList } from '../lib/classSeries';
+import { getHomepageContent } from '../lib/homepageContent';
+import { listFaqs } from '../lib/faqs';
+import classPlaceholder from '../assets/stock/class-placeholder.jpg';
+import classPlaceholder2 from '../assets/stock/class-placeholder-2.jpg';
+import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
+
+const classPlaceholders = [classPlaceholder, classPlaceholder2];
+
+const { lessonOverview } = await getHomepageContent();
+const faqs = await listFaqs();
+
+const { data: events, error } = await supabase
+  .from('events')
+  .select(
+    'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color'
+  )
+  .eq('visibility', 'public')
+  .in('event_type', ['class', 'event'])
+  .gte('start_time', new Date().toISOString())
+  .order('start_time', { ascending: true });
+
+if (error) console.error('Failed to load current offerings:', error);
+
+const offerings = buildClassSeriesList(events ?? []).sort((a, b) => a.nextStartTime.localeCompare(b.nextStartTime));
+
+function formatPrice(value: number): string {
+  return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
+}
+
+function priceLine(offering: (typeof offerings)[number]): string | null {
+  if (offering.priceWholeSeries == null && offering.priceDropIn == null && offering.priceStudent == null) return null;
+  const parts: string[] = [];
+  if (offering.priceWholeSeries != null) parts.push(`${offering.isSeries ? 'Whole Series' : 'Price'}: ${formatPrice(offering.priceWholeSeries)}`);
+  if (offering.isSeries && offering.priceDropIn != null) parts.push(`Drop In: ${formatPrice(offering.priceDropIn)}/class`);
+  if (offering.priceStudent != null) parts.push(`Student: ${formatPrice(offering.priceStudent)}/class`);
+  return parts.join(' · ');
+}
+
+function seriesTypeLabel(offering: (typeof offerings)[number]): string {
+  return offering.isSeries ? `${offering.occurrences.length}-Week Series` : 'Workshop';
+}
+
+// Mirrors calendar.astro's color palette so an offering's accents match its
+// color-coding on the calendar. 'accent' and 'yellow' are legacy colors kept
+// only so older events still render correctly.
+//
+// Pills use a solid -600 fill with white text rather than colored text on a
+// translucent chip — colored-on-light text sitting over a photo doesn't
+// reliably clear WCAG AA's 4.5:1 contrast minimum at this size, while white
+// text on a Tailwind -600 shade is the standard high-contrast badge pattern
+// and comfortably clears it.
+const bgColorClasses: Record<string, string> = {
+  green: 'bg-green-600',
+  blue: 'bg-blue-600',
+  red: 'bg-red-600',
+  orange: 'bg-orange-600',
+  purple: 'bg-purple-600',
+  accent: 'bg-accent',
+  yellow: 'bg-yellow-600',
+};
+const borderColorClasses: Record<string, string> = {
+  green: 'border-green-600',
+  blue: 'border-blue-600',
+  red: 'border-red-600',
+  orange: 'border-orange-600',
+  purple: 'border-purple-600',
+  accent: 'border-accent',
+  yellow: 'border-yellow-600',
+};
+const bgClass = (color: string) => bgColorClasses[color] ?? 'bg-accent';
+const borderClass = (color: string) => borderColorClasses[color] ?? 'border-accent';
+
+function locationHref(location: string): string {
+  if (/^https?:\/\//i.test(location)) return location;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+}
+
+const registerBase = (offering: (typeof offerings)[number]) => (offering.eventType === 'event' ? '/register/events' : '/register');
+---
+
+<BaseLayout title="Home">
+  <section class="mx-auto max-w-6xl px-6 py-20">
+    <div class="mb-8 mx-auto max-w-4xl text-center">
+      <h2 class="font-display text-3xl font-extrabold text-ink">Current Lesson Offerings</h2>
+    </div>
+
+    {lessonOverview && (
+      <div
+        class="mx-auto mb-12 max-w-4xl text-center text-base leading-relaxed text-ink/80 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:text-left [&_p:not(:first-child)]:mt-4 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:text-left"
+        set:html={lessonOverview}
+      />
+    )}
+
+    {offerings.length === 0 ? (
+      <p class="mx-auto max-w-md text-center text-sm text-muted">
+        No upcoming classes or events right now — check back soon!
+      </p>
+    ) : (
+      <div class="mx-auto flex max-w-3xl flex-col gap-6">
+        {offerings.map((offering, index) => {
+          const image =
+            offering.imageUrl ??
+            (offering.eventType === 'event' ? eventPlaceholder.src : classPlaceholders[index % classPlaceholders.length].src);
+          const price = priceLine(offering);
+          const href = `${registerBase(offering)}?series=${encodeURIComponent(offering.key)}`;
+
+          return (
+            <article class="group flex flex-col overflow-hidden rounded-3xl border border-border bg-bg shadow-[0_2px_16px_rgba(0,0,0,0.06)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)]">
+              <div class="relative h-28 w-full overflow-hidden sm:h-36">
+                <img
+                  src={image}
+                  alt={offering.title}
+                  class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+                <div class="absolute left-3 top-3 flex gap-2">
+                  <span class={`rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md ${bgClass(offering.color)}`}>
+                    {seriesTypeLabel(offering)}
+                  </span>
+                </div>
+              </div>
+              <div class="flex flex-col gap-3 p-6 sm:p-8">
+                <h3 class="font-display text-xl font-bold text-ink sm:text-2xl">{offering.title}</h3>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+                  <span>{offering.subLabel}</span>
+                  {offering.location && (
+                    <>
+                      <span class="text-muted/50">·</span>
+                      <a
+                        href={locationHref(offering.location)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="font-semibold text-accent underline underline-offset-2 hover:opacity-80"
+                      >
+                        📍 {offering.location}
+                      </a>
+                    </>
+                  )}
+                </div>
+                {price && <p class="text-sm font-semibold text-ink">{price}</p>}
+                {offering.description && (
+                  <div
+                    class={`border-l-4 pl-4 text-base font-normal leading-relaxed text-ink/80 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 ${borderClass(offering.color)}/60`}
+                    set:html={offering.description}
+                  />
+                )}
+                <a
+                  href={href}
+                  class="gradient-accent mt-2 inline-block self-start rounded-full px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+                >
+                  Register Now
+                </a>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    )}
+
+    {faqs.length > 0 && (
+      <div class="mx-auto mt-12 max-w-3xl">
+        <h3 class="font-display text-xl font-bold text-ink">FAQs & Other Info</h3>
+        <div class="mt-4 flex flex-col gap-2">
+          {faqs.map((faq) => (
+            <details class="group rounded-xl border border-border bg-surface open:bg-bg">
+              <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                {faq.question}
+                <span class="shrink-0 text-muted transition-transform group-open:rotate-180">⌄</span>
+              </summary>
+              <div
+                class="border-t border-border px-4 py-3 text-sm leading-relaxed text-ink/70 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5"
+                set:html={faq.answer}
+              />
+            </details>
+          ))}
+        </div>
+      </div>
+    )}
+  </section>
+</BaseLayout>
