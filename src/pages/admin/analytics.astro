@@ -1282,7 +1282,15 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
     orphanedSignupsBody.innerHTML = orphanedSignups
       .map((e) => {
-        const candidateCheckins = attendanceOrphanedCheckins.filter((c) => c.class_title === e.classTitle);
+        // A Whole-Series entry is pinned to one occurrence date, so only
+        // offer check-ins for that same date — otherwise the reconcile
+        // dropdown would let an admin link a dancer's, say, Sep 6 entry to
+        // a check-in that actually happened on Aug 16. A Drop-In (or
+        // unexpandable) entry has no fixed date, so any check-in for the
+        // same class is a fair candidate.
+        const candidateCheckins = attendanceOrphanedCheckins.filter(
+          (c) => c.class_title === e.classTitle && (!e.occurrenceEventId || c.event_id === e.occurrenceEventId)
+        );
         const optionsHtml = candidateCheckins
           .map(
             (c) =>
