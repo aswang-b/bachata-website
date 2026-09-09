@@ -31,15 +31,6 @@ const {
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
-    <script is:inline>
-      // Applied before paint to avoid a flash of the wrong theme. Only sets
-      // an explicit override; with no cookie, global.css's base (dark)
-      // theme applies on its own.
-      try {
-        var m = document.cookie.match(/(?:^|; )bwb-theme=([^;]*)/);
-        if (m) document.documentElement.setAttribute('data-theme', decodeURIComponent(m[1]));
-      } catch {}
-    </script>
   </head>
   <body class="flex min-h-screen flex-col">
     <PreviewBanner />

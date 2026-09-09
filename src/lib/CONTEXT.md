@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Everything here runs server-side (Astro SSR pages, `/api/*` routes, the scheduled Netlify function). No file in this directory is safe to import from client-side `<script>` blocks except `supabaseBrowser.ts` and `theme.ts`, which are written for the browser specifically.
+Everything here runs server-side (Astro SSR pages, `/api/*` routes, the scheduled Netlify function). No file in this directory is safe to import from client-side `<script>` blocks except `supabaseBrowser.ts`, which is written for the browser specifically.
 
 ## Key Files
 
@@ -30,7 +30,6 @@ Everything here runs server-side (Astro SSR pages, `/api/*` routes, the schedule
 | `siteSettings.ts` | Boolean site settings (`hide_about_nav`, `hide_contact_nav`, `hide_checkin_nav`) persistence |
 | `supabase.ts` | Server Supabase client (service role key) |
 | `supabaseBrowser.ts` | Browser Supabase client (anon key) — the one exception safe to import client-side |
-| `theme.ts` | Browser-side light/dark theme get/set — the other client-safe exception |
 
 ## Integration Points
 

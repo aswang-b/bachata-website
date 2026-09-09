@@ -1,11 +1,6 @@
 @import "tailwindcss";
 
-/* Dark is the default look for every visitor regardless of OS preference —
-   light mode is only the explicit opt-out below (see src/lib/theme.ts).
-   --color-accent flips to a brighter red in light mode — the dark-mode
-   shade is tuned for contrast against the near-black background and reads
-   as too muddy against the cream; --color-accent-from/-to stay fixed across
-   themes since they're only ever used as a solid button fill under white text. */
+/* Dark is the only look for the site now — no light-mode toggle. */
 @theme {
   --font-display: "Poppins", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -18,15 +13,6 @@
   --color-accent-from: #b81640;
   --color-accent-to: #c2410c;
   --color-accent: #ff5577;
-}
-
-:root[data-theme="light"] {
-  --color-bg: #f6ece3;
-  --color-surface: #e0c3c5;
-  --color-ink: #241713;
-  --color-muted: #665650;
-  --color-border: #c2818a;
-  --color-accent: #b81640;
 }
 
 html {

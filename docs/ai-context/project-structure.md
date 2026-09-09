@@ -56,7 +56,6 @@
 │   │   ├── siteBanner.ts                # Site-wide announcement banner
 │   │   ├── siteSettings.ts              # Site settings persistence
 │   │   ├── supabase.ts / supabaseBrowser.ts  # Supabase clients (server/browser)
-│   │   └── theme.ts
 │   └── pages/
 │       ├── index.astro, about.astro, contact.astro, contact/confirmation.astro, privacy-policy.astro, calendar.astro
 │       ├── register.astro, register/events.astro, register/confirmation.astro

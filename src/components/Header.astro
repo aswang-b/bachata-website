@@ -13,9 +13,17 @@ const isAdminPage = currentPath === '/admin';
 
 <header class="sticky top-0 z-50 border-b border-border bg-bg/90 backdrop-blur">
   <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-    <a href="/" class="font-display text-xl font-extrabold tracking-tight text-ink">
-      Dance with <span class="text-gradient-accent relative -top-[0.5px]">B</span>
-    </a>
+    <div class="flex items-center gap-3">
+      <a href="/" class="font-display text-xl font-extrabold tracking-tight text-ink">
+        Dance with <span class="text-gradient-accent relative -top-[0.5px]">B</span>
+      </a>
+      <a
+        href="/register"
+        class="gradient-accent flex whitespace-nowrap rounded-full px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white transition-opacity hover:opacity-90 md:hidden"
+      >
+        Reserve Spot
+      </a>
+    </div>
 
     <div class="flex items-center gap-4">
       <nav class="hidden gap-8 md:flex">
@@ -52,6 +60,13 @@ const isAdminPage = currentPath === '/admin';
       </nav>
 
       <a
+        href="/register"
+        class="gradient-accent hidden rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 md:flex"
+      >
+        Reserve Your Spot
+      </a>
+
+      <a
         href="/admin/inbox"
         id="inbox-link"
         aria-label="Inbox"
@@ -62,22 +77,6 @@ const isAdminPage = currentPath === '/admin';
         </svg>
         <span id="inbox-dot" class="absolute -right-0.5 -top-0.5 hidden h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-bg"></span>
       </a>
-
-      <button
-        id="theme-toggle"
-        role="switch"
-        aria-checked="false"
-        aria-label="Toggle dark mode"
-        class="relative flex h-7 w-12 shrink-0 items-center rounded-full bg-border px-1 transition-colors"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute left-1.5 h-3.5 w-3.5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1.5m0 15V21m9-9h-1.5M4.5 12H3m15.36-6.36-1.06 1.06M6.7 17.3l-1.06 1.06m0-12.72L6.7 6.7m10.6 10.6 1.06 1.06M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
-        </svg>
-        <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute right-1.5 h-3.5 w-3.5 text-ink/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
-        </svg>
-        <span id="theme-toggle-knob" class="relative z-10 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
-      </button>
 
       <button
         id="nav-toggle"
@@ -121,7 +120,6 @@ const isAdminPage = currentPath === '/admin';
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
   import { isPreviewingAsPublic } from '../lib/previewMode';
-  import { getEffectiveTheme, setTheme } from '../lib/theme';
 
   const toggle = document.getElementById('nav-toggle');
   const mobileNav = document.getElementById('mobile-nav');
@@ -131,23 +129,6 @@ const isAdminPage = currentPath === '/admin';
     mobileNav?.classList.toggle('hidden');
     mobileNav?.classList.toggle('flex');
     toggle.setAttribute('aria-expanded', String(Boolean(isHidden)));
-  });
-
-  const themeToggle = document.getElementById('theme-toggle')!;
-  const themeToggleKnob = document.getElementById('theme-toggle-knob')!;
-
-  function updateThemeToggle(theme: 'light' | 'dark') {
-    const isDark = theme === 'dark';
-    themeToggle.setAttribute('aria-checked', String(isDark));
-    themeToggleKnob.classList.toggle('translate-x-5', isDark);
-  }
-
-  updateThemeToggle(getEffectiveTheme());
-
-  themeToggle.addEventListener('click', () => {
-    const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    updateThemeToggle(next);
   });
 
   async function revealAdminNavLinkIfAdmin() {
