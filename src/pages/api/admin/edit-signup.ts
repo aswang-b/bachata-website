@@ -122,6 +122,23 @@ export const POST: APIRoute = async ({ request }) => {
         .eq('dancer_index', dancerIndex);
       if (deleteRegError) console.error('Failed to delete dancer class registrations:', deleteRegError.message);
 
+      // Removing a dancer shifts everyone after them down by one position in
+      // `dancers[]` — re-align their class_registrations rows to match, or
+      // they'd point at a dancer_index that no longer matches anyone (making
+      // that dancer's price/class silently disappear from the Sign-Ups table
+      // until they're next edited or the removed dancer is restored).
+      const { data: toShift } = await supabase
+        .from('class_registrations')
+        .select('id, dancer_index')
+        .eq('submission_id', submissionId)
+        .gt('dancer_index', dancerIndex);
+      for (const r of toShift ?? []) {
+        await supabase
+          .from('class_registrations')
+          .update({ dancer_index: (r.dancer_index ?? 1) - 1 })
+          .eq('id', r.id);
+      }
+
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     }
 
