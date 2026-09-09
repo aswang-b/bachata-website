@@ -175,12 +175,43 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
             <h2 class="font-display text-xl font-bold text-ink">Check-Ins</h2>
             <p id="checkins-count" class="text-xs text-muted"></p>
           </div>
-          <button
-            id="add-checkin-btn"
-            class="add-checkin-row-btn mt-2 hidden rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
-          >
-            + Add Check-In
-          </button>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              id="add-checkin-btn"
+              class="add-checkin-row-btn hidden rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+            >
+              + Add Check-In
+            </button>
+            <button
+              id="show-deleted-checkins-btn"
+              class="rounded-full border border-border px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-surface"
+            >
+              Recently Deleted
+            </button>
+          </div>
+
+          <div id="deleted-checkins-panel" class="mt-3 hidden flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+            <div class="flex items-baseline justify-between">
+              <p class="text-xs font-semibold uppercase tracking-wider text-muted">Deleted in the last 7 days</p>
+              <p id="deleted-checkins-count" class="text-xs text-muted"></p>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-border">
+              <table class="w-full min-w-[560px] text-left text-sm">
+                <thead class="bg-bg text-xs font-semibold uppercase tracking-wider text-muted">
+                  <tr>
+                    <th class="px-4 py-2.5">Name</th>
+                    <th class="px-4 py-2.5">Class</th>
+                    <th class="px-4 py-2.5">Deleted</th>
+                    <th class="px-4 py-2.5">By</th>
+                    <th class="px-4 py-2.5">Restore</th>
+                  </tr>
+                </thead>
+                <tbody id="deleted-checkins-body"></tbody>
+              </table>
+              <p id="deleted-checkins-empty" class="hidden px-4 py-6 text-center text-sm text-muted">Nothing deleted in the last 7 days.</p>
+            </div>
+          </div>
+
           <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
             <table class="w-full min-w-[560px] text-left text-sm">
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
@@ -1171,6 +1202,85 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     deletedSignupsPanel.classList.toggle('hidden', !isHidden);
     deletedSignupsPanel.classList.toggle('flex', isHidden);
     if (isHidden) loadDeletedSignups();
+  });
+
+  // --- Recently deleted check-ins (7-day audit trail, with restore) ---
+  const deletedCheckinsPanel = document.getElementById('deleted-checkins-panel')!;
+  const deletedCheckinsBody = document.getElementById('deleted-checkins-body')!;
+  const deletedCheckinsEmpty = document.getElementById('deleted-checkins-empty')!;
+  const deletedCheckinsCount = document.getElementById('deleted-checkins-count')!;
+  const showDeletedCheckinsBtn = document.getElementById('show-deleted-checkins-btn') as HTMLButtonElement;
+
+  interface DeletedCheckinEntry {
+    auditId: string;
+    deletedAt: string;
+    deletedBy: string | null;
+    firstName: string;
+    lastName: string;
+    classTitle: string | null;
+  }
+
+  async function loadDeletedCheckins() {
+    const headers = await withAuthHeader();
+    if (!headers) return;
+
+    const res = await fetch('/api/admin/deleted-checkins', { headers });
+    if (!res.ok) return;
+    const { entries } = (await res.json()) as { entries: DeletedCheckinEntry[] };
+
+    deletedCheckinsCount.textContent = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
+    deletedCheckinsEmpty.classList.toggle('hidden', entries.length > 0);
+
+    const isLockedByMe = checkinsLock.isLocked();
+
+    deletedCheckinsBody.innerHTML = entries
+      .map(
+        (e) => `
+      <tr class="border-t border-border">
+        <td class="px-4 py-2.5 text-ink">${escapeHtml(`${e.firstName} ${e.lastName}`.trim() || '—')}</td>
+        <td class="px-4 py-2.5 text-ink/70">${escapeHtml(e.classTitle ?? '—')}</td>
+        <td class="px-4 py-2.5 text-ink/70">${deletedDateFormatter.format(new Date(e.deletedAt))}</td>
+        <td class="px-4 py-2.5 text-ink/70">${escapeHtml(e.deletedBy ?? '—')}</td>
+        <td class="px-4 py-2.5">
+          ${
+            isLockedByMe
+              ? `<button class="restore-checkin-btn text-xs font-semibold text-accent hover:underline" data-audit-id="${e.auditId}">Restore</button>`
+              : '<span class="text-xs text-muted">Lock to restore</span>'
+          }
+        </td>
+      </tr>`
+      )
+      .join('');
+
+    document.querySelectorAll<HTMLButtonElement>('.restore-checkin-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const restoreHeaders = await withAuthHeader();
+        if (!restoreHeaders) return;
+        btn.disabled = true;
+
+        const res2 = await fetch('/api/admin/restore-checkin', {
+          method: 'POST',
+          headers: restoreHeaders,
+          body: JSON.stringify({ auditId: btn.dataset.auditId, holderId }),
+        });
+
+        if (res2.ok) {
+          await reloadCheckins();
+          await loadDeletedCheckins();
+        } else {
+          const data = await res2.json().catch(() => ({}));
+          alert(data.error ?? 'Failed to restore.');
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  showDeletedCheckinsBtn.addEventListener('click', () => {
+    const isHidden = deletedCheckinsPanel.classList.contains('hidden');
+    deletedCheckinsPanel.classList.toggle('hidden', !isHidden);
+    deletedCheckinsPanel.classList.toggle('flex', isHidden);
+    if (isHidden) loadDeletedCheckins();
   });
 
   // --- Data loading ---
