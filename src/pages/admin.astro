@@ -4,7 +4,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
 <BaseLayout title="Admin">
   <div class="mx-auto flex max-w-4xl flex-col items-center px-6 py-16 text-center">
-    <h1 class="font-display text-3xl font-extrabold text-ink">Admin Tools</h1>
+    <a href="/admin/analytics" class="self-end text-sm font-semibold text-accent hover:underline">Data &amp; Analytics &rarr;</a>
 
     <p id="account-loading" class="mt-8 text-sm text-muted">Loading&hellip;</p>
 
@@ -37,56 +37,38 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           Signed in as <span id="admin-email" class="font-semibold text-ink"></span>
         </p>
         <button
-          id="sync-now"
-          class="gradient-accent rounded-full px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+          id="signout-admin"
+          class="rounded-full border border-border px-6 py-2 text-sm font-semibold text-ink/70 transition-colors hover:bg-surface"
         >
-          Sync Google Calendar
+          Sign out
         </button>
+      </div>
+
+      <div class="flex w-full gap-1 border-b border-border" role="tablist">
+        <button type="button" data-tab="general" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+          General
+        </button>
+        <button type="button" data-tab="homepage" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+          Homepage
+        </button>
+        <button type="button" data-tab="admin" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+          Admin
+        </button>
+        <button type="button" data-tab="debug" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+          Debug
+        </button>
+      </div>
+
+      <!-- ==================== GENERAL TAB ==================== -->
+      <section id="admin-tab-panel-general" class="admin-tab-panel flex w-full flex-col items-center gap-6">
         <a
           href="/admin/checkin-qr"
           class="rounded-full border border-accent px-6 py-3 text-sm font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
         >
           Check-In QR Codes
         </a>
-      </div>
-      <p id="sync-status" class="-mt-4 min-h-5 text-sm text-muted"></p>
 
-      <div class="grid w-full gap-6 text-left md:grid-cols-2">
-        <div class="flex flex-col gap-3">
-          <p class="self-start text-xs font-bold uppercase tracking-wider text-muted">General Settings</p>
-
-          <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
-            <div>
-              <p class="text-sm font-semibold text-ink">Preview as public user</p>
-              <p class="text-xs text-muted">See the site without admin controls, while staying signed in.</p>
-            </div>
-            <button
-              id="preview-toggle"
-              role="switch"
-              aria-checked="false"
-              class="relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
-            >
-              <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
-            </button>
-          </div>
-
-          <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
-            <div>
-              <p class="text-sm font-semibold text-ink">Site-wide announcement banner</p>
-              <p class="text-xs text-muted">Shows at the top of every page for all visitors.</p>
-            </div>
-            <button
-              id="banner-toggle"
-              role="switch"
-              aria-checked="false"
-              class="relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
-            >
-              <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
-            </button>
-          </div>
-        </div>
-
-        <div class="flex flex-col gap-3">
+        <div class="flex w-full flex-col gap-3 text-left">
           <p class="self-start text-xs font-bold uppercase tracking-wider text-muted">Site Visibility</p>
 
           <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
@@ -133,92 +115,135 @@ import BaseLayout from '../layouts/BaseLayout.astro';
               <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
             </button>
           </div>
+
+          <div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
+            <div class="flex w-full items-center justify-between">
+              <div>
+                <p class="text-sm font-semibold text-ink">Site-wide announcement banner</p>
+                <p class="text-xs text-muted">Shows at the top of every page for all visitors.</p>
+              </div>
+              <button
+                id="banner-toggle"
+                role="switch"
+                aria-checked="false"
+                class="relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
+              >
+                <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+              </button>
+            </div>
+
+            <div class="flex gap-1 border-t border-border pt-3">
+              <button type="button" data-cmd="bold" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
+              <button type="button" data-cmd="italic" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
+              <button type="button" data-cmd="underline" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
+              <button type="button" id="banner-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+            </div>
+            <div
+              id="banner-editor"
+              contenteditable="true"
+              class="min-h-16 rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+            ></div>
+            <button
+              id="banner-save"
+              class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+            >
+              Save Banner
+            </button>
+            <p id="banner-status" class="min-h-4 text-xs text-muted"></p>
+          </div>
+
           <p id="settings-status" class="min-h-4 text-xs text-muted"></p>
         </div>
-      </div>
+      </section>
 
-      <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
-        <p class="text-xs font-bold uppercase tracking-wider text-muted">Contact Notification Recipients</p>
-        <p class="text-xs text-muted">Comma-separated emails that get notified when someone submits the Contact Me form.</p>
-        <input
-          id="notification-emails-input"
-          type="text"
-          placeholder="you@example.com, someone-else@example.com"
-          class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
-        />
-        <button
-          id="notification-emails-save"
-          class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
-        >
-          Save Recipients
-        </button>
-        <p id="notification-emails-status" class="min-h-4 text-xs text-muted"></p>
-      </div>
-
-      <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
-        <p class="text-xs font-bold uppercase tracking-wider text-muted">Announcement Banner Content</p>
-        <div class="flex gap-1 border-b border-border pb-2">
-          <button type="button" data-cmd="bold" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
-          <button type="button" data-cmd="italic" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
-          <button type="button" data-cmd="underline" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
-          <button type="button" id="banner-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+      <!-- ==================== HOMEPAGE TAB ==================== -->
+      <section id="admin-tab-panel-homepage" class="admin-tab-panel hidden w-full flex-col items-center gap-6">
+        <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+          <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage Lesson Overview</p>
+          <div class="flex flex-wrap gap-1 border-b border-border pb-2">
+            <button type="button" data-cmd="bold" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
+            <button type="button" data-cmd="italic" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
+            <button type="button" data-cmd="underline" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
+            <button type="button" data-cmd="insertUnorderedList" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">&#8226;&nbsp;List</button>
+            <button type="button" id="overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+          </div>
+          <div
+            id="overview-editor"
+            contenteditable="true"
+            class="min-h-24 rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+          ></div>
+          <button
+            id="overview-save"
+            class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Save Overview
+          </button>
+          <p id="overview-status" class="min-h-4 text-xs text-muted"></p>
         </div>
-        <div
-          id="banner-editor"
-          contenteditable="true"
-          class="min-h-16 rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
-        ></div>
-        <button
-          id="banner-save"
-          class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
-        >
-          Save Banner
-        </button>
-        <p id="banner-status" class="min-h-4 text-xs text-muted"></p>
-      </div>
 
-      <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
-        <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage Lesson Overview</p>
-        <div class="flex flex-wrap gap-1 border-b border-border pb-2">
-          <button type="button" data-cmd="bold" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
-          <button type="button" data-cmd="italic" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
-          <button type="button" data-cmd="underline" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
-          <button type="button" data-cmd="insertUnorderedList" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">&#8226;&nbsp;List</button>
-          <button type="button" id="overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+        <div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
+          <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage FAQs</p>
+          <div id="faq-list" class="flex flex-col gap-3"></div>
+          <button
+            id="faq-add-btn"
+            type="button"
+            class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            + Add FAQ
+          </button>
+          <p id="faq-status" class="min-h-4 text-xs text-muted"></p>
         </div>
-        <div
-          id="overview-editor"
-          contenteditable="true"
-          class="min-h-24 rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
-        ></div>
-        <button
-          id="overview-save"
-          class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
-        >
-          Save Overview
-        </button>
-        <p id="overview-status" class="min-h-4 text-xs text-muted"></p>
-      </div>
+      </section>
 
-      <div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
-        <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage FAQs</p>
-        <div id="faq-list" class="flex flex-col gap-3"></div>
-        <button
-          id="faq-add-btn"
-          type="button"
-          class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
-        >
-          + Add FAQ
-        </button>
-        <p id="faq-status" class="min-h-4 text-xs text-muted"></p>
-      </div>
+      <!-- ==================== ADMIN TAB ==================== -->
+      <section id="admin-tab-panel-admin" class="admin-tab-panel hidden w-full flex-col items-center gap-6">
+        <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+          <p class="text-xs font-bold uppercase tracking-wider text-muted">Contact Notification Recipients</p>
+          <p class="text-xs text-muted">Comma-separated emails that get notified when someone submits the Contact Me form.</p>
+          <input
+            id="notification-emails-input"
+            type="text"
+            placeholder="you@example.com, someone-else@example.com"
+            class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+          />
+          <button
+            id="notification-emails-save"
+            class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Save Recipients
+          </button>
+          <p id="notification-emails-status" class="min-h-4 text-xs text-muted"></p>
+        </div>
+      </section>
 
-      <button
-        id="signout-admin"
-        class="mt-2 rounded-full border border-border px-6 py-2 text-sm font-semibold text-ink/70 transition-colors hover:bg-surface"
-      >
-        Sign out
-      </button>
+      <!-- ==================== DEBUG TAB ==================== -->
+      <section id="admin-tab-panel-debug" class="admin-tab-panel hidden w-full flex-col items-center gap-4">
+        <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
+          <div>
+            <p class="text-sm font-semibold text-ink">Preview as public user</p>
+            <p class="text-xs text-muted">See the site without admin controls, while staying signed in.</p>
+          </div>
+          <button
+            id="preview-toggle"
+            role="switch"
+            aria-checked="false"
+            class="relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
+          >
+            <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+          </button>
+        </div>
+
+        <div class="flex w-full flex-col items-center gap-4 rounded-2xl border border-border bg-surface p-4 text-center">
+          <p class="self-center text-xs font-bold uppercase tracking-wider text-muted">Google Calendar Sync</p>
+          <button
+            id="sync-now"
+            class="gradient-accent rounded-full px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+          >
+            Sync Google Calendar
+          </button>
+          <p id="sync-status" class="min-h-5 text-sm text-muted"></p>
+        </div>
+      </section>
     </div>
   </div>
 </BaseLayout>
@@ -241,6 +266,34 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       el.classList.toggle('flex', isTarget && key !== 'loading');
     }
   };
+
+  const adminTabButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.admin-tab-btn'));
+  const adminTabPanels: Record<string, HTMLElement> = {
+    general: document.getElementById('admin-tab-panel-general')!,
+    homepage: document.getElementById('admin-tab-panel-homepage')!,
+    admin: document.getElementById('admin-tab-panel-admin')!,
+    debug: document.getElementById('admin-tab-panel-debug')!,
+  };
+
+  function setActiveAdminTab(tab: string) {
+    if (!adminTabPanels[tab]) tab = 'general';
+    for (const [key, panel] of Object.entries(adminTabPanels)) {
+      const active = key === tab;
+      panel.classList.toggle('hidden', !active);
+      panel.classList.toggle('flex', active);
+    }
+    adminTabButtons.forEach((btn) => {
+      const active = btn.dataset.tab === tab;
+      btn.classList.toggle('border-accent', active);
+      btn.classList.toggle('text-ink', active);
+      btn.classList.toggle('text-ink/60', !active);
+    });
+    const url = new URL(location.href);
+    url.searchParams.set('tab', tab);
+    history.replaceState(null, '', url);
+  }
+
+  adminTabButtons.forEach((btn) => btn.addEventListener('click', () => setActiveAdminTab(btn.dataset.tab ?? 'general')));
 
   async function init() {
     const {
