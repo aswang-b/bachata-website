@@ -19,7 +19,17 @@ const isRegisterPage = currentPath === '/register' || currentPath === '/register
     </a>
 
     <div class="flex items-center gap-4">
-      <nav class="hidden gap-8 md:flex">
+      <nav class="hidden items-center gap-8 md:flex">
+        {
+          !isRegisterPage && (
+            <a
+              href="/register"
+              class="gradient-accent rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+            >
+              Register Now
+            </a>
+          )
+        }
         {navItems.map((item) => {
           const isActive = currentPath === item.href;
           return (
@@ -51,17 +61,6 @@ const isRegisterPage = currentPath === '/register' || currentPath === '/register
           Data &amp; Analytics
         </a>
       </nav>
-
-      {
-        !isRegisterPage && (
-          <a
-            href="/register"
-            class="gradient-accent hidden rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 md:flex"
-          >
-            Register Now
-          </a>
-        )
-      }
 
       <a
         href="/admin/inbox"
