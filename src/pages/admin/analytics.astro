@@ -391,6 +391,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     classTitle: string;
     seriesMode: 'whole' | 'dropin' | null;
     price: number | null;
+    expansionFailed: boolean;
     status: 'matched' | 'no_show' | 'orphaned' | 'upcoming';
     matchedCheckin: { id: string; first_name: string; last_name: string; phone: string; class_title: string; created_at: string } | null;
   }
@@ -448,8 +449,18 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     attendance: document.getElementById('tab-panel-attendance')!,
   };
 
+  // Populated once the lock controllers exist (below); referenced here only
+  // at call time, after that assignment has already run.
+  let lockControllersByTab: Record<string, { pauseHeartbeat: () => Promise<void>; resumeHeartbeat: () => Promise<void> }> = {};
+  let activeTab = 'signups';
+
   function setActiveTab(tab: string) {
     if (!tabPanels[tab]) tab = 'signups';
+    if (tab !== activeTab) {
+      lockControllersByTab[activeTab]?.pauseHeartbeat();
+      lockControllersByTab[tab]?.resumeHeartbeat();
+      activeTab = tab;
+    }
     for (const [key, panel] of Object.entries(tabPanels)) {
       const active = key === tab;
       panel.classList.toggle('hidden', !active);
@@ -522,6 +533,17 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     let isLockedByMe = false;
     let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
+    function startHeartbeat() {
+      if (!heartbeatTimer) heartbeatTimer = setInterval(tryLock, 2 * 60 * 1000);
+    }
+
+    function stopHeartbeat() {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+    }
+
     async function refresh() {
       const {
         data: { session },
@@ -562,10 +584,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
           body: JSON.stringify({ holderId, resource }),
         });
-        if (res.ok && heartbeatTimer) {
-          clearInterval(heartbeatTimer);
-          heartbeatTimer = null;
-        }
+        if (res.ok) stopHeartbeat();
         await refresh();
         return;
       }
@@ -578,11 +597,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       const data = await res.json();
 
       if (res.ok && data.acquired) {
-        if (!heartbeatTimer) {
-          // Re-acquiring on the same holderId extends the lock, so this both
-          // detects an expired lock and refreshes an active one.
-          heartbeatTimer = setInterval(tryLock, 2 * 60 * 1000);
-        }
+        // Re-acquiring on the same holderId extends the lock, so this both
+        // detects an expired lock and refreshes an active one.
+        startHeartbeat();
       } else if (res.ok) {
         lockStatus.textContent = `🔒 Locked for editing by ${data.lockedByEmail} until ${timeFormatter.format(new Date(data.expiresAt))}.`;
       }
@@ -590,7 +607,21 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     }
 
     lockBtn.addEventListener('click', () => tryLock());
-    return { refresh, isLocked: () => isLockedByMe };
+
+    // Only the active tab's lock needs a live heartbeat — the other two
+    // resources' locks (if held) simply expire via their own TTL while their
+    // tab isn't active, same as if the page had been closed, rather than
+    // running 3 concurrent polling loops the whole time the page is open.
+    async function pauseHeartbeat() {
+      stopHeartbeat();
+    }
+
+    async function resumeHeartbeat() {
+      await refresh();
+      if (isLockedByMe) startHeartbeat();
+    }
+
+    return { refresh, isLocked: () => isLockedByMe, pauseHeartbeat, resumeHeartbeat };
   }
 
   function signupRowKey(s: Signup): string {
@@ -653,6 +684,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       renderAttendance();
     }
   );
+
+  lockControllersByTab = { signups: signupsLock, checkins: checkinsLock, attendance: attendanceLock };
 
   const signupsNameSearch = document.getElementById('signups-name-search') as HTMLInputElement;
   const signupsClassFilter = document.getElementById('signups-class-filter') as HTMLSelectElement;
@@ -1300,7 +1333,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         return `
         <tr class="border-t border-border">
           <td class="px-3 py-2.5 text-ink">${escapeHtml(`${e.firstName} ${e.lastName}`)}</td>
-          <td class="px-3 py-2.5 text-ink/70">${escapeHtml(e.classTitle)}</td>
+          <td class="px-3 py-2.5 text-ink/70">${escapeHtml(e.classTitle)}${
+            e.expansionFailed
+              ? ' <span class="font-bold text-orange-600" title="Could not find this Whole-Series sign-up\'s class series (it may have been deleted) — matching by class title alone instead of a specific date.">⚠</span>'
+              : ''
+          }</td>
           <td class="px-3 py-2.5 text-ink/70">${formatEntryDate(e.occurrenceDate)}</td>
           ${
             isLockedByMe
@@ -1345,7 +1382,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         (e) => `
       <tr class="border-t border-border">
         <td class="px-4 py-2.5 text-ink">${escapeHtml(`${e.firstName} ${e.lastName}`)}</td>
-        <td class="px-4 py-2.5 text-ink/70">${escapeHtml(e.classTitle)}</td>
+        <td class="px-4 py-2.5 text-ink/70">${escapeHtml(e.classTitle)}${
+          e.expansionFailed
+            ? ' <span class="font-bold text-orange-600" title="Could not find this Whole-Series sign-up\'s class series (it may have been deleted) — this status is a degraded guess, matched by class title alone rather than a specific date.">⚠</span>'
+            : ''
+        }</td>
         <td class="px-4 py-2.5 text-ink/70">${formatEntryDate(e.occurrenceDate)}</td>
         <td class="px-4 py-2.5">${statusLabel(e.status)}</td>
       </tr>`
@@ -1375,7 +1416,31 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         });
 
         if (res.ok) {
-          await reloadAttendance();
+          // Patch local state instead of a full reloadAttendance() round trip —
+          // the mutation just succeeded server-side, the lock guarantees no one
+          // else is concurrently changing this data, and a full re-fetch +
+          // re-match of up to 10k+10k rows is unnecessary cost for one row.
+          const registrationId = btn.dataset.registrationId;
+          const occurrenceId = btn.dataset.occurrenceId || null;
+          const checkin = attendanceOrphanedCheckins.find((c) => c.id === checkinId);
+          const entry = attendanceEntries.find(
+            (e) => e.classRegistrationId === registrationId && (e.occurrenceEventId ?? null) === occurrenceId
+          );
+          if (entry) {
+            entry.status = 'matched';
+            entry.matchedCheckin = checkin
+              ? {
+                  id: checkin.id,
+                  first_name: checkin.first_name,
+                  last_name: checkin.last_name,
+                  phone: checkin.phone,
+                  class_title: checkin.class_title,
+                  created_at: checkin.created_at,
+                }
+              : null;
+          }
+          attendanceOrphanedCheckins = attendanceOrphanedCheckins.filter((c) => c.id !== checkinId);
+          renderAttendance();
         } else {
           const data = await res.json().catch(() => ({}));
           alert(data.error ?? 'Failed to reconcile.');
@@ -1403,7 +1468,13 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         });
 
         if (res.ok) {
-          await reloadAttendance();
+          const registrationId = btn.dataset.registrationId;
+          const occurrenceId = btn.dataset.occurrenceId || null;
+          const entry = attendanceEntries.find(
+            (e) => e.classRegistrationId === registrationId && (e.occurrenceEventId ?? null) === occurrenceId
+          );
+          if (entry) entry.status = 'no_show';
+          renderAttendance();
         } else {
           const data = await res.json().catch(() => ({}));
           alert(data.error ?? 'Failed to mark as a no-show.');
@@ -1670,6 +1741,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     await checkinsLock.refresh();
     await reloadAttendance();
     await attendanceLock.refresh();
+    // Only the tab actually shown on load needs its heartbeat running (see
+    // setActiveTab) — this also covers reloading the page while already
+    // holding that tab's lock, which refresh() alone wouldn't re-arm.
+    await lockControllersByTab[activeTab]?.resumeHeartbeat();
   }
 
   init();

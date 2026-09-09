@@ -40,6 +40,11 @@ export interface AttendanceEntry {
   classTitle: string;
   seriesMode: 'whole' | 'dropin' | null;
   price: number | null;
+  // True only when a Whole-Series registration couldn't be expanded to its
+  // occurrences at all (e.g. the series was fully deleted after the fact),
+  // so it fell back to matching like a Drop-In. Lets the UI flag that this
+  // entry's "matched" status is a degraded guess, not a real per-date match.
+  expansionFailed: boolean;
 }
 
 // A registration's `class_title` can recur across unrelated series over
@@ -77,10 +82,15 @@ export function expandRegistrationsToEntries(
       classTitle: reg.class_title,
       seriesMode: reg.series_mode,
       price: reg.price,
+      expansionFailed: false,
     };
 
     if (reg.series_mode === 'whole') {
-      const candidates = classSeriesList.filter((s) => s.isSeries && s.title === reg.class_title);
+      // Matched by title alone (not `s.isSeries`) — a series that's been
+      // trimmed down to a single remaining occurrence is still the series
+      // this registration belongs to, and should expand to that occurrence
+      // rather than falling through to the "couldn't expand" branch below.
+      const candidates = classSeriesList.filter((s) => s.title === reg.class_title);
       const series = pickClosestSeries(candidates, reg.created_at);
       if (series) {
         for (const occ of series.occurrences) {
@@ -88,9 +98,10 @@ export function expandRegistrationsToEntries(
         }
         continue;
       }
-      // No matching series found (e.g. deleted after the fact) — fall back
-      // to a single unexpandable entry rather than losing it entirely.
-      entries.push({ ...base, occurrenceEventId: null, occurrenceDate: null });
+      // No matching series found at all (e.g. deleted after the fact) —
+      // fall back to a single unexpandable entry rather than losing it
+      // entirely, flagged so the UI can show this is a degraded match.
+      entries.push({ ...base, occurrenceEventId: null, occurrenceDate: null, expansionFailed: true });
       continue;
     }
 
