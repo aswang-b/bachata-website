@@ -145,28 +145,30 @@ const MAX_BANNERS_PER_DAY = 3;
 
 <BaseLayout title="Calendar">
   <div class="mx-auto max-w-[1700px] px-6 py-16">
-    <div class="relative mb-10 flex items-center justify-center gap-6">
-      <a
-        href={`/calendar?month=${prevMonthParam}`}
-        aria-label="Previous month"
-        class="flex h-9 w-9 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface"
-      >
-        &larr;
-      </a>
-      <div class="text-center">
-        <p class="text-sm font-bold uppercase tracking-[0.3em] text-accent">Upcoming</p>
-        <h1 class="mt-1 font-display text-3xl font-extrabold text-ink">{monthLabel}</h1>
+    <div class="mb-10 flex flex-col items-center gap-4">
+      <div class="flex items-center justify-center gap-6">
+        <a
+          href={`/calendar?month=${prevMonthParam}`}
+          aria-label="Previous month"
+          class="flex h-9 w-9 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface"
+        >
+          &larr;
+        </a>
+        <div class="text-center">
+          <p class="text-sm font-bold uppercase tracking-[0.3em] text-accent">Upcoming</p>
+          <h1 class="mt-1 font-display text-3xl font-extrabold text-ink">{monthLabel}</h1>
+        </div>
+        <a
+          href={`/calendar?month=${nextMonthParam}`}
+          aria-label="Next month"
+          class="flex h-9 w-9 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface"
+        >
+          &rarr;
+        </a>
       </div>
-      <a
-        href={`/calendar?month=${nextMonthParam}`}
-        aria-label="Next month"
-        class="flex h-9 w-9 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface"
-      >
-        &rarr;
-      </a>
       <button
         id="add-event-btn"
-        class="gradient-accent absolute right-0 top-1/2 hidden -translate-y-1/2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+        class="gradient-accent hidden rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
       >
         + Add Event
       </button>
@@ -1248,7 +1250,14 @@ const MAX_BANNERS_PER_DAY = 3;
       panel.appendChild(more);
     }
 
-    cell.after(panel);
+    // Insert after the last cell of this day's week row (not right after
+    // the tapped cell) so the panel opens as its own full-width row below
+    // an intact week, instead of splitting that week's row in two with the
+    // later days pushed down onto a line by themselves.
+    const allCells = Array.from(document.querySelectorAll<HTMLElement>('.calendar-cell'));
+    const cellIndex = allCells.indexOf(cell);
+    const rowEndIndex = Math.min(Math.ceil((cellIndex + 1) / 7) * 7 - 1, allCells.length - 1);
+    allCells[rowEndIndex].after(panel);
   }
 
   function computeWeekNumbers(allEvents: SiteEvent[]): Map<string, number> {
