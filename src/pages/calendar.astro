@@ -216,7 +216,7 @@ const MAX_BANNERS_PER_DAY = 3;
                           class={
                             isCompact
                               ? `truncate rounded px-1 py-0.5 text-[10px] font-semibold text-white ${dotClass(event.color)}`
-                              : `whitespace-normal break-words rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug text-white ${dotClass(event.color)}`
+                              : `event-banner-label whitespace-normal rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug text-white ${dotClass(event.color)}`
                           }
                         >
                           {weekNumber && <span class="mr-1 whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk {weekNumber}</span>}
@@ -281,6 +281,13 @@ const MAX_BANNERS_PER_DAY = 3;
             <div id="detail-description" class="text-sm text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"></div>
             <p id="detail-price" class="hidden text-sm font-semibold text-ink"></p>
             <p id="detail-price-student" class="hidden text-sm font-semibold text-ink"></p>
+            <a
+              id="detail-register-btn"
+              href="#"
+              class="gradient-accent mt-1 hidden self-start rounded-full px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+            >
+              Register Now
+            </a>
             <a
               id="detail-location"
               href="#"
@@ -690,6 +697,7 @@ const MAX_BANNERS_PER_DAY = 3;
   const detailDescription = document.getElementById('detail-description')!;
   const detailPrice = document.getElementById('detail-price')!;
   const detailPriceStudent = document.getElementById('detail-price-student')!;
+  const detailRegisterBtn = document.getElementById('detail-register-btn') as HTMLAnchorElement;
   const detailLocation = document.getElementById('detail-location') as HTMLAnchorElement;
 
   function formatPrice(value: number): string {
@@ -771,6 +779,18 @@ const MAX_BANNERS_PER_DAY = 3;
     detailPrice.classList.toggle('hidden', !priceLines.main);
     detailPriceStudent.textContent = priceLines.student;
     detailPriceStudent.classList.toggle('hidden', !priceLines.student);
+
+    // Only public classes/events actually appear as a pickable series on
+    // the registration pages — a private one would 404 the preselect, so
+    // the button only shows where it can actually work.
+    if (event.visibility === 'public') {
+      const seriesKey = event.google_recurring_event_id ?? event.id;
+      const base = event.event_type === 'event' ? '/register/events' : '/register';
+      detailRegisterBtn.href = `${base}?series=${encodeURIComponent(seriesKey)}`;
+      detailRegisterBtn.classList.remove('hidden');
+    } else {
+      detailRegisterBtn.classList.add('hidden');
+    }
 
     if (event.location) {
       detailLocation.href = locationHref(event.location);
@@ -1173,7 +1193,7 @@ const MAX_BANNERS_PER_DAY = 3;
   function buildBannerHTML(event: SiteEvent, isCompact: boolean): string {
     const bannerClass = isCompact
       ? `truncate rounded px-1 py-0.5 text-[10px] font-semibold text-white ${dotClass(event.color)}`
-      : `whitespace-normal break-words rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug text-white ${dotClass(event.color)}`;
+      : `event-banner-label whitespace-normal rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug text-white ${dotClass(event.color)}`;
     const weekTag = event.weekNumber
       ? `<span class="mr-1 whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk ${event.weekNumber}</span>`
       : '';
@@ -1317,7 +1337,31 @@ const MAX_BANNERS_PER_DAY = 3;
             .join('') + (dayEvents.length > MAX ? `<span class="text-[9px] font-semibold text-muted">+${dayEvents.length - MAX}</span>` : '');
       }
     });
+
+    fitBannerLabels();
   }
+
+  // Banner titles wrap at word boundaries only (no mid-word breaks) — if a
+  // word is still too wide for the banner at the current font size (a
+  // narrow cell, a long word, or a high browser zoom level), shrink the
+  // font size a step at a time until it fits, rather than breaking the word.
+  const BANNER_MIN_FONT_PX = 8;
+  function fitBannerLabels() {
+    document.querySelectorAll<HTMLElement>('.event-banner-label').forEach((label) => {
+      label.style.fontSize = '';
+      let fontSizePx = parseFloat(getComputedStyle(label).fontSize);
+      while (label.scrollWidth > label.clientWidth + 1 && fontSizePx > BANNER_MIN_FONT_PX) {
+        fontSizePx -= 0.5;
+        label.style.fontSize = `${fontSizePx}px`;
+      }
+    });
+  }
+
+  let fitBannerLabelsResizeTimer: ReturnType<typeof setTimeout> | null = null;
+  window.addEventListener('resize', () => {
+    if (fitBannerLabelsResizeTimer) clearTimeout(fitBannerLabelsResizeTimer);
+    fitBannerLabelsResizeTimer = setTimeout(fitBannerLabels, 150);
+  });
 
   async function revealAdminControlsIfAdmin() {
     if (isPreviewingAsPublic()) return;
@@ -1346,5 +1390,6 @@ const MAX_BANNERS_PER_DAY = 3;
     }
   }
 
+  fitBannerLabels();
   revealAdminControlsIfAdmin();
 </script>
