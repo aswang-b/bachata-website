@@ -75,12 +75,13 @@ export const POST: APIRoute = async ({ request, redirect }) => {
           d.lastName &&
           d.lastName.length <= MAX_NAME_LENGTH &&
           d.role &&
+          (d.phone || d.email) &&
           (!d.phone || d.phone.length <= MAX_CONTACT_LENGTH) &&
           (!d.email || d.email.length <= MAX_CONTACT_LENGTH)
       )
     ) {
       return new Response(
-        `Missing or invalid fields: a class, a payment method, and each dancer's first name, last name, and role (max ${MAX_DANCERS} dancers).`,
+        `Missing or invalid fields: a class, a payment method, and each dancer's first name, last name, role, and a phone or email (max ${MAX_DANCERS} dancers).`,
         { status: 400 }
       );
     }

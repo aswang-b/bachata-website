@@ -208,7 +208,7 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
           + Add Another Dancer
         </button>
         <p id="dancers-error" class="hidden text-xs font-semibold text-red-600">
-          Please fill in first name, last name, and role for each dancer.
+          Please fill in first name, last name, role, and a phone or email for each dancer.
         </p>
       </div>
 
@@ -357,14 +357,15 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
       </div>
       <div class="grid gap-3 sm:grid-cols-2">
         <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-ink/80">Phone</span>
+          <span class="text-sm font-medium text-ink/80">Phone<span class="text-accent"> *</span></span>
           <input type="tel" class="dancer-phone ${inputClass}" />
         </label>
         <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-ink/80">Email</span>
+          <span class="text-sm font-medium text-ink/80">Email<span class="text-accent"> *</span></span>
           <input type="email" class="dancer-email ${inputClass}" />
         </label>
       </div>
+      <p class="text-xs text-muted">* Phone or email is required — we'll use it to reach you about class changes or cancellations.</p>
     `;
 
     const roleButtons = Array.from(block.querySelectorAll<HTMLButtonElement>('.dancer-role-btn'));
@@ -558,7 +559,7 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
     }));
 
     const dancersError = document.getElementById('dancers-error')!;
-    const dancersValid = dancers.every((d) => d.firstName && d.lastName && d.role);
+    const dancersValid = dancers.every((d) => d.firstName && d.lastName && d.role && (d.phone || d.email));
     if (!dancersValid) {
       dancersError.classList.remove('hidden');
       hasError = true;
