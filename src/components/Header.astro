@@ -13,54 +13,55 @@ const isRegisterPage = currentPath === '/register' || currentPath === '/register
 ---
 
 <header class="sticky top-0 z-50 border-b border-border bg-bg/90 backdrop-blur">
-  <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+  <div class="mx-auto grid max-w-6xl grid-cols-[auto_1fr_auto] items-center gap-4 px-6 py-4">
     <a href="/" class="font-display text-xl font-extrabold tracking-tight text-ink">
       Dance with <span class="text-gradient-accent inline-block align-baseline">B</span>
     </a>
 
-    <div class="flex items-center gap-4">
-      <nav class="hidden items-center gap-8 md:flex">
-        {
-          !isRegisterPage && (
-            <a
-              href="/register"
-              class="gradient-accent rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
-            >
-              Register Now
-            </a>
-          )
-        }
-        {navItems.map((item) => {
-          const isActive = currentPath === item.href;
-          return (
-            <a
-              href={item.href}
-              data-settings-key={item.settingsKey}
-              class={`text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
-                isActive ? 'text-accent' : 'text-ink/70'
-              }`}
-            >
-              {item.label}
-            </a>
-          );
-        })}
-        <a
-          href="/admin"
-          class={`admin-nav-link hidden text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
-            isAdminPage ? 'text-accent' : 'text-ink/70'
-          }`}
-        >
-          Admin
-        </a>
-        <a
-          href="/admin/analytics"
-          class={`admin-nav-link hidden text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
-            currentPath === '/admin/analytics' ? 'text-accent' : 'text-ink/70'
-          }`}
-        >
-          Data &amp; Analytics
-        </a>
-      </nav>
+    <nav class="hidden items-center justify-center gap-8 md:flex">
+      {navItems.map((item) => {
+        const isActive = currentPath === item.href;
+        return (
+          <a
+            href={item.href}
+            data-settings-key={item.settingsKey}
+            class={`text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
+              isActive ? 'text-accent' : 'text-ink/70'
+            }`}
+          >
+            {item.label}
+          </a>
+        );
+      })}
+      <a
+        href="/admin"
+        class={`admin-nav-link hidden text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
+          isAdminPage ? 'text-accent' : 'text-ink/70'
+        }`}
+      >
+        Admin
+      </a>
+      <a
+        href="/admin/analytics"
+        class={`admin-nav-link hidden text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
+          currentPath === '/admin/analytics' ? 'text-accent' : 'text-ink/70'
+        }`}
+      >
+        Data &amp; Analytics
+      </a>
+    </nav>
+
+    <div class="flex items-center justify-end gap-4">
+      {
+        !isRegisterPage && (
+          <a
+            href="/register"
+            class="gradient-accent hidden rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 md:flex"
+          >
+            Register Now
+          </a>
+        )
+      }
 
       <a
         href="/admin/inbox"
