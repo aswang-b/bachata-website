@@ -232,18 +232,104 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         </div>
       </section>
 
-      <!-- ==================== ATTENDANCE TAB (placeholder) ==================== -->
-      <section id="tab-panel-attendance" class="tab-panel hidden flex-col gap-4">
-        <h2 class="font-display text-xl font-bold text-ink">Attendance</h2>
-        <div class="rounded-2xl border border-border bg-surface p-6">
-          <p class="text-sm text-ink/80">
-            Coming soon — a combined view of each dancer's sign-ups and check-ins, so it's easy to spot who signed up
-            for a class but never showed up.
-          </p>
-          <p class="mt-2 text-sm text-muted">
-            This needs a reliable way to match a check-in to the sign-up it belongs to (dancers can share a first and
-            last name), so it's being designed separately before it's built.
-          </p>
+      <!-- ==================== ATTENDANCE TAB ==================== -->
+      <section id="tab-panel-attendance" class="tab-panel hidden flex-col gap-6">
+        <div class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-end">
+          <label class="flex flex-1 flex-col gap-1.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Search by dancer name</span>
+            <input
+              id="attendance-name-search"
+              type="text"
+              placeholder="e.g. Jane Doe"
+              class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
+            />
+          </label>
+          <button
+            id="attendance-clear-filters"
+            class="rounded-full border border-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-bg"
+          >
+            Clear
+          </button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface p-4">
+          <button
+            id="attendance-lock-btn"
+            class="rounded-full border border-accent px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Try Lock to Edit
+          </button>
+          <p id="attendance-lock-status" class="text-xs text-muted"></p>
+        </div>
+
+        <div>
+          <h2 class="font-display text-xl font-bold text-ink">Workqueue</h2>
+          <p class="mt-1 text-xs text-muted">Sign-ups for classes that already happened with no matching check-in, and check-ins that don't match a sign-up.</p>
+
+          <div class="mt-3 grid gap-6 lg:grid-cols-2">
+            <div>
+              <div class="flex items-baseline justify-between">
+                <h3 class="text-sm font-bold text-ink">Orphaned Sign-Ups</h3>
+                <p id="orphaned-signups-count" class="text-xs text-muted"></p>
+              </div>
+              <div class="mt-2 overflow-x-auto rounded-2xl border border-border">
+                <table class="w-full min-w-[520px] text-left text-sm">
+                  <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
+                    <tr>
+                      <th class="px-3 py-2.5">Dancer</th>
+                      <th class="px-3 py-2.5">Class</th>
+                      <th class="px-3 py-2.5">Date</th>
+                      <th class="orphaned-signups-actions-header hidden px-3 py-2.5">Resolve</th>
+                    </tr>
+                  </thead>
+                  <tbody id="orphaned-signups-body"></tbody>
+                </table>
+                <p id="orphaned-signups-empty" class="hidden px-4 py-6 text-center text-sm text-muted">None — nice!</p>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-baseline justify-between">
+                <h3 class="text-sm font-bold text-ink">Orphaned Check-Ins</h3>
+                <p id="orphaned-checkins-count" class="text-xs text-muted"></p>
+              </div>
+              <div class="mt-2 overflow-x-auto rounded-2xl border border-border">
+                <table class="w-full min-w-[420px] text-left text-sm">
+                  <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
+                    <tr>
+                      <th class="px-3 py-2.5">Dancer</th>
+                      <th class="px-3 py-2.5">Class</th>
+                      <th class="px-3 py-2.5">Phone</th>
+                      <th class="px-3 py-2.5">Checked In</th>
+                    </tr>
+                  </thead>
+                  <tbody id="orphaned-checkins-body"></tbody>
+                </table>
+                <p id="orphaned-checkins-empty" class="hidden px-4 py-6 text-center text-sm text-muted">None — nice!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-baseline justify-between">
+            <h2 class="font-display text-xl font-bold text-ink">Matches</h2>
+            <p id="attendance-matches-count" class="text-xs text-muted"></p>
+          </div>
+          <div class="mt-2 overflow-x-auto rounded-2xl border border-border">
+            <table class="w-full min-w-[720px] text-left text-sm">
+              <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
+                <tr>
+                  <th class="px-4 py-3">Dancer</th>
+                  <th class="px-4 py-3">Class</th>
+                  <th class="px-4 py-3">Date</th>
+                  <th class="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody id="attendance-matches-body"></tbody>
+            </table>
+            <p id="attendance-matches-empty" class="hidden px-4 py-6 text-center text-sm text-muted">No attendance data yet.</p>
+          </div>
         </div>
       </section>
     </div>
@@ -292,6 +378,32 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     eventId: string | null;
     classDate: string | null;
     [key: string]: unknown;
+  }
+
+  interface AttendanceEntry {
+    classRegistrationId: string;
+    occurrenceEventId: string | null;
+    occurrenceDate: string | null;
+    firstName: string;
+    lastName: string;
+    phone: string | null;
+    email: string | null;
+    classTitle: string;
+    seriesMode: 'whole' | 'dropin' | null;
+    price: number | null;
+    status: 'matched' | 'no_show' | 'orphaned' | 'upcoming';
+    matchedCheckin: { id: string; first_name: string; last_name: string; phone: string; class_title: string; created_at: string } | null;
+  }
+
+  interface OrphanedCheckin {
+    id: string;
+    first_name: string;
+    last_name: string;
+    phone: string;
+    email: string | null;
+    class_title: string;
+    event_id: string | null;
+    created_at: string;
   }
 
   interface ClassSeriesOccurrence {
@@ -359,6 +471,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   let allSignups: Signup[] = [];
   let allCheckins: Checkin[] = [];
   let classSeries: ClassSeriesEntry[] = [];
+  let attendanceEntries: AttendanceEntry[] = [];
+  let attendanceOrphanedCheckins: OrphanedCheckin[] = [];
 
   function findSeriesForEventId(eventId: string | null): { series: ClassSeriesEntry; occurrenceId: string } | null {
     if (!eventId) return null;
@@ -400,7 +514,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
 
   function makeLockController(
-    resource: 'signups' | 'checkins',
+    resource: 'signups' | 'checkins' | 'attendance',
     lockBtn: HTMLButtonElement,
     lockStatus: HTMLElement,
     onChange: (locked: boolean) => void
@@ -523,6 +637,20 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     (locked) => {
       setCheckinEditModeUI(locked);
       renderCheckins();
+    }
+  );
+
+  function setAttendanceEditModeUI(locked: boolean) {
+    document.querySelectorAll('.orphaned-signups-actions-header').forEach((el) => el.classList.toggle('hidden', !locked));
+  }
+
+  const attendanceLock = makeLockController(
+    'attendance',
+    document.getElementById('attendance-lock-btn') as HTMLButtonElement,
+    document.getElementById('attendance-lock-status')!,
+    (locked) => {
+      setAttendanceEditModeUI(locked);
+      renderAttendance();
     }
   );
 
@@ -1124,6 +1252,172 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     renderCheckins();
   });
 
+  // --- Attendance tab ---
+  const attendanceNameSearch = document.getElementById('attendance-name-search') as HTMLInputElement;
+  const orphanedSignupsBody = document.getElementById('orphaned-signups-body')!;
+  const orphanedSignupsEmpty = document.getElementById('orphaned-signups-empty')!;
+  const orphanedSignupsCount = document.getElementById('orphaned-signups-count')!;
+  const orphanedCheckinsBody = document.getElementById('orphaned-checkins-body')!;
+  const orphanedCheckinsEmpty = document.getElementById('orphaned-checkins-empty')!;
+  const orphanedCheckinsCount = document.getElementById('orphaned-checkins-count')!;
+  const attendanceMatchesBody = document.getElementById('attendance-matches-body')!;
+  const attendanceMatchesEmpty = document.getElementById('attendance-matches-empty')!;
+  const attendanceMatchesCount = document.getElementById('attendance-matches-count')!;
+
+  function formatEntryDate(iso: string | null): string {
+    return iso ? dateFormatter.format(new Date(iso)) : '—';
+  }
+
+  function renderAttendance() {
+    const nameQuery = attendanceNameSearch.value.trim();
+    const isLockedByMe = attendanceLock.isLocked();
+
+    const matchesName_ = (first: string, last: string) => matchesName(first, last, nameQuery);
+
+    const orphanedSignups = attendanceEntries.filter((e) => e.status === 'orphaned' && matchesName_(e.firstName, e.lastName));
+    const orphanedCheckinsFiltered = attendanceOrphanedCheckins.filter((c) => matchesName_(c.first_name, c.last_name));
+    const otherEntries = attendanceEntries
+      .filter((e) => e.status !== 'orphaned' && matchesName_(e.firstName, e.lastName))
+      .sort((a, b) => a.lastName.localeCompare(b.lastName) || (a.occurrenceDate ?? '').localeCompare(b.occurrenceDate ?? ''));
+
+    orphanedSignupsBody.innerHTML = orphanedSignups
+      .map((e) => {
+        const candidateCheckins = attendanceOrphanedCheckins.filter((c) => c.class_title === e.classTitle);
+        const optionsHtml = candidateCheckins
+          .map(
+            (c) =>
+              `<option value="${escapeAttr(c.id)}">${escapeHtml(`${c.first_name} ${c.last_name}`)} — ${escapeHtml(c.phone || '—')} — ${formatEntryDate(c.created_at)}</option>`
+          )
+          .join('');
+        return `
+        <tr class="border-t border-border">
+          <td class="px-3 py-2.5 text-ink">${escapeHtml(`${e.firstName} ${e.lastName}`)}</td>
+          <td class="px-3 py-2.5 text-ink/70">${escapeHtml(e.classTitle)}</td>
+          <td class="px-3 py-2.5 text-ink/70">${formatEntryDate(e.occurrenceDate)}</td>
+          ${
+            isLockedByMe
+              ? `<td class="px-3 py-2.5">
+                  <div class="flex flex-col gap-1.5">
+                    <div class="flex gap-1.5">
+                      <select class="reconcile-select rounded-lg border border-border bg-bg px-1.5 py-1 text-xs" ${candidateCheckins.length === 0 ? 'disabled' : ''}>
+                        ${candidateCheckins.length === 0 ? '<option value="">No candidates</option>' : optionsHtml}
+                      </select>
+                      <button class="reconcile-btn text-xs font-bold text-accent hover:underline" data-registration-id="${e.classRegistrationId}" data-occurrence-id="${e.occurrenceEventId ?? ''}" ${candidateCheckins.length === 0 ? 'disabled' : ''}>Link</button>
+                    </div>
+                    <button class="no-show-btn text-xs font-semibold text-red-600 hover:underline" data-registration-id="${e.classRegistrationId}" data-occurrence-id="${e.occurrenceEventId ?? ''}">Mark No-Show</button>
+                  </div>
+                </td>`
+              : ''
+          }
+        </tr>`;
+      })
+      .join('');
+
+    orphanedCheckinsBody.innerHTML = orphanedCheckinsFiltered
+      .map(
+        (c) => `
+      <tr class="border-t border-border">
+        <td class="px-3 py-2.5 text-ink">${escapeHtml(`${c.first_name} ${c.last_name}`)}</td>
+        <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.class_title)}</td>
+        <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.phone || '—')}</td>
+        <td class="px-3 py-2.5 text-ink/70">${formatEntryDate(c.created_at)}</td>
+      </tr>`
+      )
+      .join('');
+
+    const statusLabel = (status: AttendanceEntry['status']) =>
+      status === 'matched'
+        ? '<span class="font-bold text-green-600">Matched ✓</span>'
+        : status === 'no_show'
+          ? '<span class="font-bold text-red-600">No-Show ✗</span>'
+          : '<span class="text-ink/40">Upcoming —</span>';
+
+    attendanceMatchesBody.innerHTML = otherEntries
+      .map(
+        (e) => `
+      <tr class="border-t border-border">
+        <td class="px-4 py-2.5 text-ink">${escapeHtml(`${e.firstName} ${e.lastName}`)}</td>
+        <td class="px-4 py-2.5 text-ink/70">${escapeHtml(e.classTitle)}</td>
+        <td class="px-4 py-2.5 text-ink/70">${formatEntryDate(e.occurrenceDate)}</td>
+        <td class="px-4 py-2.5">${statusLabel(e.status)}</td>
+      </tr>`
+      )
+      .join('');
+
+    document.querySelectorAll<HTMLButtonElement>('.reconcile-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const row = btn.closest('tr')!;
+        const checkinId = (row.querySelector('.reconcile-select') as HTMLSelectElement)?.value;
+        if (!checkinId) return;
+
+        const headers = await withAuthHeader();
+        if (!headers) return;
+        btn.disabled = true;
+
+        const res = await fetch('/api/admin/resolve-attendance', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            action: 'reconcile',
+            holderId,
+            classRegistrationId: btn.dataset.registrationId,
+            occurrenceEventId: btn.dataset.occurrenceId || null,
+            checkinId,
+          }),
+        });
+
+        if (res.ok) {
+          await reloadAttendance();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error ?? 'Failed to reconcile.');
+          btn.disabled = false;
+        }
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.no-show-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Mark this sign-up as a no-show?')) return;
+        const headers = await withAuthHeader();
+        if (!headers) return;
+        btn.disabled = true;
+
+        const res = await fetch('/api/admin/resolve-attendance', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            action: 'no_show',
+            holderId,
+            classRegistrationId: btn.dataset.registrationId,
+            occurrenceEventId: btn.dataset.occurrenceId || null,
+          }),
+        });
+
+        if (res.ok) {
+          await reloadAttendance();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error ?? 'Failed to mark as a no-show.');
+          btn.disabled = false;
+        }
+      });
+    });
+
+    orphanedSignupsEmpty.classList.toggle('hidden', orphanedSignups.length > 0);
+    orphanedCheckinsEmpty.classList.toggle('hidden', orphanedCheckinsFiltered.length > 0);
+    attendanceMatchesEmpty.classList.toggle('hidden', otherEntries.length > 0);
+    orphanedSignupsCount.textContent = `${orphanedSignups.length} ${orphanedSignups.length === 1 ? 'entry' : 'entries'}`;
+    orphanedCheckinsCount.textContent = `${orphanedCheckinsFiltered.length} ${orphanedCheckinsFiltered.length === 1 ? 'entry' : 'entries'}`;
+    attendanceMatchesCount.textContent = `${otherEntries.length} ${otherEntries.length === 1 ? 'result' : 'results'}`;
+  }
+
+  attendanceNameSearch.addEventListener('input', renderAttendance);
+  document.getElementById('attendance-clear-filters')?.addEventListener('click', () => {
+    attendanceNameSearch.value = '';
+    renderAttendance();
+  });
+
   // --- Recently deleted sign-ups (7-day audit trail, with restore) ---
   const deletedSignupsPanel = document.getElementById('deleted-signups-panel')!;
   const deletedSignupsBody = document.getElementById('deleted-signups-body')!;
@@ -1325,6 +1619,19 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     if (await reloadData()) renderCheckins();
   }
 
+  async function reloadAttendance() {
+    const headers = await withAuthHeader();
+    if (!headers) return;
+
+    const res = await fetch('/api/admin/attendance-data', { headers });
+    if (!res.ok) return;
+
+    const { entries, orphanedCheckins } = await res.json();
+    attendanceEntries = entries ?? [];
+    attendanceOrphanedCheckins = orphanedCheckins ?? [];
+    renderAttendance();
+  }
+
   async function init() {
     const {
       data: { session },
@@ -1353,6 +1660,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     renderCheckins();
     await signupsLock.refresh();
     await checkinsLock.refresh();
+    await reloadAttendance();
+    await attendanceLock.refresh();
   }
 
   init();

@@ -11,6 +11,7 @@ Everything here runs server-side (Astro SSR pages, `/api/*` routes, the schedule
 | File | Purpose |
 | --- | --- |
 | `admin.ts` | `isAdminEmail` / `requireAdmin` — gate admin pages and API routes by Supabase session email |
+| `attendanceMatching.ts` | `expandRegistrationsToEntries`/`matchAttendance` — matches `class_registrations` to `class_checkins` per dancer (name required, phone/email only disambiguates same-named candidates), expanding Whole-Series sign-ups into one entry per occurrence; backs the admin Attendance tab's matches table and orphan workqueue |
 | `apiUsage.ts` | `checkAndIncrementUsage` — daily quota counter (used for Google Places API calls) |
 | `calendarSync.ts` | `runCalendarSync` — pulls Google Calendar events into Supabase for public + private calendars |
 | `classSeries.ts` | Builds recurring class occurrence lists (`buildClassSeriesList`) in `America/Chicago` time |

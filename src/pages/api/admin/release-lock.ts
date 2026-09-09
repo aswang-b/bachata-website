@@ -1,10 +1,10 @@
 import type { APIRoute } from 'astro';
 import { requireAdmin } from '../../../lib/admin';
-import { SIGNUPS_LOCK_RESOURCE, CHECKINS_LOCK_RESOURCE, releaseLock } from '../../../lib/editLock';
+import { SIGNUPS_LOCK_RESOURCE, CHECKINS_LOCK_RESOURCE, ATTENDANCE_LOCK_RESOURCE, releaseLock } from '../../../lib/editLock';
 
 export const prerender = false;
 
-const RESOURCES = { signups: SIGNUPS_LOCK_RESOURCE, checkins: CHECKINS_LOCK_RESOURCE } as const;
+const RESOURCES = { signups: SIGNUPS_LOCK_RESOURCE, checkins: CHECKINS_LOCK_RESOURCE, attendance: ATTENDANCE_LOCK_RESOURCE } as const;
 
 export const POST: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
