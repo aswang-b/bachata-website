@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
-import { ANALYTICS_LOCK_RESOURCE, requireLock } from '../../../lib/editLock';
+import { CHECKINS_LOCK_RESOURCE, requireLock } from '../../../lib/editLock';
 
 export const prerender = false;
 
@@ -16,7 +16,7 @@ export const POST: APIRoute = async ({ request }) => {
   const holder = `${user.email}::${holderId}`;
 
   try {
-    await requireLock(ANALYTICS_LOCK_RESOURCE, holder);
+    await requireLock(CHECKINS_LOCK_RESOURCE, holder);
   } catch (err) {
     return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Lock required.' }), { status: 409 });
   }

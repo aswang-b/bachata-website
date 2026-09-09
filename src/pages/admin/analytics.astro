@@ -20,136 +20,199 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       <p class="text-sm text-muted">This account isn't authorized as an admin.</p>
     </div>
 
-    <div id="dashboard" class="mt-8 hidden flex-col gap-10">
-      <div class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-end">
-        <label class="flex flex-1 flex-col gap-1.5">
-          <span class="text-xs font-semibold uppercase tracking-wider text-muted">Search by dancer name</span>
-          <input
-            id="name-search"
-            type="text"
-            placeholder="e.g. Jane Doe"
-            class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
-          />
-        </label>
-        <label class="flex flex-1 flex-col gap-1.5">
-          <span class="text-xs font-semibold uppercase tracking-wider text-muted">Filter by class</span>
-          <select id="class-filter" class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none">
-            <option value="">All classes</option>
-          </select>
-        </label>
-        <button
-          id="clear-filters"
-          class="rounded-full border border-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-bg"
-        >
-          Clear
+    <div id="dashboard" class="mt-8 hidden flex-col gap-6">
+      <div class="flex gap-1 border-b border-border" role="tablist">
+        <button type="button" data-tab="signups" class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+          Sign-Ups
+        </button>
+        <button type="button" data-tab="checkins" class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+          Check-Ins
+        </button>
+        <button type="button" data-tab="attendance" class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+          Attendance
         </button>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface p-4">
-        <button
-          id="lock-btn"
-          class="rounded-full border border-accent px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
-        >
-          Try Lock to Edit
-        </button>
-        <p id="lock-status" class="text-xs text-muted"></p>
-      </div>
-
-      <section>
-        <div class="flex items-baseline justify-between">
-          <h2 class="font-display text-xl font-bold text-ink">Sign-Ups</h2>
-          <p id="signups-count" class="text-xs text-muted"></p>
-        </div>
-        <p id="signups-checkin-hint" class="mt-1 hidden text-xs text-muted">
-          The <strong>Checked In</strong> column shows who's shown up for this class, out of everyone registered.
-        </p>
-        <div class="mt-2 flex flex-wrap items-center gap-2">
+      <!-- ==================== SIGN-UPS TAB ==================== -->
+      <section id="tab-panel-signups" class="tab-panel flex flex-col gap-6">
+        <div class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-end">
+          <label class="flex flex-1 flex-col gap-1.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Search by dancer name</span>
+            <input
+              id="signups-name-search"
+              type="text"
+              placeholder="e.g. Jane Doe"
+              class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label class="flex flex-1 flex-col gap-1.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Filter by class</span>
+            <select id="signups-class-filter" class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none">
+              <option value="">All classes</option>
+            </select>
+          </label>
           <button
-            id="add-signup-btn"
-            class="add-row-btn hidden rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+            id="signups-clear-filters"
+            class="rounded-full border border-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-bg"
           >
-            + Add Sign-Up
-          </button>
-          <button
-            id="show-deleted-signups-btn"
-            class="rounded-full border border-border px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-surface"
-          >
-            Recently Deleted
+            Clear
           </button>
         </div>
 
-        <div id="deleted-signups-panel" class="mt-3 hidden flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+        <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface p-4">
+          <button
+            id="signups-lock-btn"
+            class="rounded-full border border-accent px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Try Lock to Edit
+          </button>
+          <p id="signups-lock-status" class="text-xs text-muted"></p>
+        </div>
+
+        <div>
           <div class="flex items-baseline justify-between">
-            <p class="text-xs font-semibold uppercase tracking-wider text-muted">Deleted in the last 7 days</p>
-            <p id="deleted-signups-count" class="text-xs text-muted"></p>
+            <h2 class="font-display text-xl font-bold text-ink">Sign-Ups</h2>
+            <p id="signups-count" class="text-xs text-muted"></p>
           </div>
-          <div class="overflow-x-auto rounded-xl border border-border">
-            <table class="w-full min-w-[640px] text-left text-sm">
-              <thead class="bg-bg text-xs font-semibold uppercase tracking-wider text-muted">
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              id="add-signup-btn"
+              class="add-signup-row-btn hidden rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+            >
+              + Add Sign-Up
+            </button>
+            <button
+              id="show-deleted-signups-btn"
+              class="rounded-full border border-border px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-surface"
+            >
+              Recently Deleted
+            </button>
+          </div>
+
+          <div id="deleted-signups-panel" class="mt-3 hidden flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+            <div class="flex items-baseline justify-between">
+              <p class="text-xs font-semibold uppercase tracking-wider text-muted">Deleted in the last 7 days</p>
+              <p id="deleted-signups-count" class="text-xs text-muted"></p>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-border">
+              <table class="w-full min-w-[640px] text-left text-sm">
+                <thead class="bg-bg text-xs font-semibold uppercase tracking-wider text-muted">
+                  <tr>
+                    <th class="px-4 py-2.5">Name</th>
+                    <th class="px-4 py-2.5">Class</th>
+                    <th class="px-4 py-2.5">Deleted</th>
+                    <th class="px-4 py-2.5">By</th>
+                    <th class="px-4 py-2.5">Restore</th>
+                  </tr>
+                </thead>
+                <tbody id="deleted-signups-body"></tbody>
+              </table>
+              <p id="deleted-signups-empty" class="hidden px-4 py-6 text-center text-sm text-muted">Nothing deleted in the last 7 days.</p>
+            </div>
+          </div>
+
+          <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
+            <table class="w-full min-w-[960px] text-left text-sm">
+              <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
-                  <th class="px-4 py-2.5">Name</th>
-                  <th class="px-4 py-2.5">Class</th>
-                  <th class="px-4 py-2.5">Deleted</th>
-                  <th class="px-4 py-2.5">By</th>
-                  <th class="px-4 py-2.5">Restore</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="firstName">First Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="lastName">Last Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="email">Email</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="phone">Phone</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[220px]" data-table="signups" data-column="class">Class</th>
+                  <th class="px-4 py-3">Series</th>
+                  <th class="px-4 py-3">Payment</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paid">Paid</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="createdAt">Registered</th>
+                  <th class="signups-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
                 </tr>
               </thead>
-              <tbody id="deleted-signups-body"></tbody>
+              <tbody id="signups-body"></tbody>
             </table>
-            <p id="deleted-signups-empty" class="hidden px-4 py-6 text-center text-sm text-muted">Nothing deleted in the last 7 days.</p>
+            <p id="signups-empty" class="hidden px-4 py-6 text-center text-sm text-muted">No sign-ups match these filters.</p>
           </div>
-        </div>
-
-        <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
-          <table class="w-full min-w-[1040px] text-left text-sm">
-            <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
-              <tr>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="firstName">First Name</th>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="lastName">Last Name</th>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="email">Email</th>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="phone">Phone</th>
-                <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[220px]" data-table="signups" data-column="class">Class</th>
-                <th class="px-4 py-3">Series</th>
-                <th class="px-4 py-3">Payment</th>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paid">Paid</th>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="createdAt">Registered</th>
-                <th id="signups-checkin-header" class="hidden px-4 py-3">Checked In</th>
-                <th class="signups-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="signups-body"></tbody>
-          </table>
-          <p id="signups-empty" class="hidden px-4 py-6 text-center text-sm text-muted">No sign-ups match these filters.</p>
         </div>
       </section>
 
-      <section>
-        <div class="flex items-baseline justify-between">
-          <h2 class="font-display text-xl font-bold text-ink">Check-Ins</h2>
-          <p id="checkins-count" class="text-xs text-muted"></p>
+      <!-- ==================== CHECK-INS TAB ==================== -->
+      <section id="tab-panel-checkins" class="tab-panel hidden flex-col gap-6">
+        <div class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-end">
+          <label class="flex flex-1 flex-col gap-1.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Search by dancer name</span>
+            <input
+              id="checkins-name-search"
+              type="text"
+              placeholder="e.g. Jane Doe"
+              class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label class="flex flex-1 flex-col gap-1.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Filter by class</span>
+            <select id="checkins-class-filter" class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none">
+              <option value="">All classes</option>
+            </select>
+          </label>
+          <button
+            id="checkins-clear-filters"
+            class="rounded-full border border-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-bg"
+          >
+            Clear
+          </button>
         </div>
-        <button
-          id="add-checkin-btn"
-          class="add-row-btn mt-2 hidden rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
-        >
-          + Add Check-In
-        </button>
-        <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
-          <table class="w-full min-w-[560px] text-left text-sm">
-            <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
-              <tr>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="firstName">First Name</th>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="lastName">Last Name</th>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="phone">Phone</th>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classTitle">Class</th>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classDate">Class Date</th>
-                <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="createdAt">Checked In At</th>
-                <th class="checkins-actions-header hidden px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="checkins-body"></tbody>
-          </table>
-          <p id="checkins-empty" class="hidden px-4 py-6 text-center text-sm text-muted">No check-ins match these filters.</p>
+
+        <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface p-4">
+          <button
+            id="checkins-lock-btn"
+            class="rounded-full border border-accent px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Try Lock to Edit
+          </button>
+          <p id="checkins-lock-status" class="text-xs text-muted"></p>
+        </div>
+
+        <div>
+          <div class="flex items-baseline justify-between">
+            <h2 class="font-display text-xl font-bold text-ink">Check-Ins</h2>
+            <p id="checkins-count" class="text-xs text-muted"></p>
+          </div>
+          <button
+            id="add-checkin-btn"
+            class="add-checkin-row-btn mt-2 hidden rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            + Add Check-In
+          </button>
+          <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
+            <table class="w-full min-w-[560px] text-left text-sm">
+              <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
+                <tr>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="firstName">First Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="lastName">Last Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="phone">Phone</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classTitle">Class</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classDate">Class Date</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="createdAt">Checked In At</th>
+                  <th class="checkins-actions-header hidden px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="checkins-body"></tbody>
+            </table>
+            <p id="checkins-empty" class="hidden px-4 py-6 text-center text-sm text-muted">No check-ins match these filters.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== ATTENDANCE TAB (placeholder) ==================== -->
+      <section id="tab-panel-attendance" class="tab-panel hidden flex-col gap-4">
+        <h2 class="font-display text-xl font-bold text-ink">Attendance</h2>
+        <div class="rounded-2xl border border-border bg-surface p-6">
+          <p class="text-sm text-ink/80">
+            Coming soon — a combined view of each dancer's sign-ups and check-ins, so it's easy to spot who signed up
+            for a class but never showed up.
+          </p>
+          <p class="mt-2 text-sm text-muted">
+            This needs a reliable way to match a check-in to the sign-up it belongs to (dancers can share a first and
+            last name), so it's being designed separately before it's built.
+          </p>
         </div>
       </section>
     </div>
@@ -234,6 +297,34 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     panels.dashboard.classList.toggle('flex', name === 'dashboard');
   }
 
+  // --- Tabs ---
+  const tabButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab-btn'));
+  const tabPanels: Record<string, HTMLElement> = {
+    signups: document.getElementById('tab-panel-signups')!,
+    checkins: document.getElementById('tab-panel-checkins')!,
+    attendance: document.getElementById('tab-panel-attendance')!,
+  };
+
+  function setActiveTab(tab: string) {
+    if (!tabPanels[tab]) tab = 'signups';
+    for (const [key, panel] of Object.entries(tabPanels)) {
+      const active = key === tab;
+      panel.classList.toggle('hidden', !active);
+      panel.classList.toggle('flex', active);
+    }
+    tabButtons.forEach((btn) => {
+      const active = btn.dataset.tab === tab;
+      btn.classList.toggle('border-accent', active);
+      btn.classList.toggle('text-ink', active);
+      btn.classList.toggle('text-ink/60', !active);
+    });
+    const url = new URL(location.href);
+    url.searchParams.set('tab', tab);
+    history.replaceState(null, '', url);
+  }
+
+  tabButtons.forEach((btn) => btn.addEventListener('click', () => setActiveTab(btn.dataset.tab ?? 'signups')));
+
   let allSignups: Signup[] = [];
   let allCheckins: Checkin[] = [];
   let classSeries: ClassSeriesEntry[] = [];
@@ -253,11 +344,13 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   let signupSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
   let checkinSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
 
-  // --- Editing lock ---
+  // --- Editing locks ---
   // A conservative pessimistic lock: only the tab that holds it may add,
   // edit, or delete rows, so two concurrent edits can never clobber each
-  // other. holderId is per-tab (sessionStorage), so reloading the same tab
-  // keeps ownership; a new tab gets a new identity and must lock separately.
+  // other. Sign-ups and check-ins each get their own lock resource, so
+  // editing one never blocks the other. holderId is per-browser-tab
+  // (sessionStorage), so reloading the same tab keeps ownership; a new tab
+  // gets a new identity and must lock separately.
   let holderId = '';
   try {
     holderId = sessionStorage.getItem('bwb-analytics-holder') ?? '';
@@ -273,115 +366,149 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     }
   }
 
-  let isLockedByMe = false;
-  let lockHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  let editingSignupKey: string | null = null;
-  let editingCheckinKey: string | null = null;
-  let addingSignup = false;
-  let addingCheckin = false;
+  const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
 
-  const lockBtn = document.getElementById('lock-btn') as HTMLButtonElement;
-  const lockStatus = document.getElementById('lock-status')!;
-  const addSignupBtn = document.getElementById('add-signup-btn') as HTMLButtonElement;
-  const addCheckinBtn = document.getElementById('add-checkin-btn') as HTMLButtonElement;
+  function makeLockController(
+    resource: 'signups' | 'checkins',
+    lockBtn: HTMLButtonElement,
+    lockStatus: HTMLElement,
+    onChange: (locked: boolean) => void
+  ) {
+    let isLockedByMe = false;
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+    async function refresh() {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`/api/admin/lock-status?resource=${resource}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (!res.ok) return;
+      const { locked, lockedBy, expiresAt } = await res.json();
+
+      const myFullId = `${session.user.email}::${holderId}`;
+      isLockedByMe = locked && lockedBy === myFullId;
+
+      if (isLockedByMe) {
+        lockBtn.textContent = 'Release Lock';
+        lockStatus.textContent = `Editing enabled — expires ${timeFormatter.format(new Date(expiresAt))} (auto-extends while this tab is open).`;
+      } else if (locked) {
+        const email = String(lockedBy).split('::')[0];
+        lockBtn.textContent = 'Try Lock to Edit';
+        lockStatus.textContent = `🔒 Locked for editing by ${email} until ${timeFormatter.format(new Date(expiresAt))}.`;
+      } else {
+        lockBtn.textContent = 'Try Lock to Edit';
+        lockStatus.textContent = 'Not locked — click to enable adding, editing, and deleting rows.';
+      }
+
+      onChange(isLockedByMe);
+    }
+
+    async function tryLock() {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session) return;
+
+      if (isLockedByMe) {
+        const res = await fetch('/api/admin/release-lock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ holderId, resource }),
+        });
+        if (res.ok && heartbeatTimer) {
+          clearInterval(heartbeatTimer);
+          heartbeatTimer = null;
+        }
+        await refresh();
+        return;
+      }
+
+      const res = await fetch('/api/admin/acquire-lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ holderId, resource }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.acquired) {
+        if (!heartbeatTimer) {
+          // Re-acquiring on the same holderId extends the lock, so this both
+          // detects an expired lock and refreshes an active one.
+          heartbeatTimer = setInterval(tryLock, 2 * 60 * 1000);
+        }
+      } else if (res.ok) {
+        lockStatus.textContent = `🔒 Locked for editing by ${data.lockedByEmail} until ${timeFormatter.format(new Date(data.expiresAt))}.`;
+      }
+      await refresh();
+    }
+
+    lockBtn.addEventListener('click', () => tryLock());
+    return { refresh, isLocked: () => isLockedByMe };
+  }
 
   function signupRowKey(s: Signup): string {
     return `${s.submissionId}:${s.dancerIndex ?? 'x'}`;
   }
 
-  const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+  let editingSignupKey: string | null = null;
+  let editingCheckinKey: string | null = null;
+  let addingSignup = false;
+  let addingCheckin = false;
 
-  function setEditModeUI(locked: boolean) {
-    document.querySelectorAll('.add-row-btn').forEach((el) => el.classList.toggle('hidden', !locked));
-    document.querySelectorAll('.signups-actions-header, .checkins-actions-header').forEach((el) => el.classList.toggle('hidden', !locked));
+  function setSignupEditModeUI(locked: boolean) {
+    document.querySelectorAll('.add-signup-row-btn').forEach((el) => el.classList.toggle('hidden', !locked));
+    document.querySelectorAll('.signups-actions-header').forEach((el) => el.classList.toggle('hidden', !locked));
     if (!locked) {
       editingSignupKey = null;
-      editingCheckinKey = null;
       addingSignup = false;
+    }
+  }
+
+  function setCheckinEditModeUI(locked: boolean) {
+    document.querySelectorAll('.add-checkin-row-btn').forEach((el) => el.classList.toggle('hidden', !locked));
+    document.querySelectorAll('.checkins-actions-header').forEach((el) => el.classList.toggle('hidden', !locked));
+    if (!locked) {
+      editingCheckinKey = null;
       addingCheckin = false;
     }
   }
 
-  async function refreshLockStatus() {
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-    if (!session) return;
-
-    const res = await fetch('/api/admin/lock-status', { headers: { Authorization: `Bearer ${session.access_token}` } });
-    if (!res.ok) return;
-    const { locked, lockedBy, expiresAt } = await res.json();
-
-    const myFullId = `${session.user.email}::${holderId}`;
-    isLockedByMe = locked && lockedBy === myFullId;
-
-    if (isLockedByMe) {
-      lockBtn.textContent = 'Release Lock';
-      lockStatus.textContent = `Editing enabled — expires ${timeFormatter.format(new Date(expiresAt))} (auto-extends while this tab is open).`;
-    } else if (locked) {
-      const email = String(lockedBy).split('::')[0];
-      lockBtn.textContent = 'Try Lock to Edit';
-      lockStatus.textContent = `🔒 Locked for editing by ${email} until ${timeFormatter.format(new Date(expiresAt))}.`;
-    } else {
-      lockBtn.textContent = 'Try Lock to Edit';
-      lockStatus.textContent = 'Not locked — click to enable adding, editing, and deleting rows.';
+  const signupsLock = makeLockController(
+    'signups',
+    document.getElementById('signups-lock-btn') as HTMLButtonElement,
+    document.getElementById('signups-lock-status')!,
+    (locked) => {
+      setSignupEditModeUI(locked);
+      renderSignups();
     }
+  );
 
-    setEditModeUI(isLockedByMe);
-    render();
-  }
-
-  async function tryLock() {
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-    if (!session) return;
-
-    if (isLockedByMe) {
-      const res = await fetch('/api/admin/release-lock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ holderId }),
-      });
-      if (res.ok && lockHeartbeatTimer) {
-        clearInterval(lockHeartbeatTimer);
-        lockHeartbeatTimer = null;
-      }
-      await refreshLockStatus();
-      return;
+  const checkinsLock = makeLockController(
+    'checkins',
+    document.getElementById('checkins-lock-btn') as HTMLButtonElement,
+    document.getElementById('checkins-lock-status')!,
+    (locked) => {
+      setCheckinEditModeUI(locked);
+      renderCheckins();
     }
+  );
 
-    const res = await fetch('/api/admin/acquire-lock', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ holderId }),
-    });
-    const data = await res.json();
+  const signupsNameSearch = document.getElementById('signups-name-search') as HTMLInputElement;
+  const signupsClassFilter = document.getElementById('signups-class-filter') as HTMLSelectElement;
+  const checkinsNameSearch = document.getElementById('checkins-name-search') as HTMLInputElement;
+  const checkinsClassFilter = document.getElementById('checkins-class-filter') as HTMLSelectElement;
 
-    if (res.ok && data.acquired) {
-      if (!lockHeartbeatTimer) {
-        // Re-acquiring on the same holderId extends the lock, so this both
-        // detects an expired lock and refreshes an active one.
-        lockHeartbeatTimer = setInterval(tryLock, 2 * 60 * 1000);
-      }
-    } else if (res.ok) {
-      lockStatus.textContent = `🔒 Locked for editing by ${data.lockedByEmail} until ${timeFormatter.format(new Date(data.expiresAt))}.`;
-    }
-    await refreshLockStatus();
-  }
-
-  lockBtn.addEventListener('click', () => tryLock());
-
-  const nameSearchInput = document.getElementById('name-search') as HTMLInputElement;
-  const classFilterSelect = document.getElementById('class-filter') as HTMLSelectElement;
   const signupsBody = document.getElementById('signups-body')!;
   const checkinsBody = document.getElementById('checkins-body')!;
   const signupsEmpty = document.getElementById('signups-empty')!;
   const checkinsEmpty = document.getElementById('checkins-empty')!;
   const signupsCount = document.getElementById('signups-count')!;
   const checkinsCount = document.getElementById('checkins-count')!;
-  const signupsCheckinHeader = document.getElementById('signups-checkin-header')!;
-  const signupsCheckinHint = document.getElementById('signups-checkin-hint')!;
+
+  const addSignupBtn = document.getElementById('add-signup-btn') as HTMLButtonElement;
+  const addCheckinBtn = document.getElementById('add-checkin-btn') as HTMLButtonElement;
 
   const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
@@ -389,6 +516,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     const div = document.createElement('div');
     div.textContent = str ?? '';
     return div.innerHTML;
+  }
+
+  function escapeAttr(str: string): string {
+    return escapeHtml(str).replace(/"/g, '&quot;');
   }
 
   function matchesName(firstName: string, lastName: string, query: string): boolean {
@@ -421,6 +552,30 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     return sorted;
   }
 
+  function updateSortHeaders(table: 'signups' | 'checkins', sort: { column: string; direction: 'asc' | 'desc' }) {
+    document.querySelectorAll<HTMLElement>(`.sort-header[data-table="${table}"]`).forEach((th) => {
+      const column = th.dataset.column ?? '';
+      const isActive = sort.column === column;
+      th.textContent = th.textContent!.replace(/ [↑↓]$/, '') + (isActive ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : '');
+    });
+  }
+
+  document.querySelectorAll<HTMLElement>('.sort-header').forEach((th) => {
+    th.addEventListener('click', () => {
+      const table = th.dataset.table as 'signups' | 'checkins';
+      const column = th.dataset.column ?? '';
+      const sort = table === 'signups' ? signupSort : checkinSort;
+      if (sort.column === column) {
+        sort.direction = sort.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        sort.column = column;
+        sort.direction = 'asc';
+      }
+      if (table === 'signups') renderSignups();
+      else renderCheckins();
+    });
+  });
+
   function formatPrice(value: number): string {
     return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
   }
@@ -439,96 +594,135 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const EDIT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.5-9.5a2.121 2.121 0 0 1 3 3L12 16l-4 1 1-4 9.5-9.5Z" /></svg>`;
   const TRASH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 .867 12.142A2 2 0 0 0 9.862 21h4.276a2 2 0 0 0 1.995-1.858L17 7M10 11v6m4-6v6" /></svg>`;
 
-  function render() {
-    const nameQuery = nameSearchInput.value.trim();
-    const classFilter = classFilterSelect.value;
+  function paymentSelectHtml(current: string | null): string {
+    const opts: [string, string][] = [
+      ['', '—'],
+      ['cash', 'Cash'],
+      ['venmo', 'Venmo'],
+    ];
+    return `<select class="edit-input rounded-lg border border-border bg-bg px-2 py-1 text-xs">${opts
+      .map(([value, label]) => `<option value="${value}" ${current === value || (!current && !value) ? 'selected' : ''}>${label}</option>`)
+      .join('')}</select>`;
+  }
 
-    const filteredCheckins = allCheckins.filter((c) => matchesName(c.firstName, c.lastName, nameQuery) && matchesClass(c.classTitle, classFilter));
-    const filteredSignups = allSignups.filter((s) => matchesName(s.firstName, s.lastName, nameQuery) && matchesClass(s.class, classFilter));
-
-    const sortedSignups = sortRows(filteredSignups, signupSort);
-    const sortedCheckins = sortRows(filteredCheckins, checkinSort);
-
-    const showCheckinColumn = Boolean(classFilter);
-    signupsCheckinHeader.classList.toggle('hidden', !showCheckinColumn);
-    signupsCheckinHint.classList.toggle('hidden', !showCheckinColumn);
-
-    const checkedInNames = new Set(filteredCheckins.map((c) => `${c.firstName} ${c.lastName}`.toLowerCase().trim()));
-
-    function escapeAttr(str: string): string {
-      return escapeHtml(str).replace(/"/g, '&quot;');
-    }
-
-    function paymentSelectHtml(current: string | null): string {
-      const opts: [string, string][] = [
-        ['', '—'],
-        ['cash', 'Cash'],
-        ['venmo', 'Venmo'],
-      ];
-      return `<select class="edit-input rounded-lg border border-border bg-bg px-2 py-1 text-xs">${opts
-        .map(([value, label]) => `<option value="${value}" ${current === value || (!current && !value) ? 'selected' : ''}>${label}</option>`)
-        .join('')}</select>`;
-    }
-
-    function signupClassPickerHtml(currentClassRaw: string): string {
-      const optionsHtml = classSeries
-        .map((series) => {
-          const optionBase = `${series.title} — ${series.subLabel}`;
-          const modeControlsHtml = series.isSeries
-            ? `
-              <span class="class-mode-controls ml-5 hidden gap-2">
-                <label class="flex items-center gap-1 text-[10px] text-ink/70">
-                  <input type="radio" name="signup-class-mode-${escapeAttr(series.key)}" class="signup-class-mode h-3 w-3" value="whole" checked />
-                  Whole
-                </label>
-                <label class="flex items-center gap-1 text-[10px] text-ink/70">
-                  <input type="radio" name="signup-class-mode-${escapeAttr(series.key)}" class="signup-class-mode h-3 w-3" value="dropin" />
-                  Drop-in
-                </label>
-              </span>`
-            : '';
-          return `
-            <div class="flex flex-col gap-0.5">
-              <label class="flex items-start gap-1.5 text-xs text-ink">
-                <input type="checkbox" class="signup-class-checkbox mt-0.5 h-3.5 w-3.5" data-base="${escapeAttr(optionBase)}" data-is-series="${String(series.isSeries)}" />
-                <span>${escapeHtml(series.title)} <span class="text-muted">(${escapeHtml(series.subLabel)})</span></span>
+  function signupClassPickerHtml(currentClassRaw: string): string {
+    const optionsHtml = classSeries
+      .map((series) => {
+        const optionBase = `${series.title} — ${series.subLabel}`;
+        const modeControlsHtml = series.isSeries
+          ? `
+            <span class="class-mode-controls ml-5 hidden gap-2">
+              <label class="flex items-center gap-1 text-[10px] text-ink/70">
+                <input type="radio" name="signup-class-mode-${escapeAttr(series.key)}" class="signup-class-mode h-3 w-3" value="whole" checked />
+                Whole
               </label>
-              ${modeControlsHtml}
-            </div>`;
-        })
-        .join('');
+              <label class="flex items-center gap-1 text-[10px] text-ink/70">
+                <input type="radio" name="signup-class-mode-${escapeAttr(series.key)}" class="signup-class-mode h-3 w-3" value="dropin" />
+                Drop-in
+              </label>
+            </span>`
+          : '';
+        return `
+          <div class="flex flex-col gap-0.5">
+            <label class="flex items-start gap-1.5 text-xs text-ink">
+              <input type="checkbox" class="signup-class-checkbox mt-0.5 h-3.5 w-3.5" data-base="${escapeAttr(optionBase)}" data-is-series="${String(series.isSeries)}" />
+              <span>${escapeHtml(series.title)} <span class="text-muted">(${escapeHtml(series.subLabel)})</span></span>
+            </label>
+            ${modeControlsHtml}
+          </div>`;
+      })
+      .join('');
 
-      return `
-        <div class="flex max-h-32 w-44 flex-col gap-1.5 overflow-y-auto rounded-lg border border-border bg-bg p-2">
-          ${classSeries.length ? optionsHtml : '<span class="text-xs text-muted">No classes found.</span>'}
-        </div>
-        <p class="mt-1 w-44 truncate text-[10px] text-muted" title="${escapeAttr(currentClassRaw)}">Current: ${escapeHtml(currentClassRaw || '—')}</p>`;
-    }
+    return `
+      <div class="flex max-h-32 w-44 flex-col gap-1.5 overflow-y-auto rounded-lg border border-border bg-bg p-2">
+        ${classSeries.length ? optionsHtml : '<span class="text-xs text-muted">No classes found.</span>'}
+      </div>
+      <p class="mt-1 w-44 truncate text-[10px] text-muted" title="${escapeAttr(currentClassRaw)}">Current: ${escapeHtml(currentClassRaw || '—')}</p>`;
+  }
 
-    function signupEditRowHtml(s: Partial<Signup>, mode: 'edit' | 'add'): string {
-      const submissionId = s.submissionId ?? '';
-      const dancerIndex = s.dancerIndex ?? '';
-      const originalClass = s.class ?? '';
-      return `
-        <tr class="border-t border-accent bg-accent/5" data-signup-edit-row="1" data-original-class="${escapeAttr(originalClass)}">
-          <td class="px-2 py-2"><input class="edit-input first-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.firstName ?? '')}" placeholder="First name" /></td>
-          <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.lastName ?? '')}" placeholder="Last name" /></td>
-          <td class="px-2 py-2"><input class="edit-input email w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.email ?? '')}" placeholder="Email" /></td>
-          <td class="px-2 py-2"><input class="edit-input phone w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.phone ?? '')}" placeholder="Phone" /></td>
-          <td class="px-2 py-2 signup-class-cell">${signupClassPickerHtml(originalClass)}</td>
-          <td class="px-2 py-2 text-xs text-muted">—</td>
-          <td class="px-2 py-2 payment-select-cell">${paymentSelectHtml(s.paymentMethod ?? null)}</td>
-          <td class="px-2 py-2"><input type="checkbox" class="edit-input paid h-4 w-4" ${s.paid ? 'checked' : ''} /></td>
-          <td class="px-2 py-2 text-xs text-muted">—</td>
-          ${showCheckinColumn ? '<td></td>' : ''}
-          <td class="px-2 py-2">
-            <div class="flex gap-2">
-              <button class="save-signup-btn text-xs font-bold text-green-600 hover:underline" data-mode="${mode}" data-submission-id="${submissionId}" data-dancer-index="${dancerIndex}">Save</button>
-              <button class="cancel-signup-edit-btn text-xs font-semibold text-ink/60 hover:underline">Cancel</button>
-            </div>
-          </td>
-        </tr>`;
-    }
+  function signupEditRowHtml(s: Partial<Signup>, mode: 'edit' | 'add'): string {
+    const submissionId = s.submissionId ?? '';
+    const dancerIndex = s.dancerIndex ?? '';
+    const originalClass = s.class ?? '';
+    return `
+      <tr class="border-t border-accent bg-accent/5" data-signup-edit-row="1" data-original-class="${escapeAttr(originalClass)}">
+        <td class="px-2 py-2"><input class="edit-input first-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.firstName ?? '')}" placeholder="First name" /></td>
+        <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.lastName ?? '')}" placeholder="Last name" /></td>
+        <td class="px-2 py-2"><input class="edit-input email w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.email ?? '')}" placeholder="Email" /></td>
+        <td class="px-2 py-2"><input class="edit-input phone w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.phone ?? '')}" placeholder="Phone" /></td>
+        <td class="px-2 py-2 signup-class-cell">${signupClassPickerHtml(originalClass)}</td>
+        <td class="px-2 py-2 text-xs text-muted">—</td>
+        <td class="px-2 py-2 payment-select-cell">${paymentSelectHtml(s.paymentMethod ?? null)}</td>
+        <td class="px-2 py-2"><input type="checkbox" class="edit-input paid h-4 w-4" ${s.paid ? 'checked' : ''} /></td>
+        <td class="px-2 py-2 text-xs text-muted">—</td>
+        <td class="px-2 py-2">
+          <div class="flex gap-2">
+            <button class="save-signup-btn text-xs font-bold text-green-600 hover:underline" data-mode="${mode}" data-submission-id="${submissionId}" data-dancer-index="${dancerIndex}">Save</button>
+            <button class="cancel-signup-edit-btn text-xs font-semibold text-ink/60 hover:underline">Cancel</button>
+          </div>
+        </td>
+      </tr>`;
+  }
+
+  function checkinEditRowHtml(c: Partial<Checkin>, mode: 'edit' | 'add'): string {
+    const match = findSeriesForEventId(c.eventId ?? null);
+    const selectedKey = match?.series.key ?? '';
+    const selectedOccurrenceId = match?.occurrenceId ?? '';
+    const selectedIsSeries = match?.series.isSeries ?? false;
+
+    const seriesOptionsHtml = classSeries
+      .map((series) => `<option value="${escapeAttr(series.key)}" ${series.key === selectedKey ? 'selected' : ''}>${escapeHtml(series.title)} — ${escapeHtml(series.subLabel)}</option>`)
+      .join('');
+
+    const occurrenceOptionsHtml = selectedIsSeries
+      ? match!.series.occurrences
+          .map((occ) => `<option value="${escapeAttr(occ.id)}" ${occ.id === selectedOccurrenceId ? 'selected' : ''}>${escapeHtml(occ.label)}</option>`)
+          .join('')
+      : '';
+
+    return `
+      <tr class="border-t border-accent bg-accent/5" data-checkin-edit-row="1">
+        <td class="px-2 py-2"><input class="edit-input first-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(c.firstName ?? '')}" placeholder="First name" /></td>
+        <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(c.lastName ?? '')}" placeholder="Last name" /></td>
+        <td class="px-2 py-2"><input class="edit-input phone w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(c.phone ?? '')}" placeholder="Phone" /></td>
+        <td class="px-2 py-2">
+          <select class="edit-input checkin-class-select w-36 rounded-lg border border-border bg-bg px-2 py-1 text-xs">
+            <option value="">Select class…</option>
+            ${seriesOptionsHtml}
+          </select>
+        </td>
+        <td class="px-2 py-2">
+          <select class="edit-input checkin-date-select w-36 rounded-lg border border-border bg-bg px-2 py-1 text-xs" ${selectedIsSeries ? '' : 'disabled'}>
+            <option value="">${selectedIsSeries ? 'Select date…' : '—'}</option>
+            ${occurrenceOptionsHtml}
+          </select>
+        </td>
+        <td class="px-2 py-2 text-xs text-muted">—</td>
+        <td class="px-2 py-2">
+          <div class="flex gap-2">
+            <button class="save-checkin-btn text-xs font-bold text-green-600 hover:underline" data-mode="${mode}" data-id="${c.id ?? ''}">Save</button>
+            <button class="cancel-checkin-edit-btn text-xs font-semibold text-ink/60 hover:underline">Cancel</button>
+          </div>
+        </td>
+      </tr>`;
+  }
+
+  async function withAuthHeader(): Promise<Record<string, string> | null> {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return null;
+    return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
+  }
+
+  // --- Sign-Ups tab ---
+  function renderSignups() {
+    const nameQuery = signupsNameSearch.value.trim();
+    const classFilter = signupsClassFilter.value;
+    const isLockedByMe = signupsLock.isLocked();
+
+    const filteredSignups = allSignups.filter((s) => matchesName(s.firstName, s.lastName, nameQuery) && matchesClass(s.class, classFilter));
+    const sortedSignups = sortRows(filteredSignups, signupSort);
 
     const addSignupRowHtml = addingSignup ? signupEditRowHtml({}, 'add') : '';
 
@@ -539,7 +733,6 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           const key = signupRowKey(s);
           if (editingSignupKey === key) return [signupEditRowHtml(s, 'edit')];
 
-          const isCheckedIn = checkedInNames.has(`${s.firstName} ${s.lastName}`.toLowerCase().trim());
           const paymentLabel = s.paymentMethod === 'venmo' ? 'Venmo' : s.paymentMethod === 'cash' ? 'Cash' : '—';
           const classEntries = s.classRegistrations;
 
@@ -566,7 +759,6 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
             <td class="px-4 py-2.5 text-ink/70">${paymentSubtotalLabel}</td>
             <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" class="paid-checkbox h-4 w-4" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? dateFormatter.format(new Date(s.createdAt)) : ''}</td>
-            ${showCheckinColumn ? `<td class="px-4 py-2.5">${isFirst ? (isCheckedIn ? '<span class="font-bold text-green-600">✓</span>' : '<span class="text-ink/30">—</span>') : ''}</td>` : ''}
             ${
               isLockedByMe
                 ? isFirst
@@ -581,84 +773,6 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           });
         })
         .join('');
-
-    function checkinEditRowHtml(c: Partial<Checkin>, mode: 'edit' | 'add'): string {
-      const match = findSeriesForEventId(c.eventId ?? null);
-      const selectedKey = match?.series.key ?? '';
-      const selectedOccurrenceId = match?.occurrenceId ?? '';
-      const selectedIsSeries = match?.series.isSeries ?? false;
-
-      const seriesOptionsHtml = classSeries
-        .map((series) => `<option value="${escapeAttr(series.key)}" ${series.key === selectedKey ? 'selected' : ''}>${escapeHtml(series.title)} — ${escapeHtml(series.subLabel)}</option>`)
-        .join('');
-
-      const occurrenceOptionsHtml = selectedIsSeries
-        ? match!.series.occurrences
-            .map((occ) => `<option value="${escapeAttr(occ.id)}" ${occ.id === selectedOccurrenceId ? 'selected' : ''}>${escapeHtml(occ.label)}</option>`)
-            .join('')
-        : '';
-
-      return `
-        <tr class="border-t border-accent bg-accent/5" data-checkin-edit-row="1">
-          <td class="px-2 py-2"><input class="edit-input first-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(c.firstName ?? '')}" placeholder="First name" /></td>
-          <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(c.lastName ?? '')}" placeholder="Last name" /></td>
-          <td class="px-2 py-2"><input class="edit-input phone w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(c.phone ?? '')}" placeholder="Phone" /></td>
-          <td class="px-2 py-2">
-            <select class="edit-input checkin-class-select w-36 rounded-lg border border-border bg-bg px-2 py-1 text-xs">
-              <option value="">Select class…</option>
-              ${seriesOptionsHtml}
-            </select>
-          </td>
-          <td class="px-2 py-2">
-            <select class="edit-input checkin-date-select w-36 rounded-lg border border-border bg-bg px-2 py-1 text-xs" ${selectedIsSeries ? '' : 'disabled'}>
-              <option value="">${selectedIsSeries ? 'Select date…' : '—'}</option>
-              ${occurrenceOptionsHtml}
-            </select>
-          </td>
-          <td class="px-2 py-2 text-xs text-muted">—</td>
-          <td class="px-2 py-2">
-            <div class="flex gap-2">
-              <button class="save-checkin-btn text-xs font-bold text-green-600 hover:underline" data-mode="${mode}" data-id="${c.id ?? ''}">Save</button>
-              <button class="cancel-checkin-edit-btn text-xs font-semibold text-ink/60 hover:underline">Cancel</button>
-            </div>
-          </td>
-        </tr>`;
-    }
-
-    const addCheckinRowHtml = addingCheckin ? checkinEditRowHtml({}, 'add') : '';
-
-    checkinsBody.innerHTML =
-      addCheckinRowHtml +
-      sortedCheckins
-        .map((c) => {
-          if (editingCheckinKey === c.id) return checkinEditRowHtml(c, 'edit');
-          return `
-          <tr class="border-t border-border">
-            <td class="px-4 py-2.5 text-ink">${escapeHtml(c.firstName)}</td>
-            <td class="px-4 py-2.5 text-ink">${escapeHtml(c.lastName)}</td>
-            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(c.phone)}</td>
-            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(c.classTitle)}</td>
-            <td class="px-4 py-2.5 text-ink/70">${c.classDate ? dateFormatter.format(new Date(c.classDate)) : '—'}</td>
-            <td class="px-4 py-2.5 text-ink/70">${dateFormatter.format(new Date(c.createdAt))}</td>
-            ${
-              isLockedByMe
-                ? `<td class="px-4 py-2.5"><div class="flex gap-3">
-                    <button class="edit-checkin-btn text-ink/60 transition-colors hover:text-accent" aria-label="Edit" data-id="${c.id}">${EDIT_ICON_SVG}</button>
-                    <button class="delete-checkin-btn text-ink/60 transition-colors hover:text-red-600" aria-label="Delete" data-id="${c.id}">${TRASH_ICON_SVG}</button>
-                  </div></td>`
-                : ''
-            }
-          </tr>`;
-        })
-        .join('');
-
-    async function withAuthHeader(): Promise<Record<string, string> | null> {
-      const {
-        data: { session },
-      } = await supabaseBrowser.auth.getSession();
-      if (!session) return null;
-      return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
-    }
 
     document.querySelectorAll<HTMLInputElement>('.paid-checkbox').forEach((checkbox) => {
       checkbox.addEventListener('change', async () => {
@@ -689,12 +803,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       });
     });
 
-    // --- Sign-up row editing ---
     document.querySelectorAll<HTMLButtonElement>('.edit-signup-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         editingSignupKey = btn.dataset.key!;
         addingSignup = false;
-        render();
+        renderSignups();
       });
     });
 
@@ -711,15 +824,14 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       btn.addEventListener('click', () => {
         editingSignupKey = null;
         addingSignup = false;
-        render();
+        renderSignups();
       });
     });
 
     document.querySelectorAll<HTMLButtonElement>('.delete-signup-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const dancerCount = Number(btn.dataset.dancerCount ?? '0');
-        const confirmMsg =
-          dancerCount > 1 ? 'Remove this dancer from the registration?' : 'Delete this entire sign-up?';
+        const confirmMsg = dancerCount > 1 ? 'Remove this dancer from the registration?' : 'Delete this entire sign-up?';
         if (!confirm(confirmMsg)) return;
 
         const headers = await withAuthHeader();
@@ -738,7 +850,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         });
 
         if (res.ok) {
-          await reloadData();
+          await reloadSignups();
         } else {
           const data = await res.json().catch(() => ({}));
           alert(data.error ?? 'Failed to delete.');
@@ -800,7 +912,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         if (res.ok) {
           editingSignupKey = null;
           addingSignup = false;
-          await reloadData();
+          await reloadSignups();
         } else {
           const data = await res.json().catch(() => ({}));
           alert(data.error ?? 'Failed to save.');
@@ -808,12 +920,66 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       });
     });
 
-    // --- Check-in row editing ---
+    signupsEmpty.classList.toggle('hidden', sortedSignups.length > 0);
+    signupsCount.textContent = `${sortedSignups.length} ${sortedSignups.length === 1 ? 'result' : 'results'}`;
+    updateSortHeaders('signups', signupSort);
+  }
+
+  signupsNameSearch.addEventListener('input', renderSignups);
+  signupsClassFilter.addEventListener('change', renderSignups);
+  document.getElementById('signups-clear-filters')?.addEventListener('click', () => {
+    signupsNameSearch.value = '';
+    signupsClassFilter.value = '';
+    renderSignups();
+  });
+
+  addSignupBtn.addEventListener('click', () => {
+    editingSignupKey = null;
+    addingSignup = true;
+    renderSignups();
+  });
+
+  // --- Check-Ins tab ---
+  function renderCheckins() {
+    const nameQuery = checkinsNameSearch.value.trim();
+    const classFilter = checkinsClassFilter.value;
+    const isLockedByMe = checkinsLock.isLocked();
+
+    const filteredCheckins = allCheckins.filter((c) => matchesName(c.firstName, c.lastName, nameQuery) && matchesClass(c.classTitle, classFilter));
+    const sortedCheckins = sortRows(filteredCheckins, checkinSort);
+
+    const addCheckinRowHtml = addingCheckin ? checkinEditRowHtml({}, 'add') : '';
+
+    checkinsBody.innerHTML =
+      addCheckinRowHtml +
+      sortedCheckins
+        .map((c) => {
+          if (editingCheckinKey === c.id) return checkinEditRowHtml(c, 'edit');
+          return `
+          <tr class="border-t border-border">
+            <td class="px-4 py-2.5 text-ink">${escapeHtml(c.firstName)}</td>
+            <td class="px-4 py-2.5 text-ink">${escapeHtml(c.lastName)}</td>
+            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(c.phone)}</td>
+            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(c.classTitle)}</td>
+            <td class="px-4 py-2.5 text-ink/70">${c.classDate ? dateFormatter.format(new Date(c.classDate)) : '—'}</td>
+            <td class="px-4 py-2.5 text-ink/70">${dateFormatter.format(new Date(c.createdAt))}</td>
+            ${
+              isLockedByMe
+                ? `<td class="px-4 py-2.5"><div class="flex gap-3">
+                    <button class="edit-checkin-btn text-ink/60 transition-colors hover:text-accent" aria-label="Edit" data-id="${c.id}">${EDIT_ICON_SVG}</button>
+                    <button class="delete-checkin-btn text-ink/60 transition-colors hover:text-red-600" aria-label="Delete" data-id="${c.id}">${TRASH_ICON_SVG}</button>
+                  </div></td>`
+                : ''
+            }
+          </tr>`;
+        })
+        .join('');
+
     document.querySelectorAll<HTMLButtonElement>('.edit-checkin-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         editingCheckinKey = btn.dataset.id!;
         addingCheckin = false;
-        render();
+        renderCheckins();
       });
     });
 
@@ -821,7 +987,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       btn.addEventListener('click', () => {
         editingCheckinKey = null;
         addingCheckin = false;
-        render();
+        renderCheckins();
       });
     });
 
@@ -838,7 +1004,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         });
 
         if (res.ok) {
-          await reloadData();
+          await reloadCheckins();
         } else {
           const data = await res.json().catch(() => ({}));
           alert(data.error ?? 'Failed to delete.');
@@ -900,7 +1066,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         if (res.ok) {
           editingCheckinKey = null;
           addingCheckin = false;
-          await reloadData();
+          await reloadCheckins();
         } else {
           const data = await res.json().catch(() => ({}));
           alert(data.error ?? 'Failed to save.');
@@ -908,53 +1074,23 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       });
     });
 
-    signupsEmpty.classList.toggle('hidden', sortedSignups.length > 0);
     checkinsEmpty.classList.toggle('hidden', sortedCheckins.length > 0);
-    signupsCount.textContent = `${sortedSignups.length} ${sortedSignups.length === 1 ? 'result' : 'results'}`;
     checkinsCount.textContent = `${sortedCheckins.length} ${sortedCheckins.length === 1 ? 'result' : 'results'}`;
-
-    document.querySelectorAll<HTMLElement>('.sort-header').forEach((th) => {
-      const table = th.dataset.table;
-      const column = th.dataset.column ?? '';
-      const sort = table === 'signups' ? signupSort : checkinSort;
-      const isActive = sort.column === column;
-      th.textContent = th.textContent!.replace(/ [↑↓]$/, '') + (isActive ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : '');
-    });
+    updateSortHeaders('checkins', checkinSort);
   }
 
-  document.querySelectorAll<HTMLElement>('.sort-header').forEach((th) => {
-    th.addEventListener('click', () => {
-      const table = th.dataset.table;
-      const column = th.dataset.column ?? '';
-      const sort = table === 'signups' ? signupSort : checkinSort;
-      if (sort.column === column) {
-        sort.direction = sort.direction === 'asc' ? 'desc' : 'asc';
-      } else {
-        sort.column = column;
-        sort.direction = 'asc';
-      }
-      render();
-    });
-  });
-
-  nameSearchInput.addEventListener('input', render);
-  classFilterSelect.addEventListener('change', render);
-  document.getElementById('clear-filters')?.addEventListener('click', () => {
-    nameSearchInput.value = '';
-    classFilterSelect.value = '';
-    render();
-  });
-
-  addSignupBtn.addEventListener('click', () => {
-    editingSignupKey = null;
-    addingSignup = true;
-    render();
+  checkinsNameSearch.addEventListener('input', renderCheckins);
+  checkinsClassFilter.addEventListener('change', renderCheckins);
+  document.getElementById('checkins-clear-filters')?.addEventListener('click', () => {
+    checkinsNameSearch.value = '';
+    checkinsClassFilter.value = '';
+    renderCheckins();
   });
 
   addCheckinBtn.addEventListener('click', () => {
     editingCheckinKey = null;
     addingCheckin = true;
-    render();
+    renderCheckins();
   });
 
   // --- Recently deleted sign-ups (7-day audit trail, with restore) ---
@@ -964,14 +1100,6 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const deletedSignupsCount = document.getElementById('deleted-signups-count')!;
   const showDeletedBtn = document.getElementById('show-deleted-signups-btn') as HTMLButtonElement;
   const deletedDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-
-  async function getAuthHeaders(): Promise<Record<string, string> | null> {
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-    if (!session) return null;
-    return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
-  }
 
   interface DeletedSignupEntry {
     auditId: string;
@@ -983,7 +1111,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   }
 
   async function loadDeletedSignups() {
-    const headers = await getAuthHeaders();
+    const headers = await withAuthHeader();
     if (!headers) return;
 
     const res = await fetch('/api/admin/deleted-signups', { headers });
@@ -992,6 +1120,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
     deletedSignupsCount.textContent = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
     deletedSignupsEmpty.classList.toggle('hidden', entries.length > 0);
+
+    const isLockedByMe = signupsLock.isLocked();
 
     deletedSignupsBody.innerHTML = entries
       .map(
@@ -1014,7 +1144,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
     document.querySelectorAll<HTMLButtonElement>('.restore-signup-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        const restoreHeaders = await getAuthHeaders();
+        const restoreHeaders = await withAuthHeader();
         if (!restoreHeaders) return;
         btn.disabled = true;
 
@@ -1025,7 +1155,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         });
 
         if (res2.ok) {
-          await reloadData();
+          await reloadSignups();
           await loadDeletedSignups();
         } else {
           const data = await res2.json().catch(() => ({}));
@@ -1043,32 +1173,46 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     if (isHidden) loadDeletedSignups();
   });
 
-  async function reloadData() {
+  // --- Data loading ---
+  // Sign-ups and check-ins are fetched together (one endpoint, one round
+  // trip) since class-picker/series data is shared by both tabs, but each
+  // tab only re-renders its own table afterward.
+  async function reloadData(): Promise<boolean> {
     const {
       data: { session },
     } = await supabaseBrowser.auth.getSession();
-    if (!session) return;
+    if (!session) return false;
 
     const dataRes = await fetch('/api/admin/analytics-data', {
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
-    if (!dataRes.ok) return;
+    if (!dataRes.ok) return false;
 
     const { signups, checkins, classTitles, classSeries: series } = await dataRes.json();
     allSignups = (signups as Signup[]).map((s) => ({ ...s, class: serializeClassRegistrations(s.classRegistrations) }));
     allCheckins = checkins;
     classSeries = series ?? [];
 
-    const existingOptions = new Set(Array.from(classFilterSelect.options).map((o) => o.value));
-    for (const title of classTitles as string[]) {
-      if (existingOptions.has(title)) continue;
-      const option = document.createElement('option');
-      option.value = title;
-      option.textContent = title;
-      classFilterSelect.appendChild(option);
+    for (const select of [signupsClassFilter, checkinsClassFilter]) {
+      const existingOptions = new Set(Array.from(select.options).map((o) => o.value));
+      for (const title of classTitles as string[]) {
+        if (existingOptions.has(title)) continue;
+        const option = document.createElement('option');
+        option.value = title;
+        option.textContent = title;
+        select.appendChild(option);
+      }
     }
 
-    render();
+    return true;
+  }
+
+  async function reloadSignups() {
+    if (await reloadData()) renderSignups();
+  }
+
+  async function reloadCheckins() {
+    if (await reloadData()) renderCheckins();
   }
 
   async function init() {
@@ -1091,9 +1235,14 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       return;
     }
 
+    setActiveTab(new URLSearchParams(location.search).get('tab') ?? 'signups');
+
     await reloadData();
     showPanel('dashboard');
-    await refreshLockStatus();
+    renderSignups();
+    renderCheckins();
+    await signupsLock.refresh();
+    await checkinsLock.refresh();
   }
 
   init();

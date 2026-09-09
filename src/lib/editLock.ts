@@ -1,6 +1,10 @@
 import { supabase } from './supabase';
 
-export const ANALYTICS_LOCK_RESOURCE = 'analytics';
+// Sign-ups and check-ins each get their own lock so editing one never blocks
+// the other — two admins can work on different tabs of /admin/analytics at
+// the same time without contending for a single shared lock.
+export const SIGNUPS_LOCK_RESOURCE = 'analytics-signups';
+export const CHECKINS_LOCK_RESOURCE = 'analytics-checkins';
 export const LOCK_TTL_SECONDS = 10 * 60; // 10 minutes; refreshed by a client heartbeat while editing.
 
 export interface LockState {
