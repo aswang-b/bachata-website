@@ -18,8 +18,12 @@ Everything here runs server-side (Astro SSR pages, `/api/*` routes, the schedule
 | `editLock.ts` | Admin edit-lock (`tryAcquireLock`/`releaseLock`/`requireLock`) preventing concurrent edits, 10-min TTL |
 | `email.ts` | `sendAdminNotification` — transactional email to admins |
 | `env.ts` | `env(key)` — thin env var accessor |
+| `faqs.ts` | `listFaqs` — public FAQ list persistence, answers sanitized via `richText.ts` |
 | `googleCalendar.ts` | Google Calendar API client: OAuth refresh, list/insert/update/delete events, color mapping, recurrence rule building |
+| `homepageContent.ts` | `getHomepageContent`/`setHomepageContent` — editable homepage copy (lesson overview), sanitized via `richText.ts` |
+| `notificationSettings.ts` | `getNotificationRecipients`/`setNotificationRecipients` — admin-editable Contact-form notification recipient list |
 | `previewMode.ts` | Browser-side flag for admins previewing the site as a public visitor |
+| `richText.ts` | `sanitizeRichHtml` — regex-based allow-list HTML sanitizer for admin-authored rich text (event descriptions, FAQ answers, homepage copy) |
 | `siteBanner.ts` | Site-wide announcement banner get/set, with HTML sanitization |
 | `siteSettings.ts` | Boolean site settings (`hide_about_nav`, `hide_contact_nav`, `hide_checkin_nav`) persistence |
 | `supabase.ts` | Server Supabase client (service role key) |

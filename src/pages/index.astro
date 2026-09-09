@@ -64,17 +64,7 @@ const bgColorClasses: Record<string, string> = {
   accent: 'bg-accent',
   yellow: 'bg-yellow-600',
 };
-const borderColorClasses: Record<string, string> = {
-  green: 'border-green-600',
-  blue: 'border-blue-600',
-  red: 'border-red-600',
-  orange: 'border-orange-600',
-  purple: 'border-purple-600',
-  accent: 'border-accent',
-  yellow: 'border-yellow-600',
-};
 const bgClass = (color: string) => bgColorClasses[color] ?? 'bg-accent';
-const borderClass = (color: string) => borderColorClasses[color] ?? 'border-accent';
 
 function locationHref(location: string): string {
   if (/^https?:\/\//i.test(location)) return location;
@@ -86,16 +76,9 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
 
 <BaseLayout title="Home">
   <section class="mx-auto max-w-6xl px-6 py-20">
-    <div class="mb-8 mx-auto max-w-4xl text-center">
+    <div class="mb-12 mx-auto max-w-4xl text-center">
       <h2 class="font-display text-3xl font-extrabold text-ink">Current Lesson Offerings</h2>
     </div>
-
-    {lessonOverview && (
-      <div
-        class="mx-auto mb-12 max-w-4xl text-center text-base leading-relaxed text-ink/80 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:text-left [&_p:not(:first-child)]:mt-4 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:text-left"
-        set:html={lessonOverview}
-      />
-    )}
 
     {offerings.length === 0 ? (
       <p class="mx-auto max-w-md text-center text-sm text-muted">
@@ -143,18 +126,41 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
                   )}
                 </div>
                 {price && <p class="text-sm font-semibold text-ink">{price}</p>}
-                {offering.description && (
-                  <div
-                    class={`text-base font-normal leading-relaxed text-ink/80 sm:border-l-4 sm:pl-4 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 ${borderClass(offering.color)}/60`}
-                    set:html={offering.description}
-                  />
-                )}
+
                 <a
                   href={href}
-                  class="gradient-accent mt-2 inline-block self-start rounded-full px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+                  class="gradient-accent mt-1 inline-block self-start rounded-full px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
                 >
                   Register Now
                 </a>
+
+                <div class="mt-2 flex flex-col gap-2">
+                  {offering.description && (
+                    <details open class="group/acc rounded-xl border border-border bg-surface open:bg-bg">
+                      <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                        About {offering.title}
+                        <span class="shrink-0 text-muted transition-transform group-open/acc:rotate-180">⌄</span>
+                      </summary>
+                      <div
+                        class="border-t border-border px-4 py-3 text-sm leading-relaxed text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+                        set:html={offering.description}
+                      />
+                    </details>
+                  )}
+
+                  {lessonOverview && (
+                    <details class="group/acc rounded-xl border border-border bg-surface open:bg-bg">
+                      <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                        About This Class Format
+                        <span class="shrink-0 text-muted transition-transform group-open/acc:rotate-180">⌄</span>
+                      </summary>
+                      <div
+                        class="border-t border-border px-4 py-3 text-sm leading-relaxed text-ink/70 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5"
+                        set:html={lessonOverview}
+                      />
+                    </details>
+                  )}
+                </div>
               </div>
             </article>
           );

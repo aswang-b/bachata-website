@@ -220,7 +220,7 @@ const MAX_BANNERS_PER_DAY = 3;
                           {weekNumber && <span class="mr-1 whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk {weekNumber}</span>}
                           {event.title}
                         </div>
-                        <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-64 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
+                        <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
                           <p class={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider ${textClass(event.color)}`}>
                             <span class={`h-2 w-2 rounded-full ${dotClass(event.color)}`}></span>
                             {event.event_type === 'event' ? 'Event' : 'Class'}
@@ -1178,7 +1178,7 @@ const MAX_BANNERS_PER_DAY = 3;
     return `
       <div class="event-banner group relative cursor-pointer" data-event='${JSON.stringify(event).replace(/'/g, '&#39;')}'>
         <div class="${bannerClass}">${weekTag}${event.visibility === 'private' ? '🔒 ' : ''}${escapeHtml(event.title)}</div>
-        <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-64 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
+        <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
           <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider ${textClass(event.color)}">
             <span class="h-2 w-2 rounded-full ${dotClass(event.color)}"></span>
             ${event.event_type === 'event' ? 'Event' : 'Class'}

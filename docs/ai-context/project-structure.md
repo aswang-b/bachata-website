@@ -30,7 +30,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0024)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0027)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker)
@@ -38,15 +38,19 @@
 │   │   └── BaseLayout.astro
 │   ├── lib/                             # Server-side helpers
 │   │   ├── admin.ts                     # Admin auth/session helpers
-│   │   ├── apiUsage.ts                  # API usage tracking (e.g. Google Places quota)
+│   │   ├── apiUsage.ts                  # API usage tracking (e.g. Google Places quota, daily caps)
 │   │   ├── calendarSync.ts              # Google Calendar sync logic
 │   │   ├── classSeries.ts               # Recurring class series logic
 │   │   ├── deletionAudit.ts             # Audit log for deleted signups
 │   │   ├── editLock.ts                  # Admin edit-lock (prevents concurrent edits)
 │   │   ├── email.ts                     # Transactional email sending
 │   │   ├── env.ts                       # Env var access/validation
+│   │   ├── faqs.ts                      # FAQ list persistence
 │   │   ├── googleCalendar.ts            # Google Calendar API client
+│   │   ├── homepageContent.ts           # Editable homepage copy (lesson overview) persistence
+│   │   ├── notificationSettings.ts      # Admin-editable Contact-form notification recipient list
 │   │   ├── previewMode.ts               # Draft/preview banner state
+│   │   ├── richText.ts                  # Allow-list HTML sanitizer for admin-authored rich text
 │   │   ├── siteBanner.ts                # Site-wide announcement banner
 │   │   ├── siteSettings.ts              # Site settings persistence
 │   │   ├── supabase.ts / supabaseBrowser.ts  # Supabase clients (server/browser)
@@ -57,11 +61,11 @@
 │       ├── check-in.astro, check-in/[eventId].astro, check-in/confirmation.astro
 │       ├── admin.astro, admin/analytics.astro, admin/checkin-qr.astro, admin/inbox.astro
 │       └── api/
-│           ├── banner.ts, settings.ts, submit-checkin.ts, submit-intake.ts
-│           └── admin/                    # Admin-only API routes (events, signups, sync, lock, uploads)
+│           ├── banner.ts, faqs.ts, homepage-content.ts, settings.ts, submit-checkin.ts, submit-intake.ts
+│           └── admin/                    # Admin-only API routes (events, signups, sync, lock, uploads, FAQs, homepage content, inbox)
 └── docs/ai-context/                     # This Tier 1 documentation set
 ```
 
 ## Domain Overview
 
-The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, Google Calendar sync, site settings/banner, and an inbox. Data is stored in Supabase (see `supabase/migrations/`); the admin area uses edit-locks to avoid concurrent-edit conflicts.
+The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, Google Calendar sync, site settings/banner, an editable FAQ list, editable homepage copy, and an inbox. Data is stored in Supabase (see `supabase/migrations/`); the admin area uses edit-locks to avoid concurrent-edit conflicts.

@@ -138,6 +138,24 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </div>
 
       <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+        <p class="text-xs font-bold uppercase tracking-wider text-muted">Contact Notification Recipients</p>
+        <p class="text-xs text-muted">Comma-separated emails that get notified when someone submits the Contact Me form.</p>
+        <input
+          id="notification-emails-input"
+          type="text"
+          placeholder="you@example.com, someone-else@example.com"
+          class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+        />
+        <button
+          id="notification-emails-save"
+          class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+        >
+          Save Recipients
+        </button>
+        <p id="notification-emails-status" class="min-h-4 text-xs text-muted"></p>
+      </div>
+
+      <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
         <p class="text-xs font-bold uppercase tracking-wider text-muted">Announcement Banner Content</p>
         <div class="flex gap-1 border-b border-border pb-2">
           <button type="button" data-cmd="bold" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
@@ -259,6 +277,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       document.getElementById('admin-email')!.textContent = session.user.email ?? '';
       renderPreviewToggle();
       loadSiteSettings();
+      loadNotificationEmails();
       loadBanner();
       loadOverview();
       loadFaqs();
@@ -331,6 +350,46 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         statusEl.textContent = 'Failed to save — try again.';
       }
     });
+  });
+
+  async function loadNotificationEmails() {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    try {
+      const res = await fetch('/api/admin/notification-settings', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const { recipientEmails } = await res.json();
+      (document.getElementById('notification-emails-input') as HTMLInputElement).value = recipientEmails ?? '';
+    } catch {
+      // Leave the input blank if it can't load.
+    }
+  }
+
+  document.getElementById('notification-emails-save')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('notification-emails-status')!;
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const recipientEmails = (document.getElementById('notification-emails-input') as HTMLInputElement).value;
+    const res = await fetch('/api/admin/update-notification-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ recipientEmails }),
+    });
+
+    if (res.ok) {
+      statusEl.textContent = 'Saved.';
+      setTimeout(() => (statusEl.textContent = ''), 1500);
+    } else {
+      const { error } = await res.json().catch(() => ({ error: 'Failed to save — try again.' }));
+      statusEl.textContent = error ?? 'Failed to save — try again.';
+    }
   });
 
   function renderBannerToggle(on: boolean) {
