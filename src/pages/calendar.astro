@@ -172,9 +172,26 @@ const MAX_BANNERS_PER_DAY = 3;
       >
         + Add Event
       </button>
+
+      <div class="inline-flex rounded-full border border-border p-1">
+        <button
+          id="view-toggle-calendar"
+          data-view="calendar"
+          class="view-toggle-btn rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors"
+        >
+          Calendar
+        </button>
+        <button
+          id="view-toggle-list"
+          data-view="list"
+          class="view-toggle-btn rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors"
+        >
+          List
+        </button>
+      </div>
     </div>
 
-    <div class="flex flex-col items-start gap-4 lg:flex-row lg:justify-center">
+    <div id="calendar-view" class="flex flex-col items-start gap-4 lg:flex-row lg:justify-center">
       <div class="w-full lg:w-auto">
         <div
           id="calendar-grid"
@@ -309,6 +326,82 @@ const MAX_BANNERS_PER_DAY = 3;
           </div>
         </div>
       </div>
+    </div>
+
+    <div id="list-view" class="mx-auto hidden w-full max-w-4xl flex-col gap-3">
+      {gridEvents.length === 0 ? (
+        <p class="py-8 text-center text-sm text-muted">No classes or events scheduled this month.</p>
+      ) : (
+        gridEvents.map((event) => {
+          const start = new Date(event.start_time);
+          const isToday = start.toDateString() === today.toDateString();
+          const weekNumber = weekNumberByEventId.get(event.id) ?? null;
+          const priceLines = buildPriceLines(event);
+          const seriesKey = event.google_recurring_event_id ?? event.id;
+          const registerBase = event.event_type === 'event' ? '/register/events' : '/register';
+          const registerHref = `${registerBase}?series=${encodeURIComponent(seriesKey)}`;
+          const monthAbbrev = start.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+          const weekdayAbbrev = start.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+
+          return (
+            <div class={`flex flex-col gap-3 rounded-2xl border p-3 sm:flex-row sm:gap-4 ${isToday ? 'border-accent' : 'border-border'} bg-bg`}>
+              <div class="flex gap-4">
+                <div
+                  class={`flex w-16 shrink-0 flex-col items-center justify-center rounded-xl py-2 ${
+                    isToday ? 'gradient-accent text-white' : 'bg-surface text-ink'
+                  }`}
+                >
+                  <span class="text-[10px] font-bold uppercase tracking-wider">{monthAbbrev}</span>
+                  <span class="text-2xl font-extrabold">{start.getDate()}</span>
+                  <span class="text-[10px] font-bold uppercase tracking-wider">{weekdayAbbrev}</span>
+                </div>
+
+                {event.image_url ? (
+                  <img src={event.image_url} alt={event.title} class="hidden h-20 w-32 shrink-0 rounded-xl object-cover sm:block" />
+                ) : (
+                  <div class={`hidden h-20 w-32 shrink-0 rounded-xl sm:block ${dotClass(event.color)}`} />
+                )}
+              </div>
+
+              <div class="flex flex-1 flex-col gap-1 overflow-hidden">
+                <div class="flex items-center gap-2">
+                  <span class={`h-2 w-2 shrink-0 rounded-full ${dotClass(event.color)}`} />
+                  <p class="font-display font-bold text-ink">
+                    {event.title}
+                    {weekNumber && <span class="ml-1 text-xs font-semibold text-muted">&middot; Week {weekNumber}</span>}
+                  </p>
+                </div>
+                <p class="text-xs text-muted">
+                  {timeFormatter.format(start)}&ndash;{timeFormatter.format(new Date(event.end_time))}
+                  {event.location && (
+                    <>
+                      {' '}
+                      &middot;{' '}
+                      <a href={locationHref(event.location)} target="_blank" rel="noopener noreferrer" class="text-accent underline">
+                        📍 {event.location}
+                      </a>
+                    </>
+                  )}
+                </p>
+                {event.description && (
+                  <div
+                    class="line-clamp-2 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline"
+                    set:html={event.description}
+                  />
+                )}
+                {priceLines.main && <p class="text-xs font-semibold text-ink">{priceLines.main}</p>}
+              </div>
+
+              <a
+                href={registerHref}
+                class="gradient-accent flex h-fit w-full shrink-0 items-center justify-center rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 sm:w-auto sm:self-center"
+              >
+                Register Now
+              </a>
+            </div>
+          );
+        })
+      )}
     </div>
   </div>
 
@@ -532,6 +625,26 @@ const MAX_BANNERS_PER_DAY = 3;
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
   import { isPreviewingAsPublic } from '../lib/previewMode';
+
+  // --- Calendar / List view toggle ---
+  const viewToggleButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.view-toggle-btn'));
+  const calendarViewEl = document.getElementById('calendar-view')!;
+  const listViewEl = document.getElementById('list-view')!;
+
+  function setActiveView(view: string) {
+    calendarViewEl.classList.toggle('hidden', view !== 'calendar');
+    listViewEl.classList.toggle('hidden', view !== 'list');
+    listViewEl.classList.toggle('flex', view === 'list');
+    viewToggleButtons.forEach((btn) => {
+      const active = btn.dataset.view === view;
+      btn.classList.toggle('gradient-accent', active);
+      btn.classList.toggle('text-white', active);
+      btn.classList.toggle('text-ink/70', !active);
+    });
+  }
+
+  viewToggleButtons.forEach((btn) => btn.addEventListener('click', () => setActiveView(btn.dataset.view ?? 'calendar')));
+  setActiveView('calendar');
 
   interface SiteEvent {
     id: string;
