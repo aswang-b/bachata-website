@@ -30,7 +30,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0027)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0028)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker)
@@ -40,6 +40,7 @@
 │   │   ├── admin.ts                     # Admin auth/session helpers
 │   │   ├── apiUsage.ts                  # API usage tracking (e.g. Google Places quota, daily caps)
 │   │   ├── calendarSync.ts              # Google Calendar sync logic
+│   │   ├── classRegistrations.ts        # One-row-per-(dancer,class) registration records with snapshotted prices
 │   │   ├── classSeries.ts               # Recurring class series logic
 │   │   ├── deletionAudit.ts             # Audit log for deleted signups
 │   │   ├── editLock.ts                  # Admin edit-lock (prevents concurrent edits)

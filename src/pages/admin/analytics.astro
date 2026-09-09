@@ -162,6 +162,13 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   // The index signatures below exist only so sortRows()'s generic
   // `T extends Record<string, unknown>` constraint is satisfied — they don't
   // change runtime behavior, just let TS verify the sort logic is type-safe.
+  interface ClassRegistrationEntry {
+    id: string | null;
+    classLabel: string;
+    seriesMode: 'whole' | 'dropin' | null;
+    price: number | null;
+  }
+
   interface Signup {
     submissionId: string;
     createdAt: string;
@@ -170,7 +177,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     email: string;
     phone: string;
     registrationType: string;
-    class: string | null;
+    // Derived in reloadData() from classRegistrations, for the existing
+    // name-search/class-filter/sort logic that expects a flat string.
+    class: string;
+    classRegistrations: ClassRegistrationEntry[];
     paymentMethod: string | null;
     paid: boolean;
     dancerIndex: number | null;
@@ -411,57 +421,23 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     return sorted;
   }
 
-  interface ClassSelectionEntry {
-    label: string;
-    title: string;
-    mode: 'whole' | 'dropin' | null;
-  }
-
-  // The stored `class` value is a single string built by joining each
-  // selected class with "; ", where a series-type class also carries its
-  // Whole Series / Drop In choice as a " — Mode" suffix (see group.astro's
-  // updateClassValue()). Split it back out so each class can get its own
-  // table row with an explicit Series/Drop-In column. `title` is kept
-  // separately from the full label — group.astro builds its own subLabel
-  // text (with a trailing date range) independently of classSeries.ts's
-  // version, so title is the only part guaranteed to match for price lookup.
-  function parseClassSelections(raw: string | null): ClassSelectionEntry[] {
-    const value = (raw ?? '').trim();
-    if (!value) return [{ label: '', title: '', mode: null }];
-
-    return value
-      .split(';')
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part) => {
-        const segments = part.split('—').map((s) => s.trim());
-        const last = segments[segments.length - 1];
-        const title = segments[0] ?? part;
-        if (last === 'Whole Series' || last === 'Drop In') {
-          return { label: segments.slice(0, -1).join(' — '), title, mode: last === 'Whole Series' ? 'whole' : 'dropin' } as ClassSelectionEntry;
-        }
-        return { label: part, title, mode: null } as ClassSelectionEntry;
-      });
-  }
-
   function formatPrice(value: number): string {
     return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
   }
 
+  // Reconstructs the "<label> — <Whole Series|Drop In>" wire format the
+  // public registration form builds (see register.astro's updateClassValue),
+  // so the class-picker's "keep what was already there if nothing is
+  // checked" fallback still works against real class_registrations data.
+  function serializeClassRegistrations(entries: ClassRegistrationEntry[]): string {
+    return entries
+      .filter((e) => e.classLabel)
+      .map((e) => (e.seriesMode ? `${e.classLabel} — ${e.seriesMode === 'dropin' ? 'Drop In' : 'Whole Series'}` : e.classLabel))
+      .join('; ');
+  }
+
   const EDIT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.5-9.5a2.121 2.121 0 0 1 3 3L12 16l-4 1 1-4 9.5-9.5Z" /></svg>`;
   const TRASH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 .867 12.142A2 2 0 0 0 9.862 21h4.276a2 2 0 0 0 1.995-1.858L17 7M10 11v6m4-6v6" /></svg>`;
-
-  // Matches a parsed class entry back to its series (by title alone — the
-  // registration form's own subLabel text doesn't match classSeries.ts's) to
-  // look up the price for the mode it was registered under. Falls back to
-  // null (shown as "—") if the class was since renamed and no longer matches.
-  function findSubtotal(entry: ClassSelectionEntry): number | null {
-    if (!entry.title) return null;
-    const series = classSeries.find((s) => s.title === entry.title);
-    if (!series) return null;
-    const price = entry.mode === 'dropin' ? series.priceDropIn : series.priceWholeSeries;
-    return price ?? null;
-  }
 
   function render() {
     const nameQuery = nameSearchInput.value.trim();
@@ -565,27 +541,29 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
           const isCheckedIn = checkedInNames.has(`${s.firstName} ${s.lastName}`.toLowerCase().trim());
           const paymentLabel = s.paymentMethod === 'venmo' ? 'Venmo' : s.paymentMethod === 'cash' ? 'Cash' : '—';
-          const classEntries = parseClassSelections(s.class);
+          const classEntries = s.classRegistrations;
 
           // One row per class the dancer is registered for, so multiple
           // classes (or dancers) never get crammed into a single cell.
           // Continuation rows for the same dancer repeat only the Class /
-          // Series columns and butt up against the row above them.
+          // Series columns and butt up against the row above them. Each
+          // row carries its own real price (snapshotted at registration
+          // time in class_registrations), so unlike the old text-parsing
+          // approach the price is never blank past the first class.
           return classEntries.map((entry, entryIndex) => {
             const isFirst = entryIndex === 0;
-            const modeLabel = entry.mode === 'whole' ? 'Whole Series' : entry.mode === 'dropin' ? 'Drop In' : '—';
-            const subtotal = findSubtotal(entry);
+            const modeLabel = entry.seriesMode === 'whole' ? 'Whole Series' : entry.seriesMode === 'dropin' ? 'Drop In' : '—';
             const paymentSubtotalLabel =
-              paymentLabel === '—' && subtotal == null ? '—' : `${paymentLabel}${subtotal != null ? ` — ${formatPrice(subtotal)}` : ''}`;
+              paymentLabel === '—' && entry.price == null ? '—' : `${paymentLabel}${entry.price != null ? ` — ${formatPrice(entry.price)}` : ''}`;
             return `
           <tr class="${isFirst ? 'border-t border-border' : 'border-t-0'}">
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.firstName) : ''}</td>
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.lastName) : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? escapeHtml(s.email) : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? escapeHtml(s.phone) : ''}</td>
-            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.label || '—')}</td>
+            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.classLabel || '—')}</td>
             <td class="px-4 py-2.5 text-ink/70">${modeLabel}</td>
-            <td class="px-4 py-2.5 text-ink/70">${isFirst ? paymentSubtotalLabel : ''}</td>
+            <td class="px-4 py-2.5 text-ink/70">${paymentSubtotalLabel}</td>
             <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" class="paid-checkbox h-4 w-4" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? dateFormatter.format(new Date(s.createdAt)) : ''}</td>
             ${showCheckinColumn ? `<td class="px-4 py-2.5">${isFirst ? (isCheckedIn ? '<span class="font-bold text-green-600">✓</span>' : '<span class="text-ink/30">—</span>') : ''}</td>` : ''}
@@ -1077,7 +1055,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     if (!dataRes.ok) return;
 
     const { signups, checkins, classTitles, classSeries: series } = await dataRes.json();
-    allSignups = signups;
+    allSignups = (signups as Signup[]).map((s) => ({ ...s, class: serializeClassRegistrations(s.classRegistrations) }));
     allCheckins = checkins;
     classSeries = series ?? [];
 

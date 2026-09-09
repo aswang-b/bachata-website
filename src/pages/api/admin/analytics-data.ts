@@ -20,11 +20,27 @@ interface Dancer {
   email?: string;
 }
 
+interface ClassRegistrationRow {
+  id: string;
+  submission_id: string;
+  dancer_index: number | null;
+  class_title: string;
+  class_label: string;
+  series_mode: 'whole' | 'dropin' | null;
+  price: number | null;
+}
+
+export interface ClassRegistrationEntry {
+  id: string | null;
+  classLabel: string;
+  seriesMode: 'whole' | 'dropin' | null;
+  price: number | null;
+}
+
 interface SignupRow {
   submissionId: string;
   createdAt: string;
   registrationType: string;
-  class: string | null;
   paymentMethod: string | null;
   paid: boolean;
   dancerIndex: number | null;
@@ -33,7 +49,10 @@ interface SignupRow {
   lastName: string;
   email: string;
   phone: string;
+  classRegistrations: ClassRegistrationEntry[];
 }
+
+const EMPTY_CLASS_ENTRY: ClassRegistrationEntry = { id: null, classLabel: '', seriesMode: null, price: null };
 
 export const GET: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
@@ -46,10 +65,11 @@ export const GET: APIRoute = async ({ request }) => {
     { data: checkinRows, error: checkinError },
     { data: classEvents, error: eventsError },
     { data: allClassEvents, error: allClassEventsError },
+    { data: classRegistrationRows, error: classRegistrationsError },
   ] = await Promise.all([
     supabase
       .from('intake_submissions')
-      .select('id, created_at, registration_type, first_name, last_name, email, phone, class, dancers, payment_method, paid')
+      .select('id, created_at, registration_type, first_name, last_name, email, phone, dancers, payment_method, paid')
       .order('created_at', { ascending: false })
       .limit(ANALYTICS_ROW_LIMIT),
     supabase
@@ -60,27 +80,47 @@ export const GET: APIRoute = async ({ request }) => {
     supabase.from('events').select('title').eq('event_type', 'class').order('title', { ascending: true }),
     // Admins can attach a check-in to any class occurrence, past or future,
     // so this isn't filtered to upcoming/public like the check-in.astro form.
-    // Prices are included so the Sign-Ups table can show a per-class subtotal.
     supabase
       .from('events')
       .select('id, title, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in')
       .eq('event_type', 'class')
       .order('start_time', { ascending: true }),
+    supabase
+      .from('class_registrations')
+      .select('id, submission_id, dancer_index, class_title, class_label, series_mode, price')
+      .limit(ANALYTICS_ROW_LIMIT),
   ]);
 
-  if (intakeError || checkinError || eventsError || allClassEventsError) {
+  if (intakeError || checkinError || eventsError || allClassEventsError || classRegistrationsError) {
     return new Response(JSON.stringify({ error: 'Failed to load analytics data.' }), { status: 500 });
   }
 
   const classSeries = buildClassSeriesList(allClassEvents ?? []);
 
+  // Group each submission's class registrations by dancer (dancer_index, or
+  // null for a class-less single-registrant submission), so each dancer row
+  // below can attach its own real per-class breakdown instead of re-parsing
+  // a semicolon-joined string.
+  const registrationsBySubmission = new Map<string, Map<number | null, ClassRegistrationEntry[]>>();
+  for (const reg of (classRegistrationRows ?? []) as ClassRegistrationRow[]) {
+    let byDancer = registrationsBySubmission.get(reg.submission_id);
+    if (!byDancer) {
+      byDancer = new Map();
+      registrationsBySubmission.set(reg.submission_id, byDancer);
+    }
+    const entry: ClassRegistrationEntry = { id: reg.id, classLabel: reg.class_label, seriesMode: reg.series_mode, price: reg.price };
+    const existing = byDancer.get(reg.dancer_index);
+    if (existing) existing.push(entry);
+    else byDancer.set(reg.dancer_index, [entry]);
+  }
+
   const signups = (intakeRows ?? []).flatMap((row): SignupRow[] => {
     const dancers = Array.isArray(row.dancers) ? (row.dancers as Dancer[]) : null;
+    const byDancer = registrationsBySubmission.get(row.id);
     const shared = {
       submissionId: row.id,
       createdAt: row.created_at,
       registrationType: row.registration_type,
-      class: row.class,
       paymentMethod: row.payment_method,
       paid: row.paid,
     };
@@ -94,6 +134,7 @@ export const GET: APIRoute = async ({ request }) => {
         lastName: d.lastName ?? '',
         email: d.email || row.email || '',
         phone: d.phone || row.phone || '',
+        classRegistrations: byDancer?.get(i) ?? [EMPTY_CLASS_ENTRY],
       }));
     }
 
@@ -106,6 +147,7 @@ export const GET: APIRoute = async ({ request }) => {
         lastName: row.last_name ?? '',
         email: row.email ?? '',
         phone: row.phone ?? '',
+        classRegistrations: byDancer?.get(null) ?? [EMPTY_CLASS_ENTRY],
       },
     ];
   });

@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { sendAdminNotification } from '../../lib/email';
 import { checkAndIncrementUsage } from '../../lib/apiUsage';
 import { env } from '../../lib/env';
+import { insertClassRegistrations } from '../../lib/classRegistrations';
 
 export const prerender = false;
 
@@ -145,6 +146,16 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       status: 500,
     });
   }
+
+  await insertClassRegistrations({
+    submissionId: row.id,
+    classRaw: className || null,
+    dancers,
+    fallbackFirstName: firstName,
+    fallbackLastName: lastName,
+    fallbackEmail: email || null,
+    fallbackPhone: phone || null,
+  });
 
   const confirmationBase = registrationType === 'private' ? '/contact/confirmation' : '/register/confirmation';
   const confirmationUrl = `${confirmationBase}?id=${row.id}`;

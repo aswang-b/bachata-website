@@ -15,6 +15,7 @@ Everything here runs server-side (Astro SSR pages, `/api/*` routes, the schedule
 | `calendarSync.ts` | `runCalendarSync` — pulls Google Calendar events into Supabase for public + private calendars |
 | `classSeries.ts` | Builds recurring class occurrence lists (`buildClassSeriesList`) in `America/Chicago` time |
 | `deletionAudit.ts` | `recordDeletion` / `lookbackCutoffIso` — audit log for deleted signups, with lookback window |
+| `classRegistrations.ts` | One-row-per-(dancer,class) registration records (`class_registrations` table) — parses the public form's semicolon-joined class string, snapshots each class's price at write time, and backs the admin Sign-Ups table's per-row breakdown |
 | `editLock.ts` | Admin edit-lock (`tryAcquireLock`/`releaseLock`/`requireLock`) preventing concurrent edits, 10-min TTL |
 | `email.ts` | `sendAdminNotification` — transactional email to admins |
 | `env.ts` | `env(key)` — thin env var accessor |

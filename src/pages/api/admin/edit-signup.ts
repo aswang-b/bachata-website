@@ -3,6 +3,7 @@ import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { ANALYTICS_LOCK_RESOURCE, requireLock } from '../../../lib/editLock';
 import { recordDeletion } from '../../../lib/deletionAudit';
+import { getClassRegistrationsForDancer, insertClassRegistrations, replaceClassRegistrations } from '../../../lib/classRegistrations';
 
 export const prerender = false;
 
@@ -36,18 +37,33 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(JSON.stringify({ error: 'First and last name are required.' }), { status: 400 });
     }
 
-    const { error } = await supabase.from('intake_submissions').insert({
-      registration_type: 'group',
-      first_name: firstName,
-      last_name: lastName,
-      email: email || null,
-      phone: phone || null,
-      class: className || null,
-      payment_method: paymentMethod || null,
-      paid: Boolean(paid),
+    const { data: newRow, error } = await supabase
+      .from('intake_submissions')
+      .insert({
+        registration_type: 'group',
+        first_name: firstName,
+        last_name: lastName,
+        email: email || null,
+        phone: phone || null,
+        class: className || null,
+        payment_method: paymentMethod || null,
+        paid: Boolean(paid),
+        dancers: null,
+      })
+      .select('id')
+      .single();
+    if (error || !newRow) return new Response(JSON.stringify({ error: 'Failed to create sign-up.' }), { status: 500 });
+
+    await insertClassRegistrations({
+      submissionId: newRow.id,
+      classRaw: className || null,
       dancers: null,
+      fallbackFirstName: firstName,
+      fallbackLastName: lastName,
+      fallbackEmail: email || null,
+      fallbackPhone: phone || null,
     });
-    if (error) return new Response(JSON.stringify({ error: 'Failed to create sign-up.' }), { status: 500 });
+
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }
 
@@ -70,6 +86,12 @@ export const POST: APIRoute = async ({ request }) => {
   const hasDancerIndex = dancers && typeof dancerIndex === 'number' && dancerIndex >= 0 && dancerIndex < dancers.length;
 
   if (action === 'delete') {
+    // The dancer's own class registrations are snapshotted alongside the
+    // submission/dancer so restore-signup.ts can recreate them — deleting
+    // the dancer here never touches any other dancer's class_registrations
+    // rows on this same submission.
+    const dancerClassRegistrations = await getClassRegistrationsForDancer(submissionId, hasDancerIndex ? dancerIndex : null);
+
     if (hasDancerIndex && dancers!.length > 1) {
       await recordDeletion({
         deletedBy: user.email ?? 'unknown',
@@ -77,7 +99,7 @@ export const POST: APIRoute = async ({ request }) => {
         action: 'remove_dancer',
         recordId: submissionId,
         dancerIndex,
-        snapshot: row,
+        snapshot: { ...row, classRegistrations: dancerClassRegistrations },
       });
 
       const nextDancers = dancers!.filter((_, i) => i !== dancerIndex);
@@ -92,15 +114,27 @@ export const POST: APIRoute = async ({ request }) => {
         })
         .eq('id', submissionId);
       if (error) return new Response(JSON.stringify({ error: 'Failed to remove dancer.' }), { status: 500 });
+
+      const { error: deleteRegError } = await supabase
+        .from('class_registrations')
+        .delete()
+        .eq('submission_id', submissionId)
+        .eq('dancer_index', dancerIndex);
+      if (deleteRegError) console.error('Failed to delete dancer class registrations:', deleteRegError.message);
+
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     }
 
+    // Whole-submission delete — reaching this branch means there's at most
+    // one dancer, so dancerClassRegistrations (fetched above) already covers
+    // every class_registrations row for the submission. Cascade-deletes with
+    // the submission itself; snapshotted here so restore can recreate them.
     await recordDeletion({
       deletedBy: user.email ?? 'unknown',
       tableName: 'intake_submissions',
       action: 'delete_submission',
       recordId: submissionId,
-      snapshot: row,
+      snapshot: { ...row, classRegistrations: dancerClassRegistrations },
     });
 
     const { error } = await supabase.from('intake_submissions').delete().eq('id', submissionId);
@@ -111,7 +145,6 @@ export const POST: APIRoute = async ({ request }) => {
   if (action === 'update') {
     const { firstName, lastName, email, phone, className, paymentMethod, paid } = body;
     const patch: Record<string, unknown> = {
-      class: className || null,
       payment_method: paymentMethod || null,
       paid: Boolean(paid),
     };
@@ -131,6 +164,18 @@ export const POST: APIRoute = async ({ request }) => {
       patch.last_name = lastName;
       patch.email = email || null;
       patch.phone = phone || null;
+    }
+
+    try {
+      await replaceClassRegistrations({
+        submissionId,
+        dancerIndex: hasDancerIndex ? dancerIndex : null,
+        classRaw: className || null,
+        dancer: { firstName, lastName, email, phone },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update class registrations.';
+      return new Response(JSON.stringify({ error: message }), { status: 500 });
     }
 
     const { error } = await supabase.from('intake_submissions').update(patch).eq('id', submissionId);
