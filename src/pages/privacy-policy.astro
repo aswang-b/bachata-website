@@ -5,12 +5,45 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 <BaseLayout title="Privacy Policy">
   <div class="mx-auto max-w-2xl px-6 py-16">
     <h1 class="font-display text-3xl font-extrabold text-ink">Privacy Policy</h1>
-    <p class="mt-6 text-sm leading-relaxed text-muted">
-      This page is a placeholder. This site collects the information you submit
-      through our registration forms (name, email, phone, class, and comments)
-      in order to contact you about classes and events. We use cookies to
-      support basic site functionality. This policy will be replaced with a
-      complete, studio-specific privacy policy before launch.
-    </p>
+
+    <div class="mt-6 flex flex-col gap-6 text-sm leading-relaxed text-ink/80">
+      <section>
+        <h2 class="font-display text-lg font-bold text-ink">What we collect</h2>
+        <p class="mt-1">
+          When you register for a class, check in, or contact us through this site, we collect the information you
+          submit: your name, phone number and/or email, the class or event you selected, and any notes or messages
+          you include.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="font-display text-lg font-bold text-ink">How we use it</h2>
+        <p class="mt-1">
+          We use your contact information only to reach you about your registration — confirmations, class or
+          schedule changes, cancellations, or a question you asked us directly.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="font-display text-lg font-bold text-ink">What we don't do</h2>
+        <p class="mt-1">
+          We never sell, rent, or share your contact information with any third party or external entity. It stays
+          with us and is used solely for the purpose above.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="font-display text-lg font-bold text-ink">Cookies</h2>
+        <p class="mt-1">We use a small amount of local browser storage to remember basic preferences, like your light/dark theme choice.</p>
+      </section>
+
+      <section>
+        <h2 class="font-display text-lg font-bold text-ink">Questions</h2>
+        <p class="mt-1">
+          If you have any questions about this policy or your information, reach out through our{' '}
+          <a href="/contact" class="text-accent underline hover:no-underline">Contact page</a>.
+        </p>
+      </section>
+    </div>
   </div>
 </BaseLayout>
