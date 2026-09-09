@@ -15,6 +15,39 @@ const {
   title,
   description = 'Bachata lessons, private coaching, and social events.',
 } = Astro.props;
+
+const canonicalUrl = new URL(Astro.url.pathname, 'https://dancewithb.fun').toString();
+
+const localBusinessSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'DanceSchool',
+  name: 'Dance with B',
+  description: 'Bachata sensual classes, private coaching, and social dance events in Madison, WI.',
+  url: 'https://dancewithb.fun',
+  image: 'https://dancewithb.fun/favicon.svg',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: '6725 Seybold Rd',
+    addressLocality: 'Madison',
+    addressRegion: 'WI',
+    postalCode: '53719',
+    addressCountry: 'US',
+  },
+  founder: {
+    '@type': 'Person',
+    name: 'B Li',
+  },
+  // Reflects the published group-class hours (also set on the Google
+  // Business Profile). Private lessons/workshops run outside these hours
+  // by appointment, so they're described in copy rather than modeled here.
+  openingHoursSpecification: {
+    '@type': 'OpeningHoursSpecification',
+    dayOfWeek: 'Sunday',
+    opens: '13:00',
+    closes: '15:00',
+  },
+  sameAs: ['https://www.instagram.com/ohmytofuu/', 'https://open.spotify.com/playlist/15WaYTwjYFwQ2yq33c9Gh8'],
+};
 ---
 
 <!doctype html>
@@ -24,7 +57,18 @@ const {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="description" content={description} />
-    <title>{title} | Bachata with B</title>
+    <title>{title} | Dance with B</title>
+    <link rel="canonical" href={canonicalUrl} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={`${title} | Dance with B`} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={`${title} | Dance with B`} />
+    <meta name="twitter:description" content={description} />
+
+    <script type="application/ld+json" set:html={JSON.stringify(localBusinessSchema)} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

@@ -86,7 +86,10 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
 }
 ---
 
-<BaseLayout title="Register — Group Lessons">
+<BaseLayout
+  title="Register — Group Bachata Classes"
+  description="Sign up for group bachata classes in Madison, WI at Dance Life Studio. Multi-week series and drop-in options available."
+>
   <div class="mx-auto max-w-xl px-6 py-16">
     <h1 class="font-display text-3xl font-bold text-ink">Register for a Group Lesson</h1>
     <p class="mt-2 text-sm text-muted">Fill out the form below to reserve your spot!</p>
@@ -174,14 +177,20 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
                           </button>
                           <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-3 text-left text-xs text-ink/70 shadow-xl group-hover:block">
                             <strong class="text-ink">Quick Note</strong> — These classes follow a progressive
-                            curriculum, so I'm unable to adjust content or otherwise accommodate dancers who missed
-                            previous classes in a series. If you've missed multiple classes, you're welcome to
-                            contact me about private lessons!
+                            curriculum, so dancers who missed previous classes in a series may have difficulty
+                            following along. If you've missed multiple classes, you're welcome to contact me with
+                            questions or about catching up with private lessons!
                           </div>
                         </span>
                       </span>
                       {s.priceDropIn != null && <span class="font-semibold text-ink">{formatPrice(s.priceDropIn)}/class</span>}
                     </label>
+                    <p class="dropin-note hidden rounded-lg border border-border bg-surface p-3 text-xs text-ink/70">
+                      <strong class="text-ink">Quick Note</strong> — These classes follow a progressive curriculum, so
+                      dancers who missed previous classes in a series may have difficulty following along. If you've
+                      missed multiple classes, you're welcome to contact me with questions or about catching up with
+                      private lessons!
+                    </p>
                     {s.priceStudent != null && (
                       <p class="pl-6 text-xs text-muted">
                         Student discount: {formatPrice(s.priceStudent)}/class (whole series or drop-in)
@@ -453,6 +462,7 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
     const toggleBtn = item.querySelector('.series-toggle-btn') as HTMLElement;
     const subchoice = item.querySelector<HTMLElement>('.series-subchoice');
     const details = item.querySelector<HTMLElement>('.series-details');
+    const dropinNote = item.querySelector<HTMLElement>('.dropin-note');
     const modeRadios = Array.from(item.querySelectorAll<HTMLInputElement>('.series-mode-radio'));
 
     function deselectSeries() {
@@ -463,6 +473,7 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
       subchoice?.classList.remove('flex');
       details?.classList.add('hidden');
       details?.classList.remove('flex');
+      dropinNote?.classList.add('hidden');
       modeRadios.forEach((r) => (r.checked = false));
       updateClassValue();
     }
@@ -479,6 +490,7 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
         subchoice?.classList.add('flex');
         details?.classList.remove('hidden');
         details?.classList.add('flex');
+        dropinNote?.classList.add('hidden');
         updateClassValue();
       }
     });
@@ -504,6 +516,7 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
           deselectSeries();
         } else if (selection) {
           selection.mode = radio.value as 'whole' | 'dropin';
+          dropinNote?.classList.toggle('hidden', selection.mode !== 'dropin');
           updateClassValue();
         }
       })

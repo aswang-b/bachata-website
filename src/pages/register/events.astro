@@ -16,7 +16,10 @@ const { data: classEvents, error } = await supabase
 if (error) console.error('Failed to load events:', error);
 ---
 
-<BaseLayout title="Register — Events">
+<BaseLayout
+  title="Register — Bachata Socials & Events"
+  description="Register for bachata social dance events and workshops in Madison, WI."
+>
   <IntakeForm
     registrationType="events"
     heading="Register for an Event or Workshop"
