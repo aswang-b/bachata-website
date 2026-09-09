@@ -9,21 +9,14 @@ const navItems = [
 
 const currentPath = Astro.url.pathname;
 const isAdminPage = currentPath === '/admin';
+const isRegisterPage = currentPath === '/register' || currentPath === '/register/events';
 ---
 
 <header class="sticky top-0 z-50 border-b border-border bg-bg/90 backdrop-blur">
   <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-    <div class="flex items-center gap-3">
-      <a href="/" class="font-display text-xl font-extrabold tracking-tight text-ink">
-        Dance with <span class="text-gradient-accent inline-block align-baseline">B</span>
-      </a>
-      <a
-        href="/register"
-        class="gradient-accent flex whitespace-nowrap rounded-full px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white transition-opacity hover:opacity-90 md:hidden"
-      >
-        Reserve Spot
-      </a>
-    </div>
+    <a href="/" class="font-display text-xl font-extrabold tracking-tight text-ink">
+      Dance with <span class="text-gradient-accent inline-block align-baseline">B</span>
+    </a>
 
     <div class="flex items-center gap-4">
       <nav class="hidden gap-8 md:flex">
@@ -59,12 +52,16 @@ const isAdminPage = currentPath === '/admin';
         </a>
       </nav>
 
-      <a
-        href="/register"
-        class="gradient-accent hidden rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 md:flex"
-      >
-        Reserve Your Spot
-      </a>
+      {
+        !isRegisterPage && (
+          <a
+            href="/register"
+            class="gradient-accent hidden rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 md:flex"
+          >
+            Register Now
+          </a>
+        )
+      }
 
       <a
         href="/admin/inbox"
@@ -77,6 +74,17 @@ const isAdminPage = currentPath === '/admin';
         </svg>
         <span id="inbox-dot" class="absolute -right-0.5 -top-0.5 hidden h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-bg"></span>
       </a>
+
+      {
+        !isRegisterPage && (
+          <a
+            href="/register"
+            class="gradient-accent flex whitespace-nowrap rounded-full px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white transition-opacity hover:opacity-90 md:hidden"
+          >
+            Register Now
+          </a>
+        )
+      }
 
       <button
         id="nav-toggle"
