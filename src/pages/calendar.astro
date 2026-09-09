@@ -345,22 +345,14 @@ const MAX_BANNERS_PER_DAY = 3;
 
           return (
             <div class={`flex flex-col gap-3 rounded-2xl border p-3 sm:flex-row sm:gap-4 ${isToday ? 'border-accent' : 'border-border'} bg-bg`}>
-              <div class="flex gap-4">
-                <div
-                  class={`flex w-16 shrink-0 flex-col items-center justify-center rounded-xl py-2 ${
-                    isToday ? 'gradient-accent text-white' : 'bg-surface text-ink'
-                  }`}
-                >
-                  <span class="text-[10px] font-bold uppercase tracking-wider">{monthAbbrev}</span>
-                  <span class="text-2xl font-extrabold">{start.getDate()}</span>
-                  <span class="text-[10px] font-bold uppercase tracking-wider">{weekdayAbbrev}</span>
-                </div>
-
-                {event.image_url ? (
-                  <img src={event.image_url} alt={event.title} class="hidden h-20 w-32 shrink-0 rounded-xl object-cover sm:block" />
-                ) : (
-                  <div class={`hidden h-20 w-32 shrink-0 rounded-xl sm:block ${dotClass(event.color)}`} />
-                )}
+              <div
+                class={`flex w-16 shrink-0 flex-col items-center justify-center rounded-xl py-2 ${
+                  isToday ? 'gradient-accent text-white' : 'bg-surface text-ink'
+                }`}
+              >
+                <span class="text-[10px] font-bold uppercase tracking-wider">{monthAbbrev}</span>
+                <span class="text-2xl font-extrabold">{start.getDate()}</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider">{weekdayAbbrev}</span>
               </div>
 
               <div class="flex flex-1 flex-col gap-1 overflow-hidden">
@@ -643,8 +635,31 @@ const MAX_BANNERS_PER_DAY = 3;
     });
   }
 
-  viewToggleButtons.forEach((btn) => btn.addEventListener('click', () => setActiveView(btn.dataset.view ?? 'calendar')));
-  setActiveView('calendar');
+  const VIEW_STORAGE_KEY = 'bwb-calendar-view';
+
+  function saveActiveView(view: string) {
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, view);
+    } catch {
+      // ignore — the toggle still works for this page load, it just won't persist.
+    }
+  }
+
+  viewToggleButtons.forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.view ?? 'calendar';
+      setActiveView(view);
+      saveActiveView(view);
+    })
+  );
+
+  let savedView = 'calendar';
+  try {
+    savedView = localStorage.getItem(VIEW_STORAGE_KEY) ?? 'calendar';
+  } catch {
+    // ignore — default to calendar.
+  }
+  setActiveView(savedView === 'list' ? 'list' : 'calendar');
 
   interface SiteEvent {
     id: string;
