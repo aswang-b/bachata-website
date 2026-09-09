@@ -244,6 +244,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
               class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
             />
           </label>
+          <label class="flex flex-1 flex-col gap-1.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Filter by class</span>
+            <select id="attendance-class-filter" class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none">
+              <option value="">All classes</option>
+            </select>
+          </label>
           <button
             id="attendance-clear-filters"
             class="rounded-full border border-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-bg"
@@ -273,10 +279,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
                 <p id="orphaned-signups-count" class="text-xs text-muted"></p>
               </div>
               <div class="mt-2 overflow-x-auto rounded-2xl border border-border">
-                <table class="w-full min-w-[520px] text-left text-sm">
+                <table class="w-full min-w-[680px] text-left text-sm">
                   <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                     <tr>
                       <th class="px-3 py-2.5">Dancer</th>
+                      <th class="px-3 py-2.5">Phone</th>
+                      <th class="px-3 py-2.5">Email</th>
                       <th class="px-3 py-2.5">Class</th>
                       <th class="px-3 py-2.5">Date</th>
                       <th class="orphaned-signups-actions-header hidden px-3 py-2.5">Resolve</th>
@@ -294,12 +302,13 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
                 <p id="orphaned-checkins-count" class="text-xs text-muted"></p>
               </div>
               <div class="mt-2 overflow-x-auto rounded-2xl border border-border">
-                <table class="w-full min-w-[420px] text-left text-sm">
+                <table class="w-full min-w-[560px] text-left text-sm">
                   <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                     <tr>
                       <th class="px-3 py-2.5">Dancer</th>
-                      <th class="px-3 py-2.5">Class</th>
                       <th class="px-3 py-2.5">Phone</th>
+                      <th class="px-3 py-2.5">Email</th>
+                      <th class="px-3 py-2.5">Class</th>
                       <th class="px-3 py-2.5">Checked In</th>
                     </tr>
                   </thead>
@@ -317,10 +326,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
             <p id="attendance-matches-count" class="text-xs text-muted"></p>
           </div>
           <div class="mt-2 overflow-x-auto rounded-2xl border border-border">
-            <table class="w-full min-w-[720px] text-left text-sm">
+            <table class="w-full min-w-[880px] text-left text-sm">
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
                   <th class="px-4 py-3">Dancer</th>
+                  <th class="px-4 py-3">Phone</th>
+                  <th class="px-4 py-3">Email</th>
                   <th class="px-4 py-3">Class</th>
                   <th class="px-4 py-3">Date</th>
                   <th class="px-4 py-3">Status</th>
@@ -691,6 +702,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const signupsClassFilter = document.getElementById('signups-class-filter') as HTMLSelectElement;
   const checkinsNameSearch = document.getElementById('checkins-name-search') as HTMLInputElement;
   const checkinsClassFilter = document.getElementById('checkins-class-filter') as HTMLSelectElement;
+  const attendanceClassFilter = document.getElementById('attendance-class-filter') as HTMLSelectElement;
 
   const signupsBody = document.getElementById('signups-body')!;
   const checkinsBody = document.getElementById('checkins-body')!;
@@ -1303,14 +1315,19 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
   function renderAttendance() {
     const nameQuery = attendanceNameSearch.value.trim();
+    const classFilter = attendanceClassFilter.value;
     const isLockedByMe = attendanceLock.isLocked();
 
     const matchesName_ = (first: string, last: string) => matchesName(first, last, nameQuery);
 
-    const orphanedSignups = attendanceEntries.filter((e) => e.status === 'orphaned' && matchesName_(e.firstName, e.lastName));
-    const orphanedCheckinsFiltered = attendanceOrphanedCheckins.filter((c) => matchesName_(c.first_name, c.last_name));
+    const orphanedSignups = attendanceEntries.filter(
+      (e) => e.status === 'orphaned' && matchesName_(e.firstName, e.lastName) && matchesClass(e.classTitle, classFilter)
+    );
+    const orphanedCheckinsFiltered = attendanceOrphanedCheckins.filter(
+      (c) => matchesName_(c.first_name, c.last_name) && matchesClass(c.class_title, classFilter)
+    );
     const otherEntries = attendanceEntries
-      .filter((e) => e.status !== 'orphaned' && matchesName_(e.firstName, e.lastName))
+      .filter((e) => e.status !== 'orphaned' && matchesName_(e.firstName, e.lastName) && matchesClass(e.classTitle, classFilter))
       .sort((a, b) => a.lastName.localeCompare(b.lastName) || (a.occurrenceDate ?? '').localeCompare(b.occurrenceDate ?? ''));
 
     orphanedSignupsBody.innerHTML = orphanedSignups
@@ -1333,6 +1350,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         return `
         <tr class="border-t border-border">
           <td class="px-3 py-2.5 text-ink">${escapeHtml(`${e.firstName} ${e.lastName}`)}</td>
+          <td class="px-3 py-2.5 text-ink/70">${escapeHtml(e.phone || '—')}</td>
+          <td class="px-3 py-2.5 text-ink/70">${escapeHtml(e.email || '—')}</td>
           <td class="px-3 py-2.5 text-ink/70">${escapeHtml(e.classTitle)}${
             e.expansionFailed
               ? ' <span class="font-bold text-orange-600" title="Could not find this Whole-Series sign-up\'s class series (it may have been deleted) — matching by class title alone instead of a specific date.">⚠</span>'
@@ -1363,8 +1382,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         (c) => `
       <tr class="border-t border-border">
         <td class="px-3 py-2.5 text-ink">${escapeHtml(`${c.first_name} ${c.last_name}`)}</td>
-        <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.class_title)}</td>
         <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.phone || '—')}</td>
+        <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.email || '—')}</td>
+        <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.class_title)}</td>
         <td class="px-3 py-2.5 text-ink/70">${formatEntryDate(c.created_at)}</td>
       </tr>`
       )
@@ -1382,6 +1402,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         (e) => `
       <tr class="border-t border-border">
         <td class="px-4 py-2.5 text-ink">${escapeHtml(`${e.firstName} ${e.lastName}`)}</td>
+        <td class="px-4 py-2.5 text-ink/70">${escapeHtml(e.phone || '—')}</td>
+        <td class="px-4 py-2.5 text-ink/70">${escapeHtml(e.email || '—')}</td>
         <td class="px-4 py-2.5 text-ink/70">${escapeHtml(e.classTitle)}${
           e.expansionFailed
             ? ' <span class="font-bold text-orange-600" title="Could not find this Whole-Series sign-up\'s class series (it may have been deleted) — this status is a degraded guess, matched by class title alone rather than a specific date.">⚠</span>'
@@ -1492,8 +1514,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   }
 
   attendanceNameSearch.addEventListener('input', renderAttendance);
+  attendanceClassFilter.addEventListener('change', renderAttendance);
   document.getElementById('attendance-clear-filters')?.addEventListener('click', () => {
     attendanceNameSearch.value = '';
+    attendanceClassFilter.value = '';
     renderAttendance();
   });
 
@@ -1676,7 +1700,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     allCheckins = checkins;
     classSeries = series ?? [];
 
-    for (const select of [signupsClassFilter, checkinsClassFilter]) {
+    for (const select of [signupsClassFilter, checkinsClassFilter, attendanceClassFilter]) {
       const existingOptions = new Set(Array.from(select.options).map((o) => o.value));
       for (const title of classTitles as string[]) {
         if (existingOptions.has(title)) continue;

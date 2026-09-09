@@ -4,7 +4,7 @@ import { getNotificationRecipients } from './notificationSettings';
 const RESEND_API_KEY = env('RESEND_API_KEY');
 const NOTIFICATION_EMAILS_ENV = env('NOTIFICATION_EMAILS');
 
-const FROM_ADDRESS = 'Bachata with B <service@dancewithb.fun>';
+const FROM_ADDRESS = 'Dance with B <service@dancewithb.fun>';
 
 export async function sendAdminNotification(subject: string, html: string): Promise<void> {
   if (!RESEND_API_KEY) {

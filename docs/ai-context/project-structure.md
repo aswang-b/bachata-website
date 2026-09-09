@@ -30,7 +30,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0029)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0030)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker)
@@ -69,4 +69,4 @@
 
 ## Domain Overview
 
-The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, Google Calendar sync, site settings/banner, an editable FAQ list, editable homepage copy, and an inbox. Data is stored in Supabase (see `supabase/migrations/`); the admin area uses edit-locks to avoid concurrent-edit conflicts.
+The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, attendance matching/reconciliation, Google Calendar sync, site settings/banner, an editable FAQ list, editable homepage copy, and an inbox. Data is stored in Supabase (see `supabase/migrations/`); the admin area uses edit-locks to avoid concurrent-edit conflicts.

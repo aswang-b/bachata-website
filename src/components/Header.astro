@@ -51,7 +51,7 @@ const isRegisterPage = currentPath === '/register' || currentPath === '/register
       </a>
     </nav>
 
-    <div class="flex items-center justify-end gap-4">
+    <div class="flex items-center justify-end gap-2 md:gap-4">
       {
         !isRegisterPage && (
           <a
@@ -67,12 +67,12 @@ const isRegisterPage = currentPath === '/register' || currentPath === '/register
         href="/admin/inbox"
         id="inbox-link"
         aria-label="Inbox"
-        class="admin-nav-link relative hidden h-9 w-9 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface"
+        class="admin-nav-link relative hidden h-6 w-6 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface md:h-9 md:w-9"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 md:h-5 md:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 0 0 2.22 0L21 8M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z" />
         </svg>
-        <span id="inbox-dot" class="absolute -right-0.5 -top-0.5 hidden h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-bg"></span>
+        <span id="inbox-dot" class="absolute -right-0.5 -top-0.5 hidden h-2 w-2 rounded-full bg-red-500 ring-2 ring-bg md:h-2.5 md:w-2.5"></span>
       </a>
 
       {
