@@ -4,14 +4,15 @@ export const prerender = false;
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
 import { TIME_ZONE } from '../../lib/classSeries';
+import { getSiteSettings } from '../../lib/siteSettings';
 
 const { eventId } = Astro.params;
 
-const { data: event } = await supabase
-  .from('events')
-  .select('id, title, start_time, end_time')
-  .eq('id', eventId)
-  .maybeSingle();
+const { disable_checkin_page: checkinDisabled } = await getSiteSettings();
+
+const { data: event } = checkinDisabled
+  ? { data: null }
+  : await supabase.from('events').select('id, title, start_time, end_time').eq('id', eventId).maybeSingle();
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TIME_ZONE });
 const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TIME_ZONE });
@@ -26,7 +27,14 @@ const inputClass =
 
 <BaseLayout title="Class Check-In">
   <div class="mx-auto max-w-xl px-6 py-16">
-    {!event ? (
+    {checkinDisabled ? (
+      <>
+        <h1 class="font-display text-3xl font-bold text-ink">Check In for Class</h1>
+        <p class="mt-4 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted">
+          Check-in isn't available online right now — please check in with an instructor at class.
+        </p>
+      </>
+    ) : !event ? (
       <>
         <h1 class="font-display text-3xl font-bold text-ink">Check-In Link Not Found</h1>
         <p class="mt-2 text-sm text-muted">
@@ -43,7 +51,7 @@ const inputClass =
         </div>
 
         <form method="POST" action="/api/submit-checkin" class="mt-8 flex flex-col gap-5">
-          <input type="hidden" name="event_id" value={event.id} />
+          <input type="hidden" name="event_ids" value={event.id} />
 
           <div class="grid gap-5 sm:grid-cols-2">
             <label class="flex flex-col gap-1.5">

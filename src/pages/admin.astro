@@ -103,14 +103,31 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
           <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
             <div>
+              <p class="text-sm font-semibold text-ink">Check-In page</p>
+              <p class="text-xs text-muted">Turn off online check-in for everyone. Also removes it from the nav.</p>
+            </div>
+            <button
+              id="disable-checkin-toggle"
+              data-settings-toggle="disable_checkin_page"
+              role="switch"
+              aria-checked="false"
+              class="settings-toggle relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
+            >
+              <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+            </button>
+          </div>
+
+          <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
+            <div>
               <p class="text-sm font-semibold text-ink">Check In page link</p>
               <p class="text-xs text-muted">Hide the Check In link in the nav header for everyone.</p>
             </div>
             <button
+              id="hide-checkin-nav-toggle"
               data-settings-toggle="hide_checkin_nav"
               role="switch"
               aria-checked="false"
-              class="settings-toggle relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
+              class="settings-toggle relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             >
               <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
             </button>
@@ -364,6 +381,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     knob.classList.toggle('translate-x-5', on);
   }
 
+  function setCheckinNavLocked(locked: boolean) {
+    const hideNavToggle = document.getElementById('hide-checkin-nav-toggle') as HTMLButtonElement | null;
+    if (hideNavToggle) hideNavToggle.disabled = locked;
+  }
+
   async function loadSiteSettings() {
     try {
       const res = await fetch('/api/settings');
@@ -372,9 +394,26 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         const key = btn.dataset.settingsToggle ?? '';
         renderSettingsToggle(btn, Boolean(settings[key]));
       });
+      setCheckinNavLocked(Boolean(settings['disable_checkin_page']));
     } catch {
       // Leave toggles at their default (off) state if settings can't be loaded.
     }
+  }
+
+  // Returns true/false for a saved/failed request, or null if there's no
+  // admin session — callers no-op on null, matching the prior behavior.
+  async function saveSiteSetting(key: string, enabled: boolean): Promise<boolean | null> {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return null;
+
+    const res = await fetch('/api/admin/update-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ key, enabled }),
+    });
+    return res.ok;
   }
 
   document.querySelectorAll<HTMLButtonElement>('.settings-toggle').forEach((btn) => {
@@ -384,23 +423,28 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       renderSettingsToggle(btn, nextValue);
 
       const statusEl = document.getElementById('settings-status')!;
-      const {
-        data: { session },
-      } = await supabaseBrowser.auth.getSession();
-      if (!session) return;
+      const result = await saveSiteSetting(key, nextValue);
+      if (result === null) return;
 
-      const res = await fetch('/api/admin/update-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ key, enabled: nextValue }),
-      });
-
-      if (res.ok) {
-        statusEl.textContent = 'Saved.';
-        setTimeout(() => (statusEl.textContent = ''), 1500);
-      } else {
+      if (!result) {
         renderSettingsToggle(btn, !nextValue);
         statusEl.textContent = 'Failed to save — try again.';
+        return;
+      }
+
+      statusEl.textContent = 'Saved.';
+      setTimeout(() => (statusEl.textContent = ''), 1500);
+
+      // Disabling the Check-In page also removes it from the nav — the
+      // reverse isn't forced, so re-enabling leaves "hide from nav" as-is.
+      if (key === 'disable_checkin_page') {
+        setCheckinNavLocked(nextValue);
+        const hideNavToggle = document.getElementById('hide-checkin-nav-toggle') as HTMLButtonElement | null;
+        if (nextValue && hideNavToggle && hideNavToggle.getAttribute('aria-checked') !== 'true') {
+          renderSettingsToggle(hideNavToggle, true);
+          const hideResult = await saveSiteSetting('hide_checkin_nav', true);
+          if (!hideResult) renderSettingsToggle(hideNavToggle, false);
+        }
       }
     });
   });

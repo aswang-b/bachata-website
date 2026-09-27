@@ -27,7 +27,7 @@ Everything here runs server-side (Astro SSR pages, `/api/*` routes, the schedule
 | `previewMode.ts` | Browser-side flag for admins previewing the site as a public visitor |
 | `richText.ts` | `sanitizeRichHtml` — regex-based allow-list HTML sanitizer for admin-authored rich text (event descriptions, FAQ answers, homepage copy) |
 | `siteBanner.ts` | Site-wide announcement banner get/set, with HTML sanitization |
-| `siteSettings.ts` | Boolean site settings (`hide_about_nav`, `hide_contact_nav`, `hide_checkin_nav`) persistence |
+| `siteSettings.ts` | Boolean site settings (`hide_about_nav`, `hide_contact_nav`, `hide_checkin_nav`, `disable_checkin_page`) persistence |
 | `supabase.ts` | Server Supabase client (service role key) |
 | `supabaseBrowser.ts` | Browser Supabase client (anon key) — the one exception safe to import client-side |
 

@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export const SITE_SETTING_KEYS = ['hide_about_nav', 'hide_contact_nav', 'hide_checkin_nav'] as const;
+export const SITE_SETTING_KEYS = ['hide_about_nav', 'hide_contact_nav', 'hide_checkin_nav', 'disable_checkin_page'] as const;
 export type SiteSettingKey = (typeof SITE_SETTING_KEYS)[number];
 export type SiteSettings = Record<SiteSettingKey, boolean>;
 

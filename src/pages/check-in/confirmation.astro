@@ -4,17 +4,29 @@ export const prerender = false;
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
 
-const id = Astro.url.searchParams.get('id');
+const idsParam = Astro.url.searchParams.get('ids') ?? Astro.url.searchParams.get('id');
+const ids = idsParam
+  ? idsParam
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  : [];
 
 let firstName = '';
-let classTitle = '';
+let classTitles: string[] = [];
 
-if (id) {
-  const { data } = await supabase.from('class_checkins').select('first_name, class_title').eq('id', id).maybeSingle();
-  if (data) {
-    firstName = data.first_name;
-    classTitle = data.class_title;
+if (ids.length > 0) {
+  const { data } = await supabase.from('class_checkins').select('first_name, class_title').in('id', ids);
+  if (data && data.length > 0) {
+    firstName = data[0].first_name;
+    classTitles = data.map((d) => d.class_title);
   }
+}
+
+function formatClassList(titles: string[]): string {
+  if (titles.length === 1) return titles[0];
+  if (titles.length === 2) return `${titles[0]} and ${titles[1]}`;
+  return `${titles.slice(0, -1).join(', ')}, and ${titles[titles.length - 1]}`;
 }
 ---
 
@@ -26,10 +38,10 @@ if (id) {
       </svg>
     </div>
     <h1 class="font-display text-3xl font-extrabold text-ink">
-      {firstName && classTitle ? `Thank you, ${firstName}!` : "You're Checked In!"}
+      {firstName && classTitles.length > 0 ? `Thank you, ${firstName}!` : "You're Checked In!"}
     </h1>
     <p class="mt-3 text-muted">
-      {classTitle ? `You successfully checked in for ${classTitle}.` : 'See you on the dance floor.'}
+      {classTitles.length > 0 ? `You successfully checked in for ${formatClassList(classTitles)}.` : 'See you on the dance floor.'}
     </p>
     <a
       href="/"
