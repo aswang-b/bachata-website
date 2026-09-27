@@ -3,6 +3,7 @@ export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
+import { countOccurrencesByKey } from '../lib/classSeries';
 
 const TIME_ZONE = 'America/Chicago';
 
@@ -32,6 +33,18 @@ const { data: classEvents, error } = await supabase
 
 if (error) console.error('Failed to load class events:', error);
 
+// Unfiltered by date, so a series' whole-series occurrence count doesn't
+// shrink as classes pass (see classSeries.ts's countOccurrencesByKey).
+const { data: allClassEventsForTotals, error: totalsError } = await supabase
+  .from('events')
+  .select('id, google_recurring_event_id')
+  .eq('visibility', 'public')
+  .eq('event_type', 'class');
+
+if (totalsError) console.error('Failed to load series totals:', totalsError);
+
+const totalCountByKey = countOccurrencesByKey(allClassEventsForTotals ?? []);
+
 const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: TIME_ZONE });
 const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TIME_ZONE });
 const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: TIME_ZONE });
@@ -49,7 +62,8 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
   const sorted = [...occurrences].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
-  const isSeries = sorted.length > 1;
+  const occurrenceCount = totalCountByKey.get(key) ?? sorted.length;
+  const isSeries = occurrenceCount > 1;
 
   const weekday = weekdayFormatter.format(new Date(first.start_time));
   const timeRange = `${timeFormatter.format(new Date(first.start_time))}–${timeFormatter.format(new Date(first.end_time))}`;
@@ -62,7 +76,7 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     title: first.title,
     color: first.color,
     isSeries,
-    occurrenceCount: sorted.length,
+    occurrenceCount,
     subLabel: `${weekday}s, ${timeRange} (${dateRange})`,
     description: first.description,
     location: first.location,

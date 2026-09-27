@@ -27,7 +27,19 @@ const { data: events, error } = await supabase
 
 if (error) console.error('Failed to load current offerings:', error);
 
-const offerings = buildClassSeriesList(events ?? []).sort((a, b) => a.nextStartTime.localeCompare(b.nextStartTime));
+// Unfiltered by date, so a series' whole-series occurrence count doesn't
+// shrink as classes pass (see buildClassSeriesList's `allEventsForTotals`).
+const { data: allEventsForTotals, error: totalsError } = await supabase
+  .from('events')
+  .select('id, google_recurring_event_id')
+  .eq('visibility', 'public')
+  .in('event_type', ['class', 'event']);
+
+if (totalsError) console.error('Failed to load series totals:', totalsError);
+
+const offerings = buildClassSeriesList(events ?? [], allEventsForTotals ?? []).sort((a, b) =>
+  a.nextStartTime.localeCompare(b.nextStartTime)
+);
 
 function formatPrice(value: number): string {
   return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
@@ -43,7 +55,7 @@ function priceLine(offering: (typeof offerings)[number]): string | null {
 }
 
 function seriesTypeLabel(offering: (typeof offerings)[number]): string {
-  return offering.isSeries ? `${offering.occurrences.length}-Week Series` : 'Workshop';
+  return offering.isSeries ? `${offering.totalOccurrences}-Week Series` : 'Workshop';
 }
 
 // Mirrors calendar.astro's color palette so an offering's accents match its
