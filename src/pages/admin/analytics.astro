@@ -112,13 +112,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           </div>
 
           <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
-            <table class="w-full min-w-[960px] text-left text-sm">
+            <table class="w-full min-w-[860px] text-left text-sm">
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="firstName">First Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="lastName">Last Name</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="email">Email</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="phone">Phone</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="email">Contact Info</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[220px]" data-table="signups" data-column="class">Class</th>
                   <th class="px-4 py-3">Series</th>
                   <th class="px-4 py-3">Payment</th>
@@ -150,6 +149,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
             <span class="text-xs font-semibold uppercase tracking-wider text-muted">Filter by class</span>
             <select id="checkins-class-filter" class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none">
               <option value="">All classes</option>
+            </select>
+          </label>
+          <label id="checkins-occurrence-filter-wrap" class="hidden flex-1 flex-col gap-1.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Occurrence</span>
+            <select id="checkins-occurrence-filter" class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none">
+              <option value="">All dates</option>
             </select>
           </label>
           <button
@@ -250,6 +255,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
               <option value="">All classes</option>
             </select>
           </label>
+          <label id="attendance-occurrence-filter-wrap" class="hidden flex-1 flex-col gap-1.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Occurrence</span>
+            <select id="attendance-occurrence-filter" class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none">
+              <option value="">All dates</option>
+            </select>
+          </label>
           <button
             id="attendance-clear-filters"
             class="rounded-full border border-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-bg"
@@ -282,11 +293,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
                 <table class="w-full min-w-[680px] text-left text-sm">
                   <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                     <tr>
-                      <th class="px-3 py-2.5">Dancer</th>
-                      <th class="px-3 py-2.5">Phone</th>
-                      <th class="px-3 py-2.5">Email</th>
-                      <th class="px-3 py-2.5">Class</th>
-                      <th class="px-3 py-2.5">Date</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="lastName">Dancer</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="phone">Phone</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="email">Email</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="classTitle">Class</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="occurrenceDate">Date</th>
                       <th class="orphaned-signups-actions-header hidden px-3 py-2.5">Resolve</th>
                     </tr>
                   </thead>
@@ -305,11 +316,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
                 <table class="w-full min-w-[560px] text-left text-sm">
                   <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                     <tr>
-                      <th class="px-3 py-2.5">Dancer</th>
-                      <th class="px-3 py-2.5">Phone</th>
-                      <th class="px-3 py-2.5">Email</th>
-                      <th class="px-3 py-2.5">Class</th>
-                      <th class="px-3 py-2.5">Checked In</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="last_name">Dancer</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="phone">Phone</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="email">Email</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="class_title">Class</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="created_at">Checked In</th>
                     </tr>
                   </thead>
                   <tbody id="orphaned-checkins-body"></tbody>
@@ -329,12 +340,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
             <table class="w-full min-w-[880px] text-left text-sm">
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
-                  <th class="px-4 py-3">Dancer</th>
-                  <th class="px-4 py-3">Phone</th>
-                  <th class="px-4 py-3">Email</th>
-                  <th class="px-4 py-3">Class</th>
-                  <th class="px-4 py-3">Date</th>
-                  <th class="px-4 py-3">Status</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="lastName">Dancer</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="phone">Phone</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="email">Email</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="classTitle">Class</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="occurrenceDate">Date</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="status">Status</th>
                 </tr>
               </thead>
               <tbody id="attendance-matches-body"></tbody>
@@ -405,6 +416,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     expansionFailed: boolean;
     status: 'matched' | 'no_show' | 'orphaned' | 'upcoming';
     matchedCheckin: { id: string; first_name: string; last_name: string; phone: string; class_title: string; created_at: string } | null;
+    [key: string]: unknown;
   }
 
   interface OrphanedCheckin {
@@ -416,6 +428,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     class_title: string;
     event_id: string | null;
     created_at: string;
+    [key: string]: unknown;
   }
 
   interface ClassSeriesOccurrence {
@@ -506,10 +519,13 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     return null;
   }
 
-  const DATE_COLUMNS = new Set(['createdAt', 'classDate']);
+  const DATE_COLUMNS = new Set(['createdAt', 'classDate', 'occurrenceDate', 'created_at']);
 
   let signupSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
   let checkinSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
+  let attendanceOrphanedSignupsSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
+  let attendanceOrphanedCheckinsSort: { column: string; direction: 'asc' | 'desc' } = { column: 'last_name', direction: 'asc' };
+  let attendanceMatchesSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
 
   // --- Editing locks ---
   // A conservative pessimistic lock: only the tab that holds it may add,
@@ -702,7 +718,31 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const signupsClassFilter = document.getElementById('signups-class-filter') as HTMLSelectElement;
   const checkinsNameSearch = document.getElementById('checkins-name-search') as HTMLInputElement;
   const checkinsClassFilter = document.getElementById('checkins-class-filter') as HTMLSelectElement;
+  const checkinsOccurrenceFilter = document.getElementById('checkins-occurrence-filter') as HTMLSelectElement;
+  const checkinsOccurrenceFilterWrap = document.getElementById('checkins-occurrence-filter-wrap')!;
   const attendanceClassFilter = document.getElementById('attendance-class-filter') as HTMLSelectElement;
+  const attendanceOccurrenceFilter = document.getElementById('attendance-occurrence-filter') as HTMLSelectElement;
+  const attendanceOccurrenceFilterWrap = document.getElementById('attendance-occurrence-filter-wrap')!;
+
+  // Populates `select` with the occurrence dates of whichever series
+  // matches `classTitle`, hiding `wrap` entirely when that class isn't an
+  // actual multi-date series (nothing to narrow down to).
+  function populateOccurrenceFilter(select: HTMLSelectElement, wrap: HTMLElement, classTitle: string) {
+    select.innerHTML = '<option value="">All dates</option>';
+    const series = classSeries.find((s) => s.title === classTitle && s.isSeries);
+    if (!classTitle || !series) {
+      wrap.classList.add('hidden');
+      select.value = '';
+      return;
+    }
+    for (const occ of series.occurrences) {
+      const option = document.createElement('option');
+      option.value = occ.id;
+      option.textContent = occ.label;
+      select.appendChild(option);
+    }
+    wrap.classList.remove('hidden');
+  }
 
   const signupsBody = document.getElementById('signups-body')!;
   const checkinsBody = document.getElementById('checkins-body')!;
@@ -756,7 +796,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     return sorted;
   }
 
-  function updateSortHeaders(table: 'signups' | 'checkins', sort: { column: string; direction: 'asc' | 'desc' }) {
+  function updateSortHeaders(table: string, sort: { column: string; direction: 'asc' | 'desc' }) {
     document.querySelectorAll<HTMLElement>(`.sort-header[data-table="${table}"]`).forEach((th) => {
       const column = th.dataset.column ?? '';
       const isActive = sort.column === column;
@@ -764,19 +804,34 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     });
   }
 
+  const SORT_STATE_BY_TABLE: Record<string, { column: string; direction: 'asc' | 'desc' }> = {
+    signups: signupSort,
+    checkins: checkinSort,
+    'attendance-orphaned-signups': attendanceOrphanedSignupsSort,
+    'attendance-orphaned-checkins': attendanceOrphanedCheckinsSort,
+    'attendance-matches': attendanceMatchesSort,
+  };
+  const RENDER_BY_TABLE: Record<string, () => void> = {
+    signups: () => renderSignups(),
+    checkins: () => renderCheckins(),
+    'attendance-orphaned-signups': () => renderAttendance(),
+    'attendance-orphaned-checkins': () => renderAttendance(),
+    'attendance-matches': () => renderAttendance(),
+  };
+
   document.querySelectorAll<HTMLElement>('.sort-header').forEach((th) => {
     th.addEventListener('click', () => {
-      const table = th.dataset.table as 'signups' | 'checkins';
+      const table = th.dataset.table ?? '';
       const column = th.dataset.column ?? '';
-      const sort = table === 'signups' ? signupSort : checkinSort;
+      const sort = SORT_STATE_BY_TABLE[table];
+      if (!sort) return;
       if (sort.column === column) {
         sort.direction = sort.direction === 'asc' ? 'desc' : 'asc';
       } else {
         sort.column = column;
         sort.direction = 'asc';
       }
-      if (table === 'signups') renderSignups();
-      else renderCheckins();
+      RENDER_BY_TABLE[table]?.();
     });
   });
 
@@ -852,8 +907,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       <tr class="border-t border-accent bg-accent/5" data-signup-edit-row="1" data-original-class="${escapeAttr(originalClass)}">
         <td class="px-2 py-2"><input class="edit-input first-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.firstName ?? '')}" placeholder="First name" /></td>
         <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.lastName ?? '')}" placeholder="Last name" /></td>
-        <td class="px-2 py-2"><input class="edit-input email w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.email ?? '')}" placeholder="Email" /></td>
-        <td class="px-2 py-2"><input class="edit-input phone w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.phone ?? '')}" placeholder="Phone" /></td>
+        <td class="px-2 py-2"><div class="flex flex-col gap-1"><input class="edit-input email w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.email ?? '')}" placeholder="Email" /><input class="edit-input phone w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.phone ?? '')}" placeholder="Phone" /></div></td>
         <td class="px-2 py-2 signup-class-cell">${signupClassPickerHtml(originalClass)}</td>
         <td class="px-2 py-2 text-xs text-muted">—</td>
         <td class="px-2 py-2 payment-select-cell">${paymentSelectHtml(s.paymentMethod ?? null)}</td>
@@ -956,8 +1010,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           <tr class="${isFirst ? 'border-t border-border' : 'border-t-0'}">
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.firstName) : ''}</td>
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.lastName) : ''}</td>
-            <td class="px-4 py-2.5 text-ink/70">${isFirst ? escapeHtml(s.email) : ''}</td>
-            <td class="px-4 py-2.5 text-ink/70">${isFirst ? escapeHtml(s.phone) : ''}</td>
+            <td class="px-4 py-2.5 text-ink/70">${isFirst ? `<div>${escapeHtml(s.email)}</div><div>${escapeHtml(s.phone)}</div>` : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.classLabel || '—')}</td>
             <td class="px-4 py-2.5 text-ink/70">${modeLabel}</td>
             <td class="px-4 py-2.5 text-ink/70">${paymentSubtotalLabel}</td>
@@ -1147,9 +1200,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   function renderCheckins() {
     const nameQuery = checkinsNameSearch.value.trim();
     const classFilter = checkinsClassFilter.value;
+    const occurrenceFilter = checkinsOccurrenceFilter.value;
     const isLockedByMe = checkinsLock.isLocked();
 
-    const filteredCheckins = allCheckins.filter((c) => matchesName(c.firstName, c.lastName, nameQuery) && matchesClass(c.classTitle, classFilter));
+    const filteredCheckins = allCheckins.filter(
+      (c) => matchesName(c.firstName, c.lastName, nameQuery) && matchesClass(c.classTitle, classFilter) && (!occurrenceFilter || c.eventId === occurrenceFilter)
+    );
     const sortedCheckins = sortRows(filteredCheckins, checkinSort);
 
     const addCheckinRowHtml = addingCheckin ? checkinEditRowHtml({}, 'add') : '';
@@ -1284,10 +1340,15 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   }
 
   checkinsNameSearch.addEventListener('input', renderCheckins);
-  checkinsClassFilter.addEventListener('change', renderCheckins);
+  checkinsClassFilter.addEventListener('change', () => {
+    populateOccurrenceFilter(checkinsOccurrenceFilter, checkinsOccurrenceFilterWrap, checkinsClassFilter.value);
+    renderCheckins();
+  });
+  checkinsOccurrenceFilter.addEventListener('change', renderCheckins);
   document.getElementById('checkins-clear-filters')?.addEventListener('click', () => {
     checkinsNameSearch.value = '';
     checkinsClassFilter.value = '';
+    populateOccurrenceFilter(checkinsOccurrenceFilter, checkinsOccurrenceFilterWrap, '');
     renderCheckins();
   });
 
@@ -1316,19 +1377,30 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   function renderAttendance() {
     const nameQuery = attendanceNameSearch.value.trim();
     const classFilter = attendanceClassFilter.value;
+    const occurrenceFilter = attendanceOccurrenceFilter.value;
     const isLockedByMe = attendanceLock.isLocked();
 
     const matchesName_ = (first: string, last: string) => matchesName(first, last, nameQuery);
+    const matchesOccurrence = (eventId: string | null) => !occurrenceFilter || eventId === occurrenceFilter;
 
-    const orphanedSignups = attendanceEntries.filter(
-      (e) => e.status === 'orphaned' && matchesName_(e.firstName, e.lastName) && matchesClass(e.classTitle, classFilter)
+    const orphanedSignups = sortRows(
+      attendanceEntries.filter(
+        (e) => e.status === 'orphaned' && matchesName_(e.firstName, e.lastName) && matchesClass(e.classTitle, classFilter) && matchesOccurrence(e.occurrenceEventId)
+      ),
+      attendanceOrphanedSignupsSort
     );
-    const orphanedCheckinsFiltered = attendanceOrphanedCheckins.filter(
-      (c) => matchesName_(c.first_name, c.last_name) && matchesClass(c.class_title, classFilter)
+    const orphanedCheckinsFiltered = sortRows(
+      attendanceOrphanedCheckins.filter(
+        (c) => matchesName_(c.first_name, c.last_name) && matchesClass(c.class_title, classFilter) && matchesOccurrence(c.event_id)
+      ),
+      attendanceOrphanedCheckinsSort
     );
-    const otherEntries = attendanceEntries
-      .filter((e) => e.status !== 'orphaned' && matchesName_(e.firstName, e.lastName) && matchesClass(e.classTitle, classFilter))
-      .sort((a, b) => a.lastName.localeCompare(b.lastName) || (a.occurrenceDate ?? '').localeCompare(b.occurrenceDate ?? ''));
+    const otherEntries = sortRows(
+      attendanceEntries.filter(
+        (e) => e.status !== 'orphaned' && matchesName_(e.firstName, e.lastName) && matchesClass(e.classTitle, classFilter) && matchesOccurrence(e.occurrenceEventId)
+      ),
+      attendanceMatchesSort
+    );
 
     orphanedSignupsBody.innerHTML = orphanedSignups
       .map((e) => {
@@ -1511,13 +1583,21 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     orphanedSignupsCount.textContent = `${orphanedSignups.length} ${orphanedSignups.length === 1 ? 'entry' : 'entries'}`;
     orphanedCheckinsCount.textContent = `${orphanedCheckinsFiltered.length} ${orphanedCheckinsFiltered.length === 1 ? 'entry' : 'entries'}`;
     attendanceMatchesCount.textContent = `${otherEntries.length} ${otherEntries.length === 1 ? 'result' : 'results'}`;
+    updateSortHeaders('attendance-orphaned-signups', attendanceOrphanedSignupsSort);
+    updateSortHeaders('attendance-orphaned-checkins', attendanceOrphanedCheckinsSort);
+    updateSortHeaders('attendance-matches', attendanceMatchesSort);
   }
 
   attendanceNameSearch.addEventListener('input', renderAttendance);
-  attendanceClassFilter.addEventListener('change', renderAttendance);
+  attendanceClassFilter.addEventListener('change', () => {
+    populateOccurrenceFilter(attendanceOccurrenceFilter, attendanceOccurrenceFilterWrap, attendanceClassFilter.value);
+    renderAttendance();
+  });
+  attendanceOccurrenceFilter.addEventListener('change', renderAttendance);
   document.getElementById('attendance-clear-filters')?.addEventListener('click', () => {
     attendanceNameSearch.value = '';
     attendanceClassFilter.value = '';
+    populateOccurrenceFilter(attendanceOccurrenceFilter, attendanceOccurrenceFilterWrap, '');
     renderAttendance();
   });
 

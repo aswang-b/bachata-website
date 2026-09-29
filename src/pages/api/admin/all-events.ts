@@ -13,9 +13,8 @@ export const GET: APIRoute = async ({ request }) => {
   const { data: events, error } = await supabase
     .from('events')
     .select(
-      'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url'
+      'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until'
     )
-    .gte('start_time', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
     .order('start_time', { ascending: true });
 
   if (error) {
