@@ -23,6 +23,7 @@ Everything here runs server-side (Astro SSR pages, `/api/*` routes, the schedule
 | `faqs.ts` | `listFaqs` — public FAQ list persistence, answers sanitized via `richText.ts` |
 | `googleCalendar.ts` | Google Calendar API client: OAuth refresh, list/insert/update/delete events, color mapping, recurrence rule building |
 | `homepageContent.ts` | `getHomepageContent`/`setHomepageContent` — editable homepage copy (lesson overview), sanitized via `richText.ts` |
+| `imageCropper.ts` | Browser-only. `openImageCropper(file)` opens the crop dialog the calendar event editor uses before uploading an event image: a draggable, zoomable box locked to the homepage offering-card banner shape (16:3, exported as a 1536×288 JPEG) with a dashed "phone view" guide; resolves `null` if cancelled |
 | `notificationSettings.ts` | `getNotificationRecipients`/`setNotificationRecipients` — admin-editable Contact-form notification recipient list; also the per-IP daily email caps (`get`/`setConfirmationEmailPerIpCap`, default 50; `get`/`setContactEmailPerIpCap`, default 3), stored on the same singleton row and applied in `submit-intake.ts` — over the cap only the email is skipped, never the registration |
 | `previewMode.ts` | Browser-side flag for admins previewing the site as a public visitor |
 | `pricing.ts` | `getActivePrice`/`priceTierLabel` — resolves early-bird/flash-sale tiered pricing against a given time; pure (no Supabase/env imports) so it's safe from both SSR frontmatter and client `<script>` bundles |
