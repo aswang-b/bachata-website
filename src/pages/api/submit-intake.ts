@@ -10,7 +10,7 @@ import {
   validateClassSelections,
 } from '../../lib/classRegistrations';
 import { listFaqs } from '../../lib/faqs';
-import { getConfirmationEmailPerIpCap } from '../../lib/notificationSettings';
+import { getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
 import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
 
 export const prerender = false;
@@ -204,6 +204,13 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   // without paging the admin's inbox for every sign-up. Those two class-
   // registration flows instead email each dancer who provided an email a
   // confirmation of their own, matching what /register/confirmation shows.
+  let ip = 'unknown';
+  try {
+    ip = clientAddress;
+  } catch {
+    // clientAddress can throw if the adapter doesn't support it — fall back to a shared bucket.
+  }
+
   if (registrationType !== 'private') {
     try {
       const emailRecipients = Array.from(
@@ -249,12 +256,6 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
           faqs: faqs.filter((f) => f.includeInConfirmation).map((f) => ({ question: f.question, answer: f.answer })),
         });
 
-        let ip = 'unknown';
-        try {
-          ip = clientAddress;
-        } catch {
-          // clientAddress can throw if the adapter doesn't support it — fall back to a shared bucket.
-        }
         // Per-IP throttle on confirmation emails only — the registration itself is
         // already saved, so a capped network (e.g. a room full of dancers on one
         // wifi) just misses the email. Checked before the global cap so a
@@ -291,6 +292,15 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   }
 
   try {
+    // Per-IP throttle on the admin notification only — the submission is already
+    // saved and shows up in /admin/inbox. Checked before the global cap so a
+    // throttled IP doesn't use up the quota real visitors rely on.
+    const contactIpAllowed = await checkAndIncrementUsage(`contact_email_ip:${ip}`, await getContactEmailPerIpCap());
+    if (!contactIpAllowed) {
+      console.warn('Per-IP contact notification cap reached — skipping admin notification for this submission.');
+      return redirect(confirmationUrl, 303);
+    }
+
     const allowed = await checkAndIncrementUsage('resend_email', EMAIL_DAILY_CAP);
     if (!allowed) {
       console.warn('Daily Resend email cap reached — skipping admin notification for this submission.');

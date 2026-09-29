@@ -17,7 +17,7 @@ One file per endpoint (Astro API routes, `export const GET`/`POST`). Every route
 | **Analytics** | `analytics-data.ts` (GET) | Aggregate stats backing `admin/analytics.astro`'s summary tiles |
 | **Edit locks** | `acquire-lock.ts`, `release-lock.ts`, `lock-status.ts` (GET), `check.ts` (GET) | Thin wrappers over `src/lib/editLock.ts`'s `SIGNUPS_LOCK_RESOURCE`/`CHECKINS_LOCK_RESOURCE`/`ATTENDANCE_LOCK_RESOURCE`; `check.ts` is a lightweight admin-session liveness probe, unrelated to locking despite living alongside it |
 | **FAQs** | `create-faq.ts`, `update-faq.ts`, `delete-faq.ts`, `reorder-faq.ts` | CRUD + manual ordering over the public FAQ list (`src/lib/faqs.ts`) |
-| **Site settings** | `update-settings.ts`, `update-banner.ts`, `update-homepage-content.ts`, `notification-settings.ts` (GET), `update-notification-settings.ts` | Thin wrappers over `siteSettings.ts`/`siteBanner.ts`/`homepageContent.ts`/`notificationSettings.ts` |
+| **Site settings** | `update-settings.ts`, `update-banner.ts`, `update-homepage-content.ts`, `notification-settings.ts` (GET — recipients plus both per-IP email caps), `update-notification-settings.ts`, `update-confirmation-email-cap.ts`, `update-contact-email-cap.ts` | Thin wrappers over `siteSettings.ts`/`siteBanner.ts`/`homepageContent.ts`/`notificationSettings.ts` |
 | **Inbox** | `inbox-data.ts` (GET), `unseen-count.ts` (GET) | Contact-form submissions; `unseen-count.ts` backs the nav badge in `Header.astro` |
 | **Misc** | `places-usage-check.ts` (GET) | Reports the daily Google Places API quota counter from `src/lib/apiUsage.ts` |
 

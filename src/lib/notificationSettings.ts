@@ -41,6 +41,22 @@ export async function setConfirmationEmailPerIpCap(cap: number): Promise<void> {
   if (error) throw new Error(`Failed to update confirmation email cap: ${error.message}`);
 }
 
+export const DEFAULT_CONTACT_EMAIL_PER_IP_CAP = 3;
+export const MAX_CONTACT_EMAIL_PER_IP_CAP = 100;
+
+export async function getContactEmailPerIpCap(): Promise<number> {
+  const { data, error } = await supabase.from('notification_settings').select('contact_email_per_ip_daily_cap').eq('id', true).maybeSingle();
+  if (error) console.error('Failed to load contact email cap:', error.message);
+  return data?.contact_email_per_ip_daily_cap ?? DEFAULT_CONTACT_EMAIL_PER_IP_CAP;
+}
+
+export async function setContactEmailPerIpCap(cap: number): Promise<void> {
+  const { error } = await supabase
+    .from('notification_settings')
+    .upsert({ id: true, contact_email_per_ip_daily_cap: cap, updated_at: new Date().toISOString() });
+  if (error) throw new Error(`Failed to update contact email cap: ${error.message}`);
+}
+
 export async function setNotificationRecipients(recipientEmails: string): Promise<void> {
   const { error } = await supabase
     .from('notification_settings')

@@ -30,7 +30,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0031)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0034)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker)
@@ -50,7 +50,7 @@
 │   │   ├── faqs.ts                      # FAQ list persistence
 │   │   ├── googleCalendar.ts            # Google Calendar API client
 │   │   ├── homepageContent.ts           # Editable homepage copy (lesson overview) persistence
-│   │   ├── notificationSettings.ts      # Admin-editable Contact-form notification recipient list
+│   │   ├── notificationSettings.ts      # Admin-editable notification recipients + per-IP email caps
 │   │   ├── previewMode.ts               # Draft/preview banner state
 │   │   ├── pricing.ts                   # Tiered (early-bird/flash-sale) pricing resolution, pure/isomorphic
 │   │   ├── richText.ts                  # Allow-list HTML sanitizer for admin-authored rich text

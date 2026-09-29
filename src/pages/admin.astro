@@ -256,6 +256,31 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           </button>
           <p id="confirmation-cap-status" class="min-h-4 text-xs text-muted"></p>
         </div>
+
+        <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+          <p class="text-xs font-bold uppercase tracking-wider text-muted">Contact Form Email Limit</p>
+          <p class="text-xs text-muted">
+            Most Contact Me notification emails one network (IP address) can trigger per day. Submissions are always saved and appear in the inbox — only the
+            notification email to you is skipped once the limit is reached.
+          </p>
+          <label for="contact-cap-input" class="text-xs text-muted">Emails per IP per day (1–100)</label>
+          <input
+            id="contact-cap-input"
+            type="number"
+            min="1"
+            max="100"
+            step="1"
+            inputmode="numeric"
+            class="w-32 rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+          />
+          <button
+            id="contact-cap-save"
+            class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Save Limit
+          </button>
+          <p id="contact-cap-status" class="min-h-4 text-xs text-muted"></p>
+        </div>
       </section>
 
       <!-- ==================== DEBUG TAB ==================== -->
@@ -484,7 +509,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       const res = await fetch('/api/admin/notification-settings', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      const { recipientEmails, confirmationEmailPerIpCap } = await res.json();
+      const { recipientEmails, confirmationEmailPerIpCap, contactEmailPerIpCap } = await res.json();
+      (document.getElementById('contact-cap-input') as HTMLInputElement).value = String(contactEmailPerIpCap ?? 3);
       (document.getElementById('notification-emails-input') as HTMLInputElement).value = recipientEmails ?? '';
       (document.getElementById('confirmation-cap-input') as HTMLInputElement).value = String(confirmationEmailPerIpCap ?? 50);
     } catch {
@@ -524,6 +550,29 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
     const cap = Number((document.getElementById('confirmation-cap-input') as HTMLInputElement).value);
     const res = await fetch('/api/admin/update-confirmation-email-cap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ cap }),
+    });
+
+    if (res.ok) {
+      statusEl.textContent = 'Saved.';
+      setTimeout(() => (statusEl.textContent = ''), 1500);
+    } else {
+      const { error } = await res.json().catch(() => ({ error: 'Failed to save — try again.' }));
+      statusEl.textContent = error ?? 'Failed to save — try again.';
+    }
+  });
+
+  document.getElementById('contact-cap-save')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('contact-cap-status')!;
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const cap = Number((document.getElementById('contact-cap-input') as HTMLInputElement).value);
+    const res = await fetch('/api/admin/update-contact-email-cap', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ cap }),
