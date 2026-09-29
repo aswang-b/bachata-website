@@ -1,11 +1,24 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
-import { sendAdminNotification } from '../../lib/email';
+import { sendAdminNotification, sendEmail } from '../../lib/email';
 import { checkAndIncrementUsage } from '../../lib/apiUsage';
 import { env } from '../../lib/env';
-import { insertClassRegistrations } from '../../lib/classRegistrations';
+import {
+  getClassRegistrationsForSubmission,
+  insertClassRegistrations,
+  resolveClassSelections,
+  validateClassSelections,
+} from '../../lib/classRegistrations';
+import { listFaqs } from '../../lib/faqs';
+import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
 
 export const prerender = false;
+
+const REGISTRATION_TYPE_LABELS: Record<string, string> = {
+  group: 'Group Lesson',
+  private: 'Private Instruction',
+  events: 'Event / Workshop',
+};
 
 // Hard daily cap on admin notification emails, as a backstop against a spam
 // bot hammering the public intake form and running up Resend cost — the form
@@ -42,6 +55,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 
   const registrationType = String(formData.get('registration_type') ?? '').trim();
   const className = String(formData.get('class') ?? '').trim();
+  const classSelectionsRaw = String(formData.get('class_selections') ?? '').trim();
   const comments = String(formData.get('comments') ?? '').trim();
   const paymentMethod = String(formData.get('payment_method') ?? '').trim();
 
@@ -123,6 +137,12 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     return new Response('One of the fields is too long.', { status: 400 });
   }
 
+  const selections = resolveClassSelections(className || null, classSelectionsRaw || null);
+  const closedError = await validateClassSelections(selections);
+  if (closedError) {
+    return new Response(closedError, { status: 400 });
+  }
+
   const { data: row, error } = await supabase
     .from('intake_submissions')
     .insert({
@@ -151,6 +171,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   await insertClassRegistrations({
     submissionId: row.id,
     classRaw: className || null,
+    classSelectionsRaw: classSelectionsRaw || null,
     dancers,
     fallbackFirstName: firstName,
     fallbackLastName: lastName,
@@ -163,8 +184,68 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 
   // Admin notification emails are only sent for the Contact Me form — group
   // and events registrations show up in /admin/analytics and /admin/inbox
-  // without paging the admin's inbox for every sign-up.
+  // without paging the admin's inbox for every sign-up. Those two class-
+  // registration flows instead email each dancer who provided an email a
+  // confirmation of their own, matching what /register/confirmation shows.
   if (registrationType !== 'private') {
+    try {
+      const emailRecipients = Array.from(
+        new Set((dancers && dancers.length > 0 ? dancers.map((d) => d.email) : [email]).filter((e): e is string => Boolean(e)))
+      );
+
+      if (emailRecipients.length > 0) {
+        const rows: [string, string][] = [];
+        if (dancers) {
+          dancers.forEach((d) => {
+            const contactParts = [d.role, d.phone, d.email].filter(Boolean);
+            rows.push([`${d.firstName} ${d.lastName}`, contactParts.join(' · ')]);
+          });
+        } else {
+          rows.push(['Name', `${firstName} ${lastName}`]);
+          if (email) rows.push(['Email', email]);
+          if (phone) rows.push(['Phone', phone]);
+          if (instagram) rows.push(['Instagram', instagram]);
+          if (whatsapp) rows.push(['WhatsApp', whatsapp]);
+        }
+        // The classes are joined with "; " for storage/display elsewhere,
+        // but read better in the email as separate paragraphs.
+        const classesForEmail = className
+          .split(';')
+          .map((c) => c.trim())
+          .filter(Boolean)
+          .join('\n\n');
+        if (classesForEmail) rows.push(['Class', classesForEmail]);
+        if (paymentMethod) rows.push(['Payment', paymentMethod === 'venmo' ? 'Venmo' : 'Cash at the door']);
+        if (comments) rows.push(['Notes', comments]);
+
+        const classRegistrations = await getClassRegistrationsForSubmission(row.id);
+        const subtotal = classRegistrations.some((r) => r.price != null)
+          ? classRegistrations.reduce((sum, r) => sum + (r.price ?? 0), 0)
+          : null;
+
+        const faqs = await listFaqs();
+        const html = buildRegistrationConfirmationEmailHtml({
+          registrationTypeLabel: REGISTRATION_TYPE_LABELS[registrationType] ?? registrationType,
+          createdAt: new Date(),
+          summaryRows: rows,
+          subtotal,
+          faqs: faqs.filter((f) => f.includeInConfirmation).map((f) => ({ question: f.question, answer: f.answer })),
+        });
+
+        for (const recipient of emailRecipients) {
+          const allowed = await checkAndIncrementUsage('resend_email', EMAIL_DAILY_CAP);
+          if (!allowed) {
+            console.warn('Daily Resend email cap reached — skipping remaining registration confirmation emails.');
+            break;
+          }
+          await sendEmail(recipient, 'Your Class Registration is Confirmed — Dance with B', html);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to send registration confirmation email:', err);
+      // The submission itself already succeeded and is safely in the database.
+    }
+
     return redirect(confirmationUrl, 303);
   }
 
