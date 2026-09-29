@@ -61,7 +61,8 @@ const inputClass =
                 {seriesList.map((s) => (
                   <button
                     type="button"
-                    class="class-item flex w-full flex-col items-start gap-0.5 rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-bg"
+                    class="class-item flex w-full flex-col items-start gap-0.5 rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-bg aria-pressed:border-accent aria-pressed:bg-bg"
+                    aria-pressed="false"
                     data-key={s.key}
                   >
                     <span class="font-semibold text-ink">{s.title}</span>
@@ -126,9 +127,8 @@ const inputClass =
     const key = item.dataset.key ?? '';
 
     item.addEventListener('click', () => {
-      const nowSelected = !item.classList.contains('border-accent');
-      item.classList.toggle('border-accent', nowSelected);
-      item.classList.toggle('bg-bg', nowSelected);
+      const nowSelected = item.getAttribute('aria-pressed') !== 'true';
+      item.setAttribute('aria-pressed', String(nowSelected));
       if (nowSelected) {
         selectedKeys.add(key);
         classError?.classList.add('hidden');
