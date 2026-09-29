@@ -12,7 +12,7 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const body = await request.json().catch(() => null);
-  const { id, question, answer } = body ?? {};
+  const { id, question, answer, includeInConfirmation } = body ?? {};
 
   if (!id || typeof id !== 'string') {
     return new Response(JSON.stringify({ error: 'id is required.' }), { status: 400 });
@@ -26,6 +26,7 @@ export const POST: APIRoute = async ({ request }) => {
     .update({
       question: question.trim(),
       answer: sanitizeFaqAnswerHtml(typeof answer === 'string' ? answer : ''),
+      include_in_confirmation: typeof includeInConfirmation === 'boolean' ? includeInConfirmation : true,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id);

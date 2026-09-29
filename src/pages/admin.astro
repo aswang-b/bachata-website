@@ -598,6 +598,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     id: string;
     question: string;
     answer: string;
+    includeInConfirmation: boolean;
   }
 
   const faqListEl = document.getElementById('faq-list')!;
@@ -620,6 +621,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <button type="button" class="faq-link-btn rounded-lg px-2 py-1 text-xs text-ink/70 hover:bg-surface">Link</button>
       </div>
       <div class="faq-answer min-h-16 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none" contenteditable="true">${faq ? faq.answer : ''}</div>
+      <label class="flex items-center gap-2 text-xs text-ink/80">
+        <input type="checkbox" class="faq-include-in-confirmation h-4 w-4 rounded border-border" ${!faq || faq.includeInConfirmation ? 'checked' : ''} />
+        Include in email &amp; print confirmations
+      </label>
       <div class="flex items-center justify-between">
         <div class="flex gap-1">
           <button type="button" class="faq-move-up rounded-lg border border-border px-2 py-1 text-xs font-semibold text-ink/70 hover:bg-surface">&uarr;</button>
@@ -635,6 +640,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
     const questionInput = item.querySelector('.faq-question') as HTMLInputElement;
     const answerEditor = item.querySelector('.faq-answer') as HTMLElement;
+    const includeInConfirmationInput = item.querySelector('.faq-include-in-confirmation') as HTMLInputElement;
     const statusEl = item.querySelector('.faq-item-status') as HTMLElement;
 
     item.querySelectorAll<HTMLButtonElement>('.faq-format-btn').forEach((btn) => {
@@ -664,11 +670,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       if (!session) return;
 
       const answer = answerEditor.innerHTML;
+      const includeInConfirmation = includeInConfirmationInput.checked;
       const existingId = item.dataset.id;
       const res = await fetch(existingId ? '/api/admin/update-faq' : '/api/admin/create-faq', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify(existingId ? { id: existingId, question, answer } : { question, answer }),
+        body: JSON.stringify(existingId ? { id: existingId, question, answer, includeInConfirmation } : { question, answer, includeInConfirmation }),
       });
 
       if (res.ok) {

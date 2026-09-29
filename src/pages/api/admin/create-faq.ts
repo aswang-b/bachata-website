@@ -12,7 +12,7 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const body = await request.json().catch(() => null);
-  const { question, answer } = body ?? {};
+  const { question, answer, includeInConfirmation } = body ?? {};
 
   if (!question || typeof question !== 'string') {
     return new Response(JSON.stringify({ error: 'question is required.' }), { status: 400 });
@@ -27,15 +27,20 @@ export const POST: APIRoute = async ({ request }) => {
       question: question.trim(),
       answer: sanitizeFaqAnswerHtml(typeof answer === 'string' ? answer : ''),
       sort_order: nextSortOrder,
+      include_in_confirmation: typeof includeInConfirmation === 'boolean' ? includeInConfirmation : true,
     })
-    .select('id, question, answer, sort_order')
+    .select('id, question, answer, sort_order, include_in_confirmation')
     .single();
 
   if (error || !row) {
     return new Response(JSON.stringify({ error: 'Failed to create FAQ.' }), { status: 500 });
   }
 
-  return new Response(JSON.stringify({ ok: true, faq: { id: row.id, question: row.question, answer: row.answer, sortOrder: row.sort_order } }), {
-    status: 200,
-  });
+  return new Response(
+    JSON.stringify({
+      ok: true,
+      faq: { id: row.id, question: row.question, answer: row.answer, sortOrder: row.sort_order, includeInConfirmation: row.include_in_confirmation },
+    }),
+    { status: 200 }
+  );
 };
