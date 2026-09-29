@@ -281,6 +281,31 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           </button>
           <p id="contact-cap-status" class="min-h-4 text-xs text-muted"></p>
         </div>
+
+        <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+          <p class="text-xs font-bold uppercase tracking-wider text-muted">Check-In Limit</p>
+          <p class="text-xs text-muted">
+            Most class check-ins one network (IP address) can submit per day; each class checked into counts once. Everyone on the studio wifi shares this
+            limit, so keep it well above your biggest class. Once reached, people are asked to check in with an instructor.
+          </p>
+          <label for="checkin-cap-input" class="text-xs text-muted">Check-ins per IP per day (1–5000)</label>
+          <input
+            id="checkin-cap-input"
+            type="number"
+            min="1"
+            max="5000"
+            step="1"
+            inputmode="numeric"
+            class="w-32 rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+          />
+          <button
+            id="checkin-cap-save"
+            class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Save Limit
+          </button>
+          <p id="checkin-cap-status" class="min-h-4 text-xs text-muted"></p>
+        </div>
       </section>
 
       <!-- ==================== DEBUG TAB ==================== -->
@@ -509,8 +534,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       const res = await fetch('/api/admin/notification-settings', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      const { recipientEmails, confirmationEmailPerIpCap, contactEmailPerIpCap } = await res.json();
+      const { recipientEmails, confirmationEmailPerIpCap, contactEmailPerIpCap, checkinPerIpCap } = await res.json();
       (document.getElementById('contact-cap-input') as HTMLInputElement).value = String(contactEmailPerIpCap ?? 3);
+      (document.getElementById('checkin-cap-input') as HTMLInputElement).value = String(checkinPerIpCap ?? 300);
       (document.getElementById('notification-emails-input') as HTMLInputElement).value = recipientEmails ?? '';
       (document.getElementById('confirmation-cap-input') as HTMLInputElement).value = String(confirmationEmailPerIpCap ?? 50);
     } catch {
@@ -573,6 +599,29 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
     const cap = Number((document.getElementById('contact-cap-input') as HTMLInputElement).value);
     const res = await fetch('/api/admin/update-contact-email-cap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ cap }),
+    });
+
+    if (res.ok) {
+      statusEl.textContent = 'Saved.';
+      setTimeout(() => (statusEl.textContent = ''), 1500);
+    } else {
+      const { error } = await res.json().catch(() => ({ error: 'Failed to save — try again.' }));
+      statusEl.textContent = error ?? 'Failed to save — try again.';
+    }
+  });
+
+  document.getElementById('checkin-cap-save')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('checkin-cap-status')!;
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const cap = Number((document.getElementById('checkin-cap-input') as HTMLInputElement).value);
+    const res = await fetch('/api/admin/update-checkin-cap', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ cap }),

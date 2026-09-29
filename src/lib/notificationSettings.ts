@@ -57,6 +57,27 @@ export async function setContactEmailPerIpCap(cap: number): Promise<void> {
   if (error) throw new Error(`Failed to update contact email cap: ${error.message}`);
 }
 
+// Not an email cap, but stored on the same singleton row as the other per-IP
+// limits. Generous by default: one kiosk/wifi IP at a class door can check in
+// many students in a day.
+export const DEFAULT_CHECKIN_PER_IP_CAP = 300;
+export const MAX_CHECKIN_PER_IP_CAP = 5000;
+
+// Falls back to the default if the row/column is missing or the lookup fails,
+// so a settings problem never blocks check-ins.
+export async function getCheckinPerIpCap(): Promise<number> {
+  const { data, error } = await supabase.from('notification_settings').select('checkin_per_ip_daily_cap').eq('id', true).maybeSingle();
+  if (error) console.error('Failed to load check-in cap:', error.message);
+  return data?.checkin_per_ip_daily_cap ?? DEFAULT_CHECKIN_PER_IP_CAP;
+}
+
+export async function setCheckinPerIpCap(cap: number): Promise<void> {
+  const { error } = await supabase
+    .from('notification_settings')
+    .upsert({ id: true, checkin_per_ip_daily_cap: cap, updated_at: new Date().toISOString() });
+  if (error) throw new Error(`Failed to update check-in cap: ${error.message}`);
+}
+
 export async function setNotificationRecipients(recipientEmails: string): Promise<void> {
   const { error } = await supabase
     .from('notification_settings')

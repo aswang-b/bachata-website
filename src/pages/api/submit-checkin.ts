@@ -1,16 +1,11 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
 import { checkAndIncrementUsage } from '../../lib/apiUsage';
-import { env } from '../../lib/env';
+import { getCheckinPerIpCap } from '../../lib/notificationSettings';
 import { getSiteSettings } from '../../lib/siteSettings';
 import { chicagoDayBoundsUtcIso } from '../../lib/classSeries';
 
 export const prerender = false;
-
-// Backstop against a scripted client flooding class_checkins with fake
-// attendance from a single source; generous enough that a shared check-in
-// kiosk IP (one device at the door, many students) won't hit it in a day.
-const CHECKIN_DAILY_CAP_PER_IP = Number(env('CHECKIN_DAILY_CAP_PER_IP')) || 300;
 
 // Sanity cap on how many classes one submission can check into at once —
 // well above any real schedule, just to bound a malformed/abusive request.
@@ -122,8 +117,12 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     // to a shared bucket rather than letting that crash the request.
   }
 
+  // Backstop against a scripted client flooding class_checkins with fake
+  // attendance from one source. Admin-editable and generous by default so a
+  // shared check-in kiosk IP (many students, one device) won't hit it in a day.
+  const dailyCapPerIp = await getCheckinPerIpCap();
   for (let i = 0; i < resolvedEvents.length; i++) {
-    const allowed = await checkAndIncrementUsage(`checkin:${ip}`, CHECKIN_DAILY_CAP_PER_IP);
+    const allowed = await checkAndIncrementUsage(`checkin:${ip}`, dailyCapPerIp);
     if (!allowed) {
       return new Response('Too many check-ins from this network today. Please ask an instructor for help.', {
         status: 429,
