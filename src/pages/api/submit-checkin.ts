@@ -88,6 +88,10 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     const { startIso, endIso } = chicagoDayBoundsUtcIso();
 
     for (const key of seriesKeys) {
+      // Keys are interpolated into a PostgREST .or() string, so reject anything that could add conditions.
+      if (!/^[A-Za-z0-9_-]+$/.test(key)) {
+        return new Response("One of your selected classes isn't scheduled today — please ask an instructor for help.", { status: 400 });
+      }
       const keyFilter = UUID_RE.test(key) ? `google_recurring_event_id.eq.${key},id.eq.${key}` : `google_recurring_event_id.eq.${key}`;
       const { data: matches, error: matchError } = await supabase
         .from('events')

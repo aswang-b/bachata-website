@@ -238,7 +238,11 @@ export const POST: APIRoute = async ({ request, redirect }) => {
             console.warn('Daily Resend email cap reached — skipping remaining registration confirmation emails.');
             break;
           }
-          await sendEmail(recipient, 'Your Class Registration is Confirmed — Dance with B', html);
+          try {
+            await sendEmail(recipient, 'Your Class Registration is Confirmed — Dance with B', html);
+          } catch (err) {
+            console.error('Failed to send registration confirmation to a recipient:', err);
+          }
         }
       }
     } catch (err) {

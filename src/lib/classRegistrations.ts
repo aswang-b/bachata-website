@@ -167,7 +167,8 @@ export async function validateClassSelections(selections: ParsedClassSelection[]
   }
 
   for (const sel of selections) {
-    if ((sel.key && closedKeys.has(sel.key)) || closedKeys.has(sel.title)) {
+    // Title is only a fallback for selections without a key, so an open series sharing a title isn't rejected.
+    if (sel.key ? closedKeys.has(sel.key) : closedKeys.has(sel.title)) {
       return `Registration for "${sel.title}" is closed — please choose a different class.`;
     }
   }

@@ -26,7 +26,7 @@ export const POST: APIRoute = async ({ request }) => {
     .update({
       question: question.trim(),
       answer: sanitizeFaqAnswerHtml(typeof answer === 'string' ? answer : ''),
-      include_in_confirmation: typeof includeInConfirmation === 'boolean' ? includeInConfirmation : true,
+      ...(typeof includeInConfirmation === 'boolean' ? { include_in_confirmation: includeInConfirmation } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq('id', id);
