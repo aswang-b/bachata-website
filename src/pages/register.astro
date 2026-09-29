@@ -4,6 +4,7 @@ export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
 import { countOccurrencesByKey } from '../lib/classSeries';
+import { getActivePrice, priceTierLabel, type ActivePriceResult } from '../lib/pricing';
 
 const TIME_ZONE = 'America/Chicago';
 
@@ -19,12 +20,21 @@ interface ClassOccurrence {
   price_whole_series: number | null;
   price_drop_in: number | null;
   price_student: number | null;
+  registration_closed: boolean;
+  price_whole_series_early_bird: number | null;
+  price_drop_in_early_bird: number | null;
+  price_student_early_bird: number | null;
+  early_bird_until: string | null;
+  price_whole_series_flash_sale: number | null;
+  price_drop_in_flash_sale: number | null;
+  price_student_flash_sale: number | null;
+  flash_sale_until: string | null;
 }
 
 const { data: classEvents, error } = await supabase
   .from('events')
   .select(
-    'id, title, description, location, start_time, end_time, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student'
+    'id, title, description, location, start_time, end_time, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until'
   )
   .eq('visibility', 'public')
   .eq('event_type', 'class')
@@ -58,6 +68,8 @@ for (const event of (classEvents ?? []) as ClassOccurrence[]) {
   seriesMap.set(key, existing);
 }
 
+const now = new Date();
+
 const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
   const sorted = [...occurrences].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
   const first = sorted[0];
@@ -71,6 +83,11 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     ? `${dateFormatter.format(new Date(first.start_time))}–${dateFormatter.format(new Date(last.start_time))}`
     : dateFormatter.format(new Date(first.start_time));
 
+  const tieredInput = {
+    earlyBirdUntil: first.early_bird_until,
+    flashSaleUntil: first.flash_sale_until,
+  };
+
   return {
     key,
     title: first.title,
@@ -80,9 +97,14 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     subLabel: `${weekday}s, ${timeRange} (${dateRange})`,
     description: first.description,
     location: first.location,
-    priceWholeSeries: first.price_whole_series,
-    priceDropIn: first.price_drop_in,
-    priceStudent: first.price_student,
+    registrationClosed: first.registration_closed,
+    occurrences: sorted.map((occ) => ({
+      id: occ.id,
+      label: `${dateFormatter.format(new Date(occ.start_time))}, ${timeFormatter.format(new Date(occ.start_time))}`,
+    })),
+    priceWhole: getActivePrice(now, { ...tieredInput, base: first.price_whole_series, earlyBird: first.price_whole_series_early_bird, flashSale: first.price_whole_series_flash_sale }),
+    priceDropIn: getActivePrice(now, { ...tieredInput, base: first.price_drop_in, earlyBird: first.price_drop_in_early_bird, flashSale: first.price_drop_in_flash_sale }),
+    priceStudent: getActivePrice(now, { ...tieredInput, base: first.price_student, earlyBird: first.price_student_early_bird, flashSale: first.price_student_flash_sale }),
   };
 });
 
@@ -98,6 +120,14 @@ function formatPrice(value: number): string {
 function seriesTypeLabel(s: (typeof seriesList)[number]): string {
   return s.isSeries ? `${s.occurrenceCount}-Week Series` : 'Workshop';
 }
+
+// Renders a price as plain text, or — when a discount is active — the
+// original struck through plus the discounted price and a tier tag.
+function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
+  if (result.originalPrice == null) return '';
+  if (result.display === 'original') return `${formatPrice(result.originalPrice)}${suffix}`;
+  return `<s class="text-muted">${formatPrice(result.originalPrice)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
+}
 ---
 
 <BaseLayout
@@ -111,6 +141,7 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
     <form method="POST" action="/api/submit-intake" class="mt-8 flex flex-col gap-6">
       <input type="hidden" name="registration_type" value="group" />
       <input type="hidden" name="class" id="class-value" />
+      <input type="hidden" name="class_selections" id="class-selections-value" />
       <input type="hidden" name="dancers" id="dancers-value" />
 
       <div class="flex flex-col gap-1.5">
@@ -125,13 +156,15 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
           <div id="series-list" class="flex flex-col gap-2">
             {seriesList.map((s) => (
               <div
-                class="series-item rounded-xl border border-border bg-surface"
+                class={`series-item rounded-xl border bg-surface ${s.registrationClosed ? 'border-border/60 opacity-60' : 'border-border'}`}
                 data-key={s.key}
                 data-title={s.title}
                 data-sub-label={s.subLabel}
                 data-is-series={String(s.isSeries)}
-                data-price-whole={s.priceWholeSeries ?? ''}
-                data-price-drop-in={s.priceDropIn ?? ''}
+                data-registration-closed={String(s.registrationClosed)}
+                data-price-whole={s.priceWhole.activePrice ?? ''}
+                data-price-drop-in={s.priceDropIn.activePrice ?? ''}
+                data-occurrences={JSON.stringify(s.occurrences)}
               >
                 <div
                   role="button"
@@ -142,6 +175,11 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
                     <span class="font-semibold text-ink">{s.title}</span>
                     <span class="font-semibold text-ink/50">·</span>
                     <span class="font-semibold text-ink">{seriesTypeLabel(s)}</span>
+                    {s.registrationClosed && (
+                      <span class="rounded-full bg-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink/70">
+                        Registration Closed
+                      </span>
+                    )}
                   </div>
                   <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span class="text-xs text-muted">{s.subLabel}</span>
@@ -170,44 +208,72 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
 
                 {s.isSeries && (
                   <div class="series-subchoice hidden flex-col gap-3 border-t border-border bg-bg p-4 last:rounded-b-xl">
-                    <label class="flex items-center justify-between gap-2 text-sm text-ink">
-                      <span class="flex items-center gap-2">
-                        <input type="radio" name={`series_mode_${s.key}`} value="whole" checked class="series-mode-radio h-4 w-4" />
-                        Whole Series
-                      </span>
-                      {s.priceWholeSeries != null && <span class="font-semibold text-ink">{formatPrice(s.priceWholeSeries)}</span>}
-                    </label>
-                    <label class="flex items-center justify-between gap-2 text-sm text-ink">
-                      <span class="flex items-center gap-2">
-                        <input type="radio" name={`series_mode_${s.key}`} value="dropin" class="series-mode-radio h-4 w-4" />
-                        Drop In
-                        <span class="group relative inline-flex">
-                          <button
-                            type="button"
-                            class="flex h-4 w-4 items-center justify-center rounded-full border border-muted text-[10px] font-bold text-muted"
-                            aria-label="Drop-in policy"
-                          >
-                            i
-                          </button>
-                          <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-3 text-left text-xs text-ink/70 shadow-xl group-hover:block">
-                            <strong class="text-ink">Quick Note</strong> — These classes follow a progressive
-                            curriculum, so dancers who missed previous classes in a series may have difficulty
-                            following along. If you've missed multiple classes, you're welcome to contact me with
-                            questions or about catching up with private lessons!
+                    {s.priceDropIn.originalPrice != null ? (
+                      <>
+                        <label class="flex items-center justify-between gap-2 text-sm text-ink">
+                          <span class="flex items-center gap-2">
+                            <input type="radio" name={`series_mode_${s.key}`} value="whole" checked disabled={s.registrationClosed} class="series-mode-radio h-4 w-4" />
+                            Whole Series
+                          </span>
+                          <span class="font-semibold text-ink" set:html={priceDisplayHtml(s.priceWhole)} />
+                        </label>
+                        <label class="flex items-center justify-between gap-2 text-sm text-ink">
+                          <span class="flex items-center gap-2">
+                            <input type="radio" name={`series_mode_${s.key}`} value="dropin" disabled={s.registrationClosed} class="series-mode-radio h-4 w-4" />
+                            Drop In
+                            <span class="group relative inline-flex">
+                              <button
+                                type="button"
+                                class="flex h-4 w-4 items-center justify-center rounded-full border border-muted text-[10px] font-bold text-muted"
+                                aria-label="Drop-in policy"
+                              >
+                                i
+                              </button>
+                              <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-3 text-left text-xs text-ink/70 shadow-xl group-hover:block">
+                                <strong class="text-ink">Quick Note</strong> — These classes follow a progressive
+                                curriculum, so dancers who missed previous classes in a series may have difficulty
+                                following along. If you've missed multiple classes, you're welcome to contact me with
+                                questions or about catching up with private lessons!
+                              </div>
+                            </span>
+                          </span>
+                          <span class="font-semibold text-ink" set:html={priceDisplayHtml(s.priceDropIn, '/class')} />
+                        </label>
+                        <p class="dropin-note hidden rounded-lg border border-border bg-surface p-3 text-xs text-ink/70">
+                          <strong class="text-ink">Quick Note</strong> — These classes follow a progressive curriculum, so
+                          dancers who missed previous classes in a series may have difficulty following along. If you've
+                          missed multiple classes, you're welcome to contact me with questions or about catching up with
+                          private lessons!
+                        </p>
+                        <div class="dropin-occurrence-picker hidden flex-col gap-2">
+                          <span class="text-xs font-medium text-ink/80">
+                            Which class are you dropping into?<span class="text-accent"> *</span>
+                          </span>
+                          <div class="flex flex-wrap gap-2">
+                            {s.occurrences.map((occ) => (
+                              <button
+                                type="button"
+                                class="occurrence-btn rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-ink/70 transition-colors"
+                                data-event-id={occ.id}
+                              >
+                                {occ.label}
+                              </button>
+                            ))}
                           </div>
-                        </span>
-                      </span>
-                      {s.priceDropIn != null && <span class="font-semibold text-ink">{formatPrice(s.priceDropIn)}/class</span>}
-                    </label>
-                    <p class="dropin-note hidden rounded-lg border border-border bg-surface p-3 text-xs text-ink/70">
-                      <strong class="text-ink">Quick Note</strong> — These classes follow a progressive curriculum, so
-                      dancers who missed previous classes in a series may have difficulty following along. If you've
-                      missed multiple classes, you're welcome to contact me with questions or about catching up with
-                      private lessons!
-                    </p>
-                    {s.priceStudent != null && (
+                          <p class="occurrence-error hidden text-xs font-semibold text-red-600">
+                            Please pick which class you're dropping into.
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <p class="flex items-center justify-between text-sm text-ink">
+                        <span>Whole Series</span>
+                        <span class="font-semibold" set:html={priceDisplayHtml(s.priceWhole)} />
+                      </p>
+                    )}
+                    {s.priceStudent.originalPrice != null && (
                       <p class="pl-6 text-xs text-muted">
-                        Student discount: {formatPrice(s.priceStudent)}/class (whole series or drop-in)
+                        Student discount: <span set:html={priceDisplayHtml(s.priceStudent, '/class')} /> (whole series or drop-in)
                       </p>
                     )}
                   </div>
@@ -389,6 +455,7 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
         </label>
       </div>
       <p class="text-xs text-muted">* Phone or email is required — we'll use it to reach you about class changes or cancellations.</p>
+      <p class="text-xs text-muted">Class confirmations are emailed to any email address entered above — you can also print your confirmation after submitting.</p>
     `;
 
     const roleButtons = Array.from(block.querySelectorAll<HTMLButtonElement>('.dancer-role-btn'));
@@ -427,15 +494,18 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
   // Class selection — multiple classes can be selected at once, each with
   // its own Whole Series / Drop In choice when applicable.
   interface ClassSelection {
+    key: string;
     title: string;
     subLabel: string;
     isSeries: boolean;
     mode: 'whole' | 'dropin';
     priceWhole: number | null;
     priceDropIn: number | null;
+    occurrenceEventId: string | null;
   }
 
   const classValueInput = document.getElementById('class-value') as HTMLInputElement;
+  const classSelectionsInput = document.getElementById('class-selections-value') as HTMLInputElement;
   const classError = document.getElementById('class-error')!;
   const selections = new Map<string, ClassSelection>();
   const subtotalValue = document.getElementById('subtotal-value')!;
@@ -456,12 +526,22 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
   }
 
   function updateClassValue() {
-    const parts = Array.from(selections.values()).map((sel) =>
+    const values = Array.from(selections.values());
+    const parts = values.map((sel) =>
       sel.isSeries
         ? `${sel.title} — ${sel.subLabel} — ${sel.mode === 'dropin' ? 'Drop In' : 'Whole Series'}`
         : `${sel.title} — ${sel.subLabel}`
     );
     classValueInput.value = parts.join('; ');
+    classSelectionsInput.value = JSON.stringify(
+      values.map((sel) => ({
+        key: sel.key,
+        title: sel.title,
+        label: sel.subLabel,
+        mode: sel.isSeries ? sel.mode : null,
+        occurrenceEventId: sel.mode === 'dropin' ? sel.occurrenceEventId : null,
+      }))
+    );
     if (parts.length) classError.classList.add('hidden');
     updateSubtotal();
   }
@@ -471,13 +551,45 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
     const title = item.dataset.title ?? '';
     const subLabel = item.dataset.subLabel ?? '';
     const isSeries = item.dataset.isSeries === 'true';
+    const registrationClosed = item.dataset.registrationClosed === 'true';
     const priceWhole = item.dataset.priceWhole ? Number(item.dataset.priceWhole) : null;
     const priceDropIn = item.dataset.priceDropIn ? Number(item.dataset.priceDropIn) : null;
     const toggleBtn = item.querySelector('.series-toggle-btn') as HTMLElement;
     const subchoice = item.querySelector<HTMLElement>('.series-subchoice');
     const details = item.querySelector<HTMLElement>('.series-details');
     const dropinNote = item.querySelector<HTMLElement>('.dropin-note');
+    const occurrencePicker = item.querySelector<HTMLElement>('.dropin-occurrence-picker');
+    const occurrenceError = item.querySelector<HTMLElement>('.occurrence-error');
+    const occurrenceButtons = Array.from(item.querySelectorAll<HTMLButtonElement>('.occurrence-btn'));
     const modeRadios = Array.from(item.querySelectorAll<HTMLInputElement>('.series-mode-radio'));
+
+    // Registration is closed for this class — still let its description
+    // expand for info, but never add it to the form's selections.
+    if (registrationClosed) {
+      toggleBtn.addEventListener('click', () => {
+        details?.classList.toggle('hidden');
+        details?.classList.toggle('flex');
+      });
+      toggleBtn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleBtn.click();
+        }
+      });
+      return;
+    }
+
+    function showOccurrencePicker(show: boolean) {
+      occurrencePicker?.classList.toggle('hidden', !show);
+      occurrencePicker?.classList.toggle('flex', show);
+      if (!show) {
+        occurrenceError?.classList.add('hidden');
+        occurrenceButtons.forEach((b) => {
+          b.classList.remove('gradient-accent', 'text-white', 'border-transparent');
+          b.classList.add('border-border', 'text-ink/70');
+        });
+      }
+    }
 
     function deselectSeries() {
       selections.delete(key);
@@ -488,6 +600,7 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
       details?.classList.add('hidden');
       details?.classList.remove('flex');
       dropinNote?.classList.add('hidden');
+      showOccurrencePicker(false);
       modeRadios.forEach((r) => (r.checked = false));
       updateClassValue();
     }
@@ -497,7 +610,7 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
         deselectSeries();
       } else {
         modeRadios.forEach((r) => (r.checked = r.value === 'whole'));
-        selections.set(key, { title, subLabel, isSeries, mode: 'whole', priceWhole, priceDropIn });
+        selections.set(key, { key, title, subLabel, isSeries, mode: 'whole', priceWhole, priceDropIn, occurrenceEventId: null });
         toggleBtn.classList.add('bg-bg');
         item.classList.add('border-accent');
         subchoice?.classList.remove('hidden');
@@ -530,9 +643,28 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
           deselectSeries();
         } else if (selection) {
           selection.mode = radio.value as 'whole' | 'dropin';
-          dropinNote?.classList.toggle('hidden', selection.mode !== 'dropin');
+          const isDropIn = selection.mode === 'dropin';
+          dropinNote?.classList.toggle('hidden', !isDropIn);
+          showOccurrencePicker(isDropIn);
+          if (!isDropIn) selection.occurrenceEventId = null;
           updateClassValue();
         }
+      })
+    );
+
+    occurrenceButtons.forEach((btn) =>
+      btn.addEventListener('click', () => {
+        const selection = selections.get(key);
+        if (!selection) return;
+        occurrenceButtons.forEach((b) => {
+          b.classList.remove('gradient-accent', 'text-white', 'border-transparent');
+          b.classList.add('border-border', 'text-ink/70');
+        });
+        btn.classList.add('gradient-accent', 'text-white', 'border-transparent');
+        btn.classList.remove('border-border', 'text-ink/70');
+        selection.occurrenceEventId = btn.dataset.eventId ?? null;
+        occurrenceError?.classList.add('hidden');
+        updateClassValue();
       })
     );
   });
@@ -569,6 +701,14 @@ function seriesTypeLabel(s: (typeof seriesList)[number]): string {
     if (!classValueInput.value) {
       classError.classList.remove('hidden');
       hasError = true;
+    }
+
+    for (const sel of selections.values()) {
+      if (sel.mode === 'dropin' && !sel.occurrenceEventId) {
+        const item = document.querySelector<HTMLElement>(`.series-item[data-key="${CSS.escape(sel.key)}"]`);
+        item?.querySelector('.occurrence-error')?.classList.remove('hidden');
+        hasError = true;
+      }
     }
 
     if (!paymentMethodValue.value) {

@@ -4,6 +4,7 @@ export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
 import { buildClassSeriesList } from '../lib/classSeries';
+import { getActivePrice, priceTierLabel } from '../lib/pricing';
 import { getHomepageContent } from '../lib/homepageContent';
 import { listFaqs } from '../lib/faqs';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
@@ -18,7 +19,7 @@ const faqs = await listFaqs();
 const { data: events, error } = await supabase
   .from('events')
   .select(
-    'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color'
+    'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until'
   )
   .eq('visibility', 'public')
   .in('event_type', ['class', 'event'])
@@ -45,13 +46,28 @@ function formatPrice(value: number): string {
   return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
 }
 
+function priceTypeHtml(label: string, offering: (typeof offerings)[number], field: 'whole' | 'dropIn' | 'student', suffix = ''): string {
+  const base = field === 'whole' ? offering.priceWholeSeries : field === 'dropIn' ? offering.priceDropIn : offering.priceStudent;
+  if (base == null) return '';
+  const earlyBird = field === 'whole' ? offering.priceWholeSeriesEarlyBird : field === 'dropIn' ? offering.priceDropInEarlyBird : offering.priceStudentEarlyBird;
+  const flashSale = field === 'whole' ? offering.priceWholeSeriesFlashSale : field === 'dropIn' ? offering.priceDropInFlashSale : offering.priceStudentFlashSale;
+  const result = getActivePrice(new Date(), {
+    base,
+    earlyBird,
+    earlyBirdUntil: offering.earlyBirdUntil,
+    flashSale,
+    flashSaleUntil: offering.flashSaleUntil,
+  });
+  if (result.display === 'original') return `${label}: ${formatPrice(result.originalPrice!)}${suffix}`;
+  return `${label}: <s class="text-muted">${formatPrice(result.originalPrice!)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
+}
+
 function priceLine(offering: (typeof offerings)[number]): string | null {
   if (offering.priceWholeSeries == null && offering.priceDropIn == null && offering.priceStudent == null) return null;
-  const parts: string[] = [];
-  if (offering.priceWholeSeries != null) parts.push(`${offering.isSeries ? 'Whole Series' : 'Price'}: ${formatPrice(offering.priceWholeSeries)}`);
-  if (offering.isSeries && offering.priceDropIn != null) parts.push(`Drop In: ${formatPrice(offering.priceDropIn)}/class`);
-  if (offering.priceStudent != null) parts.push(`Student: ${formatPrice(offering.priceStudent)}/class`);
-  return parts.join(' · ');
+  const whole = priceTypeHtml(offering.isSeries ? 'Whole Series' : 'Price', offering, 'whole');
+  const dropIn = offering.isSeries ? priceTypeHtml('Drop In', offering, 'dropIn', '/class') : '';
+  const student = priceTypeHtml('Student', offering, 'student', '/class');
+  return [whole, dropIn, student].filter(Boolean).join(' &middot; ');
 }
 
 function seriesTypeLabel(offering: (typeof offerings)[number]): string {
@@ -140,14 +156,20 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
                     </>
                   )}
                 </div>
-                {price && <p class="text-sm font-semibold text-ink">{price}</p>}
+                {price && <p class="text-sm font-semibold text-ink" set:html={price} />}
 
-                <a
-                  href={href}
-                  class="gradient-accent mt-1 inline-block self-start rounded-full px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
-                >
-                  Register Now
-                </a>
+                {offering.registrationClosed ? (
+                  <span class="mt-1 inline-block self-start rounded-full bg-border px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-ink/50">
+                    Registration Closed
+                  </span>
+                ) : (
+                  <a
+                    href={href}
+                    class="gradient-accent mt-1 inline-block self-start rounded-full px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+                  >
+                    Register Now
+                  </a>
+                )}
 
                 <div class="mt-2 flex flex-col gap-2">
                   {offering.description && (

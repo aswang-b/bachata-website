@@ -3,6 +3,7 @@ export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
+import { getActivePrice, priceTierLabel } from '../lib/pricing';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -31,7 +32,7 @@ const monthStart = new Date(year, month, 1);
 const monthEnd = new Date(year, month + 1, 1);
 
 const EVENT_COLUMNS =
-  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url';
+  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until';
 
 const { data: monthEvents, error: monthError } = await supabase
   .from('events')
@@ -114,15 +115,42 @@ function formatPrice(value: number): string {
   return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
 }
 
-function buildPriceLines(event: { price_whole_series: number | null; price_drop_in: number | null; price_student: number | null }): {
-  main: string;
-  student: string;
-} {
-  const parts: string[] = [];
-  if (event.price_whole_series != null) parts.push(`Whole Series: ${formatPrice(event.price_whole_series)}`);
-  if (event.price_drop_in != null) parts.push(`Drop In: ${formatPrice(event.price_drop_in)}/class`);
-  const student = event.price_student != null ? `Student Discount: ${formatPrice(event.price_student)}/class` : '';
-  return { main: parts.join(' · '), student };
+interface PricedEvent {
+  price_whole_series: number | null;
+  price_drop_in: number | null;
+  price_student: number | null;
+  price_whole_series_early_bird: number | null;
+  price_drop_in_early_bird: number | null;
+  price_student_early_bird: number | null;
+  early_bird_until: string | null;
+  price_whole_series_flash_sale: number | null;
+  price_drop_in_flash_sale: number | null;
+  price_student_flash_sale: number | null;
+  flash_sale_until: string | null;
+}
+
+function priceTypeHtml(label: string, event: PricedEvent, field: 'whole' | 'dropIn' | 'student', suffix = ''): string {
+  const base = field === 'whole' ? event.price_whole_series : field === 'dropIn' ? event.price_drop_in : event.price_student;
+  if (base == null) return '';
+  const earlyBird = field === 'whole' ? event.price_whole_series_early_bird : field === 'dropIn' ? event.price_drop_in_early_bird : event.price_student_early_bird;
+  const flashSale = field === 'whole' ? event.price_whole_series_flash_sale : field === 'dropIn' ? event.price_drop_in_flash_sale : event.price_student_flash_sale;
+  const result = getActivePrice(new Date(), {
+    base,
+    earlyBird,
+    earlyBirdUntil: event.early_bird_until,
+    flashSale,
+    flashSaleUntil: event.flash_sale_until,
+  });
+  if (result.display === 'original') return `${label}: ${formatPrice(result.originalPrice!)}${suffix}`;
+  return `${label}: <s class="text-muted">${formatPrice(result.originalPrice!)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
+}
+
+function buildPriceLines(event: PricedEvent): { main: string; student: string } {
+  const whole = priceTypeHtml('Whole Series', event, 'whole');
+  const dropIn = priceTypeHtml('Drop In', event, 'dropIn', '/class');
+  const parts = [whole, dropIn].filter(Boolean);
+  const student = priceTypeHtml('Student Discount', event, 'student', '/class');
+  return { main: parts.join(' &middot; '), student };
 }
 
 const eventsByDate = new Map<string, typeof gridEvents>();
@@ -255,8 +283,8 @@ const MAX_BANNERS_PER_DAY = 3;
                           {event.description && (
                             <div class="mt-1 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-4 [&_ul]:list-disc [&_ul]:pl-4" set:html={event.description} />
                           )}
-                          {buildPriceLines(event).main && <p class="mt-1 text-xs font-semibold text-ink">{buildPriceLines(event).main}</p>}
-                          {buildPriceLines(event).student && <p class="text-xs font-semibold text-ink">{buildPriceLines(event).student}</p>}
+                          {buildPriceLines(event).main && <p class="mt-1 text-xs font-semibold text-ink" set:html={buildPriceLines(event).main} />}
+                          {buildPriceLines(event).student && <p class="text-xs font-semibold text-ink" set:html={buildPriceLines(event).student} />}
                           {event.location && (
                             <a
                               href={locationHref(event.location)}
@@ -384,15 +412,21 @@ const MAX_BANNERS_PER_DAY = 3;
                     set:html={event.description}
                   />
                 )}
-                {priceLines.main && <p class="text-xs font-semibold text-ink">{priceLines.main}</p>}
+                {priceLines.main && <p class="text-xs font-semibold text-ink" set:html={priceLines.main} />}
               </div>
 
-              <a
-                href={registerHref}
-                class="gradient-accent flex h-fit w-full shrink-0 items-center justify-center rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 sm:w-auto sm:self-center"
-              >
-                Register Now
-              </a>
+              {event.registration_closed ? (
+                <span class="flex h-fit w-full shrink-0 items-center justify-center rounded-full bg-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/50 sm:w-auto sm:self-center">
+                  Registration Closed
+                </span>
+              ) : (
+                <a
+                  href={registerHref}
+                  class="gradient-accent flex h-fit w-full shrink-0 items-center justify-center rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 sm:w-auto sm:self-center"
+                >
+                  Register Now
+                </a>
+              )}
             </div>
           );
         })
@@ -401,7 +435,8 @@ const MAX_BANNERS_PER_DAY = 3;
   </div>
 
   <div id="event-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
-    <div class="w-full max-w-md rounded-2xl bg-bg p-6 shadow-2xl">
+    <div class="flex max-h-[85vh] w-full max-w-[36.5rem] flex-col rounded-2xl bg-bg shadow-2xl">
+    <div id="event-modal-scroll" class="flex-1 overflow-y-auto p-6">
       <h3 id="modal-heading" class="font-display text-lg font-bold text-ink">Add Event</h3>
       <input
         id="event-title"
@@ -475,8 +510,12 @@ const MAX_BANNERS_PER_DAY = 3;
           <p id="event-image-error" class="hidden text-xs font-semibold text-red-600"></p>
         </div>
 
-        <div class="flex flex-col gap-2">
-          <span class="text-xs font-semibold uppercase tracking-wider text-muted">Pricing (optional)</span>
+        <details class="group rounded-xl border border-border">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted [&::-webkit-details-marker]:hidden">
+            Pricing (optional)
+            <span class="shrink-0 transition-transform group-open:rotate-180">⌄</span>
+          </summary>
+          <div class="flex flex-col gap-2 border-t border-border p-3">
           <div class="grid grid-cols-3 gap-2">
             <label class="flex flex-col gap-1">
               <span class="text-xs text-muted">Whole series</span>
@@ -512,7 +551,35 @@ const MAX_BANNERS_PER_DAY = 3;
               />
             </label>
           </div>
-        </div>
+
+          <div class="flex items-center gap-2">
+            <span class="w-16 shrink-0 text-xs font-semibold text-accent">Early Bird</span>
+            <input id="event-price-whole-series-early-bird" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+            <input id="event-price-drop-in-early-bird" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+            <input id="event-price-student-early-bird" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+          </div>
+          <div class="flex items-center gap-2 pl-[72px]">
+            <span class="text-xs text-muted">Until</span>
+            <input id="event-early-bird-until" type="datetime-local" class="flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none" />
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="w-16 shrink-0 text-xs font-semibold text-accent">Flash Sale</span>
+            <input id="event-price-whole-series-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+            <input id="event-price-drop-in-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+            <input id="event-price-student-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+          </div>
+          <div class="flex items-center gap-2 pl-[72px]">
+            <span class="text-xs text-muted">Until</span>
+            <input id="event-flash-sale-until" type="datetime-local" class="flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none" />
+          </div>
+          </div>
+        </details>
+
+        <label class="flex items-center gap-2 text-sm text-ink/80">
+          <input id="event-registration-closed" type="checkbox" class="h-4 w-4 rounded border-border" />
+          Registration Closed (greys out Register Now everywhere this class appears)
+        </label>
 
         <label class="flex items-center gap-2 text-sm text-ink/80">
           <input id="event-private" type="checkbox" class="h-4 w-4 rounded border-border" />
@@ -591,8 +658,9 @@ const MAX_BANNERS_PER_DAY = 3;
           ></div>
         </div>
       </div>
+    </div>
 
-      <div class="mt-6 flex items-center justify-between">
+      <div class="flex items-center justify-between border-t border-border p-6 pt-4">
         <div class="flex gap-3">
           <button id="event-delete" class="hidden text-sm font-semibold text-red-600 hover:underline">Delete</button>
           <button id="event-delete-series" class="hidden text-sm font-semibold text-red-600 hover:underline">Delete Series</button>
@@ -620,6 +688,7 @@ const MAX_BANNERS_PER_DAY = 3;
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
   import { isPreviewingAsPublic } from '../lib/previewMode';
+  import { getActivePrice, priceTierLabel } from '../lib/pricing';
 
   // --- Calendar / List view toggle ---
   const viewToggleButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.view-toggle-btn'));
@@ -679,6 +748,15 @@ const MAX_BANNERS_PER_DAY = 3;
     price_drop_in: number | null;
     price_student: number | null;
     image_url: string | null;
+    registration_closed: boolean;
+    price_whole_series_early_bird: number | null;
+    price_drop_in_early_bird: number | null;
+    price_student_early_bird: number | null;
+    early_bird_until: string | null;
+    price_whole_series_flash_sale: number | null;
+    price_drop_in_flash_sale: number | null;
+    price_student_flash_sale: number | null;
+    flash_sale_until: string | null;
     weekNumber?: number | null;
   }
 
@@ -797,6 +875,15 @@ const MAX_BANNERS_PER_DAY = 3;
   const priceWholeSeriesInput = document.getElementById('event-price-whole-series') as HTMLInputElement;
   const priceDropInInput = document.getElementById('event-price-drop-in') as HTMLInputElement;
   const priceStudentInput = document.getElementById('event-price-student') as HTMLInputElement;
+  const priceWholeSeriesEarlyBirdInput = document.getElementById('event-price-whole-series-early-bird') as HTMLInputElement;
+  const priceDropInEarlyBirdInput = document.getElementById('event-price-drop-in-early-bird') as HTMLInputElement;
+  const priceStudentEarlyBirdInput = document.getElementById('event-price-student-early-bird') as HTMLInputElement;
+  const earlyBirdUntilInput = document.getElementById('event-early-bird-until') as HTMLInputElement;
+  const priceWholeSeriesFlashSaleInput = document.getElementById('event-price-whole-series-flash-sale') as HTMLInputElement;
+  const priceDropInFlashSaleInput = document.getElementById('event-price-drop-in-flash-sale') as HTMLInputElement;
+  const priceStudentFlashSaleInput = document.getElementById('event-price-student-flash-sale') as HTMLInputElement;
+  const flashSaleUntilInput = document.getElementById('event-flash-sale-until') as HTMLInputElement;
+  const registrationClosedInput = document.getElementById('event-registration-closed') as HTMLInputElement;
   const imageUrlInput = document.getElementById('event-image-url') as HTMLInputElement;
   const imageFileInput = document.getElementById('event-image-file') as HTMLInputElement;
   const imagePreview = document.getElementById('event-image-preview') as HTMLImageElement;
@@ -835,12 +922,30 @@ const MAX_BANNERS_PER_DAY = 3;
     return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
   }
 
+  function priceTypeHtml(label: string, event: SiteEvent, field: 'whole' | 'dropIn' | 'student', suffix = ''): string {
+    const base = field === 'whole' ? event.price_whole_series : field === 'dropIn' ? event.price_drop_in : event.price_student;
+    if (base == null) return '';
+    const earlyBird = field === 'whole' ? event.price_whole_series_early_bird : field === 'dropIn' ? event.price_drop_in_early_bird : event.price_student_early_bird;
+    const flashSale = field === 'whole' ? event.price_whole_series_flash_sale : field === 'dropIn' ? event.price_drop_in_flash_sale : event.price_student_flash_sale;
+    const result = getActivePrice(new Date(), {
+      base,
+      earlyBird,
+      earlyBirdUntil: event.early_bird_until,
+      flashSale,
+      flashSaleUntil: event.flash_sale_until,
+    });
+    if (result.display === 'original') return `${label}: ${formatPrice(result.originalPrice!)}${suffix}`;
+    return `${label}: <s class="text-muted">${formatPrice(result.originalPrice!)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
+  }
+
   function buildPriceLines(event: SiteEvent): { main: string; student: string } {
     const parts: string[] = [];
-    if (event.price_whole_series != null) parts.push(`Whole Series: ${formatPrice(event.price_whole_series)}`);
-    if (event.price_drop_in != null) parts.push(`Drop In: ${formatPrice(event.price_drop_in)}/class`);
-    const student = event.price_student != null ? `Student Discount: ${formatPrice(event.price_student)}/class` : '';
-    return { main: parts.join(' · '), student };
+    const whole = priceTypeHtml('Whole Series', event, 'whole');
+    const dropIn = priceTypeHtml('Drop In', event, 'dropIn', '/class');
+    if (whole) parts.push(whole);
+    if (dropIn) parts.push(dropIn);
+    const student = priceTypeHtml('Student Discount', event, 'student', '/class');
+    return { main: parts.join(' &middot; '), student };
   }
   const detailAdminActions = document.getElementById('detail-admin-actions')!;
   const detailDeleteSeriesBtn = document.getElementById('detail-delete-series-btn')!;
@@ -891,6 +996,18 @@ const MAX_BANNERS_PER_DAY = 3;
     return new Date(`${date}T${time}:00`).toISOString();
   }
 
+  // datetime-local inputs want/give "YYYY-MM-DDTHH:mm" in local time.
+  function toLocalDateTimeValue(iso: string | null | undefined): string {
+    if (!iso) return '';
+    const { date, time } = toLocalParts(iso);
+    return `${date}T${time}`;
+  }
+
+  function fromLocalDateTimeValue(value: string): string | null {
+    if (!value) return null;
+    return new Date(value).toISOString();
+  }
+
   function showEventDetail(event: SiteEvent) {
     detailEvent = event;
     detailPlaceholder.classList.add('hidden');
@@ -906,19 +1023,26 @@ const MAX_BANNERS_PER_DAY = 3;
     detailDescription.classList.toggle('hidden', !event.description);
 
     const priceLines = buildPriceLines(event);
-    detailPrice.textContent = priceLines.main;
+    detailPrice.innerHTML = priceLines.main;
     detailPrice.classList.toggle('hidden', !priceLines.main);
-    detailPriceStudent.textContent = priceLines.student;
+    detailPriceStudent.innerHTML = priceLines.student;
     detailPriceStudent.classList.toggle('hidden', !priceLines.student);
 
     // Only public classes/events actually appear as a pickable series on
     // the registration pages — a private one would 404 the preselect, so
     // the button only shows where it can actually work.
-    if (event.visibility === 'public') {
+    if (event.visibility === 'public' && event.registration_closed) {
+      detailRegisterBtn.removeAttribute('href');
+      detailRegisterBtn.textContent = 'Registration Closed';
+      detailRegisterBtn.classList.remove('hidden', 'gradient-accent', 'hover:opacity-90');
+      detailRegisterBtn.classList.add('bg-border', 'text-ink/50', 'pointer-events-none');
+    } else if (event.visibility === 'public') {
       const seriesKey = event.google_recurring_event_id ?? event.id;
       const base = event.event_type === 'event' ? '/register/events' : '/register';
       detailRegisterBtn.href = `${base}?series=${encodeURIComponent(seriesKey)}`;
-      detailRegisterBtn.classList.remove('hidden');
+      detailRegisterBtn.textContent = 'Register Now';
+      detailRegisterBtn.classList.remove('hidden', 'bg-border', 'text-ink/50', 'pointer-events-none');
+      detailRegisterBtn.classList.add('gradient-accent', 'hover:opacity-90');
     } else {
       detailRegisterBtn.classList.add('hidden');
     }
@@ -949,6 +1073,15 @@ const MAX_BANNERS_PER_DAY = 3;
     priceWholeSeriesInput.value = event?.price_whole_series != null ? String(event.price_whole_series) : '';
     priceDropInInput.value = event?.price_drop_in != null ? String(event.price_drop_in) : '';
     priceStudentInput.value = event?.price_student != null ? String(event.price_student) : '';
+    priceWholeSeriesEarlyBirdInput.value = event?.price_whole_series_early_bird != null ? String(event.price_whole_series_early_bird) : '';
+    priceDropInEarlyBirdInput.value = event?.price_drop_in_early_bird != null ? String(event.price_drop_in_early_bird) : '';
+    priceStudentEarlyBirdInput.value = event?.price_student_early_bird != null ? String(event.price_student_early_bird) : '';
+    earlyBirdUntilInput.value = toLocalDateTimeValue(event?.early_bird_until);
+    priceWholeSeriesFlashSaleInput.value = event?.price_whole_series_flash_sale != null ? String(event.price_whole_series_flash_sale) : '';
+    priceDropInFlashSaleInput.value = event?.price_drop_in_flash_sale != null ? String(event.price_drop_in_flash_sale) : '';
+    priceStudentFlashSaleInput.value = event?.price_student_flash_sale != null ? String(event.price_student_flash_sale) : '';
+    flashSaleUntilInput.value = toLocalDateTimeValue(event?.flash_sale_until);
+    registrationClosedInput.checked = event?.registration_closed ?? false;
     imageUrlInput.value = event?.image_url ?? '';
     imageError.classList.add('hidden');
     updateImagePreview();
@@ -1014,6 +1147,7 @@ const MAX_BANNERS_PER_DAY = 3;
     renderColorButtons();
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    document.getElementById('event-modal-scroll')!.scrollTop = 0;
 
     // Deferred until the modal (and its location input) is actually visible —
     // Google's Autocomplete widget measures the input's width when it's
@@ -1241,6 +1375,15 @@ const MAX_BANNERS_PER_DAY = 3;
       priceWholeSeries: priceWholeSeriesInput.value.trim(),
       priceDropIn: priceDropInInput.value.trim(),
       priceStudent: priceStudentInput.value.trim(),
+      priceWholeSeriesEarlyBird: priceWholeSeriesEarlyBirdInput.value.trim(),
+      priceDropInEarlyBird: priceDropInEarlyBirdInput.value.trim(),
+      priceStudentEarlyBird: priceStudentEarlyBirdInput.value.trim(),
+      earlyBirdUntil: fromLocalDateTimeValue(earlyBirdUntilInput.value),
+      priceWholeSeriesFlashSale: priceWholeSeriesFlashSaleInput.value.trim(),
+      priceDropInFlashSale: priceDropInFlashSaleInput.value.trim(),
+      priceStudentFlashSale: priceStudentFlashSaleInput.value.trim(),
+      flashSaleUntil: fromLocalDateTimeValue(flashSaleUntilInput.value),
+      registrationClosed: registrationClosedInput.checked,
       imageUrl: imageUrlInput.value.trim(),
       eventType: selectedType,
       color: selectedColor,
@@ -1340,8 +1483,8 @@ const MAX_BANNERS_PER_DAY = 3;
           <p class="mt-1 font-display font-bold text-ink">${escapeHtml(event.title)}</p>
           <p class="mt-1 text-xs text-muted">${dateFormatter.format(new Date(event.start_time))} &middot; ${timeFormatter.format(new Date(event.start_time))}</p>
           ${event.description ? `<div class="mt-1 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-4 [&_ul]:list-disc [&_ul]:pl-4">${event.description}</div>` : ''}
-          ${buildPriceLines(event).main ? `<p class="mt-1 text-xs font-semibold text-ink">${escapeHtml(buildPriceLines(event).main)}</p>` : ''}
-          ${buildPriceLines(event).student ? `<p class="text-xs font-semibold text-ink">${escapeHtml(buildPriceLines(event).student)}</p>` : ''}
+          ${buildPriceLines(event).main ? `<p class="mt-1 text-xs font-semibold text-ink">${buildPriceLines(event).main}</p>` : ''}
+          ${buildPriceLines(event).student ? `<p class="text-xs font-semibold text-ink">${buildPriceLines(event).student}</p>` : ''}
           ${
             event.location
               ? `<a href="${locationHref(event.location)}" target="_blank" rel="noopener noreferrer" class="pointer-events-auto mt-1 block text-xs font-semibold text-accent underline" onclick="event.stopPropagation()">📍 ${escapeHtml(event.location)}</a>`

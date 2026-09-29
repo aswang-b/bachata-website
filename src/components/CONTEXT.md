@@ -16,7 +16,7 @@ Reusable UI pieces included by pages in `src/pages/`. All are `.astro` component
 | `PreviewBanner.astro` | Shown when an admin is previewing the site as a public visitor (`lib/previewMode.ts`); lets them exit preview |
 | `CookieConsent.astro` | Cookie consent bar, links to `/privacy-policy` |
 | `DanceHighlights.astro` | Auto-discovers images in `src/assets/highlights/*` via `import.meta.glob` and renders an autoplaying slideshow — no code changes needed to add/remove photos |
-| `ClassCalendarPicker.astro` | Renders a list of upcoming `ClassEvent`s as selectable radio-style cards (`events`, `required`, `emptyMessage` props) |
+| `ClassCalendarPicker.astro` | Renders a list of upcoming `ClassEvent`s as selectable radio-style cards (`events`, `required`, `emptyMessage` props); on selection writes both the legacy display string (`class`) and the structured `class_selections` JSON (`{ key, title, label, mode }`, series-id-keyed) that `classRegistrations.resolveClassSelections` reads |
 | `IntakeForm.astro` | Shared registration/contact form; wraps `ClassCalendarPicker` when `classEvents` are supplied; configurable via props (`registrationType`, `heading`, `commentsLabel`, `contactMethodPicker`, etc.) for reuse across register/contact/check-in-style flows |
 
 ## Integration Points

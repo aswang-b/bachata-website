@@ -50,7 +50,7 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
   const { data: existingRows, error: rowsError } = await supabase
     .from('events')
     .select(
-      'id, title, description, location, color, event_type, start_time, end_time, google_event_id, google_recurring_event_id, price_whole_series, price_drop_in, price_student, updated_at'
+      'id, title, description, location, color, event_type, start_time, end_time, google_event_id, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, updated_at'
     )
     .eq('visibility', visibility)
     .gte('start_time', timeMin);
@@ -68,7 +68,21 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
   // to be carried forward from a surviving sibling instead of being lost.
   const seriesMetaByRecurringId = new Map<
     string,
-    { eventType: string; priceWholeSeries: number | null; priceDropIn: number | null; priceStudent: number | null }
+    {
+      eventType: string;
+      priceWholeSeries: number | null;
+      priceDropIn: number | null;
+      priceStudent: number | null;
+      registrationClosed: boolean;
+      priceWholeSeriesEarlyBird: number | null;
+      priceDropInEarlyBird: number | null;
+      priceStudentEarlyBird: number | null;
+      earlyBirdUntil: string | null;
+      priceWholeSeriesFlashSale: number | null;
+      priceDropInFlashSale: number | null;
+      priceStudentFlashSale: number | null;
+      flashSaleUntil: string | null;
+    }
   >();
   for (const r of rows) {
     if (r.google_recurring_event_id && !seriesMetaByRecurringId.has(r.google_recurring_event_id)) {
@@ -77,6 +91,15 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
         priceWholeSeries: r.price_whole_series,
         priceDropIn: r.price_drop_in,
         priceStudent: r.price_student,
+        registrationClosed: r.registration_closed,
+        priceWholeSeriesEarlyBird: r.price_whole_series_early_bird,
+        priceDropInEarlyBird: r.price_drop_in_early_bird,
+        priceStudentEarlyBird: r.price_student_early_bird,
+        earlyBirdUntil: r.early_bird_until,
+        priceWholeSeriesFlashSale: r.price_whole_series_flash_sale,
+        priceDropInFlashSale: r.price_drop_in_flash_sale,
+        priceStudentFlashSale: r.price_student_flash_sale,
+        flashSaleUntil: r.flash_sale_until,
       });
     }
   }
@@ -124,6 +147,15 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
           price_whole_series: seriesMeta?.priceWholeSeries ?? null,
           price_drop_in: seriesMeta?.priceDropIn ?? null,
           price_student: seriesMeta?.priceStudent ?? null,
+          registration_closed: seriesMeta?.registrationClosed ?? false,
+          price_whole_series_early_bird: seriesMeta?.priceWholeSeriesEarlyBird ?? null,
+          price_drop_in_early_bird: seriesMeta?.priceDropInEarlyBird ?? null,
+          price_student_early_bird: seriesMeta?.priceStudentEarlyBird ?? null,
+          early_bird_until: seriesMeta?.earlyBirdUntil ?? null,
+          price_whole_series_flash_sale: seriesMeta?.priceWholeSeriesFlashSale ?? null,
+          price_drop_in_flash_sale: seriesMeta?.priceDropInFlashSale ?? null,
+          price_student_flash_sale: seriesMeta?.priceStudentFlashSale ?? null,
+          flash_sale_until: seriesMeta?.flashSaleUntil ?? null,
         },
         { onConflict: 'google_event_id' }
       );

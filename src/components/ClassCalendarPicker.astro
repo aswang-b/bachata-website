@@ -24,6 +24,7 @@ const {
 <div class="flex flex-col gap-1.5">
   <span class="text-sm font-medium text-ink/80">Class{required && <span class="text-accent"> *</span>}</span>
   <input type="hidden" name="class" id="class-picker-value" />
+  <input type="hidden" name="class_selections" id="class-picker-selections-value" />
 
   {events.length === 0 ? (
     <p class="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
@@ -102,6 +103,7 @@ const {
     const events: ClassEvent[] = JSON.parse(picker.dataset.events ?? '[]');
     const isRequired = picker.dataset.required === 'true';
     const hiddenInput = document.getElementById('class-picker-value') as HTMLInputElement;
+    const hiddenSelectionsInput = document.getElementById('class-picker-selections-value') as HTMLInputElement;
     const cellsEl = document.getElementById('picker-cells')!;
     const monthLabelEl = document.getElementById('picker-month-label')!;
     const optionsEl = document.getElementById('picker-options')!;
@@ -136,6 +138,9 @@ const {
       const suffix = isSeries ? (seriesChoice === 'series' ? ' (registering for the entire series)' : ' (single class only)') : '';
       const label = `${selectedEvent.title} — ${dateFormatter.format(new Date(selectedEvent.start_time))}, ${timeFormatter.format(new Date(selectedEvent.start_time))}${suffix}`;
       hiddenInput.value = label;
+      hiddenSelectionsInput.value = JSON.stringify([
+        { key: selectedEvent.google_recurring_event_id ?? selectedEvent.id, title: selectedEvent.title, label, mode: null },
+      ]);
       selectedEl.textContent = `Selected: ${label}`;
       selectedEl.classList.remove('hidden');
       errorEl.classList.add('hidden');

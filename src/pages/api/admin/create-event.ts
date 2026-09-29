@@ -32,6 +32,15 @@ export const POST: APIRoute = async ({ request }) => {
     priceWholeSeries,
     priceDropIn,
     priceStudent,
+    priceWholeSeriesEarlyBird,
+    priceDropInEarlyBird,
+    priceStudentEarlyBird,
+    earlyBirdUntil,
+    priceWholeSeriesFlashSale,
+    priceDropInFlashSale,
+    priceStudentFlashSale,
+    flashSaleUntil,
+    registrationClosed,
     imageUrl,
   } = body ?? {};
 
@@ -43,9 +52,19 @@ export const POST: APIRoute = async ({ request }) => {
   const rowColor = ALLOWED_COLORS.includes(color) ? color : 'accent';
   const rowEventType = eventType === 'event' ? 'event' : 'class';
   const toPrice = (v: unknown) => (v === '' || v === null || v === undefined ? null : Number(v));
+  const toTimestamp = (v: unknown) => (v === '' || v === null || v === undefined ? null : String(v));
   const rowPriceWholeSeries = toPrice(priceWholeSeries);
   const rowPriceDropIn = toPrice(priceDropIn);
   const rowPriceStudent = toPrice(priceStudent);
+  const rowPriceWholeSeriesEarlyBird = toPrice(priceWholeSeriesEarlyBird);
+  const rowPriceDropInEarlyBird = toPrice(priceDropInEarlyBird);
+  const rowPriceStudentEarlyBird = toPrice(priceStudentEarlyBird);
+  const rowEarlyBirdUntil = toTimestamp(earlyBirdUntil);
+  const rowPriceWholeSeriesFlashSale = toPrice(priceWholeSeriesFlashSale);
+  const rowPriceDropInFlashSale = toPrice(priceDropInFlashSale);
+  const rowPriceStudentFlashSale = toPrice(priceStudentFlashSale);
+  const rowFlashSaleUntil = toTimestamp(flashSaleUntil);
+  const rowRegistrationClosed = Boolean(registrationClosed);
   const rowImageUrl = imageUrl || null;
   const rowDescription = description ? sanitizeEventDescriptionHtml(description) : null;
 
@@ -86,7 +105,21 @@ export const POST: APIRoute = async ({ request }) => {
       await runCalendarSync();
       await supabase
         .from('events')
-        .update({ price_whole_series: rowPriceWholeSeries, price_drop_in: rowPriceDropIn, price_student: rowPriceStudent, image_url: rowImageUrl })
+        .update({
+          price_whole_series: rowPriceWholeSeries,
+          price_drop_in: rowPriceDropIn,
+          price_student: rowPriceStudent,
+          price_whole_series_early_bird: rowPriceWholeSeriesEarlyBird,
+          price_drop_in_early_bird: rowPriceDropInEarlyBird,
+          price_student_early_bird: rowPriceStudentEarlyBird,
+          early_bird_until: rowEarlyBirdUntil,
+          price_whole_series_flash_sale: rowPriceWholeSeriesFlashSale,
+          price_drop_in_flash_sale: rowPriceDropInFlashSale,
+          price_student_flash_sale: rowPriceStudentFlashSale,
+          flash_sale_until: rowFlashSaleUntil,
+          registration_closed: rowRegistrationClosed,
+          image_url: rowImageUrl,
+        })
         .eq('google_recurring_event_id', createdMaster.id);
     } catch (err) {
       console.error('Failed to create recurring event:', err);
@@ -111,6 +144,15 @@ export const POST: APIRoute = async ({ request }) => {
       price_whole_series: rowPriceWholeSeries,
       price_drop_in: rowPriceDropIn,
       price_student: rowPriceStudent,
+      price_whole_series_early_bird: rowPriceWholeSeriesEarlyBird,
+      price_drop_in_early_bird: rowPriceDropInEarlyBird,
+      price_student_early_bird: rowPriceStudentEarlyBird,
+      early_bird_until: rowEarlyBirdUntil,
+      price_whole_series_flash_sale: rowPriceWholeSeriesFlashSale,
+      price_drop_in_flash_sale: rowPriceDropInFlashSale,
+      price_student_flash_sale: rowPriceStudentFlashSale,
+      flash_sale_until: rowFlashSaleUntil,
+      registration_closed: rowRegistrationClosed,
       image_url: rowImageUrl,
     })
     .select()

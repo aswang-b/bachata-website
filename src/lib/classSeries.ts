@@ -14,6 +14,15 @@ export interface ClassOccurrenceRow {
   image_url?: string | null;
   event_type?: string;
   color?: string | null;
+  registration_closed?: boolean;
+  price_whole_series_early_bird?: number | null;
+  price_drop_in_early_bird?: number | null;
+  price_student_early_bird?: number | null;
+  early_bird_until?: string | null;
+  price_whole_series_flash_sale?: number | null;
+  price_drop_in_flash_sale?: number | null;
+  price_student_flash_sale?: number | null;
+  flash_sale_until?: string | null;
 }
 
 export interface ClassSeriesOccurrence {
@@ -48,6 +57,15 @@ export interface ClassSeriesEntry {
   eventType: string;
   nextStartTime: string;
   color: string;
+  registrationClosed: boolean;
+  priceWholeSeriesEarlyBird: number | null;
+  priceDropInEarlyBird: number | null;
+  priceStudentEarlyBird: number | null;
+  earlyBirdUntil: string | null;
+  priceWholeSeriesFlashSale: number | null;
+  priceDropInFlashSale: number | null;
+  priceStudentFlashSale: number | null;
+  flashSaleUntil: string | null;
 }
 
 const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: TIME_ZONE });
@@ -112,6 +130,35 @@ export function buildClassSeriesList(events: ClassOccurrenceRow[], allEventsForT
       eventType: first.event_type ?? 'class',
       nextStartTime: first.start_time,
       color: first.color ?? 'accent',
+      registrationClosed: first.registration_closed ?? false,
+      priceWholeSeriesEarlyBird: first.price_whole_series_early_bird ?? null,
+      priceDropInEarlyBird: first.price_drop_in_early_bird ?? null,
+      priceStudentEarlyBird: first.price_student_early_bird ?? null,
+      earlyBirdUntil: first.early_bird_until ?? null,
+      priceWholeSeriesFlashSale: first.price_whole_series_flash_sale ?? null,
+      priceDropInFlashSale: first.price_drop_in_flash_sale ?? null,
+      priceStudentFlashSale: first.price_student_flash_sale ?? null,
+      flashSaleUntil: first.flash_sale_until ?? null,
     };
   });
+}
+
+// Shared "today" boundary in the studio's timezone, expressed as UTC ISO
+// instants — used both to filter "upcoming" occurrences and, for check-in,
+// to resolve which of a series' occurrences falls on today's date.
+export function chicagoDayBoundsUtcIso(now: Date = new Date()): { startIso: string; endIso: string } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZoneName: 'shortOffset',
+  }).formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  const offsetName = get('timeZoneName'); // e.g. "GMT-5"
+  const offsetHours = parseInt(offsetName.replace('GMT', ''), 10) || 0;
+  const offsetStr = `${offsetHours <= 0 ? '-' : '+'}${String(Math.abs(offsetHours)).padStart(2, '0')}:00`;
+  const startIso = `${get('year')}-${get('month')}-${get('day')}T00:00:00${offsetStr}`;
+  const endIso = new Date(new Date(startIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
+  return { startIso, endIso };
 }

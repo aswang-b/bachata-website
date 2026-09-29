@@ -11,12 +11,12 @@ Everything here runs server-side (Astro SSR pages, `/api/*` routes, the schedule
 | File | Purpose |
 | --- | --- |
 | `admin.ts` | `isAdminEmail` / `requireAdmin` — gate admin pages and API routes by Supabase session email |
-| `attendanceMatching.ts` | `expandRegistrationsToEntries`/`matchAttendance` — matches `class_registrations` to `class_checkins` per dancer (name required, phone/email only disambiguates same-named candidates), expanding Whole-Series sign-ups into one entry per occurrence; backs the admin Attendance tab's matches table and orphan workqueue |
+| `attendanceMatching.ts` | `expandRegistrationsToEntries`/`matchAttendance` — matches `class_registrations` to `class_checkins` per dancer (name required, phone/email only disambiguates same-named candidates); Whole-Series rows expand into one entry per occurrence, Drop-In rows use their stored `occurrence_event_id` when present (else a best-effort last-occurrence guess for legacy rows); backs the admin Attendance tab's matches table and orphan workqueue |
 | `apiUsage.ts` | `checkAndIncrementUsage` — daily quota counter (used for Google Places API calls) |
-| `calendarSync.ts` | `runCalendarSync` — pulls Google Calendar events into Supabase for public + private calendars |
-| `classSeries.ts` | Builds recurring class occurrence lists (`buildClassSeriesList`) in `America/Chicago` time |
+| `calendarSync.ts` | `runCalendarSync` — pulls Google Calendar events into Supabase for public + private calendars, carrying forward per-series price/discount/`registration_closed` metadata onto freshly-synced occurrence rows |
+| `classSeries.ts` | Builds recurring class occurrence lists (`buildClassSeriesList`) in `America/Chicago` time, including each series' tiered-pricing/registration-closed fields; `chicagoDayBoundsUtcIso` gives today's day boundary in that timezone for check-in occurrence resolution |
 | `deletionAudit.ts` | `recordDeletion` / `lookbackCutoffIso` — audit log for deleted signups, with lookback window |
-| `classRegistrations.ts` | One-row-per-(dancer,class) registration records (`class_registrations` table) — parses the public form's semicolon-joined class string, snapshots each class's price at write time, and backs the admin Sign-Ups table's per-row breakdown |
+| `classRegistrations.ts` | One-row-per-(dancer,class) registration records (`class_registrations` table). `resolveClassSelections` prefers the structured `class_selections` JSON (keyed by series id, carries the chosen Drop-In `occurrenceEventId`) over the legacy semicolon-joined `class` string; `insertClassRegistrations`/`replaceClassRegistrations` snapshot each class's `pricing.getActivePrice()` result (base or active early-bird/flash-sale tier) at write time; `validateClassSelections` is the server-side backstop rejecting submissions against a `registration_closed` class |
 | `editLock.ts` | Admin edit-lock (`tryAcquireLock`/`releaseLock`/`requireLock`) preventing concurrent edits, 10-min TTL |
 | `email.ts` | `sendAdminNotification` — transactional email to admins |
 | `env.ts` | `env(key)` — thin env var accessor |
@@ -25,6 +25,7 @@ Everything here runs server-side (Astro SSR pages, `/api/*` routes, the schedule
 | `homepageContent.ts` | `getHomepageContent`/`setHomepageContent` — editable homepage copy (lesson overview), sanitized via `richText.ts` |
 | `notificationSettings.ts` | `getNotificationRecipients`/`setNotificationRecipients` — admin-editable Contact-form notification recipient list |
 | `previewMode.ts` | Browser-side flag for admins previewing the site as a public visitor |
+| `pricing.ts` | `getActivePrice`/`priceTierLabel` — resolves early-bird/flash-sale tiered pricing against a given time; pure (no Supabase/env imports) so it's safe from both SSR frontmatter and client `<script>` bundles |
 | `richText.ts` | `sanitizeRichHtml` — regex-based allow-list HTML sanitizer for admin-authored rich text (event descriptions, FAQ answers, homepage copy) |
 | `siteBanner.ts` | Site-wide announcement banner get/set, with HTML sanitization |
 | `siteSettings.ts` | Boolean site settings (`hide_about_nav`, `hide_contact_nav`, `hide_checkin_nav`, `disable_checkin_page`) persistence |
@@ -41,3 +42,5 @@ Everything here runs server-side (Astro SSR pages, `/api/*` routes, the schedule
 **Calendar sync flow**: `netlify/functions/scheduled-calendar-sync.mts` (cron) or an admin-triggered API route → `calendarSync.runCalendarSync()` → `googleCalendar.ts` (Google API) → Supabase `events` table, separately for public and private calendars.
 
 **Admin write flow**: API route → `admin.requireAdmin()` → (for editable resources) `editLock.requireLock()` → mutate via Supabase → `deletionAudit.recordDeletion()` if deleting a signup.
+
+**Tiered-pricing flow**: admin sets per-series base/early-bird/flash-sale prices + `registration_closed` on an `events` row (`create-event.ts`/`update-event.ts`) → `calendarSync.ts` carries those fields onto every occurrence row on sync → `classSeries.buildClassSeriesList()` surfaces them to pages → `pricing.getActivePrice()` resolves the currently-active price/tier at both display time (`calendar.astro`) and registration time (`classRegistrations.ts`, which also snapshots the resolved tier per row).
