@@ -81,6 +81,12 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       dancers = null;
     }
 
+    const badEmailIndex = Array.isArray(dancers) ? dancers.findIndex((d) => d?.email && !EMAIL_RE.test(d.email)) : -1;
+    if (badEmailIndex >= 0) {
+      const who = dancers!.length > 1 ? `Dancer ${badEmailIndex + 1}'s email address` : 'The email address';
+      return new Response(`${who} isn't in a valid format — it should look like name@example.com.`, { status: 400 });
+    }
+
     if (
       !className ||
       className.length > MAX_CLASS_LENGTH ||
@@ -97,7 +103,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
           d.role &&
           (d.phone || d.email) &&
           (!d.phone || d.phone.length <= MAX_CONTACT_LENGTH) &&
-          (!d.email || (d.email.length <= MAX_CONTACT_LENGTH && EMAIL_RE.test(d.email)))
+          (!d.email || d.email.length <= MAX_CONTACT_LENGTH)
       )
     ) {
       return new Response(
@@ -118,6 +124,10 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     instagram = String(formData.get('instagram') ?? '').trim();
     whatsapp = String(formData.get('whatsapp') ?? '').trim();
 
+    if (email && !EMAIL_RE.test(email)) {
+      return new Response("That email address isn't in a valid format — it should look like name@example.com.", { status: 400 });
+    }
+
     // The contact-method picker (registrationType === 'private') requires at
     // least one of these; other registration types only require an email.
     const hasAnyContactMethod = email || phone || instagram || whatsapp;
@@ -129,7 +139,6 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       lastName.length > MAX_NAME_LENGTH ||
       !hasAnyContactMethod ||
       email.length > MAX_CONTACT_LENGTH ||
-      (email && !EMAIL_RE.test(email)) ||
       phone.length > MAX_CONTACT_LENGTH ||
       instagram.length > MAX_CONTACT_LENGTH ||
       whatsapp.length > MAX_CONTACT_LENGTH
