@@ -54,6 +54,7 @@
 │   │   ├── notificationSettings.ts      # Admin-editable notification recipients + per-IP email caps
 │   │   ├── previewMode.ts               # Draft/preview banner state
 │   │   ├── pricing.ts                   # Tiered (early-bird/flash-sale) pricing resolution, pure/isomorphic
+│   │   ├── registrationEmail.ts         # HTML for the dancer registration-confirmation email
 │   │   ├── richText.ts                  # Allow-list HTML sanitizer for admin-authored rich text
 │   │   ├── siteBanner.ts                # Site-wide announcement banner
 │   │   ├── siteSettings.ts              # Site settings persistence
