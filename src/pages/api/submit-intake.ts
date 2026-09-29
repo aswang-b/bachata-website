@@ -33,6 +33,12 @@ const MAX_NAME_LENGTH = 100;
 const MAX_CONTACT_LENGTH = 200;
 const MAX_COMMENTS_LENGTH = 2000;
 const MAX_CLASS_LENGTH = 200;
+const MAX_CLASS_SELECTIONS_LENGTH = 10000;
+const EMAIL_RE = /^[^\s@,;<>()]+@[^\s@,;<>()]+\.[^\s@,;<>()]+$/;
+
+// Dancer confirmation emails get their own daily counter so a bot posting
+// registrations can't use up the cap that admin (Contact Me) notifications rely on.
+const CONFIRMATION_EMAIL_DAILY_CAP = Number(env('RESEND_CONFIRMATION_DAILY_CAP')) || 100;
 
 interface Dancer {
   firstName: string;
@@ -91,7 +97,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
           d.role &&
           (d.phone || d.email) &&
           (!d.phone || d.phone.length <= MAX_CONTACT_LENGTH) &&
-          (!d.email || d.email.length <= MAX_CONTACT_LENGTH)
+          (!d.email || (d.email.length <= MAX_CONTACT_LENGTH && EMAIL_RE.test(d.email)))
       )
     ) {
       return new Response(
@@ -123,6 +129,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       lastName.length > MAX_NAME_LENGTH ||
       !hasAnyContactMethod ||
       email.length > MAX_CONTACT_LENGTH ||
+      (email && !EMAIL_RE.test(email)) ||
       phone.length > MAX_CONTACT_LENGTH ||
       instagram.length > MAX_CONTACT_LENGTH ||
       whatsapp.length > MAX_CONTACT_LENGTH
@@ -133,7 +140,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     }
   }
 
-  if (className.length > MAX_CLASS_LENGTH || comments.length > MAX_COMMENTS_LENGTH) {
+  if (className.length > MAX_CLASS_LENGTH || comments.length > MAX_COMMENTS_LENGTH || classSelectionsRaw.length > MAX_CLASS_SELECTIONS_LENGTH) {
     return new Response('One of the fields is too long.', { status: 400 });
   }
 
@@ -232,17 +239,20 @@ export const POST: APIRoute = async ({ request, redirect }) => {
           faqs: faqs.filter((f) => f.includeInConfirmation).map((f) => ({ question: f.question, answer: f.answer })),
         });
 
+        const toSend: string[] = [];
         for (const recipient of emailRecipients) {
-          const allowed = await checkAndIncrementUsage('resend_email', EMAIL_DAILY_CAP);
+          const allowed = await checkAndIncrementUsage('resend_confirmation_email', CONFIRMATION_EMAIL_DAILY_CAP);
           if (!allowed) {
-            console.warn('Daily Resend email cap reached — skipping remaining registration confirmation emails.');
+            console.warn('Daily confirmation email cap reached — skipping remaining registration confirmation emails.');
             break;
           }
-          try {
-            await sendEmail(recipient, 'Your Class Registration is Confirmed — Dance with B', html);
-          } catch (err) {
-            console.error('Failed to send registration confirmation to a recipient:', err);
-          }
+          toSend.push(recipient);
+        }
+        const results = await Promise.allSettled(
+          toSend.map((recipient) => sendEmail(recipient, 'Your Class Registration is Confirmed — Dance with B', html))
+        );
+        for (const r of results) {
+          if (r.status === 'rejected') console.error('Failed to send registration confirmation to a recipient:', r.reason);
         }
       }
     } catch (err) {

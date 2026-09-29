@@ -120,9 +120,30 @@ const PRICE_COLUMNS =
 // Keyed by both `id` and `google_recurring_event_id` (so a lookup by
 // either form of series key resolves), and by `title` as a first-match
 // fallback for selections with no key (the admin's free-text edit path).
-async function lookupClassPrices(): Promise<Map<string, ClassPriceInfo>> {
-  const { data, error } = await supabase.from('events').select(PRICE_COLUMNS).eq('event_type', 'class');
-  if (error) console.error('Failed to load class prices for registration snapshot:', error.message);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SAFE_KEY_RE = /^[A-Za-z0-9_-]+$/;
+
+// Only loads the rows the selections can actually reference (by id, recurring
+// id, or title), so the lookup never scans — or gets truncated by the row cap
+// on — the whole events table.
+async function lookupClassPrices(selections: ParsedClassSelection[]): Promise<Map<string, ClassPriceInfo>> {
+  const keys = Array.from(new Set(selections.map((s) => s.key).filter((k): k is string => !!k && SAFE_KEY_RE.test(k))));
+  const ids = keys.filter((k) => UUID_RE.test(k));
+  const titles = Array.from(new Set(selections.map((s) => s.title)));
+
+  const base = () => supabase.from('events').select(PRICE_COLUMNS).eq('event_type', 'class');
+  const results = await Promise.all([
+    ids.length > 0 ? base().in('id', ids) : null,
+    keys.length > 0 ? base().in('google_recurring_event_id', keys) : null,
+    base().in('title', titles),
+  ]);
+
+  const data: NonNullable<(typeof results)[number]>['data'] = [];
+  for (const r of results) {
+    if (!r) continue;
+    if (r.error) console.error('Failed to load class prices for registration snapshot:', r.error.message);
+    data!.push(...(r.data ?? []));
+  }
 
   const map = new Map<string, ClassPriceInfo>();
   for (const e of data ?? []) {
@@ -152,7 +173,10 @@ async function lookupClassPrices(): Promise<Map<string, ClassPriceInfo>> {
 export async function validateClassSelections(selections: ParsedClassSelection[]): Promise<string | null> {
   if (selections.length === 0) return null;
 
-  const { data, error } = await supabase.from('events').select('id, google_recurring_event_id, title, registration_closed');
+  const { data, error } = await supabase
+    .from('events')
+    .select('id, google_recurring_event_id, title, registration_closed')
+    .eq('registration_closed', true);
   if (error) {
     console.error('Failed to validate class selections:', error.message);
     return null; // fail open — a validation-lookup bug shouldn't block every registration
@@ -173,6 +197,25 @@ export async function validateClassSelections(selections: ParsedClassSelection[]
     }
   }
   return null;
+}
+
+// A Drop-In's occurrenceEventId comes from the client, so keep it only when it
+// is a real class event belonging to the selected series; otherwise drop it
+// rather than let a bad id fail the FK insert or corrupt attendance data.
+async function sanitizeOccurrenceIds(selections: ParsedClassSelection[]): Promise<ParsedClassSelection[]> {
+  const ids = Array.from(new Set(selections.map((s) => s.occurrenceEventId).filter((id): id is string => !!id && UUID_RE.test(id))));
+  const valid = new Map<string, { id: string; google_recurring_event_id: string | null; title: string }>();
+  if (ids.length > 0) {
+    const { data, error } = await supabase.from('events').select('id, google_recurring_event_id, title').eq('event_type', 'class').in('id', ids);
+    if (error) console.error('Failed to validate occurrence ids:', error.message);
+    for (const e of data ?? []) valid.set(e.id, e);
+  }
+
+  return selections.map((sel) => {
+    const occ = sel.occurrenceEventId ? valid.get(sel.occurrenceEventId) : undefined;
+    const belongs = occ && (sel.key ? sel.key === occ.google_recurring_event_id || sel.key === occ.id : sel.title === occ.title);
+    return { ...sel, occurrenceEventId: belongs ? sel.occurrenceEventId : null };
+  });
 }
 
 function buildRegistrationRows(
@@ -238,10 +281,11 @@ export async function insertClassRegistrations(params: {
   fallbackEmail: string | null;
   fallbackPhone: string | null;
 }): Promise<void> {
-  const selections = resolveClassSelections(params.classRaw, params.classSelectionsRaw);
-  if (selections.length === 0) return;
+  const parsed = resolveClassSelections(params.classRaw, params.classSelectionsRaw);
+  if (parsed.length === 0) return;
 
-  const priceMap = await lookupClassPrices();
+  const selections = await sanitizeOccurrenceIds(parsed);
+  const priceMap = await lookupClassPrices(selections);
   const recipients: DancerLike[] =
     params.dancers && params.dancers.length > 0
       ? params.dancers
@@ -271,10 +315,11 @@ export async function replaceClassRegistrations(params: {
   const { error: deleteError } = await deleteQuery;
   if (deleteError) throw new Error(`Failed to clear existing class registrations: ${deleteError.message}`);
 
-  const selections = resolveClassSelections(params.classRaw, params.classSelectionsRaw);
-  if (selections.length === 0) return;
+  const parsed = resolveClassSelections(params.classRaw, params.classSelectionsRaw);
+  if (parsed.length === 0) return;
 
-  const priceMap = await lookupClassPrices();
+  const selections = await sanitizeOccurrenceIds(parsed);
+  const priceMap = await lookupClassPrices(selections);
   const rows = buildRegistrationRows(params.submissionId, params.dancerIndex, params.dancer, selections, priceMap);
 
   const { error } = await supabase.from('class_registrations').insert(rows);
