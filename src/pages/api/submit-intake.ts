@@ -155,9 +155,9 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   }
 
   const selections = resolveClassSelections(className || null, classSelectionsRaw || null);
-  const closedError = await validateClassSelections(selections);
-  if (closedError) {
-    return new Response(closedError, { status: 400 });
+  const selectionError = await validateClassSelections(selections);
+  if (selectionError) {
+    return new Response(selectionError.message, { status: selectionError.status });
   }
 
   const { data: row, error } = await supabase

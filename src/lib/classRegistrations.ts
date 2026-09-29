@@ -173,8 +173,15 @@ async function lookupClassPrices(selections: ParsedClassSelection[]): Promise<Ma
 
 // Server-side backstop mirroring the registration-closed and no-drop-in-
 // price UI guards — returns an error message if anything's wrong with the
-// submitted selections, or null if they're all fine to register.
-export async function validateClassSelections(selections: ParsedClassSelection[]): Promise<string | null> {
+// submitted selections, or null if they're all fine to register. Fails closed
+// (503) if the closed-class lookup errors, since we can't confirm the classes
+// are open — better a retry prompt than registering someone for a closed class.
+export interface ClassSelectionError {
+  message: string;
+  status: number;
+}
+
+export async function validateClassSelections(selections: ParsedClassSelection[]): Promise<ClassSelectionError | null> {
   if (selections.length === 0) return null;
 
   const { data, error } = await supabase
@@ -183,7 +190,11 @@ export async function validateClassSelections(selections: ParsedClassSelection[]
     .eq('registration_closed', true);
   if (error) {
     console.error('Failed to validate class selections:', error.message);
-    return null; // fail open — a validation-lookup bug shouldn't block every registration
+    return {
+      message:
+        "We couldn't confirm that these classes are open for registration right now. Please try again in a minute. If it keeps happening, contact us and we'll sign you up.",
+      status: 503,
+    };
   }
 
   const closedKeys = new Set<string>();
@@ -199,7 +210,7 @@ export async function validateClassSelections(selections: ParsedClassSelection[]
     // Keyed selections are stored under the key's own event title (see buildRegistrationRows), so a
     // mismatched client title can't get a closed class's name onto an open series' registration.
     if (sel.key ? closedKeys.has(sel.key) : closedKeys.has(sel.title)) {
-      return `Registration for "${sel.title}" is closed — please choose a different class.`;
+      return { message: `Registration for "${sel.title}" is closed — please choose a different class.`, status: 400 };
     }
   }
   return null;
