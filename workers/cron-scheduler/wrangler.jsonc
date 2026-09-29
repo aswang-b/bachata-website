@@ -1,0 +1,9 @@
+{
+  "name": "dancewithb-cron",
+  "main": "index.mjs",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": false,
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "vars": { "TARGET_URL": "https://dancewithb.fun/api/cron/calendar-sync" },
+  "observability": { "enabled": true }
+}

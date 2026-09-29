@@ -18,7 +18,7 @@ Tier 2 exists for `src/lib/` and `src/components/`. Tier 3 exists for `src/pages
 - **Tech stack, commands, full file tree, domain overview**: `project-structure.md`
 - **Contributor-facing quick start (generic Astro template)**: `README.md`
 - **Database schema history**: `supabase/migrations/*.sql`
-- **Netlify build/function config**: `netlify.toml`, `netlify/functions/`
+- **Hosting (Netlify/Vercel), env vars, cutover/failover, cron Worker**: `docs/hosting.md`, `netlify.toml`, `vercel.json`, `workers/cron-scheduler/`
 
 ## Cross-Reference Rule
 
