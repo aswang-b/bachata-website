@@ -4,7 +4,7 @@
 
 ## Architecture
 
-Astro 7 (SSR via `@astrojs/netlify`) + Tailwind CSS 4 + Supabase, hosted on Netlify. Public marketing/registration/check-in pages plus an admin area (`/admin/*`, `/api/admin/*`) for managing class events, signups, check-ins, Google Calendar sync, and site settings. Full stack details and file tree: [project-structure.md](docs/ai-context/project-structure.md).
+Astro 7 (SSR via `@astrojs/netlify` or `@astrojs/vercel`, picked at build time) + Tailwind CSS 4 + Supabase, hosted on Netlify or Vercel Hobby (see [hosting.md](docs/hosting.md)). Public marketing/registration/check-in pages plus an admin area (`/admin/*`, `/api/admin/*`) for managing class events, signups, check-ins, Google Calendar sync, and site settings. Full stack details and file tree: [project-structure.md](docs/ai-context/project-structure.md).
 
 ## Development
 

@@ -4,10 +4,10 @@
 
 ## Tech Stack
 
-- **Framework**: Astro 7 (SSR, `@astrojs/netlify` adapter)
+- **Framework**: Astro 7 (SSR; `@astrojs/netlify` or `@astrojs/vercel` adapter, chosen in `astro.config.mjs` by the host's build env)
 - **Styling**: Tailwind CSS 4 (`@tailwindcss/vite`)
 - **Database/Auth**: Supabase (`@supabase/supabase-js`)
-- **Hosting**: Netlify (see `netlify.toml`, `netlify/functions/`)
+- **Hosting**: Netlify or Vercel Hobby, one at a time (see [docs/hosting.md](../hosting.md), `netlify.toml`, `vercel.json`)
 - **Language**: TypeScript
 - **Other**: `qrcode` (check-in QR generation)
 - **Node**: >=22.12.0
@@ -27,8 +27,10 @@
 /
 ├── astro.config.mjs
 ├── netlify.toml
+├── vercel.json                          # Security headers for Vercel (Netlify uses public/_headers)
 ├── netlify/functions/
-│   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
+│   └── scheduled-calendar-sync.mts      # Scheduled Netlify function (removed once the cron Worker is live)
+├── workers/cron-scheduler/              # Cloudflare Worker cron: POSTs /api/cron/calendar-sync every 15 min
 ├── public/                              # Static assets (favicon, venmo QR)
 ├── supabase/migrations/                 # Numbered SQL migrations (0001-0037)
 ├── src/
