@@ -10,6 +10,7 @@ import {
   validateClassSelections,
 } from '../../lib/classRegistrations';
 import { listFaqs } from '../../lib/faqs';
+import { getConfirmationEmailPerIpCap } from '../../lib/notificationSettings';
 import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
 
 export const prerender = false;
@@ -56,7 +57,7 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
-export const POST: APIRoute = async ({ request, redirect }) => {
+export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   const formData = await request.formData();
 
   const registrationType = String(formData.get('registration_type') ?? '').trim();
@@ -248,8 +249,25 @@ export const POST: APIRoute = async ({ request, redirect }) => {
           faqs: faqs.filter((f) => f.includeInConfirmation).map((f) => ({ question: f.question, answer: f.answer })),
         });
 
+        let ip = 'unknown';
+        try {
+          ip = clientAddress;
+        } catch {
+          // clientAddress can throw if the adapter doesn't support it — fall back to a shared bucket.
+        }
+        // Per-IP throttle on confirmation emails only — the registration itself is
+        // already saved, so a capped network (e.g. a room full of dancers on one
+        // wifi) just misses the email. Checked before the global cap so a
+        // throttled IP doesn't use up everyone else's quota.
+        const perIpCap = await getConfirmationEmailPerIpCap();
+
         const toSend: string[] = [];
         for (const recipient of emailRecipients) {
+          const ipAllowed = await checkAndIncrementUsage(`confirmation_email_ip:${ip}`, perIpCap);
+          if (!ipAllowed) {
+            console.warn('Per-IP confirmation email cap reached — skipping remaining confirmation emails for this network.');
+            break;
+          }
           const allowed = await checkAndIncrementUsage('resend_confirmation_email', CONFIRMATION_EMAIL_DAILY_CAP);
           if (!allowed) {
             console.warn('Daily confirmation email cap reached — skipping remaining registration confirmation emails.');

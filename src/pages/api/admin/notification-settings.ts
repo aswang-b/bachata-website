@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireAdmin } from '../../../lib/admin';
-import { getNotificationRecipientsRaw } from '../../../lib/notificationSettings';
+import { getConfirmationEmailPerIpCap, getNotificationRecipientsRaw } from '../../../lib/notificationSettings';
 
 export const prerender = false;
 
@@ -10,6 +10,6 @@ export const GET: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: authError }), { status: 403 });
   }
 
-  const recipientEmails = await getNotificationRecipientsRaw();
-  return new Response(JSON.stringify({ recipientEmails }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const [recipientEmails, confirmationEmailPerIpCap] = await Promise.all([getNotificationRecipientsRaw(), getConfirmationEmailPerIpCap()]);
+  return new Response(JSON.stringify({ recipientEmails, confirmationEmailPerIpCap }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 };

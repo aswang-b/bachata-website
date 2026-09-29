@@ -19,6 +19,28 @@ export async function getNotificationRecipients(): Promise<string[]> {
   return parseRecipientEmails(await getNotificationRecipientsRaw());
 }
 
+export const DEFAULT_CONFIRMATION_EMAIL_PER_IP_CAP = 50;
+export const MAX_CONFIRMATION_EMAIL_PER_IP_CAP = 1000;
+
+// Falls back to the default if the row/column is missing or the lookup fails,
+// so a settings problem never disables the throttle or the confirmations.
+export async function getConfirmationEmailPerIpCap(): Promise<number> {
+  const { data, error } = await supabase
+    .from('notification_settings')
+    .select('confirmation_email_per_ip_daily_cap')
+    .eq('id', true)
+    .maybeSingle();
+  if (error) console.error('Failed to load confirmation email cap:', error.message);
+  return data?.confirmation_email_per_ip_daily_cap ?? DEFAULT_CONFIRMATION_EMAIL_PER_IP_CAP;
+}
+
+export async function setConfirmationEmailPerIpCap(cap: number): Promise<void> {
+  const { error } = await supabase
+    .from('notification_settings')
+    .upsert({ id: true, confirmation_email_per_ip_daily_cap: cap, updated_at: new Date().toISOString() });
+  if (error) throw new Error(`Failed to update confirmation email cap: ${error.message}`);
+}
+
 export async function setNotificationRecipients(recipientEmails: string): Promise<void> {
   const { error } = await supabase
     .from('notification_settings')

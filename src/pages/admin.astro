@@ -231,6 +231,31 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           </button>
           <p id="notification-emails-status" class="min-h-4 text-xs text-muted"></p>
         </div>
+
+        <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+          <p class="text-xs font-bold uppercase tracking-wider text-muted">Confirmation Email Limit</p>
+          <p class="text-xs text-muted">
+            Most registration confirmation emails one network (IP address) can trigger per day. Registrations are always saved — only the email is skipped once
+            the limit is reached. Raise this if many people register from the same wifi at an event.
+          </p>
+          <label for="confirmation-cap-input" class="text-xs text-muted">Emails per IP per day (1–1000)</label>
+          <input
+            id="confirmation-cap-input"
+            type="number"
+            min="1"
+            max="1000"
+            step="1"
+            inputmode="numeric"
+            class="w-32 rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+          />
+          <button
+            id="confirmation-cap-save"
+            class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Save Limit
+          </button>
+          <p id="confirmation-cap-status" class="min-h-4 text-xs text-muted"></p>
+        </div>
       </section>
 
       <!-- ==================== DEBUG TAB ==================== -->
@@ -459,8 +484,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       const res = await fetch('/api/admin/notification-settings', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      const { recipientEmails } = await res.json();
+      const { recipientEmails, confirmationEmailPerIpCap } = await res.json();
       (document.getElementById('notification-emails-input') as HTMLInputElement).value = recipientEmails ?? '';
+      (document.getElementById('confirmation-cap-input') as HTMLInputElement).value = String(confirmationEmailPerIpCap ?? 50);
     } catch {
       // Leave the input blank if it can't load.
     }
@@ -478,6 +504,29 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ recipientEmails }),
+    });
+
+    if (res.ok) {
+      statusEl.textContent = 'Saved.';
+      setTimeout(() => (statusEl.textContent = ''), 1500);
+    } else {
+      const { error } = await res.json().catch(() => ({ error: 'Failed to save — try again.' }));
+      statusEl.textContent = error ?? 'Failed to save — try again.';
+    }
+  });
+
+  document.getElementById('confirmation-cap-save')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('confirmation-cap-status')!;
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const cap = Number((document.getElementById('confirmation-cap-input') as HTMLInputElement).value);
+    const res = await fetch('/api/admin/update-confirmation-email-cap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ cap }),
     });
 
     if (res.ok) {
