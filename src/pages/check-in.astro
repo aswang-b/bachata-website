@@ -3,36 +3,21 @@ export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
-import { buildClassSeriesList, TIME_ZONE } from '../lib/classSeries';
+import { buildClassSeriesList, chicagoDayBoundsUtcIso } from '../lib/classSeries';
 import { getSiteSettings } from '../lib/siteSettings';
 
 const { disable_checkin_page: checkinDisabled } = await getSiteSettings();
 
-function chicagoMidnightUtcIso(): string {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZoneName: 'shortOffset',
-  }).formatToParts(now);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-  const offsetName = get('timeZoneName'); // e.g. "GMT-5"
-  const offsetHours = parseInt(offsetName.replace('GMT', ''), 10) || 0;
-  const offsetStr = `${offsetHours <= 0 ? '-' : '+'}${String(Math.abs(offsetHours)).padStart(2, '0')}:00`;
-  return `${get('year')}-${get('month')}-${get('day')}T00:00:00${offsetStr}`;
-}
-
 const seriesList = checkinDisabled
   ? []
   : await (async () => {
+      const { startIso } = chicagoDayBoundsUtcIso();
       const { data: classEvents, error } = await supabase
         .from('events')
         .select('id, title, start_time, end_time, google_recurring_event_id')
         .eq('visibility', 'public')
         .eq('event_type', 'class')
-        .gte('start_time', chicagoMidnightUtcIso())
+        .gte('start_time', startIso)
         .order('start_time', { ascending: true });
 
       if (error) console.error('Failed to load classes for check-in:', error);
@@ -62,7 +47,34 @@ const inputClass =
         </p>
 
         <form method="POST" action="/api/submit-checkin" class="mt-8 flex flex-col gap-5">
-          <div id="event-ids-container"></div>
+          <div id="series-keys-container"></div>
+
+          <div class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-ink/80">Classes<span class="text-accent"> *</span></span>
+
+            {seriesList.length === 0 ? (
+              <p class="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
+                No classes are scheduled for today or later.
+              </p>
+            ) : (
+              <div id="class-list" class="flex flex-col gap-2">
+                {seriesList.map((s) => (
+                  <button
+                    type="button"
+                    class="class-item flex w-full flex-col items-start gap-0.5 rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-bg"
+                    data-key={s.key}
+                  >
+                    <span class="font-semibold text-ink">{s.title}</span>
+                    <span class="text-xs text-muted">{s.subLabel}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <p id="class-error" class="hidden text-xs font-semibold text-red-600">
+              Please select at least one class.
+            </p>
+          </div>
 
           <div class="grid gap-5 sm:grid-cols-2">
             <label class="flex flex-col gap-1.5">
@@ -81,53 +93,6 @@ const inputClass =
             <input type="tel" name="phone" required class={inputClass} />
           </label>
 
-          <div class="flex flex-col gap-1.5">
-            <span class="text-sm font-medium text-ink/80">Classes<span class="text-accent"> *</span></span>
-
-            {seriesList.length === 0 ? (
-              <p class="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
-                No classes are scheduled for today or later.
-              </p>
-            ) : (
-              <div id="class-list" class="flex flex-col gap-2">
-                {seriesList.map((s) => (
-                  <div
-                    class="class-item overflow-hidden rounded-xl border border-border bg-surface"
-                    data-key={s.key}
-                    data-is-series={String(s.isSeries)}
-                    data-single-event-id={s.singleEventId ?? ''}
-                  >
-                    <button
-                      type="button"
-                      class="class-select-btn flex w-full flex-col items-start gap-0.5 px-4 py-3 text-left transition-colors hover:bg-bg"
-                    >
-                      <span class="font-semibold text-ink">{s.title}</span>
-                      <span class="text-xs text-muted">{s.subLabel}</span>
-                    </button>
-
-                    {s.isSeries && (
-                      <div class="occurrence-picker hidden flex-wrap gap-2 border-t border-border bg-bg p-4">
-                        {s.occurrences.map((occ) => (
-                          <button
-                            type="button"
-                            class="occurrence-btn rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-ink/70 transition-colors"
-                            data-event-id={occ.id}
-                          >
-                            {occ.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <p id="class-error" class="hidden text-xs font-semibold text-red-600">
-              Please select at least one class (and date, if it's a series).
-            </p>
-          </div>
-
           <button
             type="submit"
             class="gradient-accent mt-2 rounded-full px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
@@ -141,82 +106,41 @@ const inputClass =
 </BaseLayout>
 
 <script>
-  const eventIdsContainer = document.getElementById('event-ids-container');
+  const seriesKeysContainer = document.getElementById('series-keys-container');
   const classError = document.getElementById('class-error');
-  const selectedEventIds = new Set<string>();
+  const selectedKeys = new Set<string>();
 
   function syncHiddenInputs() {
-    if (!eventIdsContainer) return;
-    eventIdsContainer.innerHTML = '';
-    for (const id of selectedEventIds) {
+    if (!seriesKeysContainer) return;
+    seriesKeysContainer.innerHTML = '';
+    for (const key of selectedKeys) {
       const input = document.createElement('input');
       input.type = 'hidden';
-      input.name = 'event_ids';
-      input.value = id;
-      eventIdsContainer.appendChild(input);
+      input.name = 'series_keys';
+      input.value = key;
+      seriesKeysContainer.appendChild(input);
     }
   }
 
-  function selectEvent(id: string) {
-    selectedEventIds.add(id);
-    syncHiddenInputs();
-    classError?.classList.add('hidden');
-  }
+  document.querySelectorAll<HTMLButtonElement>('.class-item').forEach((item) => {
+    const key = item.dataset.key ?? '';
 
-  function deselectEvent(id: string) {
-    selectedEventIds.delete(id);
-    syncHiddenInputs();
-  }
-
-  document.querySelectorAll<HTMLElement>('.class-item').forEach((item) => {
-    const isSeries = item.dataset.isSeries === 'true';
-    const singleEventId = item.dataset.singleEventId ?? '';
-    const toggleBtn = item.querySelector('.class-select-btn') as HTMLButtonElement;
-    const picker = item.querySelector<HTMLElement>('.occurrence-picker');
-    const occurrenceButtons = Array.from(item.querySelectorAll<HTMLButtonElement>('.occurrence-btn'));
-
-    toggleBtn.addEventListener('click', () => {
-      if (isSeries) {
-        // A series has no single date to select — just expand/collapse its
-        // occurrence picker; each occurrence toggles its own selection below.
-        picker?.classList.toggle('hidden');
-        picker?.classList.toggle('flex');
-        return;
-      }
-
+    item.addEventListener('click', () => {
       const nowSelected = !item.classList.contains('border-accent');
       item.classList.toggle('border-accent', nowSelected);
+      item.classList.toggle('bg-bg', nowSelected);
       if (nowSelected) {
-        selectEvent(singleEventId);
+        selectedKeys.add(key);
+        classError?.classList.add('hidden');
       } else {
-        deselectEvent(singleEventId);
+        selectedKeys.delete(key);
       }
+      syncHiddenInputs();
     });
-
-    occurrenceButtons.forEach((btn) =>
-      btn.addEventListener('click', () => {
-        const eventId = btn.dataset.eventId ?? '';
-        const nowSelected = !btn.classList.contains('gradient-accent');
-        btn.classList.toggle('gradient-accent', nowSelected);
-        btn.classList.toggle('text-white', nowSelected);
-        btn.classList.toggle('border-transparent', nowSelected);
-        btn.classList.toggle('border-border', !nowSelected);
-        btn.classList.toggle('text-ink/70', !nowSelected);
-
-        if (nowSelected) {
-          selectEvent(eventId);
-        } else {
-          deselectEvent(eventId);
-        }
-
-        const anySelected = occurrenceButtons.some((b) => b.classList.contains('gradient-accent'));
-        item.classList.toggle('border-accent', anySelected);
-      })
-    );
   });
 
   document.querySelector('form')?.addEventListener('submit', (e) => {
-    if (selectedEventIds.size === 0) {
+    if (selectedKeys.size === 0) {
       e.preventDefault();
       classError?.classList.remove('hidden');
       classError?.scrollIntoView({ behavior: 'smooth', block: 'center' });

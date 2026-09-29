@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { checkAndIncrementUsage } from '../../lib/apiUsage';
 import { env } from '../../lib/env';
 import { getSiteSettings } from '../../lib/siteSettings';
+import { chicagoDayBoundsUtcIso } from '../../lib/classSeries';
 
 export const prerender = false;
 
@@ -14,6 +15,13 @@ const CHECKIN_DAILY_CAP_PER_IP = Number(env('CHECKIN_DAILY_CAP_PER_IP')) || 300;
 // Sanity cap on how many classes one submission can check into at once —
 // well above any real schedule, just to bound a malformed/abusive request.
 const MAX_CLASSES_PER_SUBMISSION = 20;
+
+// A series key is `google_recurring_event_id ?? id` — the former is a
+// Google-assigned string, never a UUID, so an `id.eq.<key>` comparison
+// must only be attempted when `key` actually looks like one; otherwise
+// Postgres throws a type error on the whole query (uuid columns reject
+// non-UUID literals outright) rather than just finding no match.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   const { disable_checkin_page: checkinDisabled } = await getSiteSettings();
@@ -28,7 +36,13 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   const firstName = String(formData.get('first_name') ?? '').trim();
   const lastName = String(formData.get('last_name') ?? '').trim();
   const phone = String(formData.get('phone') ?? '').trim();
-  const eventIds = Array.from(
+
+  // Two ways a check-in can name a class: a direct, specific occurrence's
+  // event id (the admin-generated per-class QR at /check-in/[eventId], always
+  // exact regardless of when it's scanned), or a series/workshop key that
+  // needs resolving to whichever of its occurrences falls on today (the
+  // general /check-in page's class picker).
+  const directEventIds = Array.from(
     new Set(
       formData
         .getAll('event_ids')
@@ -36,15 +50,60 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
         .filter(Boolean)
     )
   );
+  const seriesKeys = Array.from(
+    new Set(
+      formData
+        .getAll('series_keys')
+        .map((v) => String(v).trim())
+        .filter(Boolean)
+    )
+  );
 
-  if (!firstName || !lastName || !phone || eventIds.length === 0) {
+  if (!firstName || !lastName || !phone || (directEventIds.length === 0 && seriesKeys.length === 0)) {
     return new Response('Missing required fields: First Name, Last Name, Phone, and at least one class are required.', {
       status: 400,
     });
   }
 
-  if (eventIds.length > MAX_CLASSES_PER_SUBMISSION) {
+  if (directEventIds.length + seriesKeys.length > MAX_CLASSES_PER_SUBMISSION) {
     return new Response('Too many classes selected at once.', { status: 400 });
+  }
+
+  const resolvedEvents: { id: string; title: string }[] = [];
+
+  if (directEventIds.length > 0) {
+    const { data: events, error: eventsError } = await supabase
+      .from('events')
+      .select('id, title')
+      .in('id', directEventIds)
+      .eq('visibility', 'public');
+
+    if (eventsError || !events || events.length !== directEventIds.length) {
+      return new Response('One or more selected classes could not be found — please pick again.', { status: 400 });
+    }
+    resolvedEvents.push(...events);
+  }
+
+  if (seriesKeys.length > 0) {
+    const { startIso, endIso } = chicagoDayBoundsUtcIso();
+
+    for (const key of seriesKeys) {
+      const keyFilter = UUID_RE.test(key) ? `google_recurring_event_id.eq.${key},id.eq.${key}` : `google_recurring_event_id.eq.${key}`;
+      const { data: matches, error: matchError } = await supabase
+        .from('events')
+        .select('id, title')
+        .or(keyFilter)
+        .eq('visibility', 'public')
+        .eq('event_type', 'class')
+        .gte('start_time', startIso)
+        .lt('start_time', endIso)
+        .order('start_time', { ascending: true });
+
+      if (matchError || !matches || matches.length === 0) {
+        return new Response("One of your selected classes isn't scheduled today — please ask an instructor for help.", { status: 400 });
+      }
+      resolvedEvents.push(matches[0]);
+    }
   }
 
   let ip = 'unknown';
@@ -55,17 +114,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     // to a shared bucket rather than letting that crash the request.
   }
 
-  const { data: events, error: eventsError } = await supabase
-    .from('events')
-    .select('id, title')
-    .in('id', eventIds)
-    .eq('visibility', 'public');
-
-  if (eventsError || !events || events.length !== eventIds.length) {
-    return new Response('One or more selected classes could not be found — please pick again.', { status: 400 });
-  }
-
-  for (let i = 0; i < events.length; i++) {
+  for (let i = 0; i < resolvedEvents.length; i++) {
     const allowed = await checkAndIncrementUsage(`checkin:${ip}`, CHECKIN_DAILY_CAP_PER_IP);
     if (!allowed) {
       return new Response('Too many check-ins from this network today. Please ask an instructor for help.', {
@@ -77,7 +126,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   const { data: checkins, error } = await supabase
     .from('class_checkins')
     .insert(
-      events.map((event) => ({
+      resolvedEvents.map((event) => ({
         first_name: firstName,
         last_name: lastName,
         phone,

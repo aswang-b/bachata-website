@@ -13,6 +13,10 @@ export interface AttendanceRegistrationRow {
   class_title: string;
   series_mode: 'whole' | 'dropin' | null;
   price: number | null;
+  // The specific occurrence a Drop-In registrant chose at registration
+  // time. Null for Whole-Series rows (still expanded dynamically below),
+  // and for legacy Drop-In rows recorded before this was tracked.
+  occurrence_event_id: string | null;
   created_at: string;
 }
 
@@ -105,9 +109,20 @@ export function expandRegistrationsToEntries(
       continue;
     }
 
-    // Drop-In (or a legacy/non-series row) — one entry, not pinned to a
-    // specific date, but still needs *a* date to know when it becomes due:
-    // the matching series' (or single event's) last/only occurrence.
+    // Drop-In (or a legacy/non-series row). Registrations made after this
+    // occurrence-tracking feature shipped carry the specific date the
+    // dancer actually chose — use that directly, for the same exact-date
+    // matching precision Whole-Series entries get. Older Drop-In rows with
+    // no stored occurrence fall back to the matching series' last/only
+    // occurrence as a best-effort guess, same as before.
+    if (reg.occurrence_event_id) {
+      const candidates = classSeriesList.filter((s) => s.title === reg.class_title);
+      const series = pickClosestSeries(candidates, reg.created_at);
+      const occ = series?.occurrences.find((o) => o.id === reg.occurrence_event_id) ?? null;
+      entries.push({ ...base, occurrenceEventId: reg.occurrence_event_id, occurrenceDate: occ?.startTime ?? null });
+      continue;
+    }
+
     const candidates = classSeriesList.filter((s) => s.title === reg.class_title);
     const series = pickClosestSeries(candidates, reg.created_at);
     const lastOccurrence = series?.occurrences[series.occurrences.length - 1] ?? null;

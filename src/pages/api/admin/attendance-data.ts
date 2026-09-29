@@ -30,7 +30,7 @@ export const GET: APIRoute = async ({ request }) => {
   ] = await Promise.all([
     supabase
       .from('class_registrations')
-      .select('id, first_name, last_name, email, phone, class_title, series_mode, price, created_at')
+      .select('id, first_name, last_name, email, phone, class_title, series_mode, price, occurrence_event_id, created_at')
       .limit(ROW_LIMIT),
     supabase
       .from('class_checkins')
