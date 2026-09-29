@@ -6,7 +6,7 @@ const supabaseServiceRoleKey = env('SUPABASE_SERVICE_ROLE_KEY');
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
   throw new Error(
-    'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Set them in .env (local) or the Netlify site environment variables (production).'
+    'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Set them in .env (local) or the hosting environment variables on Netlify/Vercel (production).'
   );
 }
 
