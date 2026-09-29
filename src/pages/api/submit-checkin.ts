@@ -110,6 +110,10 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     }
   }
 
+  // A direct event id and a series key can resolve to the same occurrence.
+  const uniqueEvents = Array.from(new Map(resolvedEvents.map((e) => [e.id, e])).values());
+  resolvedEvents.splice(0, resolvedEvents.length, ...uniqueEvents);
+
   let ip = 'unknown';
   try {
     ip = clientAddress;

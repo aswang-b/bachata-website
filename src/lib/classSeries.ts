@@ -147,18 +147,29 @@ export function buildClassSeriesList(events: ClassOccurrenceRow[], allEventsForT
 // instants — used both to filter "upcoming" occurrences and, for check-in,
 // to resolve which of a series' occurrences falls on today's date.
 export function chicagoDayBoundsUtcIso(now: Date = new Date()): { startIso: string; endIso: string } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZoneName: 'shortOffset',
-  }).formatToParts(now);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-  const offsetName = get('timeZoneName'); // e.g. "GMT-5"
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const startIso = localMidnightIso(get('year'), get('month'), get('day'));
+  // Next day's midnight rather than start + 24h, since DST days are 23 or 25 hours long.
+  const endIso = localMidnightIso(...nextDay(get('year'), get('month'), get('day')));
+  return { startIso: new Date(startIso).toISOString(), endIso: new Date(endIso).toISOString() };
+}
+
+function nextDay(year: number, month: number, day: number): [number, number, number] {
+  const d = new Date(Date.UTC(year, month - 1, day + 1));
+  return [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()];
+}
+
+// Midnight in the studio's timezone, using the UTC offset in effect at midnight
+// (not at "now"), which differs on the day DST starts or ends. DST changes at
+// 2am local, so the offset at 06:00Z (00:00-01:00 local) is the midnight offset.
+function localMidnightIso(year: number, month: number, day: number): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const offsetName =
+    new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, timeZoneName: 'shortOffset' })
+      .formatToParts(new Date(Date.UTC(year, month - 1, day, 6)))
+      .find((p) => p.type === 'timeZoneName')?.value ?? ''; // e.g. "GMT-5"
   const offsetHours = parseInt(offsetName.replace('GMT', ''), 10) || 0;
-  const offsetStr = `${offsetHours <= 0 ? '-' : '+'}${String(Math.abs(offsetHours)).padStart(2, '0')}:00`;
-  const startIso = `${get('year')}-${get('month')}-${get('day')}T00:00:00${offsetStr}`;
-  const endIso = new Date(new Date(startIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
-  return { startIso, endIso };
+  const offsetStr = `${offsetHours <= 0 ? '-' : '+'}${pad(Math.abs(offsetHours))}:00`;
+  return `${year}-${pad(month)}-${pad(day)}T00:00:00${offsetStr}`;
 }
