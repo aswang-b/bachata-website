@@ -16,7 +16,7 @@ Files each host reads: Netlify → `netlify.toml`, `public/_headers`. Vercel →
 | `ADMIN_EMAIL` | comma-separated admin emails |
 | `RESEND_API_KEY`, `NOTIFICATION_EMAILS` | email |
 | `CRON_SECRET` | shared secret for `/api/cron/calendar-sync`; same value as the Worker's secret |
-| `RESEND_DAILY_CAP`, `CHECKIN_DAILY_CAP_PER_IP`, `MAPS_AUTOCOMPLETE_DAILY_CAP` | optional caps |
+| `RESEND_DAILY_CAP`, `RESEND_CONFIRMATION_DAILY_CAP` (registration confirmations, default 100, separate from admin notifications), `CHECKIN_DAILY_CAP_PER_IP`, `MAPS_AUTOCOMPLETE_DAILY_CAP` | optional caps |
 
 **Build time** (inlined by Vite, must exist when the site builds)
 
