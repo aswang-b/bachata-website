@@ -101,6 +101,9 @@ export interface ClassRegistrationRow {
 }
 
 interface ClassPriceInfo {
+  // The event's own title, used as the stored `class_title` for keyed
+  // selections so a client can't pair one series' key with another's title.
+  title: string;
   whole: number | null;
   dropIn: number | null;
   student: number | null;
@@ -148,6 +151,7 @@ async function lookupClassPrices(selections: ParsedClassSelection[]): Promise<Ma
   const map = new Map<string, ClassPriceInfo>();
   for (const e of data ?? []) {
     const info: ClassPriceInfo = {
+      title: e.title,
       whole: e.price_whole_series,
       dropIn: e.price_drop_in,
       student: e.price_student,
@@ -192,6 +196,8 @@ export async function validateClassSelections(selections: ParsedClassSelection[]
 
   for (const sel of selections) {
     // Title is only a fallback for selections without a key, so an open series sharing a title isn't rejected.
+    // Keyed selections are stored under the key's own event title (see buildRegistrationRows), so a
+    // mismatched client title can't get a closed class's name onto an open series' registration.
     if (sel.key ? closedKeys.has(sel.key) : closedKeys.has(sel.title)) {
       return `Registration for "${sel.title}" is closed — please choose a different class.`;
     }
@@ -228,7 +234,8 @@ function buildRegistrationRows(
   const now = new Date();
 
   return selections.map((sel) => {
-    const info = (sel.key ? priceMap.get(sel.key) : undefined) ?? priceMap.get(sel.title);
+    const keyInfo = sel.key ? priceMap.get(sel.key) : undefined;
+    const info = keyInfo ?? priceMap.get(sel.title);
 
     // No drop-in price on file for this class — fall back to whole-series
     // rather than storing a null price (defense in depth; the UI already
@@ -252,7 +259,7 @@ function buildRegistrationRows(
       last_name: dancer.lastName ?? '',
       email: dancer.email || null,
       phone: dancer.phone || null,
-      class_title: sel.title,
+      class_title: keyInfo?.title ?? sel.title,
       class_label: sel.label,
       series_mode: effectiveMode,
       price: priceResult.activePrice,
