@@ -25,3 +25,10 @@ pnpm-debug.log*
 
 # Local Netlify folder
 .netlify
+
+# Vercel CLI
+.vercel
+
+# Cloudflare Worker local files
+.dev.vars
+.wrangler/
