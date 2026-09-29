@@ -355,6 +355,68 @@ export async function getClassRegistrationsForDancer(submissionId: string, dance
   return (data ?? []) as ClassRegistrationRow[];
 }
 
+// A bad admin edit (as opposed to a database failure) — routes report these as 400s.
+export class ClassRegistrationInputError extends Error {}
+
+// Updates the dancer details copied onto a dancer's existing class_registrations
+// rows in place. Used when only the person's details changed, so the rows keep
+// their ids (attendance matches point at them) and their stored drop-in dates.
+export async function updateDancerOnClassRegistrations(submissionId: string, dancerIndex: number | null, dancer: DancerLike): Promise<void> {
+  let query = supabase
+    .from('class_registrations')
+    .update({
+      first_name: dancer.firstName ?? '',
+      last_name: dancer.lastName ?? '',
+      email: dancer.email || null,
+      phone: dancer.phone || null,
+    })
+    .eq('submission_id', submissionId);
+  query = dancerIndex == null ? query.is('dancer_index', null) : query.eq('dancer_index', dancerIndex);
+  const { error } = await query;
+  if (error) throw new Error(`Failed to update class registrations: ${error.message}`);
+}
+
+export interface DropInOccurrenceUpdate {
+  registrationId: string;
+  occurrenceEventId: string | null;
+}
+
+// Sets which class date each of a dancer's existing Drop-In registrations is
+// for. Every update must target one of this dancer's own Drop-In rows and point
+// at a class event with the same title, so a bad request can't attach a
+// registration to some other class.
+export async function setDropInOccurrences(submissionId: string, dancerIndex: number | null, updates: DropInOccurrenceUpdate[]): Promise<void> {
+  if (updates.length === 0) return;
+
+  const rows = await getClassRegistrationsForDancer(submissionId, dancerIndex);
+  const rowsById = new Map(rows.map((r) => [r.id, r]));
+
+  const eventIds = Array.from(new Set(updates.map((u) => u.occurrenceEventId).filter((id): id is string => !!id)));
+  if (eventIds.some((id) => !UUID_RE.test(id))) throw new ClassRegistrationInputError('That class date is not valid.');
+
+  const titleByEventId = new Map<string, string>();
+  if (eventIds.length > 0) {
+    const { data, error } = await supabase.from('events').select('id, title').eq('event_type', 'class').in('id', eventIds);
+    if (error) throw new Error(`Failed to look up class dates: ${error.message}`);
+    for (const e of data ?? []) titleByEventId.set(e.id, e.title);
+  }
+
+  for (const update of updates) {
+    const reg = rowsById.get(update.registrationId);
+    if (!reg || reg.series_mode !== 'dropin') {
+      throw new ClassRegistrationInputError('Only a dancer\'s own Drop-In registrations can have a class date set.');
+    }
+    if (update.occurrenceEventId && titleByEventId.get(update.occurrenceEventId) !== reg.class_title) {
+      throw new ClassRegistrationInputError(`That date isn't one of the "${reg.class_title}" classes.`);
+    }
+  }
+
+  for (const update of updates) {
+    const { error } = await supabase.from('class_registrations').update({ occurrence_event_id: update.occurrenceEventId }).eq('id', update.registrationId);
+    if (error) throw new Error(`Failed to update the class date: ${error.message}`);
+  }
+}
+
 export async function getClassRegistrationsForSubmission(submissionId: string): Promise<ClassRegistrationRow[]> {
   const { data, error } = await supabase.from('class_registrations').select('*').eq('submission_id', submissionId);
   if (error) {

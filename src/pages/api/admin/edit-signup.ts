@@ -3,9 +3,37 @@ import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { SIGNUPS_LOCK_RESOURCE, requireLock } from '../../../lib/editLock';
 import { recordDeletion } from '../../../lib/deletionAudit';
-import { getClassRegistrationsForDancer, insertClassRegistrations, replaceClassRegistrations } from '../../../lib/classRegistrations';
+import {
+  ClassRegistrationInputError,
+  getClassRegistrationsForDancer,
+  insertClassRegistrations,
+  replaceClassRegistrations,
+  setDropInOccurrences,
+  updateDancerOnClassRegistrations,
+  type DropInOccurrenceUpdate,
+} from '../../../lib/classRegistrations';
 
 export const prerender = false;
+
+const MAX_CLASS_SELECTIONS_LENGTH = 10000;
+
+// The picker's structured selections (series key, mode, chosen drop-in date),
+// serialized for the same class_selections field the public form submits.
+function serializeClassSelections(raw: unknown): string | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const json = JSON.stringify(raw);
+  return json.length <= MAX_CLASS_SELECTIONS_LENGTH ? json : null;
+}
+
+function parseOccurrenceUpdates(raw: unknown): DropInOccurrenceUpdate[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((u): DropInOccurrenceUpdate[] => {
+    if (!u || typeof u !== 'object') return [];
+    const { registrationId, occurrenceEventId } = u as Record<string, unknown>;
+    if (typeof registrationId !== 'string' || !registrationId) return [];
+    return [{ registrationId, occurrenceEventId: typeof occurrenceEventId === 'string' && occurrenceEventId ? occurrenceEventId : null }];
+  });
+}
 
 interface Dancer {
   firstName?: string;
@@ -57,6 +85,7 @@ export const POST: APIRoute = async ({ request }) => {
     await insertClassRegistrations({
       submissionId: newRow.id,
       classRaw: className || null,
+      classSelectionsRaw: serializeClassSelections(body.classSelections),
       dancers: null,
       fallbackFirstName: firstName,
       fallbackLastName: lastName,
@@ -183,16 +212,28 @@ export const POST: APIRoute = async ({ request }) => {
       patch.phone = phone || null;
     }
 
+    const targetDancerIndex = hasDancerIndex ? dancerIndex : null;
+    const dancer = { firstName, lastName, email, phone };
+
     try {
-      await replaceClassRegistrations({
-        submissionId,
-        dancerIndex: hasDancerIndex ? dancerIndex : null,
-        classRaw: className || null,
-        dancer: { firstName, lastName, email, phone },
-      });
+      if (body.keepClasses === true) {
+        // No new classes were picked: leave the existing registrations (and
+        // their stored Drop-In dates) alone, only refreshing the dancer's
+        // details and applying any Drop-In date changes.
+        await setDropInOccurrences(submissionId, targetDancerIndex, parseOccurrenceUpdates(body.occurrenceUpdates));
+        await updateDancerOnClassRegistrations(submissionId, targetDancerIndex, dancer);
+      } else {
+        await replaceClassRegistrations({
+          submissionId,
+          dancerIndex: targetDancerIndex,
+          classRaw: className || null,
+          classSelectionsRaw: serializeClassSelections(body.classSelections),
+          dancer,
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update class registrations.';
-      return new Response(JSON.stringify({ error: message }), { status: 500 });
+      return new Response(JSON.stringify({ error: message }), { status: err instanceof ClassRegistrationInputError ? 400 : 500 });
     }
 
     const { error } = await supabase.from('intake_submissions').update(patch).eq('id', submissionId);

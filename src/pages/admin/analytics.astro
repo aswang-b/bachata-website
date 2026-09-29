@@ -366,9 +366,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   // change runtime behavior, just let TS verify the sort logic is type-safe.
   interface ClassRegistrationEntry {
     id: string | null;
+    classTitle: string;
     classLabel: string;
     seriesMode: 'whole' | 'dropin' | null;
     price: number | null;
+    occurrenceEventId: string | null;
+    occurrenceLabel: string | null;
   }
 
   interface Signup {
@@ -881,13 +884,22 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
               </label>
             </span>`
           : '';
+        // Drop-ins are for one specific date, so picking Drop-in reveals a date select.
+        const occurrenceSelectHtml = series.isSeries
+          ? `
+            <select class="signup-class-occurrence ml-5 hidden w-36 rounded-lg border border-border bg-bg px-1 py-0.5 text-[10px] text-ink">
+              <option value="">Pick class date…</option>
+              ${series.occurrences.map((o) => `<option value="${escapeAttr(o.id)}">${escapeHtml(o.label)}</option>`).join('')}
+            </select>`
+          : '';
         return `
           <div class="flex flex-col gap-0.5">
             <label class="flex items-start gap-1.5 text-xs text-ink">
-              <input type="checkbox" class="signup-class-checkbox mt-0.5 h-3.5 w-3.5" data-base="${escapeAttr(optionBase)}" data-is-series="${String(series.isSeries)}" />
+              <input type="checkbox" class="signup-class-checkbox mt-0.5 h-3.5 w-3.5" data-key="${escapeAttr(series.key)}" data-title="${escapeAttr(series.title)}" data-base="${escapeAttr(optionBase)}" data-is-series="${String(series.isSeries)}" />
               <span>${escapeHtml(series.title)} <span class="text-muted">(${escapeHtml(series.subLabel)})</span></span>
             </label>
             ${modeControlsHtml}
+            ${occurrenceSelectHtml}
           </div>`;
       })
       .join('');
@@ -899,6 +911,48 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       <p class="mt-1 w-44 truncate text-[10px] text-muted" title="${escapeAttr(currentClassRaw)}">Current: ${escapeHtml(currentClassRaw || '—')}</p>`;
   }
 
+  // Lets an admin set or fix the date of a dancer's existing Drop-In
+  // registrations without re-picking classes. Ignored (and disabled) if new
+  // classes are picked above, since picking classes replaces the old ones.
+  function existingDropInDatesHtml(entries: ClassRegistrationEntry[] | undefined): string {
+    const dropIns = (entries ?? []).filter((e) => e.id && e.seriesMode === 'dropin');
+    if (dropIns.length === 0) return '';
+
+    const blocks = dropIns
+      .map((e) => {
+        const series = findSeriesForEventId(e.occurrenceEventId)?.series ?? classSeries.find((c) => c.title === e.classTitle);
+        if (!series) return `<div class="text-[10px] text-muted">${escapeHtml(e.classTitle)}: no matching class found</div>`;
+        const options = series.occurrences
+          .map((o) => `<option value="${escapeAttr(o.id)}" ${o.id === e.occurrenceEventId ? 'selected' : ''}>${escapeHtml(o.label)}</option>`)
+          .join('');
+        return `
+          <label class="flex flex-col gap-0.5 text-[10px] text-muted">
+            ${escapeHtml(e.classTitle)} drop-in date
+            <select class="existing-dropin-occurrence w-44 rounded-lg border border-border bg-bg px-1.5 py-1 text-xs text-ink" data-registration-id="${escapeAttr(e.id ?? '')}" data-original="${escapeAttr(e.occurrenceEventId ?? '')}">
+              <option value="" ${e.occurrenceEventId ? '' : 'selected'}>Date not recorded</option>
+              ${options}
+            </select>
+          </label>`;
+      })
+      .join('');
+
+    return `<div class="existing-dropin-dates mt-2 flex w-44 flex-col gap-1.5 border-t border-border pt-2">${blocks}</div>`;
+  }
+
+  // Shows a class's date select only while Drop-in is the chosen mode, and
+  // dims the existing-registration date controls once new classes are picked.
+  function syncSignupPicker(row: Element) {
+    row.querySelectorAll('.signup-class-checkbox').forEach((checkbox) => {
+      const container = checkbox.closest('.flex.flex-col');
+      const checked = (checkbox as HTMLInputElement).checked;
+      const dropIn = container?.querySelector<HTMLInputElement>('.signup-class-mode[value="dropin"]')?.checked ?? false;
+      container?.querySelector('.signup-class-occurrence')?.classList.toggle('hidden', !(checked && dropIn));
+    });
+    const anyPicked = row.querySelector('.signup-class-checkbox:checked') !== null;
+    row.querySelector('.existing-dropin-dates')?.classList.toggle('opacity-40', anyPicked);
+    row.querySelectorAll<HTMLSelectElement>('.existing-dropin-occurrence').forEach((select) => (select.disabled = anyPicked));
+  }
+
   function signupEditRowHtml(s: Partial<Signup>, mode: 'edit' | 'add'): string {
     const submissionId = s.submissionId ?? '';
     const dancerIndex = s.dancerIndex ?? '';
@@ -908,7 +962,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         <td class="px-2 py-2"><input class="edit-input first-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.firstName ?? '')}" placeholder="First name" /></td>
         <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.lastName ?? '')}" placeholder="Last name" /></td>
         <td class="px-2 py-2"><div class="flex flex-col gap-1"><input class="edit-input email w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.email ?? '')}" placeholder="Email" /><input class="edit-input phone w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.phone ?? '')}" placeholder="Phone" /></div></td>
-        <td class="px-2 py-2 signup-class-cell">${signupClassPickerHtml(originalClass)}</td>
+        <td class="px-2 py-2 signup-class-cell">${signupClassPickerHtml(originalClass)}${existingDropInDatesHtml(s.classRegistrations)}</td>
         <td class="px-2 py-2 text-xs text-muted">—</td>
         <td class="px-2 py-2 payment-select-cell">${paymentSelectHtml(s.paymentMethod ?? null)}</td>
         <td class="px-2 py-2"><input type="checkbox" class="edit-input paid h-4 w-4" ${s.paid ? 'checked' : ''} /></td>
@@ -1012,7 +1066,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.lastName) : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? `<div>${escapeHtml(s.email)}</div><div>${escapeHtml(s.phone)}</div>` : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.classLabel || '—')}</td>
-            <td class="px-4 py-2.5 text-ink/70">${modeLabel}</td>
+            <td class="px-4 py-2.5 text-ink/70">${modeLabel}${
+              entry.seriesMode === 'dropin'
+                ? `<div class="mt-0.5 text-xs ${entry.occurrenceLabel ? 'text-ink' : 'text-muted'}">${escapeHtml(entry.occurrenceLabel ?? 'Date not recorded')}</div>`
+                : ''
+            }</td>
             <td class="px-4 py-2.5 text-ink/70">${paymentSubtotalLabel}</td>
             <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" class="paid-checkbox h-4 w-4" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? dateFormatter.format(new Date(s.createdAt)) : ''}</td>
@@ -1071,9 +1129,19 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     document.querySelectorAll<HTMLInputElement>('.signup-class-checkbox').forEach((checkbox) => {
       checkbox.addEventListener('change', () => {
         const modeControls = checkbox.closest('.flex.flex-col')?.querySelector('.class-mode-controls');
-        if (!modeControls) return;
-        modeControls.classList.toggle('hidden', !checkbox.checked);
-        modeControls.classList.toggle('flex', checkbox.checked);
+        if (modeControls) {
+          modeControls.classList.toggle('hidden', !checkbox.checked);
+          modeControls.classList.toggle('flex', checkbox.checked);
+        }
+        const row = checkbox.closest('tr');
+        if (row) syncSignupPicker(row);
+      });
+    });
+
+    document.querySelectorAll<HTMLInputElement>('.signup-class-mode').forEach((radio) => {
+      radio.addEventListener('change', () => {
+        const row = radio.closest('tr');
+        if (row) syncSignupPicker(row);
       });
     });
 
@@ -1132,20 +1200,32 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         const headers = await withAuthHeader();
         if (!headers) return;
 
-        // Class is a checkbox picker, not free text — if nothing is checked
-        // the admin didn't intend to touch it, so keep whatever was there
-        // rather than silently clearing it out. Series classes carry their
-        // Whole Series / Drop In choice as a " — Mode" suffix, matching the
-        // string the public registration form builds.
-        const checkedClasses = Array.from(row.querySelectorAll<HTMLInputElement>('.signup-class-checkbox:checked')).map((checkbox) => {
-          const base = checkbox.dataset.base ?? '';
-          if (checkbox.dataset.isSeries !== 'true') return base;
-          const modeRadio = checkbox.closest('.flex.flex-col')?.querySelector<HTMLInputElement>('.signup-class-mode:checked');
-          const mode = modeRadio?.value === 'dropin' ? 'Drop In' : 'Whole Series';
-          return `${base} — ${mode}`;
-        });
-        const originalClass = row.getAttribute('data-original-class') ?? '';
-        const className = checkedClasses.length > 0 ? checkedClasses.join('; ') : originalClass;
+        // Class is a checkbox picker, not free text. If nothing is checked the
+        // admin didn't intend to change the classes, so the existing
+        // registrations are kept as they are (only Drop-In date changes, if
+        // any, are applied). Picked classes replace them, and a Drop-In must
+        // say which class date it is for.
+        const selections: { key: string; title: string; label: string; mode: 'whole' | 'dropin' | null; occurrenceEventId: string | null }[] = [];
+        for (const checkbox of Array.from(row.querySelectorAll<HTMLInputElement>('.signup-class-checkbox:checked'))) {
+          const container = checkbox.closest('.flex.flex-col');
+          const title = checkbox.dataset.title ?? '';
+          const classMode: 'whole' | 'dropin' | null =
+            checkbox.dataset.isSeries !== 'true'
+              ? null
+              : container?.querySelector<HTMLInputElement>('.signup-class-mode:checked')?.value === 'dropin'
+                ? 'dropin'
+                : 'whole';
+          const occurrenceEventId = classMode === 'dropin' ? container?.querySelector<HTMLSelectElement>('.signup-class-occurrence')?.value || null : null;
+          if (classMode === 'dropin' && !occurrenceEventId) {
+            alert(`Pick which class date the drop-in for "${title}" is for.`);
+            return;
+          }
+          selections.push({ key: checkbox.dataset.key ?? '', title, label: checkbox.dataset.base ?? '', mode: classMode, occurrenceEventId });
+        }
+        // The legacy "<label> — <Whole Series|Drop In>; …" text stored on the sign-up.
+        const className = selections
+          .map((s) => (s.mode ? `${s.label} — ${s.mode === 'dropin' ? 'Drop In' : 'Whole Series'}` : s.label))
+          .join('; ');
 
         const mode = btn.dataset.mode;
         const payload: Record<string, unknown> = {
@@ -1159,6 +1239,14 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           paymentMethod,
           paid,
         };
+        if (selections.length > 0) {
+          payload.classSelections = selections;
+        } else if (mode === 'edit') {
+          payload.keepClasses = true;
+          payload.occurrenceUpdates = Array.from(row.querySelectorAll<HTMLSelectElement>('.existing-dropin-occurrence'))
+            .filter((select) => select.value !== (select.dataset.original ?? ''))
+            .map((select) => ({ registrationId: select.dataset.registrationId, occurrenceEventId: select.value || null }));
+        }
         if (mode === 'edit') {
           payload.submissionId = btn.dataset.submissionId;
           const dancerIndexRaw = btn.dataset.dancerIndex;

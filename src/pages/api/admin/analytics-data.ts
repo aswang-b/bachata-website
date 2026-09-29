@@ -28,13 +28,19 @@ interface ClassRegistrationRow {
   class_label: string;
   series_mode: 'whole' | 'dropin' | null;
   price: number | null;
+  occurrence_event_id: string | null;
 }
 
 export interface ClassRegistrationEntry {
   id: string | null;
+  classTitle: string;
   classLabel: string;
   seriesMode: 'whole' | 'dropin' | null;
   price: number | null;
+  // Drop-In registrations only: the specific class date the dancer chose
+  // (null for Whole Series, and for Drop-Ins recorded before dates were tracked).
+  occurrenceEventId: string | null;
+  occurrenceLabel: string | null;
 }
 
 interface SignupRow {
@@ -52,7 +58,15 @@ interface SignupRow {
   classRegistrations: ClassRegistrationEntry[];
 }
 
-const EMPTY_CLASS_ENTRY: ClassRegistrationEntry = { id: null, classLabel: '', seriesMode: null, price: null };
+const EMPTY_CLASS_ENTRY: ClassRegistrationEntry = {
+  id: null,
+  classTitle: '',
+  classLabel: '',
+  seriesMode: null,
+  price: null,
+  occurrenceEventId: null,
+  occurrenceLabel: null,
+};
 
 export const GET: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
@@ -87,7 +101,7 @@ export const GET: APIRoute = async ({ request }) => {
       .order('start_time', { ascending: true }),
     supabase
       .from('class_registrations')
-      .select('id, submission_id, dancer_index, class_title, class_label, series_mode, price')
+      .select('id, submission_id, dancer_index, class_title, class_label, series_mode, price, occurrence_event_id')
       .limit(ANALYTICS_ROW_LIMIT),
   ]);
 
@@ -101,6 +115,11 @@ export const GET: APIRoute = async ({ request }) => {
   // null for a class-less single-registrant submission), so each dancer row
   // below can attach its own real per-class breakdown instead of re-parsing
   // a semicolon-joined string.
+  const occurrenceLabelById = new Map<string, string>();
+  for (const series of classSeries) {
+    for (const occ of series.occurrences) occurrenceLabelById.set(occ.id, occ.label);
+  }
+
   const registrationsBySubmission = new Map<string, Map<number | null, ClassRegistrationEntry[]>>();
   for (const reg of (classRegistrationRows ?? []) as ClassRegistrationRow[]) {
     let byDancer = registrationsBySubmission.get(reg.submission_id);
@@ -108,7 +127,15 @@ export const GET: APIRoute = async ({ request }) => {
       byDancer = new Map();
       registrationsBySubmission.set(reg.submission_id, byDancer);
     }
-    const entry: ClassRegistrationEntry = { id: reg.id, classLabel: reg.class_label, seriesMode: reg.series_mode, price: reg.price };
+    const entry: ClassRegistrationEntry = {
+      id: reg.id,
+      classTitle: reg.class_title,
+      classLabel: reg.class_label,
+      seriesMode: reg.series_mode,
+      price: reg.price,
+      occurrenceEventId: reg.occurrence_event_id,
+      occurrenceLabel: reg.occurrence_event_id ? occurrenceLabelById.get(reg.occurrence_event_id) ?? null : null,
+    };
     const existing = byDancer.get(reg.dancer_index);
     if (existing) existing.push(entry);
     else byDancer.set(reg.dancer_index, [entry]);
