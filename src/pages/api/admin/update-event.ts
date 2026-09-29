@@ -2,7 +2,8 @@ import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import {
-  refreshAccessToken,
+  getGoogleAccessToken,
+  GoogleNotConnectedError,
   insertCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
@@ -135,23 +136,17 @@ export const POST: APIRoute = async ({ request }) => {
   const rowImageUrl = imageUrl || null;
   const rowDescription = description ? sanitizeEventDescriptionHtml(description) : null;
 
-  const { data: tokenRow } = await supabase
-    .from('admin_google_tokens')
-    .select('refresh_token')
-    .limit(1)
-    .maybeSingle();
-
   // Tracks whether we actually managed to push this change to Google, so the
   // response can tell the admin their DB save succeeded but the calendar
   // sync didn't — instead of silently reporting a full success either way.
   let calendarSyncSkipped = false;
-  const accessToken = tokenRow
-    ? await refreshAccessToken(tokenRow.refresh_token).catch((err) => {
-        console.error('Failed to refresh Google access token; skipping calendar push:', err);
-        calendarSyncSkipped = true;
-        return null;
-      })
-    : null;
+  const accessToken = await getGoogleAccessToken().catch((err) => {
+    // No Google connection at all just means there's nothing to push to.
+    if (err instanceof GoogleNotConnectedError) return null;
+    console.error('Failed to get a Google access token; skipping calendar push:', err);
+    calendarSyncSkipped = true;
+    return null;
+  });
 
   if (rebuildSeries && applyToSeries && before.google_recurring_event_id && recurrence) {
     // The recurrence pattern itself changed: the only way to change an

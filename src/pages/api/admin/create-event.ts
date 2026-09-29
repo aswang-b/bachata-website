@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
-import { refreshAccessToken, insertCalendarEvent, buildWeeklyRecurrenceRule } from '../../../lib/googleCalendar';
+import { getGoogleAccessToken, GoogleNotConnectedError, insertCalendarEvent, buildWeeklyRecurrenceRule } from '../../../lib/googleCalendar';
 import { runCalendarSync } from '../../../lib/calendarSync';
 import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
 
@@ -68,21 +68,11 @@ export const POST: APIRoute = async ({ request }) => {
   const rowImageUrl = imageUrl || null;
   const rowDescription = description ? sanitizeEventDescriptionHtml(description) : null;
 
-  const { data: tokenRow } = await supabase
-    .from('admin_google_tokens')
-    .select('refresh_token')
-    .limit(1)
-    .maybeSingle();
-
   const isSeries = recurrence && Array.isArray(recurrence.byDay) && recurrence.byDay.length > 0;
 
   if (isSeries) {
-    if (!tokenRow) {
-      return new Response(JSON.stringify({ error: 'No admin Google connection found — connect Google before creating a series.' }), { status: 500 });
-    }
-
     try {
-      const accessToken = await refreshAccessToken(tokenRow.refresh_token);
+      const accessToken = await getGoogleAccessToken();
       const createdMaster = await insertCalendarEvent(accessToken, rowVisibility, {
         siteEventId: randomUUID(),
         summary: title,
@@ -162,23 +152,23 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'Failed to create event.' }), { status: 500 });
   }
 
-  if (tokenRow) {
-    try {
-      const accessToken = await refreshAccessToken(tokenRow.refresh_token);
-      const created = await insertCalendarEvent(accessToken, rowVisibility, {
-        siteEventId: row.id,
-        summary: row.title,
-        description: row.description,
-        location: row.location,
-        startTime: row.start_time,
-        endTime: row.end_time,
-        color: row.color,
-      });
-      await supabase.from('events').update({ google_event_id: created.id }).eq('id', row.id);
-    } catch (err) {
+  try {
+    const accessToken = await getGoogleAccessToken();
+    const created = await insertCalendarEvent(accessToken, rowVisibility, {
+      siteEventId: row.id,
+      summary: row.title,
+      description: row.description,
+      location: row.location,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      color: row.color,
+    });
+    await supabase.from('events').update({ google_event_id: created.id }).eq('id', row.id);
+  } catch (err) {
+    if (!(err instanceof GoogleNotConnectedError)) {
       console.error('Failed to push new event to Google:', err);
-      // The event still exists on the site; the next scheduled sync will retry the push.
     }
+    // The event still exists on the site; the next scheduled sync will retry the push.
   }
 
   return new Response(JSON.stringify({ ok: true, id: row.id }), { status: 200 });

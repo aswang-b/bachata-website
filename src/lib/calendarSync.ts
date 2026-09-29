@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import {
-  refreshAccessToken,
+  getGoogleAccessToken,
   listCalendarEvents,
   insertCalendarEvent,
   updateCalendarEvent,
@@ -217,16 +217,7 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
 }
 
 export async function runCalendarSync(): Promise<{ public: SyncResult; private: SyncResult }> {
-  const { data: tokenRow, error: tokenError } = await supabase
-    .from('admin_google_tokens')
-    .select('refresh_token')
-    .limit(1)
-    .maybeSingle();
-
-  if (tokenError) throw new Error(`Failed to load admin Google token: ${tokenError.message}`);
-  if (!tokenRow) throw new Error('No admin has connected Google Calendar yet.');
-
-  const accessToken = await refreshAccessToken(tokenRow.refresh_token);
+  const accessToken = await getGoogleAccessToken();
 
   const [publicResult, privateResult] = await Promise.all([
     syncCalendar(accessToken, 'public'),

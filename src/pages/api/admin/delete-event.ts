@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
-import { refreshAccessToken, deleteCalendarEvent } from '../../../lib/googleCalendar';
+import { getGoogleAccessToken, deleteCalendarEvent } from '../../../lib/googleCalendar';
 
 export const prerender = false;
 
@@ -35,16 +35,6 @@ export const POST: APIRoute = async ({ request }) => {
     // series in our DB but isn't actually one of Google's real recurrence
     // instances (e.g. a standalone replacement event from a past repair) —
     // without this, such a row would silently survive on Google forever.
-    const { data: tokenRow, error: tokenError } = await supabase
-      .from('admin_google_tokens')
-      .select('refresh_token')
-      .limit(1)
-      .maybeSingle();
-
-    if (tokenError || !tokenRow) {
-      return new Response(JSON.stringify({ error: 'No admin Google connection found.' }), { status: 500 });
-    }
-
     const { data: siblings, error: siblingsError } = await supabase
       .from('events')
       .select('id, google_event_id')
@@ -55,7 +45,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     try {
-      const accessToken = await refreshAccessToken(tokenRow.refresh_token);
+      const accessToken = await getGoogleAccessToken();
       await deleteCalendarEvent(accessToken, row.visibility, row.google_recurring_event_id);
 
       for (const sibling of siblings ?? []) {
@@ -81,18 +71,8 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   if (row.google_event_id) {
-    const { data: tokenRow, error: tokenError } = await supabase
-      .from('admin_google_tokens')
-      .select('refresh_token')
-      .limit(1)
-      .maybeSingle();
-
-    if (tokenError || !tokenRow) {
-      return new Response(JSON.stringify({ error: 'No admin Google connection found.' }), { status: 500 });
-    }
-
     try {
-      const accessToken = await refreshAccessToken(tokenRow.refresh_token);
+      const accessToken = await getGoogleAccessToken();
       await deleteCalendarEvent(accessToken, row.visibility, row.google_event_id);
     } catch (err) {
       console.error('Failed to delete Google Calendar event:', err);

@@ -1,4 +1,5 @@
 import { env } from './env';
+import { supabase } from './supabase';
 
 // Google requires an explicit timeZone alongside dateTime for recurring
 // events (it won't infer one from a bare "Z" UTC offset the way it does for
@@ -111,11 +112,63 @@ export async function refreshAccessToken(refreshToken: string): Promise<string> 
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to refresh Google access token: ${res.status} ${await res.text()}`);
+    const body = await res.text();
+    let googleError: string | undefined;
+    try {
+      googleError = JSON.parse(body).error;
+    } catch {
+      // Non-JSON error body — fall through to the generic error below.
+    }
+    if (googleError === 'invalid_grant') {
+      throw new GoogleAuthError(`Failed to refresh Google access token: ${res.status} ${body}`);
+    }
+    throw new Error(`Failed to refresh Google access token: ${res.status} ${body}`);
   }
 
   const data = await res.json();
   return data.access_token as string;
+}
+
+// Google rejected a stored refresh token as expired/revoked (invalid_grant).
+export class GoogleAuthError extends Error {}
+
+export class GoogleNotConnectedError extends Error {
+  constructor() {
+    super('No admin has connected Google Calendar yet — sign in at /admin with Google first.');
+  }
+}
+
+export class GoogleAuthExpiredError extends Error {
+  constructor() {
+    super('Google connection expired — sign out of /admin and sign back in with Google.');
+  }
+}
+
+// Every stored admin token is tried freshest-first, skipping any Google has
+// rejected as expired/revoked, so one dead token (e.g. a second admin who
+// hasn't signed in lately) can't take the whole calendar sync down with it.
+export async function getGoogleAccessToken(): Promise<string> {
+  const { data: rows, error } = await supabase
+    .from('admin_google_tokens')
+    .select('email, refresh_token')
+    .order('updated_at', { ascending: false });
+
+  if (error) throw new Error(`Failed to load admin Google token: ${error.message}`);
+  if (!rows || rows.length === 0) throw new GoogleNotConnectedError();
+
+  for (const row of rows) {
+    try {
+      return await refreshAccessToken(row.refresh_token);
+    } catch (err) {
+      if (err instanceof GoogleAuthError) {
+        console.warn(`Stored Google token for ${row.email} was rejected (expired or revoked); trying the next one.`);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new GoogleAuthExpiredError();
 }
 
 export async function listCalendarEvents(

@@ -19,7 +19,10 @@ export const POST: APIRoute = async ({ request }) => {
 
   const { error } = await supabase
     .from('admin_google_tokens')
-    .upsert({ user_id: user.id, email: user.email, refresh_token: refreshToken }, { onConflict: 'user_id' });
+    .upsert(
+      { user_id: user.id, email: user.email, refresh_token: refreshToken, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    );
 
   if (error) {
     console.error('Failed to store admin Google token:', error);
