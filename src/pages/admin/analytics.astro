@@ -321,6 +321,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="email">Email</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="class_title">Class</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="created_at">Checked In</th>
+                      <th class="orphaned-signups-actions-header hidden px-3 py-2.5">Link to Class</th>
                     </tr>
                   </thead>
                   <tbody id="orphaned-checkins-body"></tbody>
@@ -977,17 +978,21 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   }
 
   function checkinEditRowHtml(c: Partial<Checkin>, mode: 'edit' | 'add'): string {
+    // A check-in with no linked occurrence still remembers its class title —
+    // preselect that class so the admin only has to pick the date.
     const match = findSeriesForEventId(c.eventId ?? null);
-    const selectedKey = match?.series.key ?? '';
+    const titleSeries = match ? null : classSeries.find((s) => s.title === c.classTitle) ?? null;
+    const selectedKey = match?.series.key ?? titleSeries?.key ?? '';
     const selectedOccurrenceId = match?.occurrenceId ?? '';
-    const selectedIsSeries = match?.series.isSeries ?? false;
+    const selectedSeries = match?.series ?? titleSeries;
+    const selectedIsSeries = selectedSeries?.isSeries ?? false;
 
     const seriesOptionsHtml = classSeries
       .map((series) => `<option value="${escapeAttr(series.key)}" ${series.key === selectedKey ? 'selected' : ''}>${escapeHtml(series.title)} — ${escapeHtml(series.subLabel)}</option>`)
       .join('');
 
     const occurrenceOptionsHtml = selectedIsSeries
-      ? match!.series.occurrences
+      ? selectedSeries!.occurrences
           .map((occ) => `<option value="${escapeAttr(occ.id)}" ${occ.id === selectedOccurrenceId ? 'selected' : ''}>${escapeHtml(occ.label)}</option>`)
           .join('')
       : '';
@@ -1537,6 +1542,38 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       })
       .join('');
 
+    // Lets an admin tie a check-in to a specific class occurrence when it
+    // couldn't be linked automatically (e.g. checked in on a day the class
+    // wasn't scheduled). Preselects the class it already points at, or the
+    // series matching its stored title.
+    const linkCheckinCellHtml = (c: OrphanedCheckin) => {
+      const current = findSeriesForEventId(c.event_id);
+      const series = current?.series ?? classSeries.find((s) => s.title === c.class_title) ?? null;
+      const classOptions = classSeries
+        .map((s) => `<option value="${escapeAttr(s.key)}" ${s.key === series?.key ? 'selected' : ''}>${escapeHtml(s.title)} — ${escapeHtml(s.subLabel)}</option>`)
+        .join('');
+      const dateOptions = series?.isSeries
+        ? series.occurrences
+            .map((o) => `<option value="${escapeAttr(o.id)}" ${o.id === current?.occurrenceId ? 'selected' : ''}>${escapeHtml(o.label)}</option>`)
+            .join('')
+        : '';
+      return `<td class="px-3 py-2.5">
+          <div class="flex flex-col gap-1.5">
+            <select class="link-class-select rounded-lg border border-border bg-bg px-1.5 py-1 text-xs">
+              <option value="">Select class…</option>
+              ${classOptions}
+            </select>
+            <div class="flex gap-1.5">
+              <select class="link-date-select rounded-lg border border-border bg-bg px-1.5 py-1 text-xs" ${series?.isSeries ? '' : 'disabled'}>
+                <option value="">${series?.isSeries ? 'Select date…' : '—'}</option>
+                ${dateOptions}
+              </select>
+              <button class="link-checkin-btn text-xs font-bold text-accent hover:underline" data-checkin-id="${escapeAttr(c.id)}">Link</button>
+            </div>
+          </div>
+        </td>`;
+    };
+
     orphanedCheckinsBody.innerHTML = orphanedCheckinsFiltered
       .map(
         (c) => `
@@ -1544,11 +1581,64 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         <td class="px-3 py-2.5 text-ink">${escapeHtml(`${c.first_name} ${c.last_name}`)}</td>
         <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.phone || '—')}</td>
         <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.email || '—')}</td>
-        <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.class_title)}</td>
+        <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.class_title)}${c.event_id ? '' : ' <span class="text-xs text-orange-600" title="Not linked to a specific class date.">(no date)</span>'}</td>
         <td class="px-3 py-2.5 text-ink/70">${formatEntryDate(c.created_at)}</td>
+        ${isLockedByMe ? linkCheckinCellHtml(c) : ''}
       </tr>`
       )
       .join('');
+
+    document.querySelectorAll<HTMLSelectElement>('.link-class-select').forEach((select) => {
+      select.addEventListener('change', () => {
+        const dateSelect = select.closest('td')!.querySelector('.link-date-select') as HTMLSelectElement;
+        const series = classSeries.find((s) => s.key === select.value);
+        if (series?.isSeries) {
+          dateSelect.disabled = false;
+          dateSelect.innerHTML =
+            '<option value="">Select date…</option>' +
+            series.occurrences.map((o) => `<option value="${escapeAttr(o.id)}">${escapeHtml(o.label)}</option>`).join('');
+        } else {
+          dateSelect.disabled = true;
+          dateSelect.innerHTML = '<option value="">—</option>';
+        }
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.link-checkin-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const cell = btn.closest('td')!;
+        const series = classSeries.find((s) => s.key === (cell.querySelector('.link-class-select') as HTMLSelectElement).value);
+        const eventId = series
+          ? series.isSeries
+            ? (cell.querySelector('.link-date-select') as HTMLSelectElement).value
+            : series.singleEventId ?? ''
+          : '';
+        if (!eventId) {
+          alert('Pick a class (and a date, if it is a series) to link this check-in to.');
+          return;
+        }
+
+        const headers = await withAuthHeader();
+        if (!headers) return;
+        btn.disabled = true;
+
+        const res = await fetch('/api/admin/resolve-attendance', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'link_checkin_event', holderId, checkinId: btn.dataset.checkinId, eventId }),
+        });
+
+        if (res.ok) {
+          // Re-fetch so the server re-runs matching: the check-in now has a
+          // date, so it may pair with a sign-up automatically.
+          await reloadAttendance();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error ?? 'Failed to link the check-in.');
+          btn.disabled = false;
+        }
+      });
+    });
 
     const statusLabel = (status: AttendanceEntry['status']) =>
       status === 'matched'

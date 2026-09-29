@@ -21,6 +21,36 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Lock required.' }), { status: 409 });
   }
 
+  // Links a check-in that auto-linking couldn't tie to a class occurrence
+  // (e.g. checked in on a day the class wasn't scheduled) to a specific one.
+  if (action === 'link_checkin_event') {
+    const { checkinId, eventId } = body;
+    if (!checkinId || !eventId) {
+      return new Response(JSON.stringify({ error: 'Missing checkinId or eventId.' }), { status: 400 });
+    }
+
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id, title')
+      .eq('id', eventId)
+      .eq('event_type', 'class')
+      .maybeSingle();
+    if (eventError || !event) {
+      return new Response(JSON.stringify({ error: 'That class could not be found — please pick again.' }), { status: 400 });
+    }
+
+    const { data: updated, error } = await supabase
+      .from('class_checkins')
+      .update({ event_id: event.id, class_title: event.title })
+      .eq('id', checkinId)
+      .select('id');
+    if (error) return new Response(JSON.stringify({ error: 'Failed to link the check-in to that class.' }), { status: 500 });
+    if (!updated || updated.length === 0) {
+      return new Response(JSON.stringify({ error: 'Check-in not found.' }), { status: 404 });
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  }
+
   if (!classRegistrationId) {
     return new Response(JSON.stringify({ error: 'Missing classRegistrationId.' }), { status: 400 });
   }

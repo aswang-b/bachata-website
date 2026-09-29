@@ -64,7 +64,11 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     return new Response('Too many classes selected at once.', { status: 400 });
   }
 
-  const resolvedEvents: { id: string; title: string }[] = [];
+  // `id` is null for a check-in on a series with no occurrence today; it's
+  // stored by class title only, the confirmation page tells the person to
+  // double-check their selection, and the admin links it to a class from the
+  // Attendance tab.
+  const resolvedEvents: { id: string | null; title: string }[] = [];
 
   if (directEventIds.length > 0) {
     const { data: events, error: eventsError } = await supabase
@@ -98,15 +102,45 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
         .lt('start_time', endIso)
         .order('start_time', { ascending: true });
 
-      if (matchError || !matches || matches.length === 0) {
-        return new Response("One of your selected classes isn't scheduled today — please ask an instructor for help.", { status: 400 });
+      if (matchError || !matches) {
+        console.error('Failed to resolve check-in class for series key:', matchError);
+        return new Response('Something went wrong checking you in. Please try again.', { status: 500 });
       }
-      resolvedEvents.push(matches[0]);
+
+      if (matches.length > 0) {
+        resolvedEvents.push(matches[0]);
+        continue;
+      }
+
+      // No occurrence today (wrong day, or the class was moved) — don't turn
+      // the person away. Record the check-in against the class title alone;
+      // the confirmation page asks them to double-check their selection.
+      const { data: anyOccurrence, error: titleError } = await supabase
+        .from('events')
+        .select('title')
+        .or(keyFilter)
+        .eq('visibility', 'public')
+        .eq('event_type', 'class')
+        .order('start_time', { ascending: true })
+        .limit(1);
+
+      if (titleError || !anyOccurrence || anyOccurrence.length === 0) {
+        // Not a class we know about at all (stale or tampered key) — nothing to record.
+        return new Response('One of your selected classes could not be found — please pick again.', { status: 400 });
+      }
+      resolvedEvents.push({ id: null, title: anyOccurrence[0].title });
     }
   }
 
-  // A direct event id and a series key can resolve to the same occurrence.
-  const uniqueEvents = Array.from(new Map(resolvedEvents.map((e) => [e.id, e])).values());
+  // A direct event id and a series key can resolve to the same occurrence;
+  // title-only check-ins (null id) are kept as-is, one per series.
+  const seenIds = new Set<string>();
+  const uniqueEvents = resolvedEvents.filter((e) => {
+    if (e.id === null) return true;
+    if (seenIds.has(e.id)) return false;
+    seenIds.add(e.id);
+    return true;
+  });
   resolvedEvents.splice(0, resolvedEvents.length, ...uniqueEvents);
 
   let ip = 'unknown';

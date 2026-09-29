@@ -10,7 +10,7 @@ Each file is a standalone Astro page gated by `requireAdmin`-style client checks
 
 | File | Purpose |
 | --- | --- |
-| `analytics.astro` | "Data & Analytics" page (`/admin/analytics`), linked from `admin.astro`. Sortable/filterable tables for Sign-Ups (Drop-Ins show their chosen class date, editable per registration), Check-Ins, and Attendance (matches + orphan workqueue), the last driven client-side by `attendanceMatching.ts`'s matching over data from `attendance-data.ts`; Check-Ins/Attendance tables can be narrowed to a specific series occurrence date, not just a class title. Large file (~1,850 lines) — mostly inline table-rendering/sort/filter script |
+| `analytics.astro` | "Data & Analytics" page (`/admin/analytics`), linked from `admin.astro`. Sortable/filterable tables for Sign-Ups (Drop-Ins show their chosen class date, editable per registration), Check-Ins, and Attendance (matches + orphan workqueue; orphaned check-ins can be linked to a class date), the last driven client-side by `attendanceMatching.ts`'s matching over data from `attendance-data.ts`; Check-Ins/Attendance tables can be narrowed to a specific series occurrence date, not just a class title. Large file (~1,850 lines) — mostly inline table-rendering/sort/filter script |
 | `checkin-qr.astro` | Displays a QR code (from `generate-checkin-qr.ts`) admins can print/display at a class for self-service check-in |
 | `inbox.astro` | Contact-form submission inbox (`inbox-data.ts`), marks-as-seen backing the unread badge in `Header.astro` (`unseen-count.ts`) |
 
