@@ -1,16 +1,13 @@
 // Browser-only crop dialog for event images. The crop is locked to the shape the
-// homepage offering card actually shows on desktop (768x144 = 16:3), exported at
-// 2x so it stays sharp on high-density screens.
-//
-// Phones show the same image at ~2.9:1 with object-cover, which trims the sides,
-// so the dialog draws a dashed "phone view" guide over the middle of the frame.
+// homepage offering card shows (768x324 = 64:27 at its widest), exported at 2x so
+// it stays sharp on high-density screens. The card uses the same 64:27 shape at
+// every screen size, so what's inside the box is exactly what visitors see.
+// Keep in sync with the image's aspect ratio in src/pages/index.astro.
 
-export const CROP_ASPECT = 16 / 3;
+export const CROP_ASPECT = 64 / 27;
 export const CROP_OUTPUT_WIDTH = 1536;
-export const CROP_OUTPUT_HEIGHT = 288;
+export const CROP_OUTPUT_HEIGHT = 648;
 
-// Narrowest phones show roughly the middle 55% of the banner's width.
-const PHONE_VISIBLE_FRACTION = 0.55;
 const MAX_ZOOM = 5;
 const LOW_RES_WIDTH = CROP_OUTPUT_WIDTH / 2;
 
@@ -67,8 +64,8 @@ export async function openImageCropper(file: File): Promise<Blob | null> {
       <div>
         <h3 class="font-display text-lg font-bold text-ink">Crop image</h3>
         <p class="mt-1 text-xs text-muted">
-          Drag the box (or click) to choose what shows on the homepage. Use the slider or scroll to zoom. The whole box is the desktop banner;
-          the dashed lines mark the area phones show.
+          Drag the box (or click) to choose what shows on the homepage. Use the slider or scroll to zoom. Everything inside the box is shown on
+          both desktop and phones.
         </p>
       </div>
       <div class="flex justify-center rounded-xl bg-black/80 p-2">
@@ -124,29 +121,6 @@ export async function openImageCropper(file: File): Promise<Blob | null> {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, w, h);
-
-    const phoneLeft = x + (w * (1 - PHONE_VISIBLE_FRACTION)) / 2;
-    const phoneRight = phoneLeft + w * PHONE_VISIBLE_FRACTION;
-    ctx.setLineDash([6, 4]);
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(phoneLeft, y);
-    ctx.lineTo(phoneLeft, y + h);
-    ctx.moveTo(phoneRight, y);
-    ctx.lineTo(phoneRight, y + h);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.font = '600 10px sans-serif';
-    ctx.textBaseline = 'top';
-    const label = 'PHONE VIEW';
-    const labelWidth = ctx.measureText(label).width + 10;
-    if (phoneRight - phoneLeft > labelWidth + 4 && h > 22) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(phoneLeft + 4, y + 4, labelWidth, 16);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(label, phoneLeft + 9, y + 8);
-    }
 
     const lowRes = boxWidth < LOW_RES_WIDTH;
     warning.classList.toggle('hidden', !lowRes);

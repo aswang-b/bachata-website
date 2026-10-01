@@ -106,7 +106,7 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
   title="Bachata Classes in Madison, WI"
   description="Weekly bachata sensual classes, private coaching, and social dance events in Madison, WI at Dance Life Studio. Beginner-friendly — no partner or experience required."
 >
-  <section class="mx-auto max-w-6xl px-6 py-20">
+  <section class="mx-auto max-w-[1592px] px-6 py-20 xl:px-4">
     <div class="mb-12 mx-auto max-w-4xl text-center">
       <h2 class="font-display text-3xl font-extrabold text-ink">Current Lesson Offerings</h2>
     </div>
@@ -116,7 +116,8 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
         No upcoming classes or events right now — check back soon!
       </p>
     ) : (
-      <div class="mx-auto flex max-w-3xl flex-col gap-6">
+      <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 xl:max-w-none xl:flex-row xl:flex-wrap xl:justify-center">
+        {/* One card per row up to xl; from xl, two per row at the same max card width (max-w-3xl), a lone last card centered. */}
         {offerings.map((offering, index) => {
           const image =
             offering.imageUrl ??
@@ -125,8 +126,9 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
           const href = `${registerBase(offering)}?series=${encodeURIComponent(offering.key)}`;
 
           return (
-            <article class="group flex flex-col overflow-hidden rounded-3xl border border-border bg-bg shadow-[0_2px_16px_rgba(0,0,0,0.06)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)]">
-              <div class="relative h-28 w-full overflow-hidden sm:h-36">
+            <article class="group flex flex-col overflow-hidden rounded-3xl border border-border bg-bg shadow-[0_2px_16px_rgba(0,0,0,0.06)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] xl:w-[calc(50%-12px)] xl:max-w-3xl">
+              {/* 64:27 on every screen size; keep in sync with CROP_ASPECT in src/lib/imageCropper.ts. */}
+              <div class="relative aspect-[64/27] w-full overflow-hidden">
                 <img
                   src={image}
                   alt={offering.title}

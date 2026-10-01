@@ -50,7 +50,7 @@
 │   │   ├── faqs.ts                      # FAQ list persistence
 │   │   ├── googleCalendar.ts            # Google Calendar API client
 │   │   ├── homepageContent.ts           # Editable homepage copy (lesson overview) persistence
-│   │   ├── imageCropper.ts              # Browser-only crop dialog for event images (locked 16:3 banner, 1536x288 JPEG)
+│   │   ├── imageCropper.ts              # Browser-only crop dialog for event images (locked 64:27 card image, 1536x648 JPEG)
 │   │   ├── notificationSettings.ts      # Admin-editable notification recipients + per-IP email caps
 │   │   ├── previewMode.ts               # Draft/preview banner state
 │   │   ├── pricing.ts                   # Tiered (early-bird/flash-sale) pricing resolution, pure/isomorphic
