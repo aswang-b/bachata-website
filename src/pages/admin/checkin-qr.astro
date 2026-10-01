@@ -108,13 +108,13 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
       function selectItem() {
         document.querySelectorAll('.class-item').forEach((other) => {
-          other.classList.remove('border-accent');
+          (other as HTMLElement).dataset.selected = 'false';
           if (other !== item) {
             other.querySelector('.occurrence-picker')?.classList.add('hidden');
             other.querySelector('.occurrence-picker')?.classList.remove('flex');
           }
         });
-        item.classList.add('border-accent');
+        item.dataset.selected = 'true';
       }
 
       toggleBtn.addEventListener('click', () => {
@@ -152,7 +152,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
     for (const s of seriesList) {
       const item = document.createElement('div');
-      item.className = 'class-item overflow-hidden rounded-xl border border-border bg-surface';
+      item.className = 'class-item overflow-hidden rounded-xl border border-border bg-surface data-[selected=true]:border-accent';
       item.dataset.key = s.key;
       item.dataset.isSeries = String(s.isSeries);
       item.dataset.singleEventId = s.singleEventId ?? '';

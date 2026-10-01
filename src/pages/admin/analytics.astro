@@ -497,6 +497,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     tabButtons.forEach((btn) => {
       const active = btn.dataset.tab === tab;
       btn.classList.toggle('border-accent', active);
+      btn.classList.toggle('border-transparent', !active);
       btn.classList.toggle('text-ink', active);
       btn.classList.toggle('text-ink/60', !active);
     });

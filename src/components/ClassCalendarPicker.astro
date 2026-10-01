@@ -159,16 +159,14 @@ const {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className =
-          'flex items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-left text-sm text-ink transition-colors hover:border-accent';
+          'flex items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-left text-sm text-ink transition-colors hover:border-accent aria-pressed:border-accent aria-pressed:bg-surface';
         btn.dataset.eventId = event.id;
         btn.setAttribute('aria-pressed', 'false');
         btn.innerHTML = `<span class="h-2 w-2 rounded-full ${dotClass[event.color] ?? dotClass.accent}" aria-hidden="true"></span>${event.title} — ${timeFormatter.format(new Date(event.start_time))}`;
         btn.addEventListener('click', () => {
           optionsEl.querySelectorAll('button').forEach((b) => {
-            b.classList.remove('border-accent', 'bg-surface');
             b.setAttribute('aria-pressed', 'false');
           });
-          btn.classList.add('border-accent', 'bg-surface');
           btn.setAttribute('aria-pressed', 'true');
           selectedEvent = event;
 

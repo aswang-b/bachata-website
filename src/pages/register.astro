@@ -156,7 +156,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
           <div id="series-list" class="flex flex-col gap-2">
             {seriesList.map((s) => (
               <div
-                class={`series-item rounded-xl border bg-surface ${s.registrationClosed ? 'border-border/60 opacity-60' : 'border-border'}`}
+                class={`series-item rounded-xl border bg-surface data-[selected=true]:border-accent ${s.registrationClosed ? 'border-border/60 opacity-60' : 'border-border'}`}
                 data-key={s.key}
                 data-title={s.title}
                 data-sub-label={s.subLabel}
@@ -316,7 +316,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         <input type="hidden" name="payment_method" id="payment-method-value" />
 
         <div class="flex flex-col gap-2">
-          <div class="payment-item overflow-hidden rounded-xl border border-border bg-surface" data-value="cash">
+          <div class="payment-item overflow-hidden rounded-xl border border-border bg-surface data-[selected=true]:border-accent" data-value="cash">
             <button
               type="button"
               class="payment-toggle-btn flex w-full items-center rounded-t-xl px-4 py-3 text-left transition-colors hover:bg-bg"
@@ -330,7 +330,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
             </div>
           </div>
 
-          <div class="payment-item overflow-hidden rounded-xl border border-border bg-surface" data-value="venmo">
+          <div class="payment-item overflow-hidden rounded-xl border border-border bg-surface data-[selected=true]:border-accent" data-value="venmo">
             <button
               type="button"
               class="payment-toggle-btn flex w-full items-center rounded-t-xl px-4 py-3 text-left transition-colors hover:bg-bg"
@@ -594,7 +594,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     function deselectSeries() {
       selections.delete(key);
       toggleBtn.classList.remove('bg-bg');
-      item.classList.remove('border-accent');
+      item.dataset.selected = 'false';
       subchoice?.classList.add('hidden');
       subchoice?.classList.remove('flex');
       details?.classList.add('hidden');
@@ -612,7 +612,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         modeRadios.forEach((r) => (r.checked = r.value === 'whole'));
         selections.set(key, { key, title, subLabel, isSeries, mode: 'whole', priceWhole, priceDropIn, occurrenceEventId: null });
         toggleBtn.classList.add('bg-bg');
-        item.classList.add('border-accent');
+        item.dataset.selected = 'true';
         subchoice?.classList.remove('hidden');
         subchoice?.classList.add('flex');
         details?.classList.remove('hidden');
@@ -681,13 +681,13 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
     toggleBtn.addEventListener('click', () => {
       document.querySelectorAll<HTMLElement>('.payment-item').forEach((other) => {
-        other.classList.remove('border-accent');
+        other.dataset.selected = 'false';
         if (other !== item) {
           other.querySelector('.payment-details')?.classList.add('hidden');
           other.querySelector('.payment-details')?.classList.remove('flex');
         }
       });
-      item.classList.add('border-accent');
+      item.dataset.selected = 'true';
       paymentMethodValue.value = value;
       paymentError.classList.add('hidden');
       details?.classList.remove('hidden');
