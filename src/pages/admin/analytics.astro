@@ -98,10 +98,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
               <table class="w-full min-w-[640px] text-left text-sm">
                 <thead class="bg-bg text-xs font-semibold uppercase tracking-wider text-muted">
                   <tr>
-                    <th class="px-4 py-2.5">Name</th>
-                    <th class="px-4 py-2.5">Class</th>
-                    <th class="px-4 py-2.5">Deleted</th>
-                    <th class="px-4 py-2.5">By</th>
+                    <th class="sort-header cursor-pointer select-none px-4 py-2.5" data-table="deleted-signups" data-column="nameSort">Name</th>
+                    <th class="sort-header cursor-pointer select-none px-4 py-2.5" data-table="deleted-signups" data-column="class">Class</th>
+                    <th class="sort-header cursor-pointer select-none px-4 py-2.5" data-table="deleted-signups" data-column="deletedAt">Deleted</th>
+                    <th class="sort-header cursor-pointer select-none px-4 py-2.5" data-table="deleted-signups" data-column="deletedBy">By</th>
                     <th class="px-4 py-2.5">Restore</th>
                   </tr>
                 </thead>
@@ -119,8 +119,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="lastName">Last Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="email">Contact Info</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[220px]" data-table="signups" data-column="class">Class</th>
-                  <th class="px-4 py-3">Series</th>
-                  <th class="px-4 py-3">Payment</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="seriesSort">Series</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paymentSort">Payment</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paid">Paid</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="createdAt">Registered</th>
                   <th class="signups-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
@@ -204,10 +204,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
               <table class="w-full min-w-[560px] text-left text-sm">
                 <thead class="bg-bg text-xs font-semibold uppercase tracking-wider text-muted">
                   <tr>
-                    <th class="px-4 py-2.5">Name</th>
-                    <th class="px-4 py-2.5">Class</th>
-                    <th class="px-4 py-2.5">Deleted</th>
-                    <th class="px-4 py-2.5">By</th>
+                    <th class="sort-header cursor-pointer select-none px-4 py-2.5" data-table="deleted-checkins" data-column="nameSort">Name</th>
+                    <th class="sort-header cursor-pointer select-none px-4 py-2.5" data-table="deleted-checkins" data-column="classTitle">Class</th>
+                    <th class="sort-header cursor-pointer select-none px-4 py-2.5" data-table="deleted-checkins" data-column="deletedAt">Deleted</th>
+                    <th class="sort-header cursor-pointer select-none px-4 py-2.5" data-table="deleted-checkins" data-column="deletedBy">By</th>
                     <th class="px-4 py-2.5">Restore</th>
                   </tr>
                 </thead>
@@ -386,6 +386,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     // Derived in reloadData() from classRegistrations, for the existing
     // name-search/class-filter/sort logic that expects a flat string.
     class: string;
+    // Sort keys for the Series and Payment columns, derived in reloadData()
+    // from classRegistrations (a dancer can have several rows per cell).
+    seriesSort: string;
+    paymentSort: string;
     classRegistrations: ClassRegistrationEntry[];
     paymentMethod: string | null;
     paid: boolean;
@@ -524,13 +528,16 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     return null;
   }
 
-  const DATE_COLUMNS = new Set(['createdAt', 'classDate', 'occurrenceDate', 'created_at']);
+  const DATE_COLUMNS = new Set(['createdAt', 'classDate', 'occurrenceDate', 'created_at', 'deletedAt']);
 
   let signupSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
   let checkinSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
   let attendanceOrphanedSignupsSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
   let attendanceOrphanedCheckinsSort: { column: string; direction: 'asc' | 'desc' } = { column: 'last_name', direction: 'asc' };
   let attendanceMatchesSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
+  // Recently-deleted tables default to newest deletion first, as the API returns them.
+  let deletedSignupsSort: { column: string; direction: 'asc' | 'desc' } = { column: 'deletedAt', direction: 'desc' };
+  let deletedCheckinsSort: { column: string; direction: 'asc' | 'desc' } = { column: 'deletedAt', direction: 'desc' };
 
   // --- Editing locks ---
   // A conservative pessimistic lock: only the tab that holds it may add,
@@ -815,8 +822,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     'attendance-orphaned-signups': attendanceOrphanedSignupsSort,
     'attendance-orphaned-checkins': attendanceOrphanedCheckinsSort,
     'attendance-matches': attendanceMatchesSort,
+    'deleted-signups': deletedSignupsSort,
+    'deleted-checkins': deletedCheckinsSort,
   };
   const RENDER_BY_TABLE: Record<string, () => void> = {
+    'deleted-signups': () => renderDeletedSignups(),
+    'deleted-checkins': () => renderDeletedCheckins(),
     signups: () => renderSignups(),
     checkins: () => renderCheckins(),
     'attendance-orphaned-signups': () => renderAttendance(),
@@ -839,6 +850,14 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       RENDER_BY_TABLE[table]?.();
     });
   });
+
+  // Payment column sort key: method first (what the column leads with), then
+  // the dancer's total across their classes so same-method rows order by amount.
+  function signupPaymentSortKey(s: Pick<Signup, 'paymentMethod' | 'classRegistrations'>): string {
+    const method = s.paymentMethod === 'venmo' ? 'Venmo' : s.paymentMethod === 'cash' ? 'Cash' : '—';
+    const total = s.classRegistrations.reduce((sum, e) => sum + (e.price ?? 0), 0);
+    return `${method} ${total.toFixed(2).padStart(9, '0')}`;
+  }
 
   function formatPrice(value: number): string {
     return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
@@ -1795,7 +1814,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     firstName: string;
     lastName: string;
     class: string | null;
+    nameSort: string;
+    [key: string]: unknown;
   }
+  let deletedSignupEntries: DeletedSignupEntry[] = [];
 
   async function loadDeletedSignups() {
     const headers = await withAuthHeader();
@@ -1804,6 +1826,13 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     const res = await fetch('/api/admin/deleted-signups', { headers });
     if (!res.ok) return;
     const { entries } = (await res.json()) as { entries: DeletedSignupEntry[] };
+    deletedSignupEntries = entries.map((e) => ({ ...e, nameSort: `${e.lastName} ${e.firstName}`.trim() }));
+    renderDeletedSignups();
+  }
+
+  // Re-sorts and redraws from the already-loaded entries (no refetch).
+  function renderDeletedSignups() {
+    const entries = sortRows(deletedSignupEntries, deletedSignupsSort);
 
     deletedSignupsCount.textContent = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
     deletedSignupsEmpty.classList.toggle('hidden', entries.length > 0);
@@ -1851,6 +1880,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         }
       });
     });
+
+    updateSortHeaders('deleted-signups', deletedSignupsSort);
   }
 
   showDeletedBtn.addEventListener('click', () => {
@@ -1874,7 +1905,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     firstName: string;
     lastName: string;
     classTitle: string | null;
+    nameSort: string;
+    [key: string]: unknown;
   }
+  let deletedCheckinEntries: DeletedCheckinEntry[] = [];
 
   async function loadDeletedCheckins() {
     const headers = await withAuthHeader();
@@ -1883,6 +1917,13 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     const res = await fetch('/api/admin/deleted-checkins', { headers });
     if (!res.ok) return;
     const { entries } = (await res.json()) as { entries: DeletedCheckinEntry[] };
+    deletedCheckinEntries = entries.map((e) => ({ ...e, nameSort: `${e.lastName} ${e.firstName}`.trim() }));
+    renderDeletedCheckins();
+  }
+
+  // Re-sorts and redraws from the already-loaded entries (no refetch).
+  function renderDeletedCheckins() {
+    const entries = sortRows(deletedCheckinEntries, deletedCheckinsSort);
 
     deletedCheckinsCount.textContent = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
     deletedCheckinsEmpty.classList.toggle('hidden', entries.length > 0);
@@ -1930,6 +1971,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         }
       });
     });
+
+    updateSortHeaders('deleted-checkins', deletedCheckinsSort);
   }
 
   showDeletedCheckinsBtn.addEventListener('click', () => {
@@ -1955,7 +1998,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     if (!dataRes.ok) return false;
 
     const { signups, checkins, classTitles, classSeries: series } = await dataRes.json();
-    allSignups = (signups as Signup[]).map((s) => ({ ...s, class: serializeClassRegistrations(s.classRegistrations) }));
+    allSignups = (signups as Signup[]).map((s) => ({
+      ...s,
+      class: serializeClassRegistrations(s.classRegistrations),
+      seriesSort: s.classRegistrations.map((e) => (e.seriesMode === 'whole' ? 'Whole Series' : e.seriesMode === 'dropin' ? 'Drop In' : '—')).join(' / '),
+      paymentSort: signupPaymentSortKey(s),
+    }));
     allCheckins = checkins;
     classSeries = series ?? [];
 
