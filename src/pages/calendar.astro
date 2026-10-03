@@ -230,10 +230,11 @@ const MAX_BANNERS_PER_DAY = 3;
           data-month={month}
           class="mx-auto max-w-6xl rounded-3xl border border-border bg-bg p-4 shadow-[0_2px_16px_rgba(0,0,0,0.05)]"
         >
-          <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold uppercase tracking-wider text-muted">
+          <div class="grid grid-cols-7 text-center text-xs font-semibold uppercase tracking-wider text-muted">
             {weekdayLabels.map((label) => <div class="py-2">{label}</div>)}
           </div>
-          <div id="calendar-cells" class="grid grid-cols-7 gap-1">
+          {/* Hairline gridlines: the grid draws its top/left edge, each cell its right/bottom. */}
+          <div id="calendar-cells" class="grid grid-cols-7 border-l border-t border-border/30">
             {cells.map(({ date }) => {
               const dayEvents = date ? eventsByDate.get(date.toDateString()) ?? [] : [];
               const isToday = date ? date.toDateString() === today.toDateString() : false;
@@ -247,7 +248,7 @@ const MAX_BANNERS_PER_DAY = 3;
               const isCompact = dayEvents.length > 2;
               return (
                 <div
-                  class={`calendar-cell flex flex-col gap-1 rounded-xl p-1 text-sm ${isCompact ? 'min-h-[6rem] sm:min-h-[6.5rem]' : 'min-h-[7rem] sm:min-h-[7.5rem]'}`}
+                  class={`calendar-cell flex flex-col gap-1 border-b border-r border-border/30 p-1 text-sm ${isCompact ? 'min-h-[6rem] sm:min-h-[6.5rem]' : 'min-h-[7rem] sm:min-h-[7.5rem]'}`}
                   data-date={dateKey}
                 >
                   {date && (
@@ -1546,7 +1547,7 @@ const MAX_BANNERS_PER_DAY = 3;
     cell.classList.add('day-expanded', 'ring-2', 'ring-accent');
 
     const panel = document.createElement('div');
-    panel.className = 'day-expand-panel col-span-7 flex flex-col gap-1 rounded-xl border border-border bg-surface p-2 sm:hidden';
+    panel.className = 'day-expand-panel col-span-7 m-1 flex flex-col gap-1 rounded-xl border border-border bg-surface p-2 sm:hidden';
 
     banners.forEach((banner) => {
       const event = JSON.parse(banner.dataset.event ?? '{}');
