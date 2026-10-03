@@ -5,7 +5,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
 import { buildClassSeriesList } from '../lib/classSeries';
 import { getActivePrice, priceTierLabel } from '../lib/pricing';
-import { getHomepageContent } from '../lib/homepageContent';
+import { applyCardOrder, getHomepageCardOrder, getHomepageContent } from '../lib/homepageContent';
 import { listFaqs } from '../lib/faqs';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
 import classPlaceholder2 from '../assets/stock/class-placeholder-2.jpg';
@@ -38,8 +38,12 @@ const { data: allEventsForTotals, error: totalsError } = await supabase
 
 if (totalsError) console.error('Failed to load series totals:', totalsError);
 
-const offerings = buildClassSeriesList(events ?? [], allEventsForTotals ?? []).sort((a, b) =>
-  a.nextStartTime.localeCompare(b.nextStartTime)
+// Soonest first by default; an admin-saved order (set with the arrows shown to
+// admins on this page, reset from Admin Tools → Homepage) overrides it. Only
+// upcoming classes are loaded above, so a past class drops off regardless.
+const offerings = applyCardOrder(
+  buildClassSeriesList(events ?? [], allEventsForTotals ?? []).sort((a, b) => a.nextStartTime.localeCompare(b.nextStartTime)),
+  await getHomepageCardOrder()
 );
 
 function formatPrice(value: number): string {
@@ -116,7 +120,11 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
         No upcoming classes or events right now — check back soon!
       </p>
     ) : (
-      <div class="mx-auto flex max-w-3xl flex-col gap-6">
+      <p id="card-order-hint" class="mx-auto mb-4 hidden max-w-3xl rounded-xl border border-border bg-surface px-4 py-2.5 text-xs text-muted">
+        Admin: use the arrows on each card to reorder them. The order is saved for everyone, and you can reset it to the default under Admin Tools → Homepage.
+        <span id="card-order-status" class="ml-1 font-semibold text-accent"></span>
+      </p>
+      <div id="offering-list" class="mx-auto flex max-w-3xl flex-col gap-6">
         {offerings.map((offering, index) => {
           const image =
             offering.imageUrl ??
@@ -125,7 +133,10 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
           const href = `${registerBase(offering)}?series=${encodeURIComponent(offering.key)}`;
 
           return (
-            <article class="group flex flex-col overflow-hidden rounded-3xl border border-border bg-bg shadow-[0_2px_16px_rgba(0,0,0,0.06)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)]">
+            <article
+              data-offering-key={offering.key}
+              class="group flex flex-col overflow-hidden rounded-3xl border border-border bg-bg shadow-[0_2px_16px_rgba(0,0,0,0.06)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)]"
+            >
               <div class="relative h-28 w-full overflow-hidden sm:h-36">
                 <img
                   src={image}
@@ -136,6 +147,15 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
                   <span class={`rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md ${bgClass(offering.color)}`}>
                     {seriesTypeLabel(offering)}
                   </span>
+                </div>
+                {/* Admin-only reorder arrows; revealed by the script below once an admin session is confirmed. */}
+                <div class="card-order-controls absolute right-3 top-3 hidden gap-1.5">
+                  <button type="button" data-move="-1" aria-label={`Move ${offering.title} up`} title="Move up" class="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/60">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
+                  </button>
+                  <button type="button" data-move="1" aria-label={`Move ${offering.title} down`} title="Move down" class="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/60">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                  </button>
                 </div>
               </div>
               <div class="flex flex-col gap-3 p-6 sm:p-8">
@@ -226,3 +246,90 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
     )}
   </section>
 </BaseLayout>
+
+<script>
+  import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { isPreviewingAsPublic } from '../lib/previewMode';
+
+  const list = document.getElementById('offering-list');
+  const hint = document.getElementById('card-order-hint');
+  const status = document.getElementById('card-order-status');
+
+  const cards = () => Array.from(list?.querySelectorAll<HTMLElement>('[data-offering-key]') ?? []);
+
+  function refreshArrows() {
+    const all = cards();
+    all.forEach((card, index) => {
+      card.querySelector<HTMLButtonElement>('[data-move="-1"]')!.disabled = index === 0;
+      card.querySelector<HTMLButtonElement>('[data-move="1"]')!.disabled = index === all.length - 1;
+    });
+  }
+
+  function showStatus(message: string) {
+    if (!status) return;
+    status.textContent = message;
+    setTimeout(() => {
+      if (status.textContent === message) status.textContent = '';
+    }, 2000);
+  }
+
+  async function saveOrder(accessToken: string): Promise<boolean> {
+    const res = await fetch('/api/admin/update-homepage-card-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ order: cards().map((card) => card.dataset.offeringKey) }),
+    });
+    return res.ok;
+  }
+
+  async function revealReorderControlsIfAdmin() {
+    if (!list || cards().length === 0 || isPreviewingAsPublic()) return;
+
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const res = await fetch('/api/admin/check', { headers: { Authorization: `Bearer ${session.access_token}` } });
+    const { isAdmin } = await res.json();
+    if (!isAdmin) return;
+
+    hint?.classList.remove('hidden');
+    document.querySelectorAll('.card-order-controls').forEach((el) => {
+      el.classList.remove('hidden');
+      el.classList.add('flex');
+    });
+    refreshArrows();
+
+    list.addEventListener('click', async (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-move]');
+      const card = button?.closest<HTMLElement>('[data-offering-key]');
+      if (!button || !card || button.disabled) return;
+
+      const all = cards();
+      const index = all.indexOf(card);
+      const target = all[index + Number(button.dataset.move)];
+      if (!target) return;
+
+      // Move optimistically, then undo if the save fails.
+      const nextSibling = card.nextElementSibling;
+      if (Number(button.dataset.move) < 0) list.insertBefore(card, target);
+      else list.insertBefore(target, card);
+      refreshArrows();
+      showStatus('Saving…');
+
+      const {
+        data: { session: current },
+      } = await supabaseBrowser.auth.getSession();
+      if (current && (await saveOrder(current.access_token))) {
+        showStatus('Saved.');
+      } else {
+        list.insertBefore(card, nextSibling);
+        refreshArrows();
+        showStatus('Could not save the new order — try again.');
+      }
+    });
+  }
+
+  revealReorderControlsIfAdmin();
+</script>

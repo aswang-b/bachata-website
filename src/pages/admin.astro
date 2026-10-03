@@ -198,6 +198,22 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <p id="overview-status" class="min-h-4 text-xs text-muted"></p>
         </div>
 
+        <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+          <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage Card Order</p>
+          <p class="text-xs text-muted">
+            Reorder the class cards with the arrows that appear on each card when you view the homepage as an admin. The order sticks, but classes still drop off once
+            they've passed, and new classes are added at the end. Reset puts them back in the default order (soonest first).
+          </p>
+          <button
+            id="card-order-reset"
+            type="button"
+            class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Reset to Default Order
+          </button>
+          <p id="card-order-reset-status" class="min-h-4 text-xs text-muted"></p>
+        </div>
+
         <div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
           <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage FAQs</p>
           <div id="faq-list" class="flex flex-col gap-3"></div>
@@ -739,6 +755,24 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
     statusEl.textContent = res.ok ? 'Saved.' : 'Failed to save — try again.';
     if (res.ok) setTimeout(() => (statusEl.textContent = ''), 1500);
+  });
+
+  document.getElementById('card-order-reset')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('card-order-reset-status')!;
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    // An empty order means "use the default order".
+    const res = await fetch('/api/admin/update-homepage-card-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ order: [] }),
+    });
+
+    statusEl.textContent = res.ok ? 'Reset — the homepage now uses the default order.' : 'Failed to reset — try again.';
+    if (res.ok) setTimeout(() => (statusEl.textContent = ''), 2500);
   });
 
   interface FaqRow {
