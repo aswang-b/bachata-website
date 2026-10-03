@@ -77,7 +77,6 @@ export const GET: APIRoute = async ({ request }) => {
   const [
     { data: intakeRows, error: intakeError },
     { data: checkinRows, error: checkinError },
-    { data: classEvents, error: eventsError },
     { data: allClassEvents, error: allClassEventsError },
     { data: classRegistrationRows, error: classRegistrationsError },
   ] = await Promise.all([
@@ -91,9 +90,10 @@ export const GET: APIRoute = async ({ request }) => {
       .select('id, created_at, first_name, last_name, phone, class_title, event_id')
       .order('created_at', { ascending: false })
       .limit(ANALYTICS_ROW_LIMIT),
-    supabase.from('events').select('title').eq('event_type', 'class').order('title', { ascending: true }),
     // Admins can attach a check-in to any class occurrence, past or future,
     // so this isn't filtered to upcoming/public like the check-in.astro form.
+    // Also the source for the class-title filter list and each check-in's
+    // class date below, so those don't need their own queries.
     supabase
       .from('events')
       .select('id, title, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in')
@@ -105,7 +105,7 @@ export const GET: APIRoute = async ({ request }) => {
       .limit(ANALYTICS_ROW_LIMIT),
   ]);
 
-  if (intakeError || checkinError || eventsError || allClassEventsError || classRegistrationsError) {
+  if (intakeError || checkinError || allClassEventsError || classRegistrationsError) {
     return new Response(JSON.stringify({ error: 'Failed to load analytics data.' }), { status: 500 });
   }
 
@@ -180,11 +180,14 @@ export const GET: APIRoute = async ({ request }) => {
   });
 
   // Look up the specific scheduled date/time of the class each check-in was for.
-  const eventIds = [...new Set((checkinRows ?? []).map((r) => r.event_id).filter(Boolean))] as string[];
-  const eventDateById = new Map<string, string>();
-  if (eventIds.length > 0) {
-    const { data: checkinEvents } = await supabase.from('events').select('id, start_time').in('id', eventIds);
-    for (const e of checkinEvents ?? []) eventDateById.set(e.id, e.start_time);
+  const eventDateById = new Map<string, string>((allClassEvents ?? []).map((e) => [e.id, e.start_time]));
+
+  // Nearly always empty: a check-in only points at a class event, which is
+  // already in the map. Only an id outside it (e.g. a non-class event) costs a query.
+  const missingEventIds = [...new Set((checkinRows ?? []).map((r) => r.event_id).filter((id): id is string => Boolean(id) && !eventDateById.has(id as string)))];
+  if (missingEventIds.length > 0) {
+    const { data: otherEvents } = await supabase.from('events').select('id, start_time').in('id', missingEventIds);
+    for (const e of otherEvents ?? []) eventDateById.set(e.id, e.start_time);
   }
 
   const checkins = (checkinRows ?? []).map((row) => ({
@@ -198,7 +201,7 @@ export const GET: APIRoute = async ({ request }) => {
     classDate: row.event_id ? eventDateById.get(row.event_id) ?? null : null,
   }));
 
-  const classTitles = [...new Set((classEvents ?? []).map((e) => e.title))];
+  const classTitles = [...new Set((allClassEvents ?? []).map((e) => e.title))].sort((a, b) => a.localeCompare(b));
 
   return new Response(JSON.stringify({ signups, checkins, classTitles, classSeries }), {
     status: 200,
