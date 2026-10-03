@@ -192,12 +192,17 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   // QR-checked-in attendee a matching registration so they don't end up as
   // orphaned check-ins. Only honored for QR (direct event id) check-ins, and
   // never allowed to fail the check-in itself.
-  // The token is signed per event, so it only unlocks the event the admin's QR
-  // was generated for.
-  const registerToken = String(formData.get('register_token') ?? '');
-  if (registerToken) {
+  // Each token is signed per event, so it only unlocks the event the admin's QR
+  // was generated for. A multi-class QR carries one per class; only the classes
+  // the dancer actually picked (directEventIds) are ever considered.
+  const registerTokens = formData
+    .getAll('register_token')
+    .map((v) => String(v))
+    .filter(Boolean)
+    .slice(0, MAX_CLASSES_PER_SUBMISSION);
+  if (registerTokens.length > 0) {
     for (const eventId of directEventIds) {
-      if (!verifyCheckinRegisterToken(eventId, registerToken)) continue;
+      if (!registerTokens.some((token) => verifyCheckinRegisterToken(eventId, token))) continue;
       try {
         await createCheckinDropInRegistration({ eventId, firstName, lastName, phone });
       } catch (err) {

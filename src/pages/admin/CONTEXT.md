@@ -11,7 +11,7 @@ Each file is a standalone Astro page gated by `requireAdmin`-style client checks
 | File | Purpose |
 | --- | --- |
 | `analytics.astro` | "Data & Analytics" page (`/admin/analytics`), linked from `admin.astro`. Sortable/filterable tables for Sign-Ups (Drop-Ins show their chosen class date, editable per registration), Check-Ins, and Attendance (matches + orphan workqueue; orphaned check-ins can be linked to a class date), the last driven client-side by `attendanceMatching.ts`'s matching over data from `attendance-data.ts`; Check-Ins/Attendance tables can be narrowed to a specific series occurrence date, not just a class title. Large file (~1,850 lines) — mostly inline table-rendering/sort/filter script |
-| `checkin-qr.astro` | Displays a QR code (from `generate-checkin-qr.ts`) admins can print/display at a class for self-service check-in |
+| `checkin-qr.astro` | Displays a QR code (from `generate-checkin-qr.ts`) admins can print/display at a class for self-service check-in. Multi-select: one class/date makes the usual per-class link; two or more make one QR whose check-in page (`/check-in?events=…`) lets dancers pick which they're here for. Optional "also register attendees as drop-ins" |
 | `inbox.astro` | Contact-form submission inbox (`inbox-data.ts`), marks-as-seen backing the unread badge in `Header.astro` (`unseen-count.ts`) |
 
 ## Integration Points

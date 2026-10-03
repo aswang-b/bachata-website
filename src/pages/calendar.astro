@@ -145,11 +145,13 @@ function priceTypeHtml(label: string, event: PricedEvent, field: 'whole' | 'drop
   return `${label}: <s class="text-muted">${formatPrice(result.originalPrice!)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
 }
 
-function buildPriceLines(event: PricedEvent): { main: string; student: string } {
+function buildPriceLines(event: PricedEvent & { event_type?: string }): { main: string; student: string } {
+  // Events (not classes) just list the price, with no per-class unit.
+  const perClass = event.event_type === 'event' ? '' : '/class';
   const whole = priceTypeHtml('Whole Series', event, 'whole');
-  const dropIn = priceTypeHtml('Drop In', event, 'dropIn', '/class');
+  const dropIn = priceTypeHtml('Drop In', event, 'dropIn', perClass);
   const parts = [whole, dropIn].filter(Boolean);
-  const student = priceTypeHtml('Student Discount', event, 'student', '/class');
+  const student = priceTypeHtml('Student Discount', event, 'student', perClass);
   return { main: parts.join(' &middot; '), student };
 }
 
@@ -1002,11 +1004,13 @@ const MAX_BANNERS_PER_DAY = 3;
 
   function buildPriceLines(event: SiteEvent): { main: string; student: string } {
     const parts: string[] = [];
+    // Events (not classes) just list the price, with no per-class unit.
+    const perClass = event.event_type === 'event' ? '' : '/class';
     const whole = priceTypeHtml('Whole Series', event, 'whole');
-    const dropIn = priceTypeHtml('Drop In', event, 'dropIn', '/class');
+    const dropIn = priceTypeHtml('Drop In', event, 'dropIn', perClass);
     if (whole) parts.push(whole);
     if (dropIn) parts.push(dropIn);
-    const student = priceTypeHtml('Student Discount', event, 'student', '/class');
+    const student = priceTypeHtml('Student Discount', event, 'student', perClass);
     return { main: parts.join(' &middot; '), student };
   }
   const detailAdminActions = document.getElementById('detail-admin-actions')!;

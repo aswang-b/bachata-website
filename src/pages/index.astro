@@ -68,9 +68,15 @@ function priceTypeHtml(label: string, offering: (typeof offerings)[number], fiel
 
 function priceLine(offering: (typeof offerings)[number]): string | null {
   if (offering.priceWholeSeries == null && offering.priceDropIn == null && offering.priceStudent == null) return null;
+  // Events (not classes) just list the price, with no per-class unit.
+  const perClass = offering.eventType === 'event' ? '' : '/class';
   const whole = priceTypeHtml(offering.isSeries ? 'Whole Series' : 'Price', offering, 'whole');
-  const dropIn = offering.isSeries ? priceTypeHtml('Drop In', offering, 'dropIn', '/class') : '';
-  const student = priceTypeHtml('Student', offering, 'student', '/class');
+  // A one-off class with only a drop-in price (e.g. a practica) still shows that price.
+  const dropIn =
+    offering.isSeries || offering.priceWholeSeries == null
+      ? priceTypeHtml('Drop In', offering, 'dropIn', offering.isSeries ? perClass : '')
+      : '';
+  const student = priceTypeHtml('Student', offering, 'student', perClass);
   return [whole, dropIn, student].filter(Boolean).join(' &middot; ');
 }
 

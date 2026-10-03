@@ -253,7 +253,14 @@ function buildRegistrationRows(
     // rather than storing a null price (defense in depth; the UI already
     // hides the Drop In option in this case).
     const dropInAvailable = info?.dropIn != null;
-    const effectiveMode: ParsedClassSelection['mode'] = sel.mode === 'dropin' && !dropInAvailable ? 'whole' : sel.mode;
+    // And the reverse: a class with only a drop-in price (no whole/flat price)
+    // can only ever be a drop-in, whatever mode the client sent.
+    const dropInOnly = dropInAvailable && info?.whole == null;
+    const effectiveMode: ParsedClassSelection['mode'] = dropInOnly
+      ? 'dropin'
+      : sel.mode === 'dropin' && !dropInAvailable
+        ? 'whole'
+        : sel.mode;
     const isDropIn = effectiveMode === 'dropin';
 
     const priceResult = getActivePrice(now, {

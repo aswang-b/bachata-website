@@ -5,24 +5,74 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
 import { buildClassSeriesList, chicagoDayBoundsUtcIso } from '../lib/classSeries';
 import { getSiteSettings } from '../lib/siteSettings';
+import { TIME_ZONE } from '../lib/classSeries';
+import { verifyCheckinRegisterToken } from '../lib/checkinToken';
 
 const { disable_checkin_page: checkinDisabled } = await getSiteSettings();
 
-const seriesList = checkinDisabled
-  ? []
-  : await (async () => {
-      const { startIso } = chicagoDayBoundsUtcIso();
-      const { data: classEvents, error } = await supabase
-        .from('events')
-        .select('id, title, start_time, end_time, google_recurring_event_id')
-        .eq('visibility', 'public')
-        .eq('event_type', 'class')
-        .gte('start_time', startIso)
-        .order('start_time', { ascending: true });
+// An admin-generated QR for several classes links here as
+// `?events=<id>,<id>` (with `&register=<id>.<token>,…` when attendees should
+// also be registered). Those exact events — public or private — are offered
+// instead of today's public classes, so dancers pick which they're here for.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const eventsParam = Astro.url.searchParams.get('events');
+const linkedIds = eventsParam
+  ? [...new Set(eventsParam.split(',').map((s) => s.trim()).filter((id) => UUID_RE.test(id)))].slice(0, 12)
+  : null;
+const isLinked = linkedIds !== null;
 
-      if (error) console.error('Failed to load classes for check-in:', error);
-      return buildClassSeriesList(classEvents ?? []);
-    })();
+const registerTokens = new Map<string, string>();
+for (const pair of (Astro.url.searchParams.get('register') ?? '').split(',')) {
+  const [id, token] = pair.split('.');
+  if (id && token) registerTokens.set(id, token);
+}
+
+interface PickerItem {
+  key: string;
+  title: string;
+  subLabel: string;
+  // Set when checking in to this class also registers the dancer as a drop-in.
+  registerPrice: number | null;
+}
+
+const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: TIME_ZONE });
+const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TIME_ZONE });
+
+async function loadLinkedItems(ids: string[]): Promise<PickerItem[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase
+    .from('events')
+    .select('id, title, start_time, end_time, price_drop_in, registration_closed')
+    .eq('event_type', 'class')
+    .in('id', ids)
+    .order('start_time', { ascending: true });
+  if (error) console.error('Failed to load linked classes for check-in:', error);
+  return (data ?? []).map((e) => ({
+    key: e.id,
+    title: e.title,
+    subLabel: `${dateFormatter.format(new Date(e.start_time))}, ${timeFormatter.format(new Date(e.start_time))}–${timeFormatter.format(new Date(e.end_time))}`,
+    registerPrice:
+      e.price_drop_in != null && !e.registration_closed && verifyCheckinRegisterToken(e.id, registerTokens.get(e.id)) ? e.price_drop_in : null,
+  }));
+}
+
+async function loadTodayItems(): Promise<PickerItem[]> {
+  const { startIso } = chicagoDayBoundsUtcIso();
+  const { data: classEvents, error } = await supabase
+    .from('events')
+    .select('id, title, start_time, end_time, google_recurring_event_id')
+    .eq('visibility', 'public')
+    .eq('event_type', 'class')
+    .gte('start_time', startIso)
+    .order('start_time', { ascending: true });
+
+  if (error) console.error('Failed to load classes for check-in:', error);
+  return buildClassSeriesList(classEvents ?? []).map((s) => ({ key: s.key, title: s.title, subLabel: s.subLabel, registerPrice: null }));
+}
+
+const pickerItems: PickerItem[] = checkinDisabled ? [] : isLinked ? await loadLinkedItems(linkedIds) : await loadTodayItems();
+// Tokens for the classes that register on check-in (the API re-verifies per class).
+const registerTokenInputs = pickerItems.filter((p) => p.registerPrice != null).map((p) => registerTokens.get(p.key)!);
 
 const inputClass =
   'rounded-xl border border-border bg-surface px-3 py-2.5 text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20';
@@ -47,18 +97,22 @@ const inputClass =
         </p>
 
         <form method="POST" action="/api/submit-checkin" class="mt-8 flex flex-col gap-5">
-          <div id="series-keys-container"></div>
+          {/* Picked classes become hidden inputs here: `event_ids` for a QR's exact events, `series_keys` for today's classes. */}
+          <div id="series-keys-container" data-field={isLinked ? 'event_ids' : 'series_keys'}></div>
+          {registerTokenInputs.map((token) => <input type="hidden" name="register_token" value={token} />)}
 
           <div class="flex flex-col gap-1.5">
             <span class="text-sm font-medium text-ink/80">Classes<span class="text-accent"> *</span></span>
 
-            {seriesList.length === 0 ? (
+            {pickerItems.length === 0 ? (
               <p class="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
-                No classes are scheduled for today or later.
+                {isLinked
+                  ? "This check-in link isn't valid anymore. Ask the front desk for a current QR code."
+                  : 'No classes are scheduled for today or later.'}
               </p>
             ) : (
               <div id="class-list" class="flex flex-col gap-2">
-                {seriesList.map((s) => (
+                {pickerItems.map((s) => (
                   <button
                     type="button"
                     class="class-item flex w-full flex-col items-start gap-0.5 rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-bg aria-pressed:border-accent aria-pressed:bg-bg"
@@ -67,6 +121,7 @@ const inputClass =
                   >
                     <span class="font-semibold text-ink">{s.title}</span>
                     <span class="text-xs text-muted">{s.subLabel}</span>
+                    {s.registerPrice != null && <span class="text-xs text-accent">Also registers you as a drop-in (${s.registerPrice})</span>}
                   </button>
                 ))}
               </div>
@@ -108,6 +163,8 @@ const inputClass =
 
 <script>
   const seriesKeysContainer = document.getElementById('series-keys-container');
+  // `series_keys` on today's page; `event_ids` when the page was opened from a multi-class QR.
+  const fieldName = seriesKeysContainer?.dataset.field ?? 'series_keys';
   const classError = document.getElementById('class-error');
   const selectedKeys = new Set<string>();
 
@@ -117,7 +174,7 @@ const inputClass =
     for (const key of selectedKeys) {
       const input = document.createElement('input');
       input.type = 'hidden';
-      input.name = 'series_keys';
+      input.name = fieldName;
       input.value = key;
       seriesKeysContainer.appendChild(input);
     }

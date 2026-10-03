@@ -8,7 +8,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       <h1 class="font-display text-3xl font-extrabold text-ink">Check-In QR Codes</h1>
       <a href="/admin" class="text-sm font-semibold text-accent hover:underline">&larr; Admin Tools</a>
     </div>
-    <p class="mt-2 text-sm text-muted">Pick a class (and date, if it's a series) to generate a QR code and link for that specific check-in.</p>
+    <p class="mt-2 text-sm text-muted">
+      Pick a class (and date, if it's a series) to generate a QR code and link for that specific check-in. Pick two or more and the check-in page lets dancers
+      choose which they're checking in for.
+    </p>
 
     <p id="loading" class="mt-8 text-sm text-muted">Loading&hellip;</p>
 
@@ -23,7 +26,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
     <div id="dashboard" class="mt-8 hidden flex-col gap-6">
       <div class="flex flex-col gap-1.5">
-        <span class="text-sm font-medium text-ink/80">Class</span>
+        <span class="text-sm font-medium text-ink/80">Classes</span>
+        <p id="selection-summary" class="min-h-4 text-xs font-semibold text-accent"></p>
 
         <p id="no-classes" class="hidden rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
           No classes are scheduled for today or later.
@@ -87,7 +91,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     dashboard.classList.toggle('flex', name === 'dashboard');
   }
 
-  let selectedEventId = '';
+  // The chosen occurrence for each class/series (series key -> event id), one
+  // per class. One pick makes the usual single-class QR; two or more make a QR
+  // whose page lets dancers choose which class(es) they're checking in for.
+  const selectedByKey = new Map<string, string>();
   const generateBtn = document.getElementById('generate-btn') as HTMLButtonElement;
   const generateError = document.getElementById('generate-error')!;
   const resultBox = document.getElementById('result')!;
@@ -98,9 +105,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const resultUrl = document.getElementById('result-url') as HTMLInputElement;
   const resultCopy = document.getElementById('result-copy') as HTMLButtonElement;
 
-  function setSelectedEventId(id: string) {
-    selectedEventId = id;
-    generateBtn.disabled = !id;
+  const selectionSummary = document.getElementById('selection-summary')!;
+
+  function hideResult() {
     resultBox.classList.add('hidden');
     resultBox.classList.remove('flex');
     generateError.classList.add('hidden');
@@ -113,74 +120,106 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const REGISTER_TOO_DEFAULT_HINT =
     "For drop-in-only events: checking in also creates an unpaid drop-in registration, so attendees don't show up as orphaned check-ins.";
 
-  // The option needs a drop-in price and open registration on the chosen class.
-  function syncRegisterOption(item: HTMLElement | null) {
+  const allItems = () => Array.from(document.querySelectorAll<HTMLElement>('.class-item'));
+  const selectedItems = () => allItems().filter((item) => selectedByKey.has(item.dataset.key ?? ''));
+
+  // The option needs a drop-in price and open registration on every chosen class.
+  function syncRegisterOption(items: HTMLElement[]) {
     registerToo.checked = false;
-    if (!item) {
+    const closed = items.find((item) => item.dataset.registrationClosed === 'true');
+    const noPrice = items.find((item) => !item.dataset.dropInPrice);
+    const subject = items.length > 1 ? 'a selected class' : 'this class';
+    if (items.length === 0) {
       registerToo.disabled = true;
       registerTooHint.textContent = `${REGISTER_TOO_DEFAULT_HINT} Pick a class first.`;
-    } else if (item.dataset.registrationClosed === 'true') {
+    } else if (closed) {
       registerToo.disabled = true;
-      registerTooHint.textContent = 'Not available: registration is closed for this class.';
-    } else if (!item.dataset.dropInPrice) {
+      registerTooHint.textContent = `Not available: registration is closed for ${items.length > 1 ? closed.querySelector('.font-semibold')?.textContent : subject}.`;
+    } else if (noPrice) {
       registerToo.disabled = true;
-      registerTooHint.textContent = 'Not available: this class has no drop-in price set.';
+      registerTooHint.textContent = `Not available: ${items.length > 1 ? noPrice.querySelector('.font-semibold')?.textContent : subject} has no drop-in price set.`;
     } else {
       registerToo.disabled = false;
-      registerTooHint.textContent = `${REGISTER_TOO_DEFAULT_HINT} Each check-in is registered at the $${item.dataset.dropInPrice} drop-in price.`;
+      const prices = items.map((item) => `${item.querySelector('.font-semibold')?.textContent} $${item.dataset.dropInPrice}`);
+      registerTooHint.textContent =
+        items.length === 1
+          ? `${REGISTER_TOO_DEFAULT_HINT} Each check-in is registered at the $${items[0].dataset.dropInPrice} drop-in price.`
+          : `${REGISTER_TOO_DEFAULT_HINT} Dancers are registered as drop-ins for whichever they pick (${prices.join(', ')}).`;
     }
+  }
+
+  // Redraws everything that depends on the selection.
+  function updateSelectionUi() {
+    const items = selectedItems();
+    allItems().forEach((item) => (item.dataset.selected = String(selectedByKey.has(item.dataset.key ?? ''))));
+    generateBtn.disabled = selectedByKey.size === 0;
+    selectionSummary.textContent =
+      selectedByKey.size === 0
+        ? ''
+        : selectedByKey.size === 1
+          ? '1 class selected — dancers check in straight to it.'
+          : `${selectedByKey.size} classes selected — dancers pick which they're checking in for (they can pick more than one).`;
+    syncRegisterOption(items);
+    hideResult();
   }
 
   registerToo.addEventListener('change', () => {
     // The QR/link already shown was made with the old setting, so hide it.
-    resultBox.classList.add('hidden');
-    resultBox.classList.remove('flex');
+    hideResult();
   });
 
   function attachClassItemHandlers() {
-    document.querySelectorAll<HTMLElement>('.class-item').forEach((item) => {
+    allItems().forEach((item) => {
+      const key = item.dataset.key ?? '';
       const isSeries = item.dataset.isSeries === 'true';
       const singleEventId = item.dataset.singleEventId ?? '';
       const toggleBtn = item.querySelector('.class-select-btn') as HTMLButtonElement;
       const picker = item.querySelector<HTMLElement>('.occurrence-picker');
       const occurrenceButtons = Array.from(item.querySelectorAll<HTMLButtonElement>('.occurrence-btn'));
 
-      function selectItem() {
-        document.querySelectorAll('.class-item').forEach((other) => {
-          (other as HTMLElement).dataset.selected = 'false';
-          if (other !== item) {
-            other.querySelector('.occurrence-picker')?.classList.add('hidden');
-            other.querySelector('.occurrence-picker')?.classList.remove('flex');
-          }
+      function paintOccurrenceButtons() {
+        const chosen = selectedByKey.get(key);
+        occurrenceButtons.forEach((b) => {
+          const on = b.dataset.eventId === chosen;
+          b.classList.toggle('gradient-accent', on);
+          b.classList.toggle('text-white', on);
+          b.classList.toggle('border-transparent', on);
+          b.classList.toggle('border-border', !on);
+          b.classList.toggle('text-ink/70', !on);
         });
-        item.dataset.selected = 'true';
-        syncRegisterOption(item);
       }
 
+      // A one-off class toggles on/off; a series opens its date picker (the
+      // class counts as selected once a date is chosen, and clicking it again
+      // while selected clears it).
       toggleBtn.addEventListener('click', () => {
-        selectItem();
         if (isSeries) {
-          setSelectedEventId('');
-          occurrenceButtons.forEach((b) => {
-            b.classList.remove('gradient-accent', 'text-white', 'border-transparent');
-            b.classList.add('border-border', 'text-ink/70');
-          });
-          picker?.classList.remove('hidden');
-          picker?.classList.add('flex');
-        } else {
-          setSelectedEventId(singleEventId);
+          if (selectedByKey.has(key)) {
+            selectedByKey.delete(key);
+            paintOccurrenceButtons();
+            picker?.classList.add('hidden');
+            picker?.classList.remove('flex');
+            updateSelectionUi();
+            return;
+          }
+          const open = !picker?.classList.contains('hidden');
+          picker?.classList.toggle('hidden', open);
+          picker?.classList.toggle('flex', !open);
+          return;
         }
+        if (selectedByKey.has(key)) selectedByKey.delete(key);
+        else selectedByKey.set(key, singleEventId);
+        updateSelectionUi();
       });
 
       occurrenceButtons.forEach((btn) =>
         btn.addEventListener('click', () => {
-          occurrenceButtons.forEach((b) => {
-            b.classList.remove('gradient-accent', 'text-white', 'border-transparent');
-            b.classList.add('border-border', 'text-ink/70');
-          });
-          btn.classList.add('gradient-accent', 'text-white', 'border-transparent');
-          btn.classList.remove('border-border', 'text-ink/70');
-          setSelectedEventId(btn.dataset.eventId ?? '');
+          const id = btn.dataset.eventId ?? '';
+          // One date per class: picking a different date swaps it, the same date clears it.
+          if (selectedByKey.get(key) === id) selectedByKey.delete(key);
+          else selectedByKey.set(key, id);
+          paintOccurrenceButtons();
+          updateSelectionUi();
         })
       );
     });
@@ -239,7 +278,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   }
 
   generateBtn.addEventListener('click', async () => {
-    if (!selectedEventId) return;
+    if (selectedByKey.size === 0) return;
 
     const {
       data: { session },
@@ -253,7 +292,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       const res = await fetch('/api/admin/generate-checkin-qr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ eventId: selectedEventId, createRegistration: registerToo.checked }),
+        body: JSON.stringify({ eventIds: Array.from(selectedByKey.values()), createRegistration: registerToo.checked }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to generate QR code.');
@@ -270,7 +309,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       generateError.textContent = err instanceof Error ? err.message : 'Failed to generate QR code.';
       generateError.classList.remove('hidden');
     } finally {
-      generateBtn.disabled = !selectedEventId;
+      generateBtn.disabled = selectedByKey.size === 0;
     }
   });
 
