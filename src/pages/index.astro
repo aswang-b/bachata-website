@@ -19,7 +19,7 @@ const faqs = await listFaqs();
 const { data: events, error } = await supabase
   .from('events')
   .select(
-    'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until'
+    'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview'
   )
   .eq('visibility', 'public')
   .in('event_type', ['class', 'event'])
@@ -130,6 +130,10 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
             offering.imageUrl ??
             (offering.eventType === 'event' ? eventPlaceholder.src : classPlaceholders[index % classPlaceholders.length].src);
           const price = priceLine(offering);
+          // A class can override the "About This Class Format" header and/or body
+          // (each falls back to the default when not filled in) or hide the section.
+          const overviewTitle = offering.lessonOverviewTitle ?? 'About This Class Format';
+          const overviewBody = offering.lessonOverviewBody ?? lessonOverview;
           const href = `${registerBase(offering)}?series=${encodeURIComponent(offering.key)}`;
 
           return (
@@ -205,15 +209,15 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
                     </details>
                   )}
 
-                  {lessonOverview && (
+                  {overviewBody && !offering.hideLessonOverview && (
                     <details class="group/acc rounded-xl border border-border bg-surface open:bg-bg">
                       <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
-                        About This Class Format
+                        {overviewTitle}
                         <span class="shrink-0 text-muted transition-transform group-open/acc:rotate-180">⌄</span>
                       </summary>
                       <div
                         class="border-t border-border px-4 py-3 text-sm leading-relaxed text-ink/70 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5"
-                        set:html={lessonOverview}
+                        set:html={overviewBody}
                       />
                     </details>
                   )}

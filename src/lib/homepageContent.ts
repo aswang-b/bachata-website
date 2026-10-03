@@ -13,6 +13,19 @@ export function sanitizeLessonOverviewHtml(html: string): string {
   return sanitizeRichHtml(html, LESSON_OVERVIEW_TAGS);
 }
 
+export const MAX_LESSON_OVERVIEW_TITLE_LENGTH = 120;
+
+// Cleans the class editor's per-class override of the homepage card's "About
+// This Class Format" section. A part that's empty (or only the leftover
+// <br>/whitespace a cleared contenteditable keeps) comes back null, meaning
+// "use the default" — so only a filled-in header/body overrides anything.
+export function normalizeLessonOverviewOverride(title: unknown, body: unknown): { title: string | null; body: string | null } {
+  const cleanTitle = typeof title === 'string' ? title.trim().slice(0, MAX_LESSON_OVERVIEW_TITLE_LENGTH) : '';
+  const cleanBody = typeof body === 'string' ? sanitizeLessonOverviewHtml(body).trim() : '';
+  const bodyHasContent = cleanBody.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().length > 0;
+  return { title: cleanTitle || null, body: bodyHasContent ? cleanBody : null };
+}
+
 export async function getHomepageContent(): Promise<HomepageContent> {
   const { data, error } = await supabase.from('homepage_content').select('lesson_overview').eq('id', true).maybeSingle();
   if (error) console.error('Failed to load homepage content:', error.message);

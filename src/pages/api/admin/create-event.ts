@@ -5,6 +5,7 @@ import { requireAdmin } from '../../../lib/admin';
 import { getGoogleAccessToken, GoogleNotConnectedError, insertCalendarEvent, buildWeeklyRecurrenceRule } from '../../../lib/googleCalendar';
 import { runCalendarSync } from '../../../lib/calendarSync';
 import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
+import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
 
 export const prerender = false;
 
@@ -42,6 +43,9 @@ export const POST: APIRoute = async ({ request }) => {
     flashSaleUntil,
     registrationClosed,
     imageUrl,
+    lessonOverviewTitle,
+    lessonOverviewBody,
+    hideLessonOverview,
   } = body ?? {};
 
   if (!title || !startTime || !endTime) {
@@ -66,6 +70,8 @@ export const POST: APIRoute = async ({ request }) => {
   const rowFlashSaleUntil = toTimestamp(flashSaleUntil);
   const rowRegistrationClosed = Boolean(registrationClosed);
   const rowImageUrl = imageUrl || null;
+  const rowLessonOverview = normalizeLessonOverviewOverride(lessonOverviewTitle, lessonOverviewBody);
+  const rowHideLessonOverview = Boolean(hideLessonOverview);
   const rowDescription = description ? sanitizeEventDescriptionHtml(description) : null;
 
   const isSeries = recurrence && Array.isArray(recurrence.byDay) && recurrence.byDay.length > 0;
@@ -109,6 +115,9 @@ export const POST: APIRoute = async ({ request }) => {
           flash_sale_until: rowFlashSaleUntil,
           registration_closed: rowRegistrationClosed,
           image_url: rowImageUrl,
+          lesson_overview_title: rowLessonOverview.title,
+          lesson_overview_body: rowLessonOverview.body,
+          hide_lesson_overview: rowHideLessonOverview,
         })
         .eq('google_recurring_event_id', createdMaster.id);
     } catch (err) {
@@ -144,6 +153,9 @@ export const POST: APIRoute = async ({ request }) => {
       flash_sale_until: rowFlashSaleUntil,
       registration_closed: rowRegistrationClosed,
       image_url: rowImageUrl,
+      lesson_overview_title: rowLessonOverview.title,
+      lesson_overview_body: rowLessonOverview.body,
+      hide_lesson_overview: rowHideLessonOverview,
     })
     .select()
     .single();

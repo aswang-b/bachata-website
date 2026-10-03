@@ -19,7 +19,7 @@ export const GET: APIRoute = async ({ request }) => {
     const { data, error } = await supabase
       .from('events')
       .select(
-        'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until'
+        'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview'
       )
       .order('start_time', { ascending: true })
       .order('id', { ascending: true })

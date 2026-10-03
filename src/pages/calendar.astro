@@ -32,7 +32,7 @@ const monthStart = new Date(year, month, 1);
 const monthEnd = new Date(year, month + 1, 1);
 
 const EVENT_COLUMNS =
-  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until';
+  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview';
 
 const { data: monthEvents, error: monthError } = await supabase
   .from('events')
@@ -587,6 +587,49 @@ const MAX_BANNERS_PER_DAY = 3;
           </div>
         </details>
 
+        <details class="group rounded-xl border border-border">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-semibold text-ink/80 [&::-webkit-details-marker]:hidden">
+            Homepage lesson overview override
+            <span class="shrink-0 text-muted transition-transform group-open:rotate-180">⌄</span>
+          </summary>
+          <div class="flex flex-col gap-3 border-t border-border p-3">
+            <p class="text-xs text-muted">
+              Replaces the "About This Class Format" section on this class's homepage card. Fill in a header, a body, or both — anything left blank keeps the
+              default. Applies to the whole series.
+            </p>
+            <label class="flex items-center gap-2 text-sm text-ink/80">
+              <input id="event-hide-lesson-overview" type="checkbox" class="h-4 w-4 rounded border-border" />
+              Hide this section entirely on the homepage card
+            </label>
+            <div id="event-lesson-overview-fields" class="flex flex-col gap-2 transition-opacity">
+              <input
+                id="event-lesson-overview-title"
+                type="text"
+                maxlength="120"
+                placeholder="Header (default: About This Class Format)"
+                class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none"
+              />
+              <div class="flex flex-wrap gap-1 border-b border-border pb-1.5">
+                <button type="button" data-cmd="bold" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
+                <button type="button" data-cmd="italic" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
+                <button type="button" data-cmd="underline" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
+                <button type="button" data-cmd="insertUnorderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
+                <button type="button" data-cmd="insertOrderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
+                <button type="button" id="event-lesson-overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+              </div>
+              <div
+                id="event-lesson-overview-body"
+                contenteditable="true"
+                role="textbox"
+                aria-multiline="true"
+                aria-label="Lesson overview body"
+                data-placeholder="Body (default: the site-wide lesson overview)"
+                class="min-h-20 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink empty:before:text-muted/60 empty:before:content-[attr(data-placeholder)] focus:border-accent focus:outline-none [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+              ></div>
+            </div>
+          </div>
+        </details>
+
         <label class="flex items-center gap-2 text-sm text-ink/80">
           <input id="event-registration-closed" type="checkbox" class="h-4 w-4 rounded border-border" />
           Registration Closed (greys out Register Now everywhere this class appears)
@@ -769,6 +812,9 @@ const MAX_BANNERS_PER_DAY = 3;
     price_drop_in_flash_sale: number | null;
     price_student_flash_sale: number | null;
     flash_sale_until: string | null;
+    lesson_overview_title: string | null;
+    lesson_overview_body: string | null;
+    hide_lesson_overview: boolean;
     weekNumber?: number | null;
   }
 
@@ -896,6 +942,10 @@ const MAX_BANNERS_PER_DAY = 3;
   const priceStudentFlashSaleInput = document.getElementById('event-price-student-flash-sale') as HTMLInputElement;
   const flashSaleUntilInput = document.getElementById('event-flash-sale-until') as HTMLInputElement;
   const registrationClosedInput = document.getElementById('event-registration-closed') as HTMLInputElement;
+  const lessonOverviewTitleInput = document.getElementById('event-lesson-overview-title') as HTMLInputElement;
+  const lessonOverviewBodyInput = document.getElementById('event-lesson-overview-body') as HTMLElement;
+  const hideLessonOverviewInput = document.getElementById('event-hide-lesson-overview') as HTMLInputElement;
+  const lessonOverviewFields = document.getElementById('event-lesson-overview-fields')!;
   const imageUrlInput = document.getElementById('event-image-url') as HTMLInputElement;
   const imageFileInput = document.getElementById('event-image-file') as HTMLInputElement;
   const imagePreview = document.getElementById('event-image-preview') as HTMLImageElement;
@@ -1075,6 +1125,12 @@ const MAX_BANNERS_PER_DAY = 3;
     }
   }
 
+  // While the section is hidden the header/body are ignored, so dim them
+  // (their values are kept in case the toggle is switched back off).
+  function syncLessonOverviewFields() {
+    lessonOverviewFields.classList.toggle('opacity-40', hideLessonOverviewInput.checked);
+  }
+
   function openModal(mode: 'add' | 'edit', event?: SiteEvent, presetDate?: string) {
     editingId = event?.id ?? null;
     editingRecurringId = event?.google_recurring_event_id ?? null;
@@ -1094,6 +1150,10 @@ const MAX_BANNERS_PER_DAY = 3;
     priceStudentFlashSaleInput.value = event?.price_student_flash_sale != null ? String(event.price_student_flash_sale) : '';
     flashSaleUntilInput.value = toLocalDateTimeValue(event?.flash_sale_until);
     registrationClosedInput.checked = event?.registration_closed ?? false;
+    lessonOverviewTitleInput.value = event?.lesson_overview_title ?? '';
+    lessonOverviewBodyInput.innerHTML = event?.lesson_overview_body ?? '';
+    hideLessonOverviewInput.checked = event?.hide_lesson_overview ?? false;
+    syncLessonOverviewFields();
     imageUrlInput.value = event?.image_url ?? '';
     imageError.classList.add('hidden');
     updateImagePreview();
@@ -1307,6 +1367,22 @@ const MAX_BANNERS_PER_DAY = 3;
     });
   });
 
+  hideLessonOverviewInput.addEventListener('change', syncLessonOverviewFields);
+
+  document.querySelectorAll<HTMLButtonElement>('.lesson-overview-format-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      lessonOverviewBodyInput.focus();
+      document.execCommand(btn.dataset.cmd!, false);
+    });
+  });
+
+  document.getElementById('event-lesson-overview-link-btn')?.addEventListener('click', () => {
+    const url = prompt('Link URL (must start with https:// or /):');
+    if (!url) return;
+    lessonOverviewBodyInput.focus();
+    document.execCommand('createLink', false, url);
+  });
+
   document.getElementById('event-description-link-btn')?.addEventListener('click', () => {
     const url = prompt('Link URL (must start with https:// or /):');
     if (!url) return;
@@ -1411,6 +1487,9 @@ const MAX_BANNERS_PER_DAY = 3;
       priceStudentFlashSale: priceStudentFlashSaleInput.value.trim(),
       flashSaleUntil: fromLocalDateTimeValue(flashSaleUntilInput.value),
       registrationClosed: registrationClosedInput.checked,
+      lessonOverviewTitle: lessonOverviewTitleInput.value.trim(),
+      lessonOverviewBody: lessonOverviewBodyInput.innerHTML.trim(),
+      hideLessonOverview: hideLessonOverviewInput.checked,
       imageUrl: imageUrlInput.value.trim(),
       eventType: selectedType,
       color: selectedColor,
