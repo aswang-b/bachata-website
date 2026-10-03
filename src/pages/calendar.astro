@@ -587,49 +587,6 @@ const MAX_BANNERS_PER_DAY = 3;
           </div>
         </details>
 
-        <details class="group rounded-xl border border-border">
-          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-semibold text-ink/80 [&::-webkit-details-marker]:hidden">
-            Homepage lesson overview override
-            <span class="shrink-0 text-muted transition-transform group-open:rotate-180">⌄</span>
-          </summary>
-          <div class="flex flex-col gap-3 border-t border-border p-3">
-            <p class="text-xs text-muted">
-              Replaces the "About This Class Format" section on this class's homepage card. Fill in a header, a body, or both — anything left blank keeps the
-              default. Applies to the whole series.
-            </p>
-            <label class="flex items-center gap-2 text-sm text-ink/80">
-              <input id="event-hide-lesson-overview" type="checkbox" class="h-4 w-4 rounded border-border" />
-              Hide this section entirely on the homepage card
-            </label>
-            <div id="event-lesson-overview-fields" class="flex flex-col gap-2 transition-opacity">
-              <input
-                id="event-lesson-overview-title"
-                type="text"
-                maxlength="120"
-                placeholder="Header (default: About This Class Format)"
-                class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none"
-              />
-              <div class="flex flex-wrap gap-1 border-b border-border pb-1.5">
-                <button type="button" data-cmd="bold" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
-                <button type="button" data-cmd="italic" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
-                <button type="button" data-cmd="underline" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
-                <button type="button" data-cmd="insertUnorderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
-                <button type="button" data-cmd="insertOrderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
-                <button type="button" id="event-lesson-overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
-              </div>
-              <div
-                id="event-lesson-overview-body"
-                contenteditable="true"
-                role="textbox"
-                aria-multiline="true"
-                aria-label="Lesson overview body"
-                data-placeholder="Body (default: the site-wide lesson overview)"
-                class="min-h-20 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink empty:before:text-muted/60 empty:before:content-[attr(data-placeholder)] focus:border-accent focus:outline-none [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
-              ></div>
-            </div>
-          </div>
-        </details>
-
         <label class="flex items-center gap-2 text-sm text-ink/80">
           <input id="event-registration-closed" type="checkbox" class="h-4 w-4 rounded border-border" />
           Registration Closed (greys out Register Now everywhere this class appears)
@@ -711,6 +668,49 @@ const MAX_BANNERS_PER_DAY = 3;
             class="event-description-editor min-h-20 rounded-xl border border-border bg-surface px-3 py-2 text-ink empty:before:text-muted/60 empty:before:content-[attr(data-placeholder)] focus:border-accent focus:outline-none [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
           ></div>
         </div>
+
+        <details class="group rounded-xl border border-border">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-semibold text-ink/80 [&::-webkit-details-marker]:hidden">
+            Homepage lesson overview override
+            <span class="shrink-0 text-muted transition-transform group-open:rotate-180">⌄</span>
+          </summary>
+          <div class="flex flex-col gap-3 border-t border-border p-3">
+            <p class="text-xs text-muted">
+              Replaces the "About This Class Format" section on this class's homepage card. Fill in a header, a body, or both — anything left blank keeps the
+              default. Applies to the whole series.
+            </p>
+            <label class="flex items-center gap-2 text-sm text-ink/80">
+              <input id="event-hide-lesson-overview" type="checkbox" class="h-4 w-4 rounded border-border" />
+              Hide this section entirely on the homepage card
+            </label>
+            <div id="event-lesson-overview-fields" class="flex flex-col gap-2 transition-opacity">
+              <input
+                id="event-lesson-overview-title"
+                type="text"
+                maxlength="120"
+                placeholder="Header (default: About This Class Format)"
+                class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none"
+              />
+              <div class="flex flex-wrap gap-1 border-b border-border pb-1.5">
+                <button type="button" data-cmd="bold" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
+                <button type="button" data-cmd="italic" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
+                <button type="button" data-cmd="underline" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
+                <button type="button" data-cmd="insertUnorderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
+                <button type="button" data-cmd="insertOrderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
+                <button type="button" id="event-lesson-overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+              </div>
+              <div
+                id="event-lesson-overview-body"
+                contenteditable="true"
+                role="textbox"
+                aria-multiline="true"
+                aria-label="Lesson overview body"
+                data-placeholder="Body (default: the site-wide lesson overview)"
+                class="min-h-20 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink empty:before:text-muted/60 empty:before:content-[attr(data-placeholder)] focus:border-accent focus:outline-none [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+              ></div>
+            </div>
+          </div>
+        </details>
       </div>
     </div>
 
