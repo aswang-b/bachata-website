@@ -32,7 +32,7 @@ export const GET: APIRoute = async ({ request }) => {
   // own picker is — otherwise a private class could never get a check-in QR.
   const { data: classEvents, error } = await supabase
     .from('events')
-    .select('id, title, start_time, end_time, google_recurring_event_id')
+    .select('id, title, start_time, end_time, google_recurring_event_id, price_drop_in, registration_closed')
     .eq('event_type', 'class')
     .gte('start_time', chicagoMidnightUtcIso())
     .order('start_time', { ascending: true });

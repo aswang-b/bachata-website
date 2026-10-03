@@ -12,7 +12,13 @@ const { disable_checkin_page: checkinDisabled } = await getSiteSettings();
 
 const { data: event } = checkinDisabled
   ? { data: null }
-  : await supabase.from('events').select('id, title, start_time, end_time').eq('id', eventId).maybeSingle();
+  : await supabase.from('events').select('id, title, start_time, end_time, price_drop_in, registration_closed').eq('id', eventId).maybeSingle();
+
+// Set by the admin QR's "also register attendees" option. Re-checked here so a
+// link tweaked onto a class with no drop-in price (or closed registration)
+// just does a normal check-in; the API enforces the same rules.
+const registersToo =
+  Astro.url.searchParams.get('register') === '1' && !!event && event.price_drop_in != null && !event.registration_closed;
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TIME_ZONE });
 const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TIME_ZONE });
@@ -49,9 +55,15 @@ const inputClass =
           <p class="font-semibold text-ink">{event.title}</p>
           <p class="text-sm text-muted">{scheduleLabel}</p>
         </div>
+        {registersToo && (
+          <p class="mt-3 text-xs text-muted">
+            Checking in also registers you as a drop-in (${event.price_drop_in}) — payment is collected at the door.
+          </p>
+        )}
 
         <form method="POST" action="/api/submit-checkin" class="mt-8 flex flex-col gap-5">
           <input type="hidden" name="event_ids" value={event.id} />
+          {registersToo && <input type="hidden" name="create_registration" value="1" />}
 
           <div class="grid gap-5 sm:grid-cols-2">
             <label class="flex flex-col gap-1.5">

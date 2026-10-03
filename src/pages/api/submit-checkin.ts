@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
 import { checkAndIncrementUsage } from '../../lib/apiUsage';
+import { createCheckinDropInRegistration } from '../../lib/classRegistrations';
 import { getCheckinPerIpCap } from '../../lib/notificationSettings';
 import { getSiteSettings } from '../../lib/siteSettings';
 import { chicagoDayBoundsUtcIso } from '../../lib/classSeries';
@@ -71,11 +72,10 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   const resolvedEvents: { id: string | null; title: string }[] = [];
 
   if (directEventIds.length > 0) {
-    const { data: events, error: eventsError } = await supabase
-      .from('events')
-      .select('id, title')
-      .in('id', directEventIds)
-      .eq('visibility', 'public');
+    // Not limited to public events: an admin-generated QR is the one way to
+    // check in to a private event (the general /check-in picker only lists
+    // public ones), and the event id in the link can't be guessed.
+    const { data: events, error: eventsError } = await supabase.from('events').select('id, title').in('id', directEventIds);
 
     if (eventsError || !events || events.length !== directEventIds.length) {
       return new Response('One or more selected classes could not be found — please pick again.', { status: 400 });
@@ -180,6 +180,20 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   if (error || !checkins || checkins.length === 0) {
     console.error('Failed to insert class check-ins:', error);
     return new Response('Something went wrong checking you in. Please try again.', { status: 500 });
+  }
+
+  // The admin QR's "also register" option (drop-in-only events): give each
+  // QR-checked-in attendee a matching registration so they don't end up as
+  // orphaned check-ins. Only honored for QR (direct event id) check-ins, and
+  // never allowed to fail the check-in itself.
+  if (formData.get('create_registration') === '1') {
+    for (const eventId of directEventIds) {
+      try {
+        await createCheckinDropInRegistration({ eventId, firstName, lastName, phone });
+      } catch (err) {
+        console.error('Failed to create a registration for a check-in:', err);
+      }
+    }
   }
 
   return redirect(`/check-in/confirmation?ids=${checkins.map((c) => c.id).join(',')}`, 303);

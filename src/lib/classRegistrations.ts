@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { getActivePrice, type PriceTier } from './pricing';
+import { buildClassSeriesList } from './classSeries';
 
 export interface ParsedClassSelection {
   label: string;
@@ -440,4 +441,111 @@ export async function insertClassRegistrationSnapshots(rows: ClassRegistrationRo
   const payload = rows.map(({ id, created_at, ...rest }) => rest);
   const { error } = await supabase.from('class_registrations').insert(payload);
   if (error) throw new Error(`Failed to restore class registrations: ${error.message}`);
+}
+
+export type CheckinRegistrationResult = 'created' | 'exists' | 'skipped';
+
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+// Used by the admin check-in QR's "also register" option for drop-in-only
+// events, so attendees who never pre-registered don't all land in the
+// orphaned-check-ins queue. Creates a one-class sign-up (unpaid, no payment
+// method — it shows in Sign-Ups for the admin to collect/mark paid) for the
+// specific occurrence the person checked in to.
+//
+// Skipped (never an error — the check-in itself always goes through) when the
+// event doesn't exist, registration is closed, or it has no drop-in price. Does
+// nothing if the same name is already registered for this class — a drop-in for
+// this occurrence, or a whole-series sign-up — so a pre-registered attendee
+// just matches their existing registration.
+export async function createCheckinDropInRegistration(params: {
+  eventId: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+}): Promise<CheckinRegistrationResult> {
+  const { data: event, error: eventError } = await supabase
+    .from('events')
+    .select(`${PRICE_COLUMNS}, start_time, end_time, registration_closed`)
+    .eq('id', params.eventId)
+    .maybeSingle();
+  if (eventError || !event || event.registration_closed || event.price_drop_in == null) return 'skipped';
+
+  const { data: existing, error: existingError } = await supabase
+    .from('class_registrations')
+    .select('series_mode, occurrence_event_id')
+    .eq('class_title', event.title)
+    .ilike('first_name', escapeLike(params.firstName))
+    .ilike('last_name', escapeLike(params.lastName));
+  if (existingError) {
+    console.error('Failed to check for an existing registration:', existingError.message);
+    return 'skipped';
+  }
+  if ((existing ?? []).some((r) => r.series_mode !== 'dropin' || r.occurrence_event_id === event.id)) return 'exists';
+
+  // Same label the registration form stores: "<title> — <schedule>", where a
+  // recurring class's schedule describes the whole series rather than one date.
+  const siblings = event.google_recurring_event_id
+    ? (
+        await supabase
+          .from('events')
+          .select('id, title, start_time, end_time, google_recurring_event_id')
+          .eq('google_recurring_event_id', event.google_recurring_event_id)
+      ).data ?? []
+    : [];
+  const [series] = buildClassSeriesList(siblings.length > 0 ? siblings : [event], siblings.length > 0 ? siblings : [event]);
+  const label = `${event.title} — ${series?.subLabel ?? ''}`.replace(/ — $/, '');
+
+  const { data: submission, error: submissionError } = await supabase
+    .from('intake_submissions')
+    .insert({
+      registration_type: 'group',
+      first_name: params.firstName,
+      last_name: params.lastName,
+      email: null,
+      phone: params.phone || null,
+      class: `${label} — Drop In`,
+      payment_method: null,
+      paid: false,
+      dancers: null,
+    })
+    .select('id')
+    .single();
+  if (submissionError || !submission) {
+    console.error('Failed to create check-in sign-up:', submissionError?.message);
+    return 'skipped';
+  }
+
+  const price = getActivePrice(new Date(), {
+    base: event.price_drop_in,
+    earlyBird: event.price_drop_in_early_bird ?? null,
+    earlyBirdUntil: event.early_bird_until ?? null,
+    flashSale: event.price_drop_in_flash_sale ?? null,
+    flashSaleUntil: event.flash_sale_until ?? null,
+  });
+
+  const { error: registrationError } = await supabase.from('class_registrations').insert({
+    submission_id: submission.id,
+    dancer_index: null,
+    first_name: params.firstName,
+    last_name: params.lastName,
+    email: null,
+    phone: params.phone || null,
+    class_title: event.title,
+    class_label: label,
+    series_mode: 'dropin',
+    price: price.activePrice,
+    price_tier: price.tag,
+    occurrence_event_id: event.id,
+    is_drop_in: true,
+  });
+  if (registrationError) {
+    console.error('Failed to create check-in registration:', registrationError.message);
+    // Don't leave a class-less sign-up behind.
+    await supabase.from('intake_submissions').delete().eq('id', submission.id);
+    return 'skipped';
+  }
+  return 'created';
 }

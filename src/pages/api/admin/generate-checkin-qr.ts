@@ -23,7 +23,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   const { data: event, error: eventError } = await supabase
     .from('events')
-    .select('id, title, start_time, end_time')
+    .select('id, title, start_time, end_time, price_drop_in, registration_closed')
     .eq('id', eventId)
     .maybeSingle();
 
@@ -31,7 +31,17 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'That class could not be found.' }), { status: 404 });
   }
 
-  const checkinUrl = `${new URL(request.url).origin}/check-in/${event.id}`;
+  // "Also register attendees" only makes sense for a class with a drop-in
+  // price that's open for registration (the check-in re-checks this too).
+  const createRegistration = body?.createRegistration === true;
+  if (createRegistration && (event.price_drop_in == null || event.registration_closed)) {
+    return new Response(
+      JSON.stringify({ error: 'Registering attendees needs a drop-in price and registration to be open for this class.' }),
+      { status: 400 }
+    );
+  }
+
+  const checkinUrl = `${new URL(request.url).origin}/check-in/${event.id}${createRegistration ? '?register=1' : ''}`;
 
   let qrDataUrl: string;
   try {
@@ -44,7 +54,7 @@ export const POST: APIRoute = async ({ request }) => {
   const scheduleLabel = `${dateFormatter.format(new Date(event.start_time))}, ${timeFormatter.format(new Date(event.start_time))}–${timeFormatter.format(new Date(event.end_time))}`;
 
   return new Response(
-    JSON.stringify({ ok: true, url: checkinUrl, qrDataUrl, title: event.title, scheduleLabel }),
+    JSON.stringify({ ok: true, url: checkinUrl, qrDataUrl, title: event.title, scheduleLabel, createRegistration }),
     { status: 200, headers: { 'Content-Type': 'application/json' } }
   );
 };
