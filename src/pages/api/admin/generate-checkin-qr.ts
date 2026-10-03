@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { TIME_ZONE } from '../../../lib/classSeries';
+import { createCheckinRegisterToken } from '../../../lib/checkinToken';
 
 export const prerender = false;
 
@@ -41,7 +42,14 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
-  const checkinUrl = `${new URL(request.url).origin}/check-in/${event.id}${createRegistration ? '?register=1' : ''}`;
+  const registerToken = createRegistration ? createCheckinRegisterToken(event.id) : null;
+  if (createRegistration && !registerToken) {
+    return new Response(JSON.stringify({ error: 'Registering attendees is unavailable: the server has no signing key.' }), {
+      status: 500,
+    });
+  }
+
+  const checkinUrl = `${new URL(request.url).origin}/check-in/${event.id}${registerToken ? `?register=${registerToken}` : ''}`;
 
   let qrDataUrl: string;
   try {

@@ -259,6 +259,8 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
   const hint = document.getElementById('card-order-hint');
   const status = document.getElementById('card-order-status');
 
+  let saving = false;
+
   const cards = () => Array.from(list?.querySelectorAll<HTMLElement>('[data-offering-key]') ?? []);
 
   function refreshArrows() {
@@ -315,22 +317,33 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
       const target = all[index + Number(button.dataset.move)];
       if (!target) return;
 
+      // Ignore clicks while a save is in flight so responses can't land out of
+      // order, and so the rollback below always restores a known state.
+      if (saving) return;
+      saving = true;
+      const previousOrder = cards();
+
       // Move optimistically, then undo if the save fails.
-      const nextSibling = card.nextElementSibling;
       if (Number(button.dataset.move) < 0) list.insertBefore(card, target);
       else list.insertBefore(target, card);
       refreshArrows();
       showStatus('Saving…');
 
-      const {
-        data: { session: current },
-      } = await supabaseBrowser.auth.getSession();
-      if (current && (await saveOrder(current.access_token))) {
-        showStatus('Saved.');
-      } else {
-        list.insertBefore(card, nextSibling);
+      try {
+        const {
+          data: { session: current },
+        } = await supabaseBrowser.auth.getSession();
+        if (current && (await saveOrder(current.access_token))) {
+          showStatus('Saved.');
+        } else {
+          throw new Error('save failed');
+        }
+      } catch {
+        previousOrder.forEach((el) => list.appendChild(el));
         refreshArrows();
         showStatus('Could not save the new order — try again.');
+      } finally {
+        saving = false;
       }
     });
   }

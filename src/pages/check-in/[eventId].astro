@@ -5,6 +5,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
 import { TIME_ZONE } from '../../lib/classSeries';
 import { getSiteSettings } from '../../lib/siteSettings';
+import { verifyCheckinRegisterToken } from '../../lib/checkinToken';
 
 const { eventId } = Astro.params;
 
@@ -17,8 +18,9 @@ const { data: event } = checkinDisabled
 // Set by the admin QR's "also register attendees" option. Re-checked here so a
 // link tweaked onto a class with no drop-in price (or closed registration)
 // just does a normal check-in; the API enforces the same rules.
+const registerToken = Astro.url.searchParams.get('register') ?? '';
 const registersToo =
-  Astro.url.searchParams.get('register') === '1' && !!event && event.price_drop_in != null && !event.registration_closed;
+  !!event && verifyCheckinRegisterToken(event.id, registerToken) && event.price_drop_in != null && !event.registration_closed;
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TIME_ZONE });
 const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TIME_ZONE });
@@ -63,7 +65,7 @@ const inputClass =
 
         <form method="POST" action="/api/submit-checkin" class="mt-8 flex flex-col gap-5">
           <input type="hidden" name="event_ids" value={event.id} />
-          {registersToo && <input type="hidden" name="create_registration" value="1" />}
+          {registersToo && <input type="hidden" name="register_token" value={registerToken} />}
 
           <div class="grid gap-5 sm:grid-cols-2">
             <label class="flex flex-col gap-1.5">

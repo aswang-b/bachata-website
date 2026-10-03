@@ -5,6 +5,7 @@ import { createCheckinDropInRegistration } from '../../lib/classRegistrations';
 import { getCheckinPerIpCap } from '../../lib/notificationSettings';
 import { getSiteSettings } from '../../lib/siteSettings';
 import { chicagoDayBoundsUtcIso } from '../../lib/classSeries';
+import { verifyCheckinRegisterToken } from '../../lib/checkinToken';
 
 export const prerender = false;
 
@@ -73,9 +74,14 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
 
   if (directEventIds.length > 0) {
     // Not limited to public events: an admin-generated QR is the one way to
-    // check in to a private event (the general /check-in picker only lists
-    // public ones), and the event id in the link can't be guessed.
-    const { data: events, error: eventsError } = await supabase.from('events').select('id, title').in('id', directEventIds);
+    // check in to a private class (the general /check-in picker only lists
+    // public ones). Still limited to classes, so a non-class event id (e.g.
+    // from the calendar) can't be checked into.
+    const { data: events, error: eventsError } = await supabase
+      .from('events')
+      .select('id, title')
+      .eq('event_type', 'class')
+      .in('id', directEventIds);
 
     if (eventsError || !events || events.length !== directEventIds.length) {
       return new Response('One or more selected classes could not be found — please pick again.', { status: 400 });
@@ -186,8 +192,12 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   // QR-checked-in attendee a matching registration so they don't end up as
   // orphaned check-ins. Only honored for QR (direct event id) check-ins, and
   // never allowed to fail the check-in itself.
-  if (formData.get('create_registration') === '1') {
+  // The token is signed per event, so it only unlocks the event the admin's QR
+  // was generated for.
+  const registerToken = String(formData.get('register_token') ?? '');
+  if (registerToken) {
     for (const eventId of directEventIds) {
+      if (!verifyCheckinRegisterToken(eventId, registerToken)) continue;
       try {
         await createCheckinDropInRegistration({ eventId, firstName, lastName, phone });
       } catch (err) {

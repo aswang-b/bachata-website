@@ -41,6 +41,7 @@
 │   │   ├── apiUsage.ts                  # API usage tracking (e.g. Google Places quota, daily caps)
 │   │   ├── calendarSync.ts              # Google Calendar sync logic
 │   │   ├── attendanceMatching.ts        # Matches sign-ups to check-ins per dancer, expanding series sign-ups into per-occurrence entries
+│   │   ├── checkinToken.ts              # Signed per-event token authorizing check-in auto-registration (QR link)
 │   │   ├── classRegistrations.ts        # One-row-per-(dancer,class) registration records with snapshotted prices
 │   │   ├── classSeries.ts               # Recurring class series logic
 │   │   ├── deletionAudit.ts             # Audit log for deleted signups
