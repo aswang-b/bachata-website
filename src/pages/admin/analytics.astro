@@ -51,6 +51,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
               <option value="">All classes</option>
             </select>
           </label>
+          <label id="signups-occurrence-filter-wrap" class="hidden flex-1 flex-col gap-1.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Occurrence</span>
+            <select id="signups-occurrence-filter" class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none">
+              <option value="">All dates</option>
+            </select>
+          </label>
           <button
             id="signups-clear-filters"
             class="rounded-full border border-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-bg"
@@ -728,6 +734,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
   const signupsNameSearch = document.getElementById('signups-name-search') as HTMLInputElement;
   const signupsClassFilter = document.getElementById('signups-class-filter') as HTMLSelectElement;
+  const signupsOccurrenceFilter = document.getElementById('signups-occurrence-filter') as HTMLSelectElement;
+  const signupsOccurrenceFilterWrap = document.getElementById('signups-occurrence-filter-wrap')!;
   const checkinsNameSearch = document.getElementById('checkins-name-search') as HTMLInputElement;
   const checkinsClassFilter = document.getElementById('checkins-class-filter') as HTMLSelectElement;
   const checkinsOccurrenceFilter = document.getElementById('checkins-occurrence-filter') as HTMLSelectElement;
@@ -1056,9 +1064,19 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   function renderSignups() {
     const nameQuery = signupsNameSearch.value.trim();
     const classFilter = signupsClassFilter.value;
+    const occurrenceFilter = signupsOccurrenceFilter.value;
     const isLockedByMe = signupsLock.isLocked();
 
-    const filteredSignups = allSignups.filter((s) => matchesName(s.firstName, s.lastName, nameQuery) && matchesClass(s.class, classFilter));
+    // A Whole-Series sign-up covers every date of its class; a Drop-In only
+    // the date it was for (one with no recorded date can't be placed).
+    const attendsOccurrence = (s: Signup) =>
+      s.classRegistrations.some(
+        (e) => e.classTitle === classFilter && (e.seriesMode === 'whole' || e.occurrenceEventId === occurrenceFilter)
+      );
+
+    const filteredSignups = allSignups.filter(
+      (s) => matchesName(s.firstName, s.lastName, nameQuery) && matchesClass(s.class, classFilter) && (!occurrenceFilter || attendsOccurrence(s))
+    );
     const sortedSignups = sortRows(filteredSignups, signupSort);
 
     const addSignupRowHtml = addingSignup ? signupEditRowHtml({}, 'add') : '';
@@ -1296,10 +1314,15 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   }
 
   signupsNameSearch.addEventListener('input', renderSignups);
-  signupsClassFilter.addEventListener('change', renderSignups);
+  signupsClassFilter.addEventListener('change', () => {
+    populateOccurrenceFilter(signupsOccurrenceFilter, signupsOccurrenceFilterWrap, signupsClassFilter.value);
+    renderSignups();
+  });
+  signupsOccurrenceFilter.addEventListener('change', renderSignups);
   document.getElementById('signups-clear-filters')?.addEventListener('click', () => {
     signupsNameSearch.value = '';
     signupsClassFilter.value = '';
+    populateOccurrenceFilter(signupsOccurrenceFilter, signupsOccurrenceFilterWrap, '');
     renderSignups();
   });
 
