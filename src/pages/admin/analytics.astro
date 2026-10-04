@@ -321,7 +321,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="email">Email</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="class_title">Class</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="created_at">Checked In</th>
-                      <th class="orphaned-signups-actions-header hidden px-3 py-2.5">Link to Class</th>
+                      <th class="orphaned-signups-actions-header hidden px-3 py-2.5">Resolve</th>
                     </tr>
                   </thead>
                   <tbody id="orphaned-checkins-body"></tbody>
@@ -1515,6 +1515,24 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       attendanceMatchesSort
     );
 
+    // "They did come, the check-in just never got recorded": creates a
+    // check-in for this entry. An entry pinned to a date uses that date; one
+    // without (a legacy Drop-In) asks which date of its class it was.
+    const createCheckinControlsHtml = (e: AttendanceEntry) => {
+      const button = (disabled: boolean) =>
+        `<button class="create-checkin-btn self-start text-left text-xs font-bold text-accent hover:underline" data-registration-id="${e.classRegistrationId}" data-occurrence-id="${e.occurrenceEventId ?? ''}" ${disabled ? 'disabled' : ''}>Create Check-In</button>`;
+      if (e.occurrenceEventId) return button(false);
+      const series = classSeries.find((s) => s.title === e.classTitle);
+      const occurrences = series ? (series.isSeries ? series.occurrences : series.singleEventId ? [{ id: series.singleEventId, label: series.subLabel }] : []) : [];
+      return `<div class="flex gap-1.5">
+          <select class="create-checkin-date-select rounded-lg border border-border bg-bg px-1.5 py-1 text-xs" ${occurrences.length === 0 ? 'disabled' : ''}>
+            <option value="">${occurrences.length === 0 ? 'No class dates' : 'Select date…'}</option>
+            ${occurrences.map((o) => `<option value="${escapeAttr(o.id)}">${escapeHtml(o.label)}</option>`).join('')}
+          </select>
+          ${button(occurrences.length === 0)}
+        </div>`;
+    };
+
     orphanedSignupsBody.innerHTML = orphanedSignups
       .map((e) => {
         // A Whole-Series entry is pinned to one occurrence date, so only
@@ -1553,6 +1571,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
                       </select>
                       <button class="reconcile-btn text-xs font-bold text-accent hover:underline" data-registration-id="${e.classRegistrationId}" data-occurrence-id="${e.occurrenceEventId ?? ''}" ${candidateCheckins.length === 0 ? 'disabled' : ''}>Link</button>
                     </div>
+                    ${createCheckinControlsHtml(e)}
                     <button class="no-show-btn text-xs font-semibold text-red-600 hover:underline" data-registration-id="${e.classRegistrationId}" data-occurrence-id="${e.occurrenceEventId ?? ''}">Mark No-Show</button>
                   </div>
                 </td>`
@@ -1590,6 +1609,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
               </select>
               <button class="link-checkin-btn text-xs font-bold text-accent hover:underline" data-checkin-id="${escapeAttr(c.id)}">Link</button>
             </div>
+            <button class="create-signup-btn self-start text-left text-xs font-bold text-accent hover:underline" data-checkin-id="${escapeAttr(c.id)}" title="Creates an unpaid Drop-In sign-up for the class date picked above">Create Sign-Up</button>
           </div>
         </td>`;
     };
@@ -1624,15 +1644,73 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       });
     });
 
+    // The class occurrence picked in an orphaned check-in's Resolve cell.
+    const pickedLinkEventId = (cell: Element): string => {
+      const series = classSeries.find((s) => s.key === (cell.querySelector('.link-class-select') as HTMLSelectElement).value);
+      if (!series) return '';
+      return series.isSeries ? (cell.querySelector('.link-date-select') as HTMLSelectElement).value : series.singleEventId ?? '';
+    };
+
+    const postResolve = async (btn: HTMLButtonElement, payload: Record<string, unknown>, failureMessage: string) => {
+      const headers = await withAuthHeader();
+      if (!headers) return;
+      btn.disabled = true;
+      const res = await fetch('/api/admin/resolve-attendance', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ ...payload, holderId }),
+      });
+      if (res.ok) {
+        // The new row also belongs in the Sign-Ups / Check-Ins tabs.
+        await Promise.all([
+          reloadAttendance(),
+          reloadData().then((ok) => {
+            if (ok) {
+              renderSignups();
+              renderCheckins();
+            }
+          }),
+        ]);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? failureMessage);
+        btn.disabled = false;
+      }
+    };
+
+    document.querySelectorAll<HTMLButtonElement>('.create-signup-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const eventId = pickedLinkEventId(btn.closest('td')!);
+        if (!eventId) {
+          alert('Pick the class (and a date, if it is a series) to create the sign-up for.');
+          return;
+        }
+        if (!confirm('Create an unpaid Drop-In sign-up for this dancer and link it to this check-in?')) return;
+        await postResolve(btn, { action: 'create_signup_for_checkin', checkinId: btn.dataset.checkinId, eventId }, 'Failed to create the sign-up.');
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.create-checkin-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const occurrenceId = btn.dataset.occurrenceId || null;
+        const eventId = occurrenceId ?? btn.closest('td')!.querySelector<HTMLSelectElement>('.create-checkin-date-select')?.value ?? '';
+        if (!eventId) {
+          alert('Pick which class date this dancer attended.');
+          return;
+        }
+        if (!confirm('Record a check-in for this dancer and link it to this sign-up?')) return;
+        await postResolve(
+          btn,
+          { action: 'create_checkin_for_signup', classRegistrationId: btn.dataset.registrationId, occurrenceEventId: occurrenceId, eventId },
+          'Failed to create the check-in.'
+        );
+      });
+    });
+
     document.querySelectorAll<HTMLButtonElement>('.link-checkin-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const cell = btn.closest('td')!;
-        const series = classSeries.find((s) => s.key === (cell.querySelector('.link-class-select') as HTMLSelectElement).value);
-        const eventId = series
-          ? series.isSeries
-            ? (cell.querySelector('.link-date-select') as HTMLSelectElement).value
-            : series.singleEventId ?? ''
-          : '';
+        const eventId = pickedLinkEventId(cell);
         if (!eventId) {
           alert('Pick a class (and a date, if it is a series) to link this check-in to.');
           return;

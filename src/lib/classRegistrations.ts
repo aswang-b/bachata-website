@@ -492,6 +492,30 @@ export async function createCheckinDropInRegistration(params: {
   }
   if ((existing ?? []).some((r) => r.series_mode !== 'dropin' || r.occurrence_event_id === event.id)) return 'exists';
 
+  const registrationId = await insertDropInSignup(event, { ...params, email: null });
+  return registrationId ? 'created' : 'skipped';
+}
+
+interface DropInEvent {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  google_recurring_event_id: string | null;
+  price_drop_in: number | null;
+  price_drop_in_early_bird?: number | null;
+  early_bird_until?: string | null;
+  price_drop_in_flash_sale?: number | null;
+  flash_sale_until?: string | null;
+}
+
+// Creates a one-class Drop-In sign-up (unpaid, no payment method) for one
+// specific occurrence and returns the new class_registrations id, or null on
+// failure (never leaving a class-less sign-up behind).
+async function insertDropInSignup(
+  event: DropInEvent,
+  person: { firstName: string; lastName: string; phone: string | null; email: string | null }
+): Promise<string | null> {
   // Same label the registration form stores: "<title> — <schedule>", where a
   // recurring class's schedule describes the whole series rather than one date.
   const siblings = event.google_recurring_event_id
@@ -509,10 +533,10 @@ export async function createCheckinDropInRegistration(params: {
     .from('intake_submissions')
     .insert({
       registration_type: 'group',
-      first_name: params.firstName,
-      last_name: params.lastName,
-      email: null,
-      phone: params.phone || null,
+      first_name: person.firstName,
+      last_name: person.lastName,
+      email: person.email || null,
+      phone: person.phone || null,
       class: `${label} — Drop In`,
       payment_method: null,
       paid: false,
@@ -521,8 +545,8 @@ export async function createCheckinDropInRegistration(params: {
     .select('id')
     .single();
   if (submissionError || !submission) {
-    console.error('Failed to create check-in sign-up:', submissionError?.message);
-    return 'skipped';
+    console.error('Failed to create drop-in sign-up:', submissionError?.message);
+    return null;
   }
 
   const price = getActivePrice(new Date(), {
@@ -533,26 +557,54 @@ export async function createCheckinDropInRegistration(params: {
     flashSaleUntil: event.flash_sale_until ?? null,
   });
 
-  const { error: registrationError } = await supabase.from('class_registrations').insert({
-    submission_id: submission.id,
-    dancer_index: null,
-    first_name: params.firstName,
-    last_name: params.lastName,
-    email: null,
-    phone: params.phone || null,
-    class_title: event.title,
-    class_label: label,
-    series_mode: 'dropin',
-    price: price.activePrice,
-    price_tier: price.tag,
-    occurrence_event_id: event.id,
-    is_drop_in: true,
-  });
-  if (registrationError) {
-    console.error('Failed to create check-in registration:', registrationError.message);
+  const { data: registration, error: registrationError } = await supabase
+    .from('class_registrations')
+    .insert({
+      submission_id: submission.id,
+      dancer_index: null,
+      first_name: person.firstName,
+      last_name: person.lastName,
+      email: person.email || null,
+      phone: person.phone || null,
+      class_title: event.title,
+      class_label: label,
+      series_mode: 'dropin',
+      price: price.activePrice,
+      price_tier: price.tag,
+      occurrence_event_id: event.id,
+      is_drop_in: true,
+    })
+    .select('id')
+    .single();
+  if (registrationError || !registration) {
+    console.error('Failed to create drop-in registration:', registrationError?.message);
     // Don't leave a class-less sign-up behind.
     await supabase.from('intake_submissions').delete().eq('id', submission.id);
-    return 'skipped';
+    return null;
   }
-  return 'created';
+  return registration.id;
+}
+
+// Used by the attendance workqueue's "Create Sign-Up" action on an orphaned
+// check-in. Unlike the QR path above, the admin chose to do this, so it
+// ignores registration_closed and a missing drop-in price (the sign-up then
+// just has no price). Returns the new class_registrations id.
+export async function createAdminDropInRegistration(params: {
+  eventId: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  email: string | null;
+}): Promise<string> {
+  const { data: event, error: eventError } = await supabase
+    .from('events')
+    .select(`${PRICE_COLUMNS}, start_time, end_time`)
+    .eq('id', params.eventId)
+    .eq('event_type', 'class')
+    .maybeSingle();
+  if (eventError || !event) throw new ClassRegistrationInputError('That class could not be found — please pick again.');
+
+  const registrationId = await insertDropInSignup(event, params);
+  if (!registrationId) throw new Error('Failed to create the sign-up.');
+  return registrationId;
 }
