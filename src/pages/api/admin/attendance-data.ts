@@ -31,10 +31,12 @@ export const GET: APIRoute = async ({ request }) => {
     supabase
       .from('class_registrations')
       .select('id, first_name, last_name, email, phone, class_title, series_mode, price, occurrence_event_id, created_at')
+      .is('deleted_at', null)
       .limit(ROW_LIMIT),
     supabase
       .from('class_checkins')
       .select('id, first_name, last_name, phone, email, class_title, event_id, created_at')
+      .is('deleted_at', null)
       .limit(ROW_LIMIT),
     supabase
       .from('events')
@@ -52,11 +54,16 @@ export const GET: APIRoute = async ({ request }) => {
   const classSeriesList = buildClassSeriesList(events ?? []);
   const entries = expandRegistrationsToEntries((registrations ?? []) as AttendanceRegistrationRow[], classSeriesList);
 
-  const manualMatches: ManualMatch[] = (manualMatchRows ?? []).map((r) => ({
-    classRegistrationId: r.class_registration_id,
-    occurrenceEventId: r.occurrence_event_id,
-    checkinId: r.checkin_id,
-  }));
+  // A match whose check-in is in the Recycling Bin no longer counts, so its
+  // sign-up falls back to the workqueue until that check-in is restored.
+  const liveCheckinIds = new Set((checkins ?? []).map((c) => c.id));
+  const manualMatches: ManualMatch[] = (manualMatchRows ?? [])
+    .filter((r) => liveCheckinIds.has(r.checkin_id))
+    .map((r) => ({
+      classRegistrationId: r.class_registration_id,
+      occurrenceEventId: r.occurrence_event_id,
+      checkinId: r.checkin_id,
+    }));
   const manualNoShows: ManualNoShow[] = (manualNoShowRows ?? []).map((r) => ({
     classRegistrationId: r.class_registration_id,
     occurrenceEventId: r.occurrence_event_id,

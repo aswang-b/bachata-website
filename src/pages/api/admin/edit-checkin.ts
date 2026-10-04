@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { CHECKINS_LOCK_RESOURCE, requireLock } from '../../../lib/editLock';
-import { recordDeletion } from '../../../lib/deletionAudit';
+import { RecyclingBinError, softDeleteCheckin } from '../../../lib/recyclingBin';
 
 export const prerender = false;
 
@@ -50,21 +50,13 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   if (action === 'delete') {
-    const { data: row, error: fetchError } = await supabase.from('class_checkins').select('*').eq('id', id).maybeSingle();
-    if (fetchError || !row) {
-      return new Response(JSON.stringify({ error: 'Check-in not found.' }), { status: 404 });
+    // Moves it to the Recycling Bin; nothing is removed until the bin is emptied.
+    try {
+      await softDeleteCheckin(id, user.email ?? 'unknown');
+    } catch (err) {
+      const status = err instanceof RecyclingBinError ? err.status : 500;
+      return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Failed to delete check-in.' }), { status });
     }
-
-    await recordDeletion({
-      deletedBy: user.email ?? 'unknown',
-      tableName: 'class_checkins',
-      action: 'delete_checkin',
-      recordId: id,
-      snapshot: row,
-    });
-
-    const { error } = await supabase.from('class_checkins').delete().eq('id', id);
-    if (error) return new Response(JSON.stringify({ error: 'Failed to delete check-in.' }), { status: 500 });
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }
 

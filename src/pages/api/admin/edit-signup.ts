@@ -2,10 +2,9 @@ import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { SIGNUPS_LOCK_RESOURCE, requireLock } from '../../../lib/editLock';
-import { recordDeletion } from '../../../lib/deletionAudit';
+import { RecyclingBinError, softDeleteDancer } from '../../../lib/recyclingBin';
 import {
   ClassRegistrationInputError,
-  getClassRegistrationsForDancer,
   insertClassRegistrations,
   replaceClassRegistrations,
   setDropInOccurrences,
@@ -115,76 +114,14 @@ export const POST: APIRoute = async ({ request }) => {
   const hasDancerIndex = dancers && typeof dancerIndex === 'number' && dancerIndex >= 0 && dancerIndex < dancers.length;
 
   if (action === 'delete') {
-    // The dancer's own class registrations are snapshotted alongside the
-    // submission/dancer so restore-signup.ts can recreate them — deleting
-    // the dancer here never touches any other dancer's class_registrations
-    // rows on this same submission.
-    const dancerClassRegistrations = await getClassRegistrationsForDancer(submissionId, hasDancerIndex ? dancerIndex : null);
-
-    if (hasDancerIndex && dancers!.length > 1) {
-      await recordDeletion({
-        deletedBy: user.email ?? 'unknown',
-        tableName: 'intake_submissions',
-        action: 'remove_dancer',
-        recordId: submissionId,
-        dancerIndex,
-        snapshot: { ...row, classRegistrations: dancerClassRegistrations },
-      });
-
-      const nextDancers = dancers!.filter((_, i) => i !== dancerIndex);
-      const { error } = await supabase
-        .from('intake_submissions')
-        .update({
-          dancers: nextDancers,
-          first_name: nextDancers[0]?.firstName ?? '',
-          last_name: nextDancers[0]?.lastName ?? '',
-          email: nextDancers[0]?.email || null,
-          phone: nextDancers[0]?.phone || null,
-        })
-        .eq('id', submissionId);
-      if (error) return new Response(JSON.stringify({ error: 'Failed to remove dancer.' }), { status: 500 });
-
-      const { error: deleteRegError } = await supabase
-        .from('class_registrations')
-        .delete()
-        .eq('submission_id', submissionId)
-        .eq('dancer_index', dancerIndex);
-      if (deleteRegError) console.error('Failed to delete dancer class registrations:', deleteRegError.message);
-
-      // Removing a dancer shifts everyone after them down by one position in
-      // `dancers[]` — re-align their class_registrations rows to match, or
-      // they'd point at a dancer_index that no longer matches anyone (making
-      // that dancer's price/class silently disappear from the Sign-Ups table
-      // until they're next edited or the removed dancer is restored).
-      const { data: toShift } = await supabase
-        .from('class_registrations')
-        .select('id, dancer_index')
-        .eq('submission_id', submissionId)
-        .gt('dancer_index', dancerIndex);
-      for (const r of toShift ?? []) {
-        await supabase
-          .from('class_registrations')
-          .update({ dancer_index: (r.dancer_index ?? 1) - 1 })
-          .eq('id', r.id);
-      }
-
-      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    // Moves the dancer (or the whole sign-up, if they're its only dancer) to
+    // the Recycling Bin; nothing is removed until the bin is emptied.
+    try {
+      await softDeleteDancer(submissionId, hasDancerIndex ? dancerIndex : null, user.email ?? 'unknown');
+    } catch (err) {
+      const status = err instanceof RecyclingBinError ? err.status : 500;
+      return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Failed to delete.' }), { status });
     }
-
-    // Whole-submission delete — reaching this branch means there's at most
-    // one dancer, so dancerClassRegistrations (fetched above) already covers
-    // every class_registrations row for the submission. Cascade-deletes with
-    // the submission itself; snapshotted here so restore can recreate them.
-    await recordDeletion({
-      deletedBy: user.email ?? 'unknown',
-      tableName: 'intake_submissions',
-      action: 'delete_submission',
-      recordId: submissionId,
-      snapshot: { ...row, classRegistrations: dancerClassRegistrations },
-    });
-
-    const { error } = await supabase.from('intake_submissions').delete().eq('id', submissionId);
-    if (error) return new Response(JSON.stringify({ error: 'Failed to delete sign-up.' }), { status: 500 });
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }
 

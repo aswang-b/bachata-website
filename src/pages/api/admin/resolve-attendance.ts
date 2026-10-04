@@ -3,6 +3,7 @@ import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { ATTENDANCE_LOCK_RESOURCE, requireLock } from '../../../lib/editLock';
 import { ClassRegistrationInputError, createAdminDropInRegistration } from '../../../lib/classRegistrations';
+import { RecyclingBinError, softDeleteCheckin, softDeleteRegistration } from '../../../lib/recyclingBin';
 
 export const prerender = false;
 
@@ -62,7 +63,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const [{ data: checkin }, { data: event }, { data: existingMatch }] = await Promise.all([
-      supabase.from('class_checkins').select('id, first_name, last_name, phone, email, event_id').eq('id', checkinId).maybeSingle(),
+      supabase.from('class_checkins').select('id, first_name, last_name, phone, email, event_id').eq('id', checkinId).is('deleted_at', null).maybeSingle(),
       supabase.from('events').select('id, title').eq('id', eventId).eq('event_type', 'class').maybeSingle(),
       supabase.from('attendance_matches').select('id').eq('checkin_id', checkinId).maybeSingle(),
     ]);
@@ -99,6 +100,23 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }
 
+  // Workqueue deletes go to the Recycling Bin like the dashboard's others.
+  if (action === 'delete_checkin' || action === 'delete_registration') {
+    try {
+      if (action === 'delete_checkin') {
+        if (!body.checkinId) return new Response(JSON.stringify({ error: 'Missing checkinId.' }), { status: 400 });
+        await softDeleteCheckin(body.checkinId, user.email ?? 'unknown');
+      } else {
+        if (!classRegistrationId) return new Response(JSON.stringify({ error: 'Missing classRegistrationId.' }), { status: 400 });
+        await softDeleteRegistration(classRegistrationId, user.email ?? 'unknown');
+      }
+    } catch (err) {
+      const status = err instanceof RecyclingBinError ? err.status : 500;
+      return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Failed to delete.' }), { status });
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  }
+
   if (!classRegistrationId) {
     return new Response(JSON.stringify({ error: 'Missing classRegistrationId.' }), { status: 400 });
   }
@@ -113,7 +131,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const [{ data: registration }, { data: event }] = await Promise.all([
-      supabase.from('class_registrations').select('id, first_name, last_name, phone, email, class_title').eq('id', classRegistrationId).maybeSingle(),
+      supabase.from('class_registrations').select('id, first_name, last_name, phone, email, class_title').eq('id', classRegistrationId).is('deleted_at', null).maybeSingle(),
       supabase.from('events').select('id, title').eq('id', eventId).eq('event_type', 'class').maybeSingle(),
     ]);
     if (!registration) return new Response(JSON.stringify({ error: 'Sign-up not found.' }), { status: 404 });

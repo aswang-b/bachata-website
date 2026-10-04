@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { buildClassSeriesList } from '../../../lib/classSeries';
+import { isDeletedDancer } from '../../../lib/recyclingBin';
 
 export const prerender = false;
 
@@ -83,11 +84,13 @@ export const GET: APIRoute = async ({ request }) => {
     supabase
       .from('intake_submissions')
       .select('id, created_at, registration_type, first_name, last_name, email, phone, dancers, payment_method, paid')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(ANALYTICS_ROW_LIMIT),
     supabase
       .from('class_checkins')
       .select('id, created_at, first_name, last_name, phone, class_title, event_id')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(ANALYTICS_ROW_LIMIT),
     // Admins can attach a check-in to any class occurrence, past or future,
@@ -102,6 +105,7 @@ export const GET: APIRoute = async ({ request }) => {
     supabase
       .from('class_registrations')
       .select('id, submission_id, dancer_index, class_title, class_label, series_mode, price, occurrence_event_id')
+      .is('deleted_at', null)
       .limit(ANALYTICS_ROW_LIMIT),
   ]);
 
@@ -152,17 +156,27 @@ export const GET: APIRoute = async ({ request }) => {
       paid: row.paid,
     };
 
-    if (dancers && dancers.length > 0) {
-      return dancers.map((d, i) => ({
-        ...shared,
-        dancerIndex: i,
-        dancerCount: dancers.length,
-        firstName: d.firstName ?? '',
-        lastName: d.lastName ?? '',
-        email: d.email || row.email || '',
-        phone: d.phone || row.phone || '',
-        classRegistrations: byDancer?.get(i) ?? [EMPTY_CLASS_ENTRY],
-      }));
+    // A dancer removed from a group sign-up stays in `dancers` (flagged, in
+    // the Recycling Bin) until the bin is emptied, so indices still line up
+    // with class_registrations.dancer_index — only the live ones are listed.
+    const liveDancerCount = dancers ? dancers.filter((d) => !isDeletedDancer(d)).length : 0;
+    if (dancers && liveDancerCount > 0) {
+      return dancers.flatMap((d, i) =>
+        isDeletedDancer(d)
+          ? []
+          : [
+              {
+                ...shared,
+                dancerIndex: i,
+                dancerCount: liveDancerCount,
+                firstName: d.firstName ?? '',
+                lastName: d.lastName ?? '',
+                email: d.email || row.email || '',
+                phone: d.phone || row.phone || '',
+                classRegistrations: byDancer?.get(i) ?? [EMPTY_CLASS_ENTRY],
+              },
+            ]
+      );
     }
 
     return [

@@ -336,7 +336,8 @@ export async function replaceClassRegistrations(params: {
   classSelectionsRaw?: string | null;
   dancer: DancerLike;
 }): Promise<void> {
-  let deleteQuery = supabase.from('class_registrations').delete().eq('submission_id', params.submissionId);
+  // Rows in the Recycling Bin aren't the dancer's current classes; leave them for a restore.
+  let deleteQuery = supabase.from('class_registrations').delete().eq('submission_id', params.submissionId).is('deleted_at', null);
   deleteQuery = params.dancerIndex == null ? deleteQuery.is('dancer_index', null) : deleteQuery.eq('dancer_index', params.dancerIndex);
   const { error: deleteError } = await deleteQuery;
   if (deleteError) throw new Error(`Failed to clear existing class registrations: ${deleteError.message}`);
@@ -434,22 +435,6 @@ export async function getClassRegistrationsForSubmission(submissionId: string): 
   return (data ?? []) as ClassRegistrationRow[];
 }
 
-export async function deleteClassRegistrationsForDancer(submissionId: string, dancerIndex: number | null): Promise<void> {
-  let query = supabase.from('class_registrations').delete().eq('submission_id', submissionId);
-  query = dancerIndex == null ? query.is('dancer_index', null) : query.eq('dancer_index', dancerIndex);
-  const { error } = await query;
-  if (error) throw new Error(`Failed to delete class registrations: ${error.message}`);
-}
-
-// Re-inserts previously snapshotted rows verbatim (restore path) — strips the
-// old id/created_at so Postgres assigns fresh ones rather than colliding.
-export async function insertClassRegistrationSnapshots(rows: ClassRegistrationRow[]): Promise<void> {
-  if (rows.length === 0) return;
-  const payload = rows.map(({ id, created_at, ...rest }) => rest);
-  const { error } = await supabase.from('class_registrations').insert(payload);
-  if (error) throw new Error(`Failed to restore class registrations: ${error.message}`);
-}
-
 export type CheckinRegistrationResult = 'created' | 'exists' | 'skipped';
 
 function escapeLike(value: string): string {
@@ -484,6 +469,7 @@ export async function createCheckinDropInRegistration(params: {
     .from('class_registrations')
     .select('series_mode, occurrence_event_id')
     .eq('class_title', event.title)
+    .is('deleted_at', null)
     .ilike('first_name', escapeLike(params.firstName))
     .ilike('last_name', escapeLike(params.lastName));
   if (existingError) {
