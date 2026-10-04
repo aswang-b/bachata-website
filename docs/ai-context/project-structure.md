@@ -44,7 +44,7 @@
 │   │   ├── checkinToken.ts              # Signed per-event token authorizing check-in auto-registration (QR link)
 │   │   ├── classRegistrations.ts        # One-row-per-(dancer,class) registration records with snapshotted prices
 │   │   ├── classSeries.ts               # Recurring class series logic
-│   │   ├── deletionAudit.ts             # Audit log for deleted signups
+│   │   ├── recyclingBin.ts              # Soft delete / restore / empty for the dashboard Recycling Bin
 │   │   ├── editLock.ts                  # Admin edit-lock (prevents concurrent edits)
 │   │   ├── email.ts                     # Transactional email sending
 │   │   ├── env.ts                       # Env var access/validation
