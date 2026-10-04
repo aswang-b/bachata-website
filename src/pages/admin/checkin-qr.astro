@@ -61,9 +61,22 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         <img id="result-qr" class="h-56 w-56 rounded-xl border border-border bg-white p-2" alt="Check-in QR code" />
         <a id="result-download" download="check-in-qr.png" class="text-sm font-semibold text-accent hover:underline">Download QR Code</a>
         <div class="flex w-full items-center gap-2">
-          <input id="result-url" readonly class="flex-1 truncate rounded-xl border border-border bg-bg px-3 py-2 text-xs text-ink/70" />
-          <button id="result-copy" class="shrink-0 rounded-full border border-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-bg">
-            Copy Link
+          <input id="result-url" readonly class="min-w-0 flex-1 truncate rounded-xl border border-border bg-bg px-3 py-2 text-xs text-ink/70" />
+          <!-- Icon-only below `sm` so the label can't overflow the button on narrow phones. -->
+          <button
+            id="result-copy"
+            aria-label="Copy link"
+            title="Copy link"
+            class="flex shrink-0 items-center gap-1.5 rounded-full border border-border p-2 text-xs font-bold uppercase tracking-wider whitespace-nowrap text-ink/70 transition-colors hover:bg-bg sm:px-4"
+          >
+            <svg id="result-copy-icon" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            <svg id="result-copied-icon" class="hidden h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+            <span id="result-copy-label" class="hidden sm:inline">Copy Link</span>
           </button>
         </div>
       </div>
@@ -104,6 +117,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const resultDownload = document.getElementById('result-download') as HTMLAnchorElement;
   const resultUrl = document.getElementById('result-url') as HTMLInputElement;
   const resultCopy = document.getElementById('result-copy') as HTMLButtonElement;
+  const resultCopyIcon = document.getElementById('result-copy-icon')!;
+  const resultCopiedIcon = document.getElementById('result-copied-icon')!;
+  const resultCopyLabel = document.getElementById('result-copy-label')!;
 
   const selectionSummary = document.getElementById('selection-summary')!;
 
@@ -313,11 +329,18 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     }
   });
 
+  function setCopiedState(copied: boolean) {
+    resultCopyIcon.classList.toggle('hidden', copied);
+    resultCopiedIcon.classList.toggle('hidden', !copied);
+    resultCopyLabel.textContent = copied ? 'Copied!' : 'Copy Link';
+    resultCopy.setAttribute('aria-label', copied ? 'Link copied' : 'Copy link');
+  }
+
   resultCopy.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(resultUrl.value);
-      resultCopy.textContent = 'Copied!';
-      setTimeout(() => (resultCopy.textContent = 'Copy Link'), 1500);
+      setCopiedState(true);
+      setTimeout(() => setCopiedState(false), 1500);
     } catch {
       resultUrl.select();
     }
