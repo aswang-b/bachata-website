@@ -16,6 +16,8 @@ astro dev --background
 
 Manage the background server with `astro dev stop`, `astro dev status`, and `astro dev logs`.
 
+This folder is synced by OneDrive, which can make the dev server miss file edits and serve stale pages/scripts. If a change doesn't show up, restart the dev server (`astro dev stop`, then `astro dev --background`) before debugging.
+
 ## Documentation
 
 Full documentation: https://docs.astro.build
