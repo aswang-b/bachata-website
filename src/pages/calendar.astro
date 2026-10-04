@@ -891,8 +891,47 @@ const MAX_BANNERS_PER_DAY = 3;
     })({ key: apiKey, v: 'weekly' });
   }
 
+  let placesUnavailable = false;
+
+  // When Google rejects the key (referrer not allowed, API not enabled,
+  // billing/quota), the legacy Autocomplete widget only finds out on the
+  // first prediction request a few keystrokes in. It then disables the input
+  // and swaps the placeholder for "Oops! Something went wrong.", locking the
+  // admin out of the field. Google calls `window.gm_authFailure` when this
+  // happens, so swap in a fresh clone of the input (dropping the widget's
+  // listeners) and fall back to plain-text entry for the rest of the visit.
+  function installPlacesAuthFailureFallback() {
+    (window as any).gm_authFailure = () => {
+      console.error(
+        'Google Maps rejected the API key (check its HTTP referrer restrictions and that the Places API is enabled). Location field falls back to plain text.'
+      );
+      placesUnavailable = true;
+      // Google may finish disabling the input after this callback returns.
+      setTimeout(restorePlainLocationInput, 0);
+    };
+  }
+
+  function restorePlainLocationInput() {
+    if (locationAutocomplete) google.maps.event.clearInstanceListeners(locationAutocomplete);
+    locationAutocomplete = null;
+    document.querySelectorAll('.pac-container').forEach((el) => el.remove());
+
+    const typed = locationInput.value;
+    const fresh = locationInput.cloneNode(false) as HTMLInputElement;
+    fresh.disabled = false;
+    fresh.classList.remove('gm-err-autocomplete');
+    fresh.removeAttribute('style');
+    fresh.removeAttribute('autocomplete');
+    fresh.placeholder = 'Location';
+    fresh.value = typed;
+    const hadFocus = document.activeElement === locationInput;
+    locationInput.replaceWith(fresh);
+    locationInput = fresh;
+    if (hadFocus) fresh.focus();
+  }
+
   async function initLocationAutocomplete() {
-    if (locationAutocomplete) return;
+    if (locationAutocomplete || placesUnavailable) return;
 
     try {
       const headers = await withAuthHeader();
@@ -909,6 +948,7 @@ const MAX_BANNERS_PER_DAY = 3;
       bootstrapGoogleMaps(apiKey);
       const { Autocomplete } = await google.maps.importLibrary('places');
 
+      installPlacesAuthFailureFallback();
       locationAutocomplete = new Autocomplete(locationInput, {
         fields: ['name', 'formatted_address'],
       });
@@ -931,7 +971,8 @@ const MAX_BANNERS_PER_DAY = 3;
   const startTimeInput = document.getElementById('event-start-time') as HTMLInputElement;
   const endTimeInput = document.getElementById('event-end-time') as HTMLInputElement;
   const descriptionInput = document.getElementById('event-description') as HTMLElement;
-  const locationInput = document.getElementById('event-location') as HTMLInputElement;
+  // `let` so restorePlainLocationInput() can swap in a clean copy.
+  let locationInput = document.getElementById('event-location') as HTMLInputElement;
   const priceWholeSeriesInput = document.getElementById('event-price-whole-series') as HTMLInputElement;
   const priceDropInInput = document.getElementById('event-price-drop-in') as HTMLInputElement;
   const priceStudentInput = document.getElementById('event-price-student') as HTMLInputElement;
