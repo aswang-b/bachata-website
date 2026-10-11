@@ -153,10 +153,20 @@ export async function refreshAccessToken(refreshToken: string): Promise<string> 
   }
 
   const data = await res.json();
+  // Google's consent screen lets the signer untick individual permissions,
+  // so a sign-in can store a working token that can't touch Calendar at all
+  // (every write then fails 403 "insufficient authentication scopes").
+  const grantedScopes = String(data.scope ?? '').split(' ');
+  if (!grantedScopes.includes(CALENDAR_SCOPE)) {
+    throw new GoogleAuthError('Stored Google token was not granted Calendar access.');
+  }
   return data.access_token as string;
 }
 
-// Google rejected a stored refresh token as expired/revoked (invalid_grant).
+const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar';
+
+// A stored refresh token can't be used for Calendar: Google rejected it as
+// expired/revoked (invalid_grant), or it lacks the Calendar scope.
 export class GoogleAuthError extends Error {}
 
 export class GoogleNotConnectedError extends Error {
@@ -167,7 +177,9 @@ export class GoogleNotConnectedError extends Error {
 
 export class GoogleAuthExpiredError extends Error {
   constructor() {
-    super('Google connection expired — sign out of /admin and sign back in with Google.');
+    super(
+      'Google connection expired or lacks Calendar access — sign out of /admin and sign back in with Google, leaving the Calendar permission checked.'
+    );
   }
 }
 
@@ -188,7 +200,7 @@ export async function getGoogleAccessToken(): Promise<string> {
       return await refreshAccessToken(row.refresh_token);
     } catch (err) {
       if (err instanceof GoogleAuthError) {
-        console.warn(`Stored Google token for ${row.email} was rejected (expired or revoked); trying the next one.`);
+        console.warn(`Stored Google token for ${row.email} is unusable (${err.message}); trying the next one.`);
         continue;
       }
       throw err;
