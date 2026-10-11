@@ -743,6 +743,7 @@ const MAX_BANNERS_PER_DAY = 3;
 
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { showErrorDialog } from '../lib/errorDialog';
   import { isPreviewingAsPublic } from '../lib/previewMode';
   import { getActivePrice, priceTierLabel } from '../lib/pricing';
   import { openImageCropper } from '../lib/imageCropper';
@@ -1360,6 +1361,12 @@ const MAX_BANNERS_PER_DAY = 3;
     }
   }
 
+  function hideSync() {
+    syncIndicator.style.opacity = '0';
+    syncIndicator.classList.add('hidden');
+    syncIndicator.classList.remove('flex');
+  }
+
   async function withAuthHeader() {
     const {
       data: { session },
@@ -1387,7 +1394,8 @@ const MAX_BANNERS_PER_DAY = 3;
       setTimeout(() => window.location.reload(), 900);
     } else {
       const data = await res.json().catch(() => ({}));
-      showSync(`Failed: ${data.error ?? 'unknown error'}`, true);
+      hideSync();
+      await showErrorDialog('Delete failed', `The server returned ${res.status}.`, data.error ?? 'unknown error');
     }
   }
 
@@ -1604,14 +1612,20 @@ const MAX_BANNERS_PER_DAY = 3;
 
     const data = await res.json().catch(() => ({}));
 
-    if (res.ok) {
-      showSync(
-        data.calendarSyncSkipped ? 'Saved, but Google Calendar sync failed — it will retry on the next scheduled sync.' : 'Synced!',
-        true
+    if (res.ok && data.calendarSyncSkipped) {
+      hideSync();
+      await showErrorDialog(
+        'Saved, but Google Calendar sync failed',
+        'The change is saved on the site. Google Calendar did not accept it; the next scheduled sync will retry.',
+        data.calendarSyncError ?? 'No Google connection was available for this save.'
       );
-      setTimeout(() => window.location.reload(), data.calendarSyncSkipped ? 2500 : 900);
+      window.location.reload();
+    } else if (res.ok) {
+      showSync('Synced!', true);
+      setTimeout(() => window.location.reload(), 900);
     } else {
-      showSync(`Failed: ${data.error ?? 'unknown error'}`, true);
+      hideSync();
+      await showErrorDialog('Save failed', `The server returned ${res.status}.`, data.error ?? 'unknown error');
     }
   });
 

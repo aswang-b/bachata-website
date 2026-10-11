@@ -359,6 +359,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
   import { isPreviewingAsPublic, setPreviewAsPublic } from '../lib/previewMode';
+  import { showErrorDialog } from '../lib/errorDialog';
 
   const panels = {
     loading: document.getElementById('account-loading')!,
@@ -968,15 +969,30 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        statusEl.textContent = `Sync failed: ${data.error ?? 'unknown error'}`;
+        statusEl.textContent = 'Sync failed.';
+        await showErrorDialog('Calendar sync failed', `The server returned ${res.status}.`, data.error ?? 'unknown error');
         return;
       }
       const fmt = (r: any) => `${r.pulledCreated} added, ${r.pulledUpdated} updated, ${r.pulledDeleted} removed, ${r.pushedCreated} pushed`;
       statusEl.textContent = `Synced — Public: ${fmt(data.public)}. Private: ${fmt(data.private)}.`;
-    } catch {
-      statusEl.textContent = 'Sync failed — check your connection and try again.';
+      const errors = [...(data.public?.errors ?? []), ...(data.private?.errors ?? [])];
+      if (errors.length > 0) {
+        statusEl.textContent += ` ${errors.length} event(s) failed.`;
+        await showErrorDialog(
+          'Some events failed to sync',
+          'The rest of the calendar synced. These events were skipped and will be retried on the next sync.',
+          errors.join('\n')
+        );
+      }
+    } catch (err) {
+      statusEl.textContent = 'Sync failed.';
+      await showErrorDialog(
+        'Calendar sync failed',
+        'The request did not complete. Check your connection and try again.',
+        err instanceof Error ? err.message : String(err)
+      );
     }
   });
 

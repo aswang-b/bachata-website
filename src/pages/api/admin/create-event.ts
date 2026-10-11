@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { getGoogleAccessToken, GoogleNotConnectedError, insertCalendarEvent, buildWeeklyRecurrenceRule } from '../../../lib/googleCalendar';
-import { runCalendarSync } from '../../../lib/calendarSync';
+import { runCalendarSync, syncErrorText } from '../../../lib/calendarSync';
 import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
 import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
 
@@ -77,6 +77,9 @@ export const POST: APIRoute = async ({ request }) => {
   const isSeries = recurrence && Array.isArray(recurrence.byDay) && recurrence.byDay.length > 0;
 
   if (isSeries) {
+    // Set when the series reached Google but pulling its occurrences back
+    // into the site hit errors, so the admin sees why it didn't appear.
+    let calendarSyncError: string | null = null;
     try {
       const accessToken = await getGoogleAccessToken();
       const createdMaster = await insertCalendarEvent(accessToken, rowVisibility, {
@@ -98,7 +101,7 @@ export const POST: APIRoute = async ({ request }) => {
       // regular one-off rows by the normal sync/expansion logic. Pricing has
       // no Google Calendar equivalent, so it's never part of that sync —
       // backfill it onto the newly-synced occurrence rows directly.
-      await runCalendarSync();
+      calendarSyncError = syncErrorText(await runCalendarSync());
       await supabase
         .from('events')
         .update({
@@ -126,7 +129,10 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(JSON.stringify({ error: message }), { status: 500 });
     }
 
-    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    return new Response(
+      JSON.stringify({ ok: true, calendarSyncSkipped: calendarSyncError !== null, calendarSyncError }),
+      { status: 200 }
+    );
   }
 
   const { data: row, error: insertError } = await supabase
@@ -164,6 +170,7 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'Failed to create event.' }), { status: 500 });
   }
 
+  let calendarSyncError: string | null = null;
   try {
     const accessToken = await getGoogleAccessToken();
     const created = await insertCalendarEvent(accessToken, rowVisibility, {
@@ -179,9 +186,13 @@ export const POST: APIRoute = async ({ request }) => {
   } catch (err) {
     if (!(err instanceof GoogleNotConnectedError)) {
       console.error('Failed to push new event to Google:', err);
+      calendarSyncError = err instanceof Error ? err.message : String(err);
     }
     // The event still exists on the site; the next scheduled sync will retry the push.
   }
 
-  return new Response(JSON.stringify({ ok: true, id: row.id }), { status: 200 });
+  return new Response(
+    JSON.stringify({ ok: true, id: row.id, calendarSyncSkipped: calendarSyncError !== null, calendarSyncError }),
+    { status: 200 }
+  );
 };

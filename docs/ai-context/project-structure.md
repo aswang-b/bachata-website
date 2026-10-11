@@ -47,6 +47,7 @@
 │   │   ├── recyclingBin.ts              # Soft delete / restore / empty for the dashboard Recycling Bin
 │   │   ├── editLock.ts                  # Admin edit-lock (prevents concurrent edits)
 │   │   ├── email.ts                     # Transactional email sending
+│   │   ├── errorDialog.ts               # Browser-only copyable error modal (sync/save failures)
 │   │   ├── env.ts                       # Env var access/validation
 │   │   ├── faqs.ts                      # FAQ list persistence
 │   │   ├── googleCalendar.ts            # Google Calendar API client

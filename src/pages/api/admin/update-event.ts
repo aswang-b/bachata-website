@@ -10,7 +10,7 @@ import {
   buildWeeklyRecurrenceRule,
   type EventVisibility,
 } from '../../../lib/googleCalendar';
-import { runCalendarSync } from '../../../lib/calendarSync';
+import { runCalendarSync, syncErrorText } from '../../../lib/calendarSync';
 import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
 import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
 
@@ -146,11 +146,17 @@ export const POST: APIRoute = async ({ request }) => {
   // response can tell the admin their DB save succeeded but the calendar
   // sync didn't — instead of silently reporting a full success either way.
   let calendarSyncSkipped = false;
+  // The first Google error hit, returned so the admin can read/copy it.
+  let calendarSyncError: string | null = null;
+  const noteSyncFailure = (err: unknown) => {
+    calendarSyncSkipped = true;
+    calendarSyncError ??= err instanceof Error ? err.message : String(err);
+  };
   const accessToken = await getGoogleAccessToken().catch((err) => {
     // No Google connection at all just means there's nothing to push to.
     if (err instanceof GoogleNotConnectedError) return null;
     console.error('Failed to get a Google access token; skipping calendar push:', err);
-    calendarSyncSkipped = true;
+    noteSyncFailure(err);
     return null;
   });
 
@@ -208,7 +214,8 @@ export const POST: APIRoute = async ({ request }) => {
           until: recurrence.endType === 'until' ? recurrence.until : undefined,
         }),
       });
-      await runCalendarSync();
+      const rebuildSyncError = syncErrorText(await runCalendarSync());
+      if (rebuildSyncError) noteSyncFailure(new Error(rebuildSyncError));
       // Pricing (and the homepage thumbnail) have no Google Calendar
       // equivalent, so the sync never touches them — backfill onto the
       // freshly-synced occurrence rows directly.
@@ -239,7 +246,9 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(JSON.stringify({ error: message }), { status: 500 });
     }
 
-    return new Response(JSON.stringify({ ok: true, rebuilt: true }), { status: 200 });
+    return new Response(JSON.stringify({ ok: true, rebuilt: true, calendarSyncSkipped, calendarSyncError }), {
+      status: 200,
+    });
   }
 
   if (applyToSeries && before.google_recurring_event_id) {
@@ -294,14 +303,17 @@ export const POST: APIRoute = async ({ request }) => {
           }
         } catch (err) {
           console.error(`Failed to push series update to Google for ${sibling.id}:`, err);
-          calendarSyncSkipped = true;
+          noteSyncFailure(err);
         }
       } else if (!accessToken) {
         calendarSyncSkipped = true;
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, seriesCount: siblings.length, calendarSyncSkipped }), { status: 200 });
+    return new Response(
+      JSON.stringify({ ok: true, seriesCount: siblings.length, calendarSyncSkipped, calendarSyncError }),
+      { status: 200 }
+    );
   }
 
   const { data: row, error: updateError } = await supabase
@@ -350,11 +362,11 @@ export const POST: APIRoute = async ({ request }) => {
     } catch (err) {
       console.error('Failed to push event update to Google:', err);
       // The site row is already saved; the next scheduled sync will retry the push.
-      calendarSyncSkipped = true;
+      noteSyncFailure(err);
     }
   } else {
     calendarSyncSkipped = true;
   }
 
-  return new Response(JSON.stringify({ ok: true, calendarSyncSkipped }), { status: 200 });
+  return new Response(JSON.stringify({ ok: true, calendarSyncSkipped, calendarSyncError }), { status: 200 });
 };

@@ -38,6 +38,8 @@ export interface SyncResult {
   pulledUpdated: number;
   pulledDeleted: number;
   pushedCreated: number;
+  // Per-event failures that didn't abort the pass, so the admin can see them.
+  errors: string[];
 }
 
 async function syncCalendar(accessToken: string, visibility: EventVisibility): Promise<SyncResult> {
@@ -114,6 +116,12 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
   let pulledUpdated = 0;
   let pulledDeleted = 0;
   let pushedCreated = 0;
+  const errors: string[] = [];
+  const recordError = (gEvent: { id: string; summary?: string }, message: string) => {
+    const line = `Couldn't save "${gEvent.summary ?? 'Untitled event'}" (${gEvent.id}) from Google: ${message}`;
+    console.error(line);
+    errors.push(line);
+  };
 
   const seenGoogleIds = new Set<string>();
 
@@ -134,11 +142,13 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
       // instead of falling back to generic "event" / no price.
       const seriesMeta = gEvent.recurringEventId ? seriesMetaByRecurringId.get(gEvent.recurringEventId) : undefined;
 
-      // Upserted on google_event_id (unique constraint) rather than a bare
-      // insert, so a race with another sync pass — or a leftover row that
-      // still references this exact Google event — updates in place instead
-      // of creating a duplicate.
-      const { error: insertError } = await supabase.from('events').upsert(
+      // A plain insert, not an upsert: the unique index on google_event_id is
+      // partial (WHERE google_event_id IS NOT NULL), and Postgres can't use a
+      // partial index as an ON CONFLICT target, so every upsert here failed.
+      // The index still blocks duplicates; a race with another sync pass (or a
+      // leftover row outside the sync window) surfaces as 23505 and updates
+      // that row in place instead.
+      const { error: insertError } = await supabase.from('events').insert(
         {
           title: gEvent.summary ?? 'Untitled event',
           description: gEvent.description ? sanitizeEventDescriptionHtml(gEvent.description) : null,
@@ -165,10 +175,31 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
           lesson_overview_title: seriesMeta?.lessonOverviewTitle ?? null,
           lesson_overview_body: seriesMeta?.lessonOverviewBody ?? null,
           hide_lesson_overview: seriesMeta?.hideLessonOverview ?? false,
-        },
-        { onConflict: 'google_event_id' }
+        }
       );
-      if (!insertError) pulledCreated += 1;
+      if (!insertError) {
+        pulledCreated += 1;
+        return;
+      }
+      if (insertError.code === '23505') {
+        const { error: updateError } = await supabase
+          .from('events')
+          .update({
+            title: gEvent.summary ?? 'Untitled event',
+            description: gEvent.description ? sanitizeEventDescriptionHtml(gEvent.description) : null,
+            location: gEvent.location ?? null,
+            start_time: startTime,
+            end_time: endTime,
+          })
+          .eq('google_event_id', gEvent.id);
+        if (!updateError) {
+          pulledUpdated += 1;
+          return;
+        }
+        recordError(gEvent, updateError.message);
+        return;
+      }
+      recordError(gEvent, insertError.message);
       return;
     }
 
@@ -186,16 +217,26 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
           end_time: endTime,
         })
         .eq('id', existing.id);
-      if (!updateError) pulledUpdated += 1;
+      if (updateError) recordError(gEvent, updateError.message);
+      else pulledUpdated += 1;
     } else if (siteUpdated > googleUpdated) {
-      await updateCalendarEvent(accessToken, visibility, gEvent.id, {
-        summary: existing.title,
-        description: existing.description,
-        location: existing.location,
-        startTime: existing.start_time,
-        endTime: existing.end_time,
-        color: existing.color,
-      });
+      // Caught per event so one rejected push (e.g. a Google 403) doesn't
+      // abort the whole pass and block every other event from syncing.
+      try {
+        await updateCalendarEvent(accessToken, visibility, gEvent.id, {
+          summary: existing.title,
+          description: existing.description,
+          location: existing.location,
+          startTime: existing.start_time,
+          endTime: existing.end_time,
+          color: existing.color,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const line = `Couldn't push "${existing.title}" (${gEvent.id}) to Google: ${message}`;
+        console.error(line);
+        errors.push(line);
+      }
     }
   });
 
@@ -209,20 +250,35 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
   // Push site-created rows (no google_event_id yet) to this calendar.
   const rowsToPush = rows.filter((r) => !r.google_event_id);
   await mapConcurrent(rowsToPush, SYNC_CONCURRENCY, async (row) => {
-    const created = await insertCalendarEvent(accessToken, visibility, {
-      siteEventId: row.id,
-      summary: row.title,
-      description: row.description,
-      location: row.location,
-      startTime: row.start_time,
-      endTime: row.end_time,
-      color: row.color,
-    });
-    const { error: linkError } = await supabase.from('events').update({ google_event_id: created.id }).eq('id', row.id);
-    if (!linkError) pushedCreated += 1;
+    try {
+      const created = await insertCalendarEvent(accessToken, visibility, {
+        siteEventId: row.id,
+        summary: row.title,
+        description: row.description,
+        location: row.location,
+        startTime: row.start_time,
+        endTime: row.end_time,
+        color: row.color,
+      });
+      const { error: linkError } = await supabase.from('events').update({ google_event_id: created.id }).eq('id', row.id);
+      if (linkError) throw new Error(linkError.message);
+      pushedCreated += 1;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const line = `Couldn't push "${row.title}" to Google: ${message}`;
+      console.error(line);
+      errors.push(line);
+    }
   });
 
-  return { pulledCreated, pulledUpdated, pulledDeleted, pushedCreated };
+  return { pulledCreated, pulledUpdated, pulledDeleted, pushedCreated, errors };
+}
+
+// Every per-event failure from a runCalendarSync() result, joined for display,
+// or null when the pass was clean.
+export function syncErrorText(result: { public: SyncResult; private: SyncResult }): string | null {
+  const all = [...result.public.errors, ...result.private.errors];
+  return all.length > 0 ? all.join('\n') : null;
 }
 
 export async function runCalendarSync(): Promise<{ public: SyncResult; private: SyncResult }> {
