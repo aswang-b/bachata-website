@@ -6,6 +6,7 @@ import {
   updateCalendarEvent,
   googleColorIdToSiteColor,
   type EventVisibility,
+  type GoogleCalendarEvent,
 } from './googleCalendar';
 import { sanitizeEventDescriptionHtml } from './richText';
 
@@ -31,6 +32,32 @@ async function mapConcurrent<T, R>(items: T[], concurrency: number, fn: (item: T
 
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
   return results;
+}
+
+// True when a site row and its Google event disagree on any field the two
+// sides mirror (title, description, location, times, color).
+function differsFromGoogle(
+  row: {
+    title: string;
+    description: string | null;
+    location: string | null;
+    start_time: string;
+    end_time: string;
+    color: string | null;
+  },
+  gEvent: GoogleCalendarEvent,
+  startTime: string,
+  endTime: string
+): boolean {
+  const googleDescription = gEvent.description ? sanitizeEventDescriptionHtml(gEvent.description) : null;
+  return (
+    row.title !== (gEvent.summary ?? row.title) ||
+    (row.description ?? null) !== googleDescription ||
+    (row.location ?? null) !== (gEvent.location ?? null) ||
+    Date.parse(row.start_time) !== Date.parse(startTime) ||
+    Date.parse(row.end_time) !== Date.parse(endTime) ||
+    (row.color ?? 'accent') !== googleColorIdToSiteColor(gEvent.colorId)
+  );
 }
 
 export interface SyncResult {
@@ -203,6 +230,13 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
       return;
     }
 
+    // updated_at is bumped by a trigger on every row write, including the
+    // pull itself and site-only fields (prices, class type), so "site row is
+    // newer" alone doesn't mean anything Google mirrors changed. Without this
+    // check every pulled occurrence was PATCHed straight back to Google on the
+    // next pass, which tripped Google's per-user write rate limit (403).
+    if (!differsFromGoogle(existing, gEvent, startTime, endTime)) return;
+
     const googleUpdated = gEvent.updated ? new Date(gEvent.updated).getTime() : 0;
     const siteUpdated = new Date(existing.updated_at).getTime();
 
@@ -215,6 +249,7 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
           location: gEvent.location ?? null,
           start_time: startTime,
           end_time: endTime,
+          color: googleColorIdToSiteColor(gEvent.colorId),
         })
         .eq('id', existing.id);
       if (updateError) recordError(gEvent, updateError.message);

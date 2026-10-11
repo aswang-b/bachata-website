@@ -29,6 +29,33 @@ function calendarApiBase(visibility: EventVisibility): string {
   return `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_IDS[visibility])}/events`;
 }
 
+// Google signals its per-user rate limit as 403 rateLimitExceeded /
+// userRateLimitExceeded (or 429) and asks clients to back off and retry.
+// Short delays (0.5s, 1s, 2s plus jitter) keep the worst case well inside a
+// serverless function's time limit.
+const RATE_LIMIT_RETRY_DELAYS_MS = [500, 1000, 2000];
+const RATE_LIMIT_REASONS = new Set(['rateLimitExceeded', 'userRateLimitExceeded']);
+
+async function isRateLimited(res: Response): Promise<boolean> {
+  if (res.status === 429) return true;
+  if (res.status !== 403) return false;
+  try {
+    const body = await res.clone().json();
+    return (body?.error?.errors ?? []).some((e: { reason?: string }) => RATE_LIMIT_REASONS.has(e.reason ?? ''));
+  } catch {
+    return false;
+  }
+}
+
+async function calendarFetch(url: string | URL, init?: RequestInit): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, init);
+    if (attempt >= RATE_LIMIT_RETRY_DELAYS_MS.length || !(await isRateLimited(res))) return res;
+    const delay = RATE_LIMIT_RETRY_DELAYS_MS[attempt] + Math.random() * 250;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+}
+
 export interface GoogleCalendarEvent {
   id: string;
   status?: string;
@@ -189,7 +216,7 @@ export async function listCalendarEvents(
     url.searchParams.set('maxResults', '250');
     if (pageToken) url.searchParams.set('pageToken', pageToken);
 
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const res = await calendarFetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
     if (!res.ok) {
       throw new Error(`Failed to list Google Calendar events: ${res.status} ${await res.text()}`);
     }
@@ -216,7 +243,7 @@ export async function insertCalendarEvent(
     recurrence?: string[];
   }
 ): Promise<GoogleCalendarEvent> {
-  const res = await fetch(calendarApiBase(visibility), {
+  const res = await calendarFetch(calendarApiBase(visibility), {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -254,7 +281,7 @@ export async function updateCalendarEvent(
     color?: string | null;
   }
 ): Promise<GoogleCalendarEvent> {
-  const res = await fetch(`${calendarApiBase(visibility)}/${encodeURIComponent(googleEventId)}`, {
+  const res = await calendarFetch(`${calendarApiBase(visibility)}/${encodeURIComponent(googleEventId)}`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -282,7 +309,7 @@ export async function deleteCalendarEvent(
   visibility: EventVisibility,
   googleEventId: string
 ): Promise<void> {
-  const res = await fetch(`${calendarApiBase(visibility)}/${encodeURIComponent(googleEventId)}`, {
+  const res = await calendarFetch(`${calendarApiBase(visibility)}/${encodeURIComponent(googleEventId)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
