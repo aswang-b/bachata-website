@@ -696,9 +696,6 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       radio.addEventListener('click', () => {
         const selection = selections.get(key);
         if (selection && selection.mode === radio.value) {
-          // The only option (drop-in-only or whole-series-only) can't be
-          // "unselected" — use the class card to deselect.
-          if (modeRadios.length === 1) return;
           deselectSeries();
         } else if (selection) {
           selection.mode = radio.value as 'whole' | 'dropin';
