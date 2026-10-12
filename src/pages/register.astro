@@ -416,6 +416,8 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 </BaseLayout>
 
 <script>
+  import { submitOnce } from '../lib/submitOnce';
+
   interface Dancer {
     firstName: string;
     lastName: string;
@@ -797,6 +799,8 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
     (document.getElementById('dancers-value') as HTMLInputElement).value = JSON.stringify(dancers);
   });
+
+  submitOnce(document.querySelector<HTMLFormElement>('form[action="/api/submit-intake"]'));
 
   // Bootstrap the first dancer block now that updateSubtotal (and everything
   // it depends on) is defined above.

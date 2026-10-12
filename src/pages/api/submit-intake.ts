@@ -12,6 +12,7 @@ import {
 import { listFaqs } from '../../lib/faqs';
 import { getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
 import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
+import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
 
 export const prerender = false;
 
@@ -198,6 +199,14 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
 
   const confirmationBase = registrationType === 'private' ? '/contact/confirmation' : '/register/confirmation';
   const confirmationUrl = `${confirmationBase}?id=${row.id}`;
+
+  // The same form submitted twice (double-click, back-and-resubmit): the
+  // repeat goes to the Recycling Bin, sends no second email, and shows the
+  // original's confirmation.
+  const originalId = await flagDuplicateSubmission(row.id);
+  if (originalId) {
+    return redirect(`${confirmationBase}?id=${originalId}`, 303);
+  }
 
   // Admin notification emails are only sent for the Contact Me form — group
   // and events registrations show up in /admin/analytics and /admin/inbox

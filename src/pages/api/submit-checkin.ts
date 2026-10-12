@@ -6,6 +6,7 @@ import { getCheckinPerIpCap } from '../../lib/notificationSettings';
 import { getSiteSettings } from '../../lib/siteSettings';
 import { chicagoDayBoundsUtcIso } from '../../lib/classSeries';
 import { verifyCheckinRegisterToken } from '../../lib/checkinToken';
+import { flagDuplicateCheckins } from '../../lib/duplicateSubmissions';
 
 export const prerender = false;
 
@@ -188,6 +189,11 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     return new Response('Something went wrong checking you in. Please try again.', { status: 500 });
   }
 
+  // A double-tapped Check In (or a resubmitted form) shouldn't count twice:
+  // repeats go to the Recycling Bin and the confirmation shows the originals.
+  const duplicateOf = await flagDuplicateCheckins(checkins.map((c) => c.id));
+  const confirmationIds = Array.from(new Set(checkins.map((c) => duplicateOf.get(c.id) ?? c.id)));
+
   // The admin QR's "also register" option (drop-in-only events): give each
   // QR-checked-in attendee a matching registration so they don't end up as
   // orphaned check-ins. Only honored for QR (direct event id) check-ins, and
@@ -211,5 +217,5 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     }
   }
 
-  return redirect(`/check-in/confirmation?ids=${checkins.map((c) => c.id).join(',')}`, 303);
+  return redirect(`/check-in/confirmation?ids=${confirmationIds.join(',')}`, 303);
 };

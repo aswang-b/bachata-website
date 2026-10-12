@@ -95,3 +95,9 @@ const inputClass =
     )}
   </div>
 </BaseLayout>
+
+<script>
+  import { submitOnce } from '../../lib/submitOnce';
+
+  submitOnce(document.querySelector<HTMLFormElement>('form[action="/api/submit-checkin"]'), 'Checking in…');
+</script>

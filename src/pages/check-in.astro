@@ -162,6 +162,8 @@ const inputClass =
 </BaseLayout>
 
 <script>
+  import { submitOnce } from '../lib/submitOnce';
+
   const seriesKeysContainer = document.getElementById('series-keys-container');
   // `series_keys` on today's page; `event_ids` when the page was opened from a multi-class QR.
   const fieldName = seriesKeysContainer?.dataset.field ?? 'series_keys';
@@ -203,4 +205,6 @@ const inputClass =
       classError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   });
+
+  submitOnce(document.querySelector<HTMLFormElement>('form[action="/api/submit-checkin"]'), 'Checking in…');
 </script>
