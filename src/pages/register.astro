@@ -301,10 +301,13 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                         </div>
                       </>
                     ) : (
-                      <p class="flex items-center justify-between text-sm text-ink">
-                        <span>Whole Series</span>
-                        <span class="font-semibold" set:html={priceDisplayHtml(s.priceWhole)} />
-                      </p>
+                      <label class="flex items-center justify-between gap-2 text-sm text-ink">
+                        <span class="flex items-center gap-2">
+                          <input type="radio" name={`series_mode_${s.key}`} value="whole" checked disabled={s.registrationClosed} class="series-mode-radio h-4 w-4" />
+                          Whole Series
+                        </span>
+                        <span class="font-semibold text-ink" set:html={priceDisplayHtml(s.priceWhole)} />
+                      </label>
                     )}
                     {s.priceStudent.originalPrice != null && (
                       <p class="pl-6 text-xs text-muted">
@@ -693,8 +696,9 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       radio.addEventListener('click', () => {
         const selection = selections.get(key);
         if (selection && selection.mode === radio.value) {
-          // The only option can't be "unselected" — use the class card to deselect.
-          if (dropInOnly) return;
+          // The only option (drop-in-only or whole-series-only) can't be
+          // "unselected" — use the class card to deselect.
+          if (modeRadios.length === 1) return;
           deselectSeries();
         } else if (selection) {
           selection.mode = radio.value as 'whole' | 'dropin';
