@@ -385,6 +385,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     lastName: string;
     email: string;
     phone: string;
+    // 'leader' | 'follower', or '' when the sign-up didn't record one.
+    role: string;
     registrationType: string;
     // Derived in reloadData() from classRegistrations, for the existing
     // name-search/class-filter/sort logic that expects a flat string.
@@ -1091,6 +1093,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           if (editingSignupKey === key) return [signupEditRowHtml(s, 'edit')];
 
           const paymentLabel = s.paymentMethod === 'venmo' ? 'Venmo' : s.paymentMethod === 'cash' ? 'Cash' : '—';
+          const roleLabel = s.role === 'leader' ? 'Leader' : s.role === 'follower' ? 'Follower' : '';
           const classEntries = s.classRegistrations;
 
           // One row per class the dancer is registered for, so multiple
@@ -1110,7 +1113,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.firstName) : ''}</td>
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.lastName) : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? `<div>${escapeHtml(s.email)}</div><div>${escapeHtml(s.phone)}</div>` : ''}</td>
-            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.classLabel || '—')}</td>
+            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.classLabel ? `${entry.classLabel}${roleLabel ? ` - ${roleLabel}` : ''}` : '—')}</td>
             <td class="px-4 py-2.5 text-ink/70">${modeLabel}${
               entry.seriesMode === 'dropin'
                 ? `<div class="mt-0.5 text-xs ${entry.occurrenceLabel ? 'text-ink' : 'text-muted'}">${escapeHtml(entry.occurrenceLabel ?? 'Date not recorded')}</div>`

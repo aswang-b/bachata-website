@@ -56,6 +56,8 @@ interface SignupRow {
   lastName: string;
   email: string;
   phone: string;
+  // 'leader' | 'follower', or '' for legacy single-registrant sign-ups.
+  role: string;
   classRegistrations: ClassRegistrationEntry[];
 }
 
@@ -173,6 +175,7 @@ export const GET: APIRoute = async ({ request }) => {
                 lastName: d.lastName ?? '',
                 email: d.email || row.email || '',
                 phone: d.phone || row.phone || '',
+                role: d.role ?? '',
                 classRegistrations: byDancer?.get(i) ?? [EMPTY_CLASS_ENTRY],
               },
             ]
@@ -188,6 +191,7 @@ export const GET: APIRoute = async ({ request }) => {
         lastName: row.last_name ?? '',
         email: row.email ?? '',
         phone: row.phone ?? '',
+        role: '',
         classRegistrations: byDancer?.get(null) ?? [EMPTY_CLASS_ENTRY],
       },
     ];
