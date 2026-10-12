@@ -136,7 +136,12 @@ export const GET: APIRoute = async ({ request }) => {
     const entry: ClassRegistrationEntry = {
       id: reg.id,
       classTitle: reg.class_title,
-      classLabel: reg.class_label,
+      // Rows written from /register's structured selections before the
+      // label included the title hold just the schedule ("Sundays, 1:00 PM…").
+      classLabel:
+        reg.class_label && !reg.class_label.startsWith(reg.class_title)
+          ? `${reg.class_title} — ${reg.class_label}`
+          : reg.class_label,
       seriesMode: reg.series_mode,
       price: reg.price,
       occurrenceEventId: reg.occurrence_event_id,

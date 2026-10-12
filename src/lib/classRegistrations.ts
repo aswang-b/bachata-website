@@ -65,10 +65,13 @@ export function parseClassSelectionsJson(raw: string | null | undefined): Parsed
     if (!entry || typeof entry !== 'object') continue;
     const { key, title, label, mode, occurrenceEventId } = entry as Record<string, unknown>;
     if (typeof title !== 'string' || !title) continue;
+    // register.astro sends just the schedule as the label ("Sundays, 1:00 PM…");
+    // store "<title> — <schedule>" like every other path so the label stands alone.
+    const labelText = typeof label === 'string' ? label.trim() : '';
     out.push({
       key: typeof key === 'string' && key ? key : undefined,
       title,
-      label: typeof label === 'string' && label ? label : title,
+      label: !labelText ? title : labelText.startsWith(title) ? labelText : `${title} — ${labelText}`,
       mode: mode === 'whole' || mode === 'dropin' ? mode : null,
       occurrenceEventId: typeof occurrenceEventId === 'string' && occurrenceEventId ? occurrenceEventId : null,
     });
