@@ -137,8 +137,6 @@ const CONTACT_METHODS = [
 </div>
 
 <script>
-  import { submitOnce } from '../lib/submitOnce';
-
   const contactMethodButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.contact-method-btn'));
 
   if (contactMethodButtons.length) {
@@ -187,6 +185,4 @@ const CONTACT_METHODS = [
       }
     });
   }
-
-  submitOnce(document.querySelector<HTMLFormElement>('form[action="/api/submit-intake"]'));
 </script>
