@@ -10,7 +10,7 @@ import {
   validateClassSelections,
 } from '../../lib/classRegistrations';
 import { listFaqs } from '../../lib/faqs';
-import { getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
+import { getConfirmationBccEmails, getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
 import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
 
@@ -225,8 +225,12 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
       const emailRecipients = Array.from(
         new Set((dancers && dancers.length > 0 ? dancers.map((d) => d.email) : [email]).filter((e): e is string => Boolean(e)))
       );
+      // Admins who want a copy of every confirmation (Settings → Registration
+      // Confirmation BCC), minus anyone already getting it as a dancer.
+      const dancerAddresses = new Set(emailRecipients.map((e) => e.toLowerCase()));
+      const bcc = (await getConfirmationBccEmails()).filter((e) => !dancerAddresses.has(e.toLowerCase()));
 
-      if (emailRecipients.length > 0) {
+      if (emailRecipients.length > 0 || bcc.length > 0) {
         const rows: [string, string][] = [];
         if (dancers) {
           dancers.forEach((d) => {
@@ -270,24 +274,33 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
         // wifi) just misses the email. Checked before the global cap so a
         // throttled IP doesn't use up everyone else's quota.
         const perIpCap = await getConfirmationEmailPerIpCap();
+        let capped = false;
+        const reserveEmail = async () => {
+          if (capped) return false;
+          if (!(await checkAndIncrementUsage(`confirmation_email_ip:${ip}`, perIpCap))) {
+            console.warn('Per-IP confirmation email cap reached — skipping remaining confirmation emails for this network.');
+            capped = true;
+          } else if (!(await checkAndIncrementUsage('resend_confirmation_email', CONFIRMATION_EMAIL_DAILY_CAP))) {
+            console.warn('Daily confirmation email cap reached — skipping remaining registration confirmation emails.');
+            capped = true;
+          }
+          return !capped;
+        };
 
         const toSend: string[] = [];
         for (const recipient of emailRecipients) {
-          const ipAllowed = await checkAndIncrementUsage(`confirmation_email_ip:${ip}`, perIpCap);
-          if (!ipAllowed) {
-            console.warn('Per-IP confirmation email cap reached — skipping remaining confirmation emails for this network.');
-            break;
-          }
-          const allowed = await checkAndIncrementUsage('resend_confirmation_email', CONFIRMATION_EMAIL_DAILY_CAP);
-          if (!allowed) {
-            console.warn('Daily confirmation email cap reached — skipping remaining registration confirmation emails.');
-            break;
-          }
+          if (!(await reserveEmail())) break;
           toSend.push(recipient);
         }
-        const results = await Promise.allSettled(
-          toSend.map((recipient) => sendEmail(recipient, 'Your Class Registration is Confirmed — Dance with B', html))
-        );
+
+        // One admin copy per registration: BCC'd on the first dancer's email,
+        // or sent on its own when no dancer email goes out.
+        const subject = 'Your Class Registration is Confirmed — Dance with B';
+        const sends = toSend.map((recipient, i) => sendEmail(recipient, subject, html, i === 0 ? { bcc } : {}));
+        if (toSend.length === 0 && bcc.length > 0 && (await reserveEmail())) {
+          sends.push(sendEmail(bcc, subject, html));
+        }
+        const results = await Promise.allSettled(sends);
         for (const r of results) {
           if (r.status === 'rejected') console.error('Failed to send registration confirmation to a recipient:', r.reason);
         }

@@ -6,7 +6,12 @@ const NOTIFICATION_EMAILS_ENV = env('NOTIFICATION_EMAILS');
 
 const FROM_ADDRESS = 'Dance with B <service@dancewithb.fun>';
 
-export async function sendEmail(to: string | string[], subject: string, html: string): Promise<void> {
+export async function sendEmail(
+  to: string | string[],
+  subject: string,
+  html: string,
+  options: { bcc?: string[] } = {}
+): Promise<void> {
   if (!RESEND_API_KEY) {
     console.warn('Skipping email: RESEND_API_KEY not set.');
     return;
@@ -21,6 +26,7 @@ export async function sendEmail(to: string | string[], subject: string, html: st
     body: JSON.stringify({
       from: FROM_ADDRESS,
       to,
+      ...(options.bcc && options.bcc.length > 0 ? { bcc: options.bcc } : {}),
       subject,
       html,
     }),
