@@ -13,6 +13,7 @@ import { listFaqs } from '../../lib/faqs';
 import { getConfirmationBccEmails, getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
 import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
+import { buildReceiptLines, receiptSubtotal } from '../../lib/registrationReceipt';
 
 export const prerender = false;
 
@@ -244,27 +245,28 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
           if (instagram) rows.push(['Instagram', instagram]);
           if (whatsapp) rows.push(['WhatsApp', whatsapp]);
         }
-        // The classes are joined with "; " for storage/display elsewhere,
-        // but read better in the email as separate paragraphs.
-        const classesForEmail = className
-          .split(';')
-          .map((c) => c.trim())
-          .filter(Boolean)
-          .join('\n\n');
-        if (classesForEmail) rows.push(['Class', classesForEmail]);
+        // Itemized classes + subtotal, same as /register/confirmation shows.
+        const receiptLines = await buildReceiptLines(await getClassRegistrationsForSubmission(row.id));
+        const subtotal = receiptSubtotal(receiptLines);
+        if (receiptLines.length === 0) {
+          // No saved registration rows to itemize: fall back to the class text,
+          // one class per paragraph (it's joined with "; " for storage).
+          const classesForEmail = className
+            .split(';')
+            .map((c) => c.trim())
+            .filter(Boolean)
+            .join('\n\n');
+          if (classesForEmail) rows.push(['Class', classesForEmail]);
+        }
         if (paymentMethod) rows.push(['Payment', paymentMethod === 'venmo' ? 'Venmo' : 'Cash at the door']);
         if (comments) rows.push(['Notes', comments]);
-
-        const classRegistrations = await getClassRegistrationsForSubmission(row.id);
-        const subtotal = classRegistrations.some((r) => r.price != null)
-          ? classRegistrations.reduce((sum, r) => sum + (r.price ?? 0), 0)
-          : null;
 
         const faqs = await listFaqs();
         const html = buildRegistrationConfirmationEmailHtml({
           registrationTypeLabel: REGISTRATION_TYPE_LABELS[registrationType] ?? registrationType,
           createdAt: new Date(),
           summaryRows: rows,
+          receiptLines,
           subtotal,
           faqs: faqs.filter((f) => f.includeInConfirmation).map((f) => ({ question: f.question, answer: f.answer })),
         });
