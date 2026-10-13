@@ -10,6 +10,8 @@ const navItems = [
 const currentPath = Astro.url.pathname;
 const isAdminPage = currentPath === '/admin';
 const isRegisterPage = currentPath === '/register' || currentPath === '/register/events';
+// Lavender, to set it apart from the accent-colored Register for Classes button.
+const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-violet-300 hover:border-violet-300/70 hover:bg-violet-300/20';
 ---
 
 <header class="sticky top-0 z-50 border-b border-border bg-bg/90 backdrop-blur print:hidden">
@@ -52,6 +54,20 @@ const isRegisterPage = currentPath === '/register' || currentPath === '/register
     </nav>
 
     <div class="flex items-center justify-end gap-2 md:gap-4">
+      {/* Off until an admin turns it on (Admin → Site Visibility); the `hidden` attribute is removed by the script below. */}
+      {
+        currentPath !== '/register/events' && (
+          <a
+            href="/register/events"
+            hidden
+            data-show-settings-key="show_register_events_nav"
+            class={`hidden rounded-md px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors md:flex ${eventsButtonClass}`}
+          >
+            Register for Events
+          </a>
+        )
+      }
+
       {
         !isRegisterPage && (
           <a
@@ -110,6 +126,14 @@ const isRegisterPage = currentPath === '/register' || currentPath === '/register
         {item.label}
       </a>
     ))}
+    <a
+      href="/register/events"
+      hidden
+      data-show-settings-key="show_register_events_nav"
+      class={`rounded-full px-3 py-2 text-sm font-semibold uppercase tracking-wider ${eventsButtonClass}`}
+    >
+      Register for Events
+    </a>
     <a
       href="/admin"
       class="admin-nav-link hidden rounded-full px-3 py-2 text-sm font-semibold uppercase tracking-wider text-ink/70 hover:bg-surface hover:text-accent"
@@ -173,9 +197,10 @@ const isRegisterPage = currentPath === '/register' || currentPath === '/register
     try {
       const res = await fetch('/api/settings');
       const settings = await res.json();
-      for (const [key, hidden] of Object.entries(settings)) {
-        if (!hidden) continue;
+      for (const [key, enabled] of Object.entries(settings)) {
+        if (!enabled) continue;
         document.querySelectorAll(`[data-settings-key="${key}"]`).forEach((el) => el.classList.add('hidden'));
+        document.querySelectorAll(`[data-show-settings-key="${key}"]`).forEach((el) => el.removeAttribute('hidden'));
       }
     } catch {
       // If settings can't be fetched, fail open and leave nav links visible.

@@ -6,6 +6,7 @@ import { getGoogleAccessToken, GoogleNotConnectedError, insertCalendarEvent, bui
 import { runCalendarSync, syncErrorText } from '../../../lib/calendarSync';
 import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
 import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
+import { toCapacity } from '../../../lib/capacity';
 
 export const prerender = false;
 
@@ -46,6 +47,8 @@ export const POST: APIRoute = async ({ request }) => {
     lessonOverviewTitle,
     lessonOverviewBody,
     hideLessonOverview,
+    capacity,
+    showCapacity,
   } = body ?? {};
 
   if (!title || !startTime || !endTime) {
@@ -72,6 +75,8 @@ export const POST: APIRoute = async ({ request }) => {
   const rowImageUrl = imageUrl || null;
   const rowLessonOverview = normalizeLessonOverviewOverride(lessonOverviewTitle, lessonOverviewBody);
   const rowHideLessonOverview = Boolean(hideLessonOverview);
+  const rowCapacity = toCapacity(capacity);
+  const rowShowCapacity = rowCapacity != null && Boolean(showCapacity);
   const rowDescription = description ? sanitizeEventDescriptionHtml(description) : null;
 
   const isSeries = recurrence && Array.isArray(recurrence.byDay) && recurrence.byDay.length > 0;
@@ -123,6 +128,8 @@ export const POST: APIRoute = async ({ request }) => {
           lesson_overview_title: rowLessonOverview.title,
           lesson_overview_body: rowLessonOverview.body,
           hide_lesson_overview: rowHideLessonOverview,
+          capacity: rowCapacity,
+          show_capacity: rowShowCapacity,
         })
         .eq('google_recurring_event_id', createdMaster.id);
     } catch (err) {
@@ -164,6 +171,8 @@ export const POST: APIRoute = async ({ request }) => {
       lesson_overview_title: rowLessonOverview.title,
       lesson_overview_body: rowLessonOverview.body,
       hide_lesson_overview: rowHideLessonOverview,
+      capacity: rowCapacity,
+      show_capacity: rowShowCapacity,
     })
     .select()
     .single();

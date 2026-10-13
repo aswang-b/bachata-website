@@ -13,6 +13,7 @@ import { listFaqs } from '../../lib/faqs';
 import { getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
 import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
+import { validateCapacity } from '../../lib/capacity';
 
 export const prerender = false;
 
@@ -75,7 +76,11 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   let whatsapp = '';
   let dancers: Dancer[] | null = null;
 
-  if (registrationType === 'group') {
+  // Classes (group) and events share the multi-attendee form; only classes
+  // ask for a Leader/Follower role, and an event only needs a payment method
+  // when it has a price (the form only asks then).
+  const isEvent = registrationType === 'events';
+  if (registrationType === 'group' || isEvent) {
     const dancersRaw = String(formData.get('dancers') ?? '');
     try {
       dancers = JSON.parse(dancersRaw);
@@ -92,7 +97,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     if (
       !className ||
       className.length > MAX_CLASS_LENGTH ||
-      !paymentMethod ||
+      (!paymentMethod && !isEvent) ||
       !dancers ||
       dancers.length === 0 ||
       dancers.length > MAX_DANCERS ||
@@ -102,16 +107,21 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
           d.firstName.length <= MAX_NAME_LENGTH &&
           d.lastName &&
           d.lastName.length <= MAX_NAME_LENGTH &&
-          d.role &&
+          (d.role || isEvent) &&
           (d.phone || d.email) &&
           (!d.phone || d.phone.length <= MAX_CONTACT_LENGTH) &&
           (!d.email || d.email.length <= MAX_CONTACT_LENGTH)
       )
     ) {
       return new Response(
-        `Missing or invalid fields: a class, a payment method, and each dancer's first name, last name, role, and a phone or email (max ${MAX_DANCERS} dancers).`,
+        isEvent
+          ? `Missing or invalid fields: an event, and each attendee's first name, last name, and a phone or email (max ${MAX_DANCERS} attendees).`
+          : `Missing or invalid fields: a class, a payment method, and each dancer's first name, last name, role, and a phone or email (max ${MAX_DANCERS} dancers).`,
         { status: 400 }
       );
+    }
+    if (isEvent) {
+      dancers = dancers.map((d) => ({ ...d, role: '' }));
     }
 
     firstName = dancers[0].firstName;
@@ -159,6 +169,10 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   const selectionError = await validateClassSelections(selections);
   if (selectionError) {
     return new Response(selectionError.message, { status: selectionError.status });
+  }
+  const capacityError = await validateCapacity(selections, dancers && dancers.length > 0 ? dancers.length : 1);
+  if (capacityError) {
+    return new Response(capacityError.message, { status: capacityError.status });
   }
 
   const { data: row, error } = await supabase
@@ -286,7 +300,9 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
           toSend.push(recipient);
         }
         const results = await Promise.allSettled(
-          toSend.map((recipient) => sendEmail(recipient, 'Your Class Registration is Confirmed — Dance with B', html))
+          toSend.map((recipient) =>
+            sendEmail(recipient, `Your ${isEvent ? 'Event' : 'Class'} Registration is Confirmed — Dance with B`, html)
+          )
         );
         for (const r of results) {
           if (r.status === 'rejected') console.error('Failed to send registration confirmation to a recipient:', r.reason);

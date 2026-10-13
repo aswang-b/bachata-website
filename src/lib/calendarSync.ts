@@ -79,7 +79,7 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
   const { data: existingRows, error: rowsError } = await supabase
     .from('events')
     .select(
-      'id, title, description, location, color, event_type, start_time, end_time, google_event_id, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, updated_at'
+      'id, title, description, location, color, event_type, start_time, end_time, google_event_id, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, updated_at'
     )
     .eq('visibility', visibility)
     .gte('start_time', timeMin);
@@ -114,6 +114,8 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
       lessonOverviewTitle: string | null;
       lessonOverviewBody: string | null;
       hideLessonOverview: boolean;
+      capacity: number | null;
+      showCapacity: boolean;
     }
   >();
   for (const r of rows) {
@@ -135,6 +137,8 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
         lessonOverviewTitle: r.lesson_overview_title,
         lessonOverviewBody: r.lesson_overview_body,
         hideLessonOverview: r.hide_lesson_overview,
+        capacity: r.capacity,
+        showCapacity: r.show_capacity,
       });
     }
   }
@@ -202,6 +206,8 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
           lesson_overview_title: seriesMeta?.lessonOverviewTitle ?? null,
           lesson_overview_body: seriesMeta?.lessonOverviewBody ?? null,
           hide_lesson_overview: seriesMeta?.hideLessonOverview ?? false,
+          capacity: seriesMeta?.capacity ?? null,
+          show_capacity: seriesMeta?.showCapacity ?? false,
         }
       );
       if (!insertError) {

@@ -108,6 +108,9 @@ interface ClassPriceInfo {
   // The event's own title, used as the stored `class_title` for keyed
   // selections so a client can't pair one series' key with another's title.
   title: string;
+  // The series key (`google_recurring_event_id ?? id`), stored on each
+  // registration so capacity can be counted per series.
+  seriesKey: string;
   whole: number | null;
   dropIn: number | null;
   student: number | null;
@@ -138,7 +141,8 @@ async function lookupClassPrices(selections: ParsedClassSelection[]): Promise<Ma
   const ids = keys.filter((k) => UUID_RE.test(k));
   const titles = Array.from(new Set(selections.map((s) => s.title)));
 
-  const base = () => supabase.from('events').select(PRICE_COLUMNS).eq('event_type', 'class');
+  // Classes and events alike: an event's ticket price is its whole-series price.
+  const base = () => supabase.from('events').select(PRICE_COLUMNS);
   const results = await Promise.all([
     ids.length > 0 ? base().in('id', ids) : null,
     keys.length > 0 ? base().in('google_recurring_event_id', keys) : null,
@@ -156,6 +160,7 @@ async function lookupClassPrices(selections: ParsedClassSelection[]): Promise<Ma
   for (const e of data ?? []) {
     const info: ClassPriceInfo = {
       title: e.title,
+      seriesKey: e.google_recurring_event_id ?? e.id,
       whole: e.price_whole_series,
       dropIn: e.price_drop_in,
       student: e.price_student,
@@ -283,6 +288,7 @@ function buildRegistrationRows(
       phone: dancer.phone || null,
       class_title: keyInfo?.title ?? sel.title,
       class_label: sel.label,
+      series_key: info?.seriesKey ?? null,
       series_mode: effectiveMode,
       price: priceResult.activePrice,
       price_tier: info ? priceResult.tag : null,
@@ -557,6 +563,7 @@ async function insertDropInSignup(
       phone: person.phone || null,
       class_title: event.title,
       class_label: label,
+      series_key: event.google_recurring_event_id ?? event.id,
       series_mode: 'dropin',
       price: price.activePrice,
       price_tier: price.tag,

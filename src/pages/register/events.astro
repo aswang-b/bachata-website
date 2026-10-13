@@ -1,32 +1,7 @@
 ---
 export const prerender = false;
 
-import BaseLayout from '../../layouts/BaseLayout.astro';
-import IntakeForm from '../../components/IntakeForm.astro';
-import { supabase } from '../../lib/supabase';
-
-const { data: classEvents, error } = await supabase
-  .from('events')
-  .select('id, title, start_time, end_time, color, google_recurring_event_id')
-  .eq('visibility', 'public')
-  .eq('event_type', 'event')
-  .gte('start_time', new Date().toISOString())
-  .order('start_time', { ascending: true });
-
-if (error) console.error('Failed to load events:', error);
+import RegistrationForm from '../../components/RegistrationForm.astro';
 ---
 
-<BaseLayout
-  title="Register — Bachata Socials & Events"
-  description="Register for bachata social dance events and workshops in Madison, WI."
->
-  <IntakeForm
-    registrationType="events"
-    heading="Register for an Event or Workshop"
-    subtext="Fill out the form below to reserve your spot!"
-    commentsLabel="Notes"
-    classEvents={classEvents ?? []}
-    classEmptyMessage="No upcoming events or workshops are scheduled yet — leave a note below and we'll follow up."
-    requireAll={true}
-  />
-</BaseLayout>
+<RegistrationForm kind="event" />
