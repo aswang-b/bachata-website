@@ -13,7 +13,7 @@ import { listFaqs } from '../../lib/faqs';
 import { getConfirmationBccEmails, getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
 import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
-import { buildReceiptLines, receiptSubtotal } from '../../lib/registrationReceipt';
+import { buildReceiptLines, paymentAgreementText, receiptSubtotal } from '../../lib/registrationReceipt';
 
 export const prerender = false;
 
@@ -258,7 +258,6 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
             .join('\n\n');
           if (classesForEmail) rows.push(['Class', classesForEmail]);
         }
-        if (paymentMethod) rows.push(['Payment', paymentMethod === 'venmo' ? 'Venmo' : 'Cash at the door']);
         if (comments) rows.push(['Notes', comments]);
 
         const faqs = await listFaqs();
@@ -268,6 +267,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
           summaryRows: rows,
           receiptLines,
           subtotal,
+          paymentNote: paymentAgreementText(paymentMethod),
           faqs: faqs.filter((f) => f.includeInConfirmation).map((f) => ({ question: f.question, answer: f.answer })),
         });
 

@@ -80,3 +80,10 @@ export function receiptSubtotal(lines: ReceiptLine[]): number | null {
 export function quantityNote(line: ReceiptLine): string {
   return line.quantity > 1 && line.unitPrice != null ? `${formatPrice(line.unitPrice)} × ${line.quantity} dancers` : '';
 }
+
+// The payment line under the receipt, e.g. "You agreed to pay with Venmo."
+export function paymentAgreementText(method: string | null | undefined): string | null {
+  if (method === 'venmo') return 'You agreed to pay with Venmo.';
+  if (method === 'cash') return 'You agreed to pay with cash.';
+  return null;
+}

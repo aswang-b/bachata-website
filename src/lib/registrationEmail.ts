@@ -22,6 +22,8 @@ export interface RegistrationEmailParams {
   // with the subtotal under them instead of a bare Subtotal row.
   receiptLines?: ReceiptLine[];
   subtotal: number | null;
+  // e.g. "You agreed to pay with Venmo.", shown under the classes.
+  paymentNote?: string | null;
   faqs: { question: string; answer: string }[];
 }
 
@@ -100,6 +102,7 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
           ${subtotalRowHtml}
         </table>
         ${hasReceipt ? receiptHtml(params.receiptLines!, params.subtotal) : ''}
+        ${params.paymentNote ? `<p style="margin:12px 0 0;font-size:14px;color:#333;">${escapeHtml(params.paymentNote)}</p>` : ''}
       </div>
 
       ${faqsHtml}

@@ -5,7 +5,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
 import { listFaqs } from '../../lib/faqs';
 import { getClassRegistrationsForSubmission } from '../../lib/classRegistrations';
-import { buildReceiptLines, formatPrice, quantityNote, receiptSubtotal } from '../../lib/registrationReceipt';
+import { buildReceiptLines, formatPrice, paymentAgreementText, quantityNote, receiptSubtotal } from '../../lib/registrationReceipt';
 
 const faqs = await listFaqs();
 const printFaqs = faqs.filter((f) => f.includeInConfirmation);
@@ -137,12 +137,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'nu
               )
             )}
 
-            {submission.payment_method && (
-              <div class="flex flex-col">
-                <span class="text-xs font-semibold uppercase tracking-wider text-muted">Payment</span>
-                <span>{submission.payment_method === 'venmo' ? 'Venmo' : 'Cash at the door'}</span>
-              </div>
-            )}
+            {paymentAgreementText(submission.payment_method) && <p>{paymentAgreementText(submission.payment_method)}</p>}
 
             {submission.comments && (
               <div class="flex flex-col">
