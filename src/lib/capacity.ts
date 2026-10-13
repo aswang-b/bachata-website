@@ -21,40 +21,30 @@ export interface SpotsInfo {
 export const seriesKeyOf = (e: { id: string; google_recurring_event_id: string | null }) => e.google_recurring_event_id ?? e.id;
 
 // Spots for every given occurrence that has a capacity, keyed by occurrence id.
+// Reads the cached counts in event_spot_counts, which database triggers keep
+// current on every sign-up change and which count each person once per class
+// (see migration 0039) — so this never scans the sign-ups themselves.
 export async function getSpotsByOccurrence(events: CapacityEventRow[]): Promise<Map<string, SpotsInfo>> {
   const limited = events.filter((e) => e.capacity != null && e.capacity > 0);
   const result = new Map<string, SpotsInfo>();
   if (limited.length === 0) return result;
 
-  const keys = Array.from(new Set(limited.map(seriesKeyOf)));
-  const wholeByKey = new Map<string, number>();
-  const dropInByOccurrence = new Map<string, number>();
-
-  const PAGE_SIZE = 1000;
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from('class_registrations')
-      .select('id, series_key, is_drop_in, occurrence_event_id')
-      .in('series_key', keys)
-      .is('deleted_at', null)
-      .order('id', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
+  const takenById = new Map<string, number>();
+  const ids = Array.from(new Set(limited.map((e) => e.id)));
+  // Chunked so a long list of ids doesn't overflow the request URL.
+  const CHUNK = 150;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const { data, error } = await supabase.from('event_spot_counts').select('event_id, taken').in('event_id', ids.slice(i, i + CHUNK));
     if (error) {
-      console.error('Failed to count registrations for capacity:', error.message);
-      throw new Error('Failed to count registrations.');
+      console.error('Failed to load spot counts:', error.message);
+      throw new Error('Failed to load spot counts.');
     }
-    for (const r of data ?? []) {
-      if (r.is_drop_in) {
-        if (r.occurrence_event_id) dropInByOccurrence.set(r.occurrence_event_id, (dropInByOccurrence.get(r.occurrence_event_id) ?? 0) + 1);
-      } else if (r.series_key) {
-        wholeByKey.set(r.series_key, (wholeByKey.get(r.series_key) ?? 0) + 1);
-      }
-    }
-    if ((data?.length ?? 0) < PAGE_SIZE) break;
+    for (const r of data ?? []) takenById.set(r.event_id, r.taken);
   }
 
   for (const e of limited) {
-    const taken = (wholeByKey.get(seriesKeyOf(e)) ?? 0) + (dropInByOccurrence.get(e.id) ?? 0);
+    // No cached row yet just means nobody has signed up.
+    const taken = takenById.get(e.id) ?? 0;
     result.set(e.id, { capacity: e.capacity!, taken, remaining: Math.max(0, e.capacity! - taken) });
   }
   return result;
@@ -77,6 +67,9 @@ export function spotsLabel(remaining: number): string {
 }
 
 // Server-side capacity check for a registration of `attendeeCount` people.
+// (Counts people who aren't already signed up for the class too, so someone
+// re-registering when one spot is left is still turned away; rare enough to
+// keep the check simple.)
 // Fails closed (503) if the count can't be loaded.
 export async function validateCapacity(selections: ParsedClassSelection[], attendeeCount: number): Promise<ClassSelectionError | null> {
   const keys = Array.from(new Set(selections.map((s) => s.key).filter((k): k is string => !!k && /^[A-Za-z0-9_-]+$/.test(k))));
