@@ -38,13 +38,16 @@
 │   │   └── BaseLayout.astro
 │   ├── lib/                             # Server-side helpers
 │   │   ├── admin.ts                     # Admin auth/session helpers
+│   │   ├── adminSession.ts              # Browser-only shared admin check (refreshes stale sessions, local sign-out)
 │   │   ├── apiUsage.ts                  # API usage tracking (e.g. Google Places quota, daily caps)
 │   │   ├── calendarSync.ts              # Google Calendar sync logic
 │   │   ├── attendanceMatching.ts        # Matches sign-ups to check-ins per dancer, expanding series sign-ups into per-occurrence entries
 │   │   ├── checkinToken.ts              # Signed per-event token authorizing check-in auto-registration (QR link)
 │   │   ├── classRegistrations.ts        # One-row-per-(dancer,class) registration records with snapshotted prices
+│   │   ├── classFilterGroup.ts          # Browser-only multi-row class filter for the dancer dashboard
 │   │   ├── classSeries.ts               # Recurring class series logic
 │   │   ├── recyclingBin.ts              # Soft delete / restore / empty for the dashboard Recycling Bin
+│   │   ├── duplicateFlag.ts / duplicateSubmissions.ts  # Auto-detect double-submitted sign-ups/check-ins → Recycling Bin
 │   │   ├── editLock.ts                  # Admin edit-lock (prevents concurrent edits)
 │   │   ├── email.ts                     # Transactional email sending
 │   │   ├── errorDialog.ts               # Browser-only copyable error modal (sync/save failures)
@@ -57,6 +60,7 @@
 │   │   ├── previewMode.ts               # Draft/preview banner state
 │   │   ├── pricing.ts                   # Tiered (early-bird/flash-sale) pricing resolution, pure/isomorphic
 │   │   ├── registrationEmail.ts         # HTML for the dancer registration-confirmation email
+│   │   ├── registrationReceipt.ts       # Itemized classes + subtotal for the confirmation page/email
 │   │   ├── richText.ts                  # Allow-list HTML sanitizer for admin-authored rich text
 │   │   ├── siteBanner.ts                # Site-wide announcement banner
 │   │   ├── siteSettings.ts              # Site settings persistence
@@ -74,4 +78,4 @@
 
 ## Domain Overview
 
-The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, attendance matching/reconciliation, Google Calendar sync, site settings/banner, an editable FAQ list, editable homepage copy (including admin-reorderable offering cards and per-class overrides of the lesson-overview section), and an inbox. Check-in supports a public picker plus admin QR codes for one or several classes, optionally registering drop-in attendees. Data is stored in Supabase (see `supabase/migrations/`); the admin area uses edit-locks to avoid concurrent-edit conflicts.
+The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, attendance matching/reconciliation, Google Calendar sync, site settings/banner, an editable FAQ list, editable homepage copy (including admin-reorderable offering cards and per-class overrides of the lesson-overview section), and an inbox. Check-in supports a public picker plus admin QR codes for one or several classes, optionally registering drop-in attendees. Registration shows an itemized subtotal (also on the confirmation page/email, optionally BCC'd to admins), and double-submitted sign-ups/check-ins are auto-moved to the Recycling Bin. Data is stored in Supabase (see `supabase/migrations/`); the admin area uses edit-locks to avoid concurrent-edit conflicts.
