@@ -339,7 +339,9 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         </p>
       </div>
 
-      <div class="flex items-center justify-between rounded-xl border border-border bg-surface p-4">
+      <div class="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+        <ul id="subtotal-items" class="hidden flex-col gap-2 border-b border-border pb-3 text-sm" aria-label="What you're signing up for"></ul>
+        <div class="flex items-center justify-between">
         <span class="flex items-center gap-2 text-sm font-medium text-ink/80">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.821-4.804 2.16-7.428.055-.433-.284-.808-.72-.808H5.106M7.5 14.25 5.106 5.272M6 18.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm9.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
@@ -347,6 +349,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
           Subtotal
         </span>
         <span id="subtotal-value" class="text-lg font-bold text-ink">$0</span>
+        </div>
       </div>
 
       <div class="flex flex-col gap-1.5">
@@ -554,6 +557,60 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
   }
 
+  const subtotalItems = document.getElementById('subtotal-items')!;
+
+  // The date a Drop-In is for, from the class card's occurrence list.
+  function occurrenceLabel(key: string, occurrenceId: string | null): string | null {
+    if (!occurrenceId) return null;
+    const item = document.querySelector<HTMLElement>(`.series-item[data-key="${CSS.escape(key)}"]`);
+    const occurrences: { id: string; label: string }[] = JSON.parse(item?.dataset.occurrences ?? '[]');
+    return occurrences.find((o) => o.id === occurrenceId)?.label ?? null;
+  }
+
+  // One receipt line per picked class: what it is, which option (and, for a
+  // Drop-In, which date), and its price per dancer times the dancer count.
+  function renderSubtotalItems(dancerCount: number) {
+    subtotalItems.replaceChildren();
+    for (const sel of selections.values()) {
+      const price = sel.mode === 'dropin' ? sel.priceDropIn : sel.priceWhole;
+      let detail = '';
+      if (sel.mode === 'dropin' && sel.isSeries) {
+        detail = `Drop In · ${occurrenceLabel(sel.key, sel.occurrenceEventId) ?? 'pick a date above'}`;
+      } else if (sel.mode === 'dropin' || !sel.isSeries) {
+        detail = sel.subLabel;
+      } else {
+        detail = `Whole Series · ${sel.subLabel}`;
+      }
+
+      const line = document.createElement('li');
+      line.className = 'flex items-start justify-between gap-3';
+      const what = document.createElement('div');
+      what.className = 'flex min-w-0 flex-col';
+      const title = document.createElement('span');
+      title.className = 'font-medium text-ink';
+      title.textContent = sel.title;
+      const sub = document.createElement('span');
+      sub.className = 'text-xs text-muted';
+      sub.textContent = detail;
+      what.append(title, sub);
+
+      const amount = document.createElement('span');
+      amount.className = 'shrink-0 text-right text-ink';
+      if (price == null) {
+        amount.textContent = '—';
+      } else if (dancerCount > 1) {
+        amount.innerHTML = `${formatPrice(price * dancerCount)}<div class="text-xs text-muted">${formatPrice(price)} × ${dancerCount} dancers</div>`;
+      } else {
+        amount.textContent = formatPrice(price);
+      }
+
+      line.append(what, amount);
+      subtotalItems.append(line);
+    }
+    subtotalItems.classList.toggle('hidden', selections.size === 0);
+    subtotalItems.classList.toggle('flex', selections.size > 0);
+  }
+
   function updateSubtotal() {
     const dancerCountNow = dancersContainer.children.length;
     const perDancerTotal = Array.from(selections.values()).reduce((sum, sel) => {
@@ -563,6 +620,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     const total = perDancerTotal * dancerCountNow;
     subtotalValue.textContent = formatPrice(total);
     document.querySelectorAll('.payment-amount').forEach((el) => (el.textContent = formatPrice(total)));
+    renderSubtotalItems(dancerCountNow);
   }
 
   function updateClassValue() {
