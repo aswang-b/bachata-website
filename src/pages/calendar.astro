@@ -743,6 +743,7 @@ const MAX_BANNERS_PER_DAY = 3;
 
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { checkAdminSession } from '../lib/adminSession';
   import { showErrorDialog } from '../lib/errorDialog';
   import { isPreviewingAsPublic } from '../lib/previewMode';
   import { getActivePrice, priceTierLabel } from '../lib/pricing';
@@ -1805,16 +1806,9 @@ const MAX_BANNERS_PER_DAY = 3;
   async function revealAdminControlsIfAdmin() {
     if (isPreviewingAsPublic()) return;
 
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-    if (!session) return;
-
-    const res = await fetch('/api/admin/check', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    const { isAdmin } = await res.json();
-    if (!isAdmin) return;
+    const gate = await checkAdminSession();
+    if (gate.status !== 'admin') return;
+    const { session } = gate;
 
     adminModeActive = true;
     document.getElementById('add-event-btn')?.classList.remove('hidden');

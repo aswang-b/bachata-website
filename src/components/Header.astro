@@ -126,7 +126,7 @@ const isRegisterPage = currentPath === '/register' || currentPath === '/register
 </header>
 
 <script>
-  import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { checkAdminSession } from '../lib/adminSession';
   import { isPreviewingAsPublic } from '../lib/previewMode';
 
   const toggle = document.getElementById('nav-toggle');
@@ -142,16 +142,9 @@ const isRegisterPage = currentPath === '/register' || currentPath === '/register
   async function revealAdminNavLinkIfAdmin() {
     if (isPreviewingAsPublic()) return;
 
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-    if (!session) return;
-
-    const res = await fetch('/api/admin/check', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    const { isAdmin } = await res.json();
-    if (!isAdmin) return;
+    const gate = await checkAdminSession();
+    if (gate.status !== 'admin') return;
+    const { session } = gate;
 
     document.querySelectorAll('.admin-nav-link').forEach((el) => el.classList.remove('hidden'));
     document.getElementById('inbox-link')?.classList.add('flex');

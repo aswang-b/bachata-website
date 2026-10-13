@@ -86,6 +86,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
 <script>
   import { supabaseBrowser } from '../../lib/supabaseBrowser';
+  import { checkAdminSession } from '../../lib/adminSession';
   import type { ClassSeriesEntry } from '../../lib/classSeries';
 
   const panels = {
@@ -347,24 +348,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   });
 
   async function init() {
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-
-    if (!session) {
-      showPanel('signedOut');
+    const gate = await checkAdminSession();
+    if (gate.status !== 'admin') {
+      showPanel(gate.status);
       return;
     }
-
-    const checkRes = await fetch('/api/admin/check', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    const { isAdmin } = await checkRes.json();
-
-    if (!isAdmin) {
-      showPanel('notAdmin');
-      return;
-    }
+    const { session } = gate;
 
     const classesRes = await fetch('/api/admin/checkin-classes', {
       headers: { Authorization: `Bearer ${session.access_token}` },

@@ -259,6 +259,7 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
 
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { checkAdminSession } from '../lib/adminSession';
   import { isPreviewingAsPublic } from '../lib/previewMode';
 
   const list = document.getElementById('offering-list');
@@ -297,14 +298,8 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
   async function revealReorderControlsIfAdmin() {
     if (!list || cards().length === 0 || isPreviewingAsPublic()) return;
 
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-    if (!session) return;
-
-    const res = await fetch('/api/admin/check', { headers: { Authorization: `Bearer ${session.access_token}` } });
-    const { isAdmin } = await res.json();
-    if (!isAdmin) return;
+    const gate = await checkAdminSession();
+    if (gate.status !== 'admin') return;
 
     hint?.classList.remove('hidden');
     document.querySelectorAll('.card-order-controls').forEach((el) => {

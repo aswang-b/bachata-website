@@ -381,6 +381,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   import { supabaseBrowser } from '../lib/supabaseBrowser';
   import { isPreviewingAsPublic, setPreviewAsPublic } from '../lib/previewMode';
   import { showErrorDialog } from '../lib/errorDialog';
+  import { checkAdminSession } from '../lib/adminSession';
 
   const panels = {
     loading: document.getElementById('account-loading')!,
@@ -426,14 +427,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   adminTabButtons.forEach((btn) => btn.addEventListener('click', () => setActiveAdminTab(btn.dataset.tab ?? 'general')));
 
   async function init() {
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-
-    if (!session) {
+    const gate = await checkAdminSession();
+    if (gate.status === 'signedOut') {
       showPanel('signedOut');
       return;
     }
+    const { session } = gate;
 
     // Right after a fresh Google OAuth login, the session carries Google's
     // tokens. Capture the refresh token now — it won't be here on later
@@ -451,12 +450,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       });
     }
 
-    const checkRes = await fetch('/api/admin/check', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    const { isAdmin } = await checkRes.json();
-
-    if (isAdmin) {
+    if (gate.status === 'admin') {
       document.getElementById('admin-email')!.textContent = session.user.email ?? '';
       renderPreviewToggle();
       loadSiteSettings();
@@ -988,12 +982,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   });
 
   document.getElementById('signout-not-admin')?.addEventListener('click', async () => {
-    await supabaseBrowser.auth.signOut();
+    await supabaseBrowser.auth.signOut({ scope: 'local' });
     showPanel('signedOut');
   });
 
   document.getElementById('signout-admin')?.addEventListener('click', async () => {
-    await supabaseBrowser.auth.signOut();
+    await supabaseBrowser.auth.signOut({ scope: 'local' });
     showPanel('signedOut');
   });
 
