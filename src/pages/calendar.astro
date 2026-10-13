@@ -1105,6 +1105,17 @@ const MAX_BANNERS_PER_DAY = 3;
     return new Date(`${date}T${time}:00`).toISOString();
   }
 
+  // The editor has one date for both times, so an end time earlier than the
+  // start means the event runs past midnight (e.g. 9 PM–12 AM ends at the
+  // start of the NEXT day). Null when start and end are the same.
+  function endAfterStart(date: string, startTime: string, endTime: string): string | null {
+    const start = new Date(`${date}T${startTime}:00`);
+    const end = new Date(`${date}T${endTime}:00`);
+    if (end.getTime() === start.getTime()) return null;
+    if (end < start) end.setDate(end.getDate() + 1);
+    return end.toISOString();
+  }
+
   // datetime-local inputs want/give "YYYY-MM-DDTHH:mm" in local time.
   function toLocalDateTimeValue(iso: string | null | undefined): string {
     if (!iso) return '';
@@ -1523,6 +1534,11 @@ const MAX_BANNERS_PER_DAY = 3;
     if (!titleInput.value.trim() || !dateInput.value || !startTimeInput.value || !endTimeInput.value) {
       return;
     }
+    const endTimeIso = endAfterStart(dateInput.value, startTimeInput.value, endTimeInput.value);
+    if (!endTimeIso) {
+      alert('The end time is the same as the start time — pick when the event ends.');
+      return;
+    }
 
     const payload: Record<string, unknown> = {
       id: editingId ?? undefined,
@@ -1549,7 +1565,7 @@ const MAX_BANNERS_PER_DAY = 3;
       color: selectedColor,
       visibility: privateInput.checked ? 'private' : 'public',
       startTime: fromLocalParts(dateInput.value, startTimeInput.value),
-      endTime: fromLocalParts(dateInput.value, endTimeInput.value),
+      endTime: endTimeIso,
     };
 
     if (!editingId && repeatInput.checked) {
