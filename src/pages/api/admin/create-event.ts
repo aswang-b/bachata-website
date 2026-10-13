@@ -98,13 +98,15 @@ export const POST: APIRoute = async ({ request }) => {
         }),
       });
       // The recurring event's individual occurrences get pulled in as
-      // regular one-off rows by the normal sync/expansion logic. Pricing has
-      // no Google Calendar equivalent, so it's never part of that sync —
-      // backfill it onto the newly-synced occurrence rows directly.
+      // regular one-off rows by the normal sync/expansion logic. Pricing and
+      // the class/event type have no Google Calendar equivalent, so they're
+      // never part of that sync (which inserts new rows as 'event') —
+      // backfill them onto the newly-synced occurrence rows directly.
       calendarSyncError = syncErrorText(await runCalendarSync());
       await supabase
         .from('events')
         .update({
+          event_type: rowEventType,
           price_whole_series: rowPriceWholeSeries,
           price_drop_in: rowPriceDropIn,
           price_student: rowPriceStudent,
