@@ -167,6 +167,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paymentSort">Payment</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paid">Paid</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="createdAt">Registered</th>
+                  <th class="event-registrations-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
                 </tr>
               </thead>
               <tbody id="event-registrations-body"></tbody>
@@ -572,6 +573,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   let allEventRegistrations: Signup[] = [];
   let allCheckins: Checkin[] = [];
   let classSeries: ClassSeriesEntry[] = [];
+  // Events, for the Event Registration tab's edit row.
+  let eventSeries: ClassSeriesEntry[] = [];
   let attendanceEntries: AttendanceEntry[] = [];
   let attendanceOrphanedCheckins: OrphanedCheckin[] = [];
 
@@ -725,6 +728,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   }
 
   let editingSignupKey: string | null = null;
+  let editingEventRegistrationKey: string | null = null;
   let editingCheckinKey: string | null = null;
   let addingSignup = false;
   let addingCheckin = false;
@@ -788,12 +792,16 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     () => renderRecyclingBin()
   );
 
-  // Locking this tab only enables its Paid checkboxes.
+  // Locking this tab enables its Paid checkboxes and the edit/delete actions.
   const eventRegistrationsLock = makeLockController(
     'eventRegistrations',
     document.getElementById('event-registrations-lock-btn') as HTMLButtonElement,
     document.getElementById('event-registrations-lock-status')!,
-    () => renderEventRegistrations()
+    (locked) => {
+      document.querySelectorAll('.event-registrations-actions-header').forEach((el) => el.classList.toggle('hidden', !locked));
+      if (!locked) editingEventRegistrationKey = null;
+      renderEventRegistrations();
+    }
   );
 
   lockControllersByTab = {
@@ -1382,8 +1390,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   });
 
   // --- Event Registration tab ---
-  // Read-only apart from the Paid checkbox (enabled by this tab's own lock):
-  // it exists to see who registered for which event and reconcile payment.
+  // For seeing who registered for which event and reconciling payment. This
+  // tab's own lock enables the Paid checkboxes and editing/deleting rows.
   const eventRegistrationsBody = document.getElementById('event-registrations-body')!;
   const eventRegistrationsEmpty = document.getElementById('event-registrations-empty')!;
   const eventRegistrationsCount = document.getElementById('event-registrations-count')!;
@@ -1401,6 +1409,42 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     eventRegistrationsEventFilter.value = titles.includes(current) ? current : '';
   }
 
+  // Edit row for one dancer's event registration. The event checkboxes start
+  // unchecked: checking any replaces the dancer's current events.
+  function eventRegistrationEditRowHtml(s: Signup): string {
+    const current = s.classRegistrations.map((e) => e.classTitle).filter(Boolean).join('; ');
+    const optionsHtml = eventSeries
+      .map(
+        (series) => `
+          <label class="flex items-start gap-1.5 text-xs text-ink">
+            <input type="checkbox" class="event-registration-checkbox mt-0.5 h-3.5 w-3.5" data-key="${escapeAttr(series.key)}" data-title="${escapeAttr(series.title)}" data-base="${escapeAttr(`${series.title} — ${series.subLabel}`)}" />
+            <span>${escapeHtml(series.title)} <span class="text-muted">(${escapeHtml(series.subLabel)})</span></span>
+          </label>`
+      )
+      .join('');
+    return `
+      <tr class="border-t border-accent bg-accent/5">
+        <td class="px-2 py-2"><input class="edit-input first-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.firstName)}" placeholder="First name" /></td>
+        <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.lastName)}" placeholder="Last name" /></td>
+        <td class="px-2 py-2"><div class="flex flex-col gap-1"><input class="edit-input email w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.email)}" placeholder="Email" /><input class="edit-input phone w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.phone)}" placeholder="Phone" /></div></td>
+        <td class="px-2 py-2">
+          <div class="flex max-h-32 w-48 flex-col gap-1.5 overflow-y-auto rounded-lg border border-border bg-bg p-2">
+            ${eventSeries.length ? optionsHtml : '<span class="text-xs text-muted">No events found.</span>'}
+          </div>
+          <p class="mt-1 w-48 truncate text-[10px] text-muted" title="${escapeAttr(current)}">Current: ${escapeHtml(current || '—')}</p>
+        </td>
+        <td class="px-2 py-2 payment-select-cell">${paymentSelectHtml(s.paymentMethod)}</td>
+        <td class="px-2 py-2"><input type="checkbox" class="edit-input paid h-4 w-4" ${s.paid ? 'checked' : ''} /></td>
+        <td class="px-2 py-2 text-xs text-muted">—</td>
+        <td class="px-2 py-2">
+          <div class="flex gap-2">
+            <button class="save-event-registration-btn text-xs font-bold text-green-600 hover:underline" data-submission-id="${s.submissionId}" data-dancer-index="${s.dancerIndex ?? ''}">Save</button>
+            <button class="cancel-event-registration-edit-btn text-xs font-semibold text-ink/60 hover:underline">Cancel</button>
+          </div>
+        </td>
+      </tr>`;
+  }
+
   function renderEventRegistrations() {
     const nameQuery = eventRegistrationsNameSearch.value.trim();
     const eventFilter = eventRegistrationsEventFilter.value;
@@ -1415,6 +1459,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     // rows repeat only the Event and Payment columns.
     eventRegistrationsBody.innerHTML = sorted
       .flatMap((s) => {
+        const key = signupRowKey(s);
+        if (isLockedByMe && editingEventRegistrationKey === key) return [eventRegistrationEditRowHtml(s)];
         const paymentLabel = s.paymentMethod === 'venmo' ? 'Venmo' : s.paymentMethod === 'cash' ? 'Cash' : '—';
         return s.classRegistrations.map((entry, entryIndex) => {
           const isFirst = entryIndex === 0;
@@ -1429,10 +1475,114 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
             <td class="px-4 py-2.5 text-ink/70">${paymentSubtotalLabel}</td>
             <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" class="event-paid-checkbox h-4 w-4" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? dateFormatter.format(new Date(s.createdAt)) : ''}</td>
+            ${
+              isLockedByMe
+                ? isFirst
+                  ? `<td class="px-4 py-2.5"><div class="flex gap-3">
+                      <button class="edit-event-registration-btn text-ink/60 transition-colors hover:text-accent" aria-label="Edit" data-key="${key}">${EDIT_ICON_SVG}</button>
+                      <button class="delete-event-registration-btn text-ink/60 transition-colors hover:text-red-600" aria-label="Delete" data-submission-id="${s.submissionId}" data-dancer-index="${s.dancerIndex ?? ''}" data-dancer-count="${s.dancerCount}">${TRASH_ICON_SVG}</button>
+                    </div></td>`
+                  : '<td class="px-4 py-2.5"></td>'
+                : ''
+            }
           </tr>`;
         });
       })
       .join('');
+
+    eventRegistrationsBody.querySelectorAll<HTMLButtonElement>('.edit-event-registration-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        editingEventRegistrationKey = btn.dataset.key!;
+        renderEventRegistrations();
+      });
+    });
+
+    eventRegistrationsBody.querySelectorAll<HTMLButtonElement>('.cancel-event-registration-edit-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        editingEventRegistrationKey = null;
+        renderEventRegistrations();
+      });
+    });
+
+    eventRegistrationsBody.querySelectorAll<HTMLButtonElement>('.delete-event-registration-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const dancerCount = Number(btn.dataset.dancerCount ?? '0');
+        if (!confirm(dancerCount > 1 ? 'Move this dancer to the Recycling Bin?' : 'Move this entire event registration to the Recycling Bin?')) return;
+
+        const headers = await withAuthHeader();
+        if (!headers) return;
+
+        const dancerIndexRaw = btn.dataset.dancerIndex;
+        const res = await fetch('/api/admin/edit-signup', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            action: 'delete',
+            holderId,
+            submissionId: btn.dataset.submissionId,
+            dancerIndex: dancerIndexRaw ? Number(dancerIndexRaw) : null,
+          }),
+        });
+
+        if (res.ok) {
+          await reloadAfterDeletionChange();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error ?? 'Failed to delete.');
+        }
+      });
+    });
+
+    eventRegistrationsBody.querySelectorAll<HTMLButtonElement>('.save-event-registration-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const row = btn.closest('tr')!;
+        const get = (cls: string) => (row.querySelector(`.${cls}`) as HTMLInputElement)?.value.trim() ?? '';
+        const firstName = get('first-name');
+        const lastName = get('last-name');
+        if (!firstName || !lastName) {
+          alert('First and last name are required.');
+          return;
+        }
+
+        const headers = await withAuthHeader();
+        if (!headers) return;
+
+        // Picking events replaces the dancer's current ones (re-priced at
+        // today's ticket price); picking none keeps them as they are.
+        const selections = Array.from(row.querySelectorAll<HTMLInputElement>('.event-registration-checkbox:checked')).map((checkbox) => ({
+          key: checkbox.dataset.key ?? '',
+          title: checkbox.dataset.title ?? '',
+          label: checkbox.dataset.base ?? '',
+          mode: null,
+          occurrenceEventId: null,
+        }));
+        const dancerIndexRaw = btn.dataset.dancerIndex;
+        const payload: Record<string, unknown> = {
+          action: 'update',
+          holderId,
+          submissionId: btn.dataset.submissionId,
+          dancerIndex: dancerIndexRaw ? Number(dancerIndexRaw) : null,
+          firstName,
+          lastName,
+          email: get('email'),
+          phone: get('phone'),
+          className: selections.map((s) => s.label).join('; '),
+          paymentMethod: (row.querySelector('.payment-select-cell select') as HTMLSelectElement)?.value ?? '',
+          paid: (row.querySelector('.paid') as HTMLInputElement)?.checked ?? false,
+        };
+        if (selections.length > 0) payload.classSelections = selections;
+        else payload.keepClasses = true;
+
+        const res = await fetch('/api/admin/edit-signup', { method: 'POST', headers, body: JSON.stringify(payload) });
+        if (res.ok) {
+          editingEventRegistrationKey = null;
+          if (await reloadData()) renderEventRegistrations();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error ?? 'Failed to save.');
+        }
+      });
+    });
 
     eventRegistrationsBody.querySelectorAll<HTMLInputElement>('.event-paid-checkbox').forEach((checkbox) => {
       checkbox.addEventListener('change', async () => {
@@ -2143,6 +2293,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       reloadData().then((ok) => {
         if (ok) {
           renderSignups();
+          renderEventRegistrations();
           renderCheckins();
         }
       }),
@@ -2186,7 +2337,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     });
     if (!dataRes.ok) return false;
 
-    const { signups, eventRegistrations, checkins, classTitles, classSeries: series } = await dataRes.json();
+    const { signups, eventRegistrations, checkins, classTitles, classSeries: series, eventSeries: events } = await dataRes.json();
+    eventSeries = events ?? [];
     allSignups = (signups as Signup[]).map((s) => ({
       ...s,
       class: serializeClassRegistrations(s.classRegistrations),

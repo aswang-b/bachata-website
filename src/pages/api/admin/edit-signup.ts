@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
-import { SIGNUPS_LOCK_RESOURCE, requireLock } from '../../../lib/editLock';
+import { EVENT_REGISTRATIONS_LOCK_RESOURCE, SIGNUPS_LOCK_RESOURCE, requireLock } from '../../../lib/editLock';
 import { RecyclingBinError, isDeletedDancer, softDeleteDancer } from '../../../lib/recyclingBin';
 import {
   ClassRegistrationInputError,
@@ -52,13 +52,13 @@ export const POST: APIRoute = async ({ request }) => {
   const { action, holderId } = body ?? {};
   const holder = `${user.email}::${holderId}`;
 
-  try {
-    await requireLock(SIGNUPS_LOCK_RESOURCE, holder);
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Lock required.' }), { status: 409 });
-  }
-
   if (action === 'create') {
+    try {
+      await requireLock(SIGNUPS_LOCK_RESOURCE, holder);
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Lock required.' }), { status: 409 });
+    }
+
     const { firstName, lastName, email, phone, className, paymentMethod, paid } = body;
     if (!firstName || !lastName) {
       return new Response(JSON.stringify({ error: 'First and last name are required.' }), { status: 400 });
@@ -109,6 +109,13 @@ export const POST: APIRoute = async ({ request }) => {
 
   if (fetchError || !row) {
     return new Response(JSON.stringify({ error: 'Sign-up not found.' }), { status: 404 });
+  }
+
+  // Event registrations are edited from their own dashboard tab, under its own lock.
+  try {
+    await requireLock(row.registration_type === 'events' ? EVENT_REGISTRATIONS_LOCK_RESOURCE : SIGNUPS_LOCK_RESOURCE, holder);
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Lock required.' }), { status: 409 });
   }
 
   const dancers = Array.isArray(row.dancers) ? (row.dancers as Dancer[]) : null;

@@ -82,6 +82,7 @@ export const GET: APIRoute = async ({ request }) => {
     { data: checkinRows, error: checkinError },
     { data: allClassEvents, error: allClassEventsError },
     { data: classRegistrationRows, error: classRegistrationsError },
+    { data: allEventEvents, error: allEventEventsError },
   ] = await Promise.all([
     supabase
       .from('intake_submissions')
@@ -109,13 +110,20 @@ export const GET: APIRoute = async ({ request }) => {
       .select('id, submission_id, dancer_index, class_title, class_label, series_mode, price, occurrence_event_id')
       .is('deleted_at', null)
       .limit(ANALYTICS_ROW_LIMIT),
+    // The Event Registration tab's edit row lets an admin switch a dancer's event.
+    supabase
+      .from('events')
+      .select('id, title, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in')
+      .eq('event_type', 'event')
+      .order('start_time', { ascending: true }),
   ]);
 
-  if (intakeError || checkinError || allClassEventsError || classRegistrationsError) {
+  if (intakeError || checkinError || allClassEventsError || classRegistrationsError || allEventEventsError) {
     return new Response(JSON.stringify({ error: 'Failed to load analytics data.' }), { status: 500 });
   }
 
   const classSeries = buildClassSeriesList(allClassEvents ?? []);
+  const eventSeries = buildClassSeriesList(allEventEvents ?? []);
 
   // Group each submission's class registrations by dancer (dancer_index, or
   // null for a class-less single-registrant submission), so each dancer row
@@ -231,7 +239,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   const classTitles = [...new Set((allClassEvents ?? []).map((e) => e.title))].sort((a, b) => a.localeCompare(b));
 
-  return new Response(JSON.stringify({ signups, eventRegistrations, checkins, classTitles, classSeries }), {
+  return new Response(JSON.stringify({ signups, eventRegistrations, checkins, classTitles, classSeries, eventSeries }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
