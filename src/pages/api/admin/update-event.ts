@@ -8,6 +8,7 @@ import {
   updateCalendarEvent,
   deleteCalendarEvent,
   buildWeeklyRecurrenceRule,
+  withCalendarDeadline,
   type EventVisibility,
 } from '../../../lib/googleCalendar';
 import { runCalendarSync, syncErrorText } from '../../../lib/calendarSync';
@@ -66,7 +67,7 @@ async function pushRowToGoogle(
   return created.id;
 }
 
-export const POST: APIRoute = async ({ request }) => {
+const handlePost: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
   if (!user) {
     return new Response(JSON.stringify({ error: authError }), { status: 403 });
@@ -370,3 +371,6 @@ export const POST: APIRoute = async ({ request }) => {
 
   return new Response(JSON.stringify({ ok: true, calendarSyncSkipped, calendarSyncError }), { status: 200 });
 };
+
+// Caps Google rate-limit retries so they can't push the request past the function time limit.
+export const POST: APIRoute = (context) => withCalendarDeadline(async () => handlePost(context));

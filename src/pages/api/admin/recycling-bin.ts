@@ -16,7 +16,7 @@ export const GET: APIRoute = async ({ request }) => {
   if (!user) return json({ error: authError }, 403);
 
   try {
-    return json({ items: await listRecyclingBin() });
+    return json(await listRecyclingBin());
   } catch (err) {
     return errorResponse(err, 'Failed to load the recycling bin.');
   }

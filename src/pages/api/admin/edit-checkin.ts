@@ -71,11 +71,15 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(JSON.stringify({ error: 'That class could not be found — please pick again.' }), { status: 400 });
     }
 
-    const { error } = await supabase
+    // A check-in in the Recycling Bin can only come back through a restore.
+    const { data: updated, error } = await supabase
       .from('class_checkins')
       .update({ first_name: firstName, last_name: lastName, phone: phone || '', class_title: event.title, event_id: event.id })
-      .eq('id', id);
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('id');
     if (error) return new Response(JSON.stringify({ error: 'Failed to update check-in.' }), { status: 500 });
+    if (!updated || updated.length === 0) return new Response(JSON.stringify({ error: 'Check-in not found.' }), { status: 404 });
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }
 

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from './env';
 import { supabase } from './supabase';
 
@@ -30,10 +31,21 @@ function calendarApiBase(visibility: EventVisibility): string {
 }
 
 // Google signals its per-user rate limit as 403 rateLimitExceeded /
-// userRateLimitExceeded (or 429) and asks clients to back off and retry.
-// Short delays (0.5s, 1s, 2s plus jitter) keep the worst case well inside a
-// serverless function's time limit.
+// userRateLimitExceeded (or 429) and asks clients to back off and retry,
+// after short delays (0.5s, 1s, 2s plus jitter).
 const RATE_LIMIT_RETRY_DELAYS_MS = [500, 1000, 2000];
+
+// One admin request can make many Calendar calls (a series create runs a full
+// sync), so per-call retries alone could add up past the serverless function's
+// time limit. Inside withCalendarDeadline, a retry only waits if it still fits
+// before the request's deadline; past it, the rate-limited response is
+// returned and reported as a normal sync error instead of the request timing out.
+const CALENDAR_REQUEST_BUDGET_MS = 7000;
+const requestDeadline = new AsyncLocalStorage<number>();
+
+export function withCalendarDeadline<T>(fn: () => Promise<T>): Promise<T> {
+  return requestDeadline.run(Date.now() + CALENDAR_REQUEST_BUDGET_MS, fn);
+}
 const RATE_LIMIT_REASONS = new Set(['rateLimitExceeded', 'userRateLimitExceeded']);
 
 async function isRateLimited(res: Response): Promise<boolean> {
@@ -52,6 +64,8 @@ async function calendarFetch(url: string | URL, init?: RequestInit): Promise<Res
     const res = await fetch(url, init);
     if (attempt >= RATE_LIMIT_RETRY_DELAYS_MS.length || !(await isRateLimited(res))) return res;
     const delay = RATE_LIMIT_RETRY_DELAYS_MS[attempt] + Math.random() * 250;
+    const deadline = requestDeadline.getStore();
+    if (deadline !== undefined && Date.now() + delay > deadline) return res;
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
 }

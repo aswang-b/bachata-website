@@ -1,11 +1,11 @@
 import type { APIRoute } from 'astro';
 import { requireAdmin } from '../../../lib/admin';
 import { runCalendarSync } from '../../../lib/calendarSync';
-import { GoogleAuthExpiredError } from '../../../lib/googleCalendar';
+import { GoogleAuthExpiredError, withCalendarDeadline } from '../../../lib/googleCalendar';
 
 export const prerender = false;
 
-export const POST: APIRoute = async ({ request }) => {
+const handlePost: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
   if (!user) {
     return new Response(JSON.stringify({ error: authError }), { status: 403 });
@@ -24,3 +24,6 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: message }), { status: 500 });
   }
 };
+
+// Caps Google rate-limit retries so they can't push the request past the function time limit.
+export const POST: APIRoute = (context) => withCalendarDeadline(async () => handlePost(context));

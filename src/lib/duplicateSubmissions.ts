@@ -33,11 +33,15 @@ function isEarlier(a: Stamped, b: Stamped): boolean {
 interface CheckinRow extends Stamped {
   first_name: string;
   last_name: string;
+  phone: string | null;
   class_title: string;
   event_id: string | null;
 }
 
-// Same person (by name) checked into the same class occurrence — or, for a
+const phoneDigits = (s: unknown) => String(s ?? '').replace(/\D/g, '');
+
+// Same person (same name AND phone, so two different dancers who share a
+// name are never merged) checked into the same class occurrence — or, for a
 // title-only check-in with no occurrence, the same class on the same day.
 // Returns new check-in id -> the original it duplicates.
 export async function flagDuplicateCheckins(newIds: string[]): Promise<Map<string, string>> {
@@ -46,7 +50,7 @@ export async function flagDuplicateCheckins(newIds: string[]): Promise<Map<strin
 
   const { data: rows, error } = await supabase
     .from('class_checkins')
-    .select('id, created_at, first_name, last_name, class_title, event_id')
+    .select('id, created_at, first_name, last_name, phone, class_title, event_id')
     .in('id', newIds);
   if (error || !rows) {
     console.error('Duplicate check-in check failed to load the new rows:', error);
@@ -54,9 +58,13 @@ export async function flagDuplicateCheckins(newIds: string[]): Promise<Map<strin
   }
 
   for (const row of rows as CheckinRow[]) {
+    // Without a phone there's nothing to tell two same-named people apart.
+    const phone = phoneDigits(row.phone);
+    if (!phone) continue;
+
     let query = supabase
       .from('class_checkins')
-      .select('id, created_at, first_name, last_name, class_title, event_id')
+      .select('id, created_at, first_name, last_name, phone, class_title, event_id')
       .is('deleted_at', null)
       .neq('id', row.id)
       .lte('created_at', row.created_at);
@@ -73,7 +81,11 @@ export async function flagDuplicateCheckins(newIds: string[]): Promise<Map<strin
       continue;
     }
     const original = (candidates as CheckinRow[] | null)?.find(
-      (c) => norm(c.first_name) === norm(row.first_name) && norm(c.last_name) === norm(row.last_name) && isEarlier(c, row)
+      (c) =>
+        norm(c.first_name) === norm(row.first_name) &&
+        norm(c.last_name) === norm(row.last_name) &&
+        phoneDigits(c.phone) === phone &&
+        isEarlier(c, row)
     );
     if (!original) continue;
 

@@ -356,8 +356,9 @@ export async function replaceClassRegistrations(params: {
   if (error) throw new Error(`Failed to insert class registrations: ${error.message}`);
 }
 
+// Live rows only: ones in the Recycling Bin aren't the dancer's classes.
 export async function getClassRegistrationsForDancer(submissionId: string, dancerIndex: number | null): Promise<ClassRegistrationRow[]> {
-  let query = supabase.from('class_registrations').select('*').eq('submission_id', submissionId);
+  let query = supabase.from('class_registrations').select('*').eq('submission_id', submissionId).is('deleted_at', null);
   query = dancerIndex == null ? query.is('dancer_index', null) : query.eq('dancer_index', dancerIndex);
   const { data, error } = await query;
   if (error) {
@@ -382,7 +383,8 @@ export async function updateDancerOnClassRegistrations(submissionId: string, dan
       email: dancer.email || null,
       phone: dancer.phone || null,
     })
-    .eq('submission_id', submissionId);
+    .eq('submission_id', submissionId)
+    .is('deleted_at', null);
   query = dancerIndex == null ? query.is('dancer_index', null) : query.eq('dancer_index', dancerIndex);
   const { error } = await query;
   if (error) throw new Error(`Failed to update class registrations: ${error.message}`);

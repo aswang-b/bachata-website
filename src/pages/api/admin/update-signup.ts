@@ -24,7 +24,7 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Lock required.' }), { status: 409 });
   }
 
-  const { error } = await supabase.from('intake_submissions').update({ paid }).eq('id', submissionId);
+  const { error } = await supabase.from('intake_submissions').update({ paid }).eq('id', submissionId).is('deleted_at', null);
   if (error) {
     return new Response(JSON.stringify({ error: 'Failed to update.' }), { status: 500 });
   }

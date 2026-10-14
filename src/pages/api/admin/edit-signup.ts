@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { SIGNUPS_LOCK_RESOURCE, requireLock } from '../../../lib/editLock';
-import { RecyclingBinError, softDeleteDancer } from '../../../lib/recyclingBin';
+import { RecyclingBinError, isDeletedDancer, softDeleteDancer } from '../../../lib/recyclingBin';
 import {
   ClassRegistrationInputError,
   insertClassRegistrations,
@@ -104,6 +104,7 @@ export const POST: APIRoute = async ({ request }) => {
     .from('intake_submissions')
     .select('*')
     .eq('id', submissionId)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (fetchError || !row) {
@@ -127,26 +128,9 @@ export const POST: APIRoute = async ({ request }) => {
 
   if (action === 'update') {
     const { firstName, lastName, email, phone, className, paymentMethod, paid } = body;
-    const patch: Record<string, unknown> = {
-      payment_method: paymentMethod || null,
-      paid: Boolean(paid),
-    };
-
-    if (hasDancerIndex) {
-      const nextDancers = [...dancers!];
-      nextDancers[dancerIndex] = { ...nextDancers[dancerIndex], firstName, lastName, email, phone };
-      patch.dancers = nextDancers;
-      if (dancerIndex === 0) {
-        patch.first_name = firstName;
-        patch.last_name = lastName;
-        patch.email = email || null;
-        patch.phone = phone || null;
-      }
-    } else {
-      patch.first_name = firstName;
-      patch.last_name = lastName;
-      patch.email = email || null;
-      patch.phone = phone || null;
+    // A dancer in the Recycling Bin can only come back through a restore.
+    if (hasDancerIndex && isDeletedDancer(dancers![dancerIndex])) {
+      return new Response(JSON.stringify({ error: 'Dancer not found.' }), { status: 404 });
     }
 
     const targetDancerIndex = hasDancerIndex ? dancerIndex : null;
@@ -173,7 +157,16 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(JSON.stringify({ error: message }), { status: err instanceof ClassRegistrationInputError ? 400 : 500 });
     }
 
-    const { error } = await supabase.from('intake_submissions').update(patch).eq('id', submissionId);
+    // Writes only this dancer's entry, with the sign-up row locked, so a
+    // delete of another dancer from the Attendance tab isn't overwritten.
+    const { error } = await supabase.rpc('update_signup_dancer', {
+      p_submission_id: submissionId,
+      p_dancer_index: targetDancerIndex,
+      p_dancer: dancer,
+      p_payment_method: paymentMethod || null,
+      p_paid: Boolean(paid),
+    });
+    if (error?.code === 'P0002') return new Response(JSON.stringify({ error: error.message }), { status: 404 });
     if (error) return new Response(JSON.stringify({ error: 'Failed to update sign-up.' }), { status: 500 });
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }

@@ -39,7 +39,12 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
     return el;
   }
 
-  function render() {
+  // Rebuilds every row. Keyboard focus goes to the control named by
+  // `focusKey`, or else stays on whichever control (by row and role) had it,
+  // so changing a filter never drops focus back to the top of the page.
+  function render(focusKey?: string) {
+    const active = document.activeElement;
+    const keepKey = active instanceof HTMLElement && container.contains(active) ? active.dataset.focusKey : undefined;
     container.replaceChildren();
     const titles = getClassTitles();
 
@@ -50,10 +55,11 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
       const classSelect = document.createElement('select');
       classSelect.className = SELECT_CLASS;
       classSelect.setAttribute('aria-label', 'Class');
+      classSelect.dataset.focusKey = `class-${index}`;
       classSelect.append(option('', 'All classes', !filter.classTitle), ...titles.map((t) => option(t, t, t === filter.classTitle)));
       classSelect.addEventListener('change', () => {
         filters[index] = { classTitle: classSelect.value, occurrenceId: '' };
-        render();
+        render(`class-${index}`);
         onChange();
       });
       row.append(classSelect);
@@ -64,6 +70,7 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
         const occurrenceSelect = document.createElement('select');
         occurrenceSelect.className = SELECT_CLASS;
         occurrenceSelect.setAttribute('aria-label', 'Date');
+        occurrenceSelect.dataset.focusKey = `date-${index}`;
         occurrenceSelect.append(
           option('', 'All dates', !filter.occurrenceId),
           ...series.occurrences.map((o) => option(o.id, o.label, o.id === filter.occurrenceId))
@@ -83,7 +90,7 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
         remove.setAttribute('aria-label', 'Remove this class filter');
         remove.addEventListener('click', () => {
           filters.splice(index, 1);
-          render();
+          render(`class-${Math.max(0, index - 1)}`);
           onChange();
         });
         row.append(remove);
@@ -97,15 +104,19 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
         add.setAttribute('aria-label', 'Add another class filter');
         add.title = filter.classTitle ? 'Also show another class' : 'Pick a class first';
         add.disabled = !filter.classTitle;
+        add.dataset.focusKey = 'add';
         add.addEventListener('click', () => {
           filters.push(emptyFilter());
-          render();
+          render(`class-${filters.length - 1}`);
         });
         row.append(add);
       }
 
       container.append(row);
     });
+
+    const key = focusKey ?? keepKey;
+    if (key) container.querySelector<HTMLElement>(`[data-focus-key="${key}"]`)?.focus();
   }
 
   render();
@@ -121,6 +132,6 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
       render();
     },
     // Re-renders after the class list or series data loads.
-    refresh: render,
+    refresh: () => render(),
   };
 }

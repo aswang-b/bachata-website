@@ -2,7 +2,13 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
-import { getGoogleAccessToken, GoogleNotConnectedError, insertCalendarEvent, buildWeeklyRecurrenceRule } from '../../../lib/googleCalendar';
+import {
+  getGoogleAccessToken,
+  GoogleNotConnectedError,
+  insertCalendarEvent,
+  buildWeeklyRecurrenceRule,
+  withCalendarDeadline,
+} from '../../../lib/googleCalendar';
 import { runCalendarSync, syncErrorText } from '../../../lib/calendarSync';
 import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
 import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
@@ -13,7 +19,7 @@ export const prerender = false;
 // colors keeps validating even though the admin picker no longer offers them.
 const ALLOWED_COLORS = ['green', 'blue', 'red', 'orange', 'purple', 'accent', 'yellow'];
 
-export const POST: APIRoute = async ({ request }) => {
+const handlePost: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
   if (!user) {
     return new Response(JSON.stringify({ error: authError }), { status: 403 });
@@ -196,3 +202,6 @@ export const POST: APIRoute = async ({ request }) => {
     { status: 200 }
   );
 };
+
+// Caps Google rate-limit retries so they can't push the request past the function time limit.
+export const POST: APIRoute = (context) => withCalendarDeadline(async () => handlePost(context));
