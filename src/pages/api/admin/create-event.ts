@@ -12,6 +12,7 @@ import {
 import { runCalendarSync, syncErrorText } from '../../../lib/calendarSync';
 import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
 import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
+import { toCapacity } from '../../../lib/capacity';
 
 export const prerender = false;
 
@@ -52,6 +53,8 @@ const handlePost: APIRoute = async ({ request }) => {
     lessonOverviewTitle,
     lessonOverviewBody,
     hideLessonOverview,
+    capacity,
+    showCapacity,
   } = body ?? {};
 
   if (!title || !startTime || !endTime) {
@@ -78,6 +81,8 @@ const handlePost: APIRoute = async ({ request }) => {
   const rowImageUrl = imageUrl || null;
   const rowLessonOverview = normalizeLessonOverviewOverride(lessonOverviewTitle, lessonOverviewBody);
   const rowHideLessonOverview = Boolean(hideLessonOverview);
+  const rowCapacity = toCapacity(capacity);
+  const rowShowCapacity = rowCapacity != null && Boolean(showCapacity);
   const rowDescription = description ? sanitizeEventDescriptionHtml(description) : null;
 
   const isSeries = recurrence && Array.isArray(recurrence.byDay) && recurrence.byDay.length > 0;
@@ -104,13 +109,15 @@ const handlePost: APIRoute = async ({ request }) => {
         }),
       });
       // The recurring event's individual occurrences get pulled in as
-      // regular one-off rows by the normal sync/expansion logic. Pricing has
-      // no Google Calendar equivalent, so it's never part of that sync —
-      // backfill it onto the newly-synced occurrence rows directly.
+      // regular one-off rows by the normal sync/expansion logic. Pricing and
+      // the class/event type have no Google Calendar equivalent, so they're
+      // never part of that sync (which inserts new rows as 'event') —
+      // backfill them onto the newly-synced occurrence rows directly.
       calendarSyncError = syncErrorText(await runCalendarSync());
       await supabase
         .from('events')
         .update({
+          event_type: rowEventType,
           price_whole_series: rowPriceWholeSeries,
           price_drop_in: rowPriceDropIn,
           price_student: rowPriceStudent,
@@ -127,6 +134,8 @@ const handlePost: APIRoute = async ({ request }) => {
           lesson_overview_title: rowLessonOverview.title,
           lesson_overview_body: rowLessonOverview.body,
           hide_lesson_overview: rowHideLessonOverview,
+          capacity: rowCapacity,
+          show_capacity: rowShowCapacity,
         })
         .eq('google_recurring_event_id', createdMaster.id);
     } catch (err) {
@@ -168,6 +177,8 @@ const handlePost: APIRoute = async ({ request }) => {
       lesson_overview_title: rowLessonOverview.title,
       lesson_overview_body: rowLessonOverview.body,
       hide_lesson_overview: rowHideLessonOverview,
+      capacity: rowCapacity,
+      show_capacity: rowShowCapacity,
     })
     .select()
     .single();

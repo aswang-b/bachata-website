@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
+import { getSpotsByOccurrence, type CapacityEventRow } from '../../../lib/capacity';
 
 export const prerender = false;
 
@@ -14,12 +15,12 @@ export const GET: APIRoute = async ({ request }) => {
   // otherwise the newest/upcoming events silently drop off once past
   // occurrences pile up. `id` breaks start_time ties so pages never overlap.
   const PAGE_SIZE = 1000;
-  const events: unknown[] = [];
+  const events: (CapacityEventRow & Record<string, unknown>)[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabase
       .from('events')
       .select(
-        'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview'
+        'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity'
       )
       .order('start_time', { ascending: true })
       .order('id', { ascending: true })
@@ -32,5 +33,14 @@ export const GET: APIRoute = async ({ request }) => {
     if ((data?.length ?? 0) < PAGE_SIZE) break;
   }
 
-  return new Response(JSON.stringify({ events }), { status: 200 });
+  // Admins see spots remaining even when it's hidden from the public.
+  let spots = new Map<string, { remaining: number }>();
+  try {
+    spots = await getSpotsByOccurrence(events);
+  } catch {
+    // Leave spots out rather than failing the whole calendar.
+  }
+  const withSpots = events.map((e) => ({ ...e, spots_remaining: spots.get(e.id)?.remaining ?? null }));
+
+  return new Response(JSON.stringify({ events: withSpots }), { status: 200 });
 };

@@ -7,6 +7,7 @@ import { buildClassSeriesList } from '../lib/classSeries';
 import { getActivePrice, priceTierLabel } from '../lib/pricing';
 import { applyCardOrder, getHomepageCardOrder, getHomepageContent } from '../lib/homepageContent';
 import { listFaqs } from '../lib/faqs';
+import { getSpotsByOccurrence, seriesSpots, spotsLabel } from '../lib/capacity';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
 import classPlaceholder2 from '../assets/stock/class-placeholder-2.jpg';
 import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
@@ -19,7 +20,7 @@ const faqs = await listFaqs();
 const { data: events, error } = await supabase
   .from('events')
   .select(
-    'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview'
+    'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity'
   )
   .eq('visibility', 'public')
   .in('event_type', ['class', 'event'])
@@ -46,6 +47,24 @@ const offerings = applyCardOrder(
   await getHomepageCardOrder()
 );
 
+// Spots per series (its tightest upcoming class). Shown on the card only when
+// the class/event shows its capacity publicly; admins get the rest from
+// /api/admin/series-spots. A full one can't be registered for either way.
+let spotsByOccurrence = new Map<string, import('../lib/capacity').SpotsInfo>();
+try {
+  spotsByOccurrence = await getSpotsByOccurrence(events ?? []);
+} catch {
+  // Show the cards without spots rather than failing the homepage.
+}
+const showCapacityByKey = new Map((events ?? []).map((e) => [e.google_recurring_event_id ?? e.id, e.show_capacity]));
+function offeringSpots(offering: (typeof offerings)[number]) {
+  const spots = seriesSpots(
+    spotsByOccurrence,
+    offering.occurrences.map((o) => o.id)
+  );
+  return { full: spots != null && spots.remaining <= 0, publicRemaining: spots && showCapacityByKey.get(offering.key) ? spots.remaining : null };
+}
+
 function formatPrice(value: number): string {
   return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
 }
@@ -68,6 +87,8 @@ function priceTypeHtml(label: string, offering: (typeof offerings)[number], fiel
 
 function priceLine(offering: (typeof offerings)[number]): string | null {
   if (offering.priceWholeSeries == null && offering.priceDropIn == null && offering.priceStudent == null) return null;
+  // Events have a single ticket price (with its own early bird / flash sale).
+  if (offering.eventType === 'event') return priceTypeHtml('Ticket', offering, 'whole') || null;
   // Events (not classes) just list the price, with no per-class unit.
   const perClass = offering.eventType === 'event' ? '' : '/class';
   const whole = priceTypeHtml(offering.isSeries ? 'Whole Series' : 'Price', offering, 'whole');
@@ -81,6 +102,7 @@ function priceLine(offering: (typeof offerings)[number]): string | null {
 }
 
 function seriesTypeLabel(offering: (typeof offerings)[number]): string {
+  if (offering.eventType === 'event') return 'Event';
   return offering.isSeries ? `${offering.totalOccurrences}-Week Series` : 'Workshop';
 }
 
@@ -141,6 +163,7 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
           const overviewTitle = offering.lessonOverviewTitle ?? 'About This Class Format';
           const overviewBody = offering.lessonOverviewBody ?? lessonOverview;
           const href = `${registerBase(offering)}?series=${encodeURIComponent(offering.key)}`;
+          const { full, publicRemaining } = offeringSpots(offering);
 
           return (
             <article
@@ -157,6 +180,15 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
                   <span class={`rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md ${bgClass(offering.color)}`}>
                     {seriesTypeLabel(offering)}
                   </span>
+                  {!offering.registrationClosed && publicRemaining != null && (
+                    <span class="rounded-full bg-black/60 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md backdrop-blur">
+                      {spotsLabel(publicRemaining)}
+                    </span>
+                  )}
+                  {/* Filled in for admins by the script below when the count is hidden from the public. */}
+                  {publicRemaining == null && !full && (
+                    <span data-admin-spots-key={offering.key} class="hidden rounded-full bg-black/60 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md backdrop-blur"></span>
+                  )}
                 </div>
                 {/* Admin-only reorder arrows; revealed by the script below once an admin session is confirmed. */}
                 <div class="card-order-controls absolute right-3 top-3 hidden gap-1.5">
@@ -188,9 +220,9 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
                 </div>
                 {price && <p class="text-sm font-semibold text-ink" set:html={price} />}
 
-                {offering.registrationClosed ? (
+                {offering.registrationClosed || full ? (
                   <span class="mt-1 inline-block self-start rounded-full bg-border px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-ink/50">
-                    Registration Closed
+                    {offering.registrationClosed ? 'Registration Closed' : 'Full'}
                   </span>
                 ) : (
                   <a
@@ -285,6 +317,25 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
     }, 2000);
   }
 
+  // Spots remaining on cards whose count is hidden from the public.
+  async function revealAdminSpots(accessToken: string) {
+    const tags = Array.from(document.querySelectorAll<HTMLElement>('[data-admin-spots-key]'));
+    if (tags.length === 0) return;
+    try {
+      const res = await fetch('/api/admin/series-spots', { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!res.ok) return;
+      const { series } = (await res.json()) as { series: Record<string, { remaining: number }> };
+      for (const tag of tags) {
+        const info = series[tag.dataset.adminSpotsKey ?? ''];
+        if (!info) continue;
+        tag.textContent = `${info.remaining} ${info.remaining === 1 ? 'spot' : 'spots'} remaining (admin only)`;
+        tag.classList.remove('hidden');
+      }
+    } catch {
+      // Leave the tags hidden if the count can't be loaded.
+    }
+  }
+
   async function saveOrder(accessToken: string): Promise<boolean> {
     const res = await fetch('/api/admin/update-homepage-card-order', {
       method: 'POST',
@@ -305,6 +356,8 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
     const res = await fetch('/api/admin/check', { headers: { Authorization: `Bearer ${session.access_token}` } });
     const { isAdmin } = await res.json();
     if (!isAdmin) return;
+
+    revealAdminSpots(session.access_token);
 
     hint?.classList.remove('hidden');
     document.querySelectorAll('.card-order-controls').forEach((el) => {

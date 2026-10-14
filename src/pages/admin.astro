@@ -133,6 +133,21 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             </button>
           </div>
 
+          <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
+            <div>
+              <p class="text-sm font-semibold text-ink">Register for Events button</p>
+              <p class="text-xs text-muted">Show a Register for Events button in the nav header, next to Register for Classes.</p>
+            </div>
+            <button
+              data-settings-toggle="show_register_events_nav"
+              role="switch"
+              aria-checked="false"
+              class="settings-toggle relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors"
+            >
+              <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+            </button>
+          </div>
+
           <div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
             <div class="flex w-full items-center justify-between">
               <div>

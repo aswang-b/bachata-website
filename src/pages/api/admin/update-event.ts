@@ -14,6 +14,7 @@ import {
 import { runCalendarSync, syncErrorText } from '../../../lib/calendarSync';
 import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
 import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
+import { toCapacity } from '../../../lib/capacity';
 
 export const prerender = false;
 
@@ -103,6 +104,8 @@ const handlePost: APIRoute = async ({ request }) => {
     lessonOverviewTitle,
     lessonOverviewBody,
     hideLessonOverview,
+    capacity,
+    showCapacity,
   } = body ?? {};
 
   if (!id || !title || !startTime || !endTime) {
@@ -141,6 +144,8 @@ const handlePost: APIRoute = async ({ request }) => {
   const rowImageUrl = imageUrl || null;
   const rowLessonOverview = normalizeLessonOverviewOverride(lessonOverviewTitle, lessonOverviewBody);
   const rowHideLessonOverview = Boolean(hideLessonOverview);
+  const rowCapacity = toCapacity(capacity);
+  const rowShowCapacity = rowCapacity != null && Boolean(showCapacity);
   const rowDescription = description ? sanitizeEventDescriptionHtml(description) : null;
 
   // Tracks whether we actually managed to push this change to Google, so the
@@ -239,6 +244,8 @@ const handlePost: APIRoute = async ({ request }) => {
           lesson_overview_title: rowLessonOverview.title,
           lesson_overview_body: rowLessonOverview.body,
           hide_lesson_overview: rowHideLessonOverview,
+          capacity: rowCapacity,
+          show_capacity: rowShowCapacity,
         })
         .eq('google_recurring_event_id', createdMaster.id);
     } catch (err) {
@@ -291,6 +298,8 @@ const handlePost: APIRoute = async ({ request }) => {
           lesson_overview_title: rowLessonOverview.title,
           lesson_overview_body: rowLessonOverview.body,
           hide_lesson_overview: rowHideLessonOverview,
+          capacity: rowCapacity,
+          show_capacity: rowShowCapacity,
         })
         .eq('id', sibling.id)
         .select()
@@ -345,6 +354,8 @@ const handlePost: APIRoute = async ({ request }) => {
       lesson_overview_title: rowLessonOverview.title,
       lesson_overview_body: rowLessonOverview.body,
       hide_lesson_overview: rowHideLessonOverview,
+      capacity: rowCapacity,
+      show_capacity: rowShowCapacity,
     })
     .eq('id', id)
     .select()
