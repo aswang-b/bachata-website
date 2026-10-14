@@ -7,6 +7,7 @@ import {
   getClassRegistrationsForSubmission,
   insertClassRegistrations,
   resolveClassSelections,
+  selectionsHaveCost,
   validateClassSelections,
 } from '../../lib/classRegistrations';
 import { listFaqs } from '../../lib/faqs';
@@ -171,6 +172,10 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   if (selectionError) {
     return new Response(selectionError.message, { status: selectionError.status });
   }
+  // Events skip the payment step only when they're free.
+  if (isEvent && !paymentMethod && (await selectionsHaveCost(selections))) {
+    return new Response('Please choose a payment method.', { status: 400 });
+  }
   const capacityError = await validateCapacity(selections, dancers && dancers.length > 0 ? dancers.length : 1);
   if (capacityError) {
     return new Response(capacityError.message, { status: capacityError.status });
@@ -270,7 +275,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
             .map((c) => c.trim())
             .filter(Boolean)
             .join('\n\n');
-          if (classesForEmail) rows.push(['Class', classesForEmail]);
+          if (classesForEmail) rows.push([isEvent ? 'Event' : 'Class', classesForEmail]);
         }
         if (comments) rows.push(['Notes', comments]);
 
@@ -281,6 +286,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
           summaryRows: rows,
           receiptLines,
           subtotal,
+          isEvent,
           paymentNote: paymentAgreementText(paymentMethod),
           faqs: faqs.filter((f) => f.includeInConfirmation).map((f) => ({ question: f.question, answer: f.answer })),
         });
@@ -309,12 +315,14 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
           toSend.push(recipient);
         }
 
-        // One admin copy per registration: BCC'd on the first dancer's email,
-        // or sent on its own when no dancer email goes out.
+        // One admin copy per registration, sent on its own (reserved after the
+        // dancers' emails, so it never uses up their quota) so a failed dancer
+        // send can't lose it. The admins after the first are BCC'd, so they
+        // don't see each other's addresses.
         const subject = `Your ${isEvent ? 'Event' : 'Class'} Registration is Confirmed — Dance with B`;
-        const sends = toSend.map((recipient, i) => sendEmail(recipient, subject, html, i === 0 ? { bcc } : {}));
-        if (toSend.length === 0 && bcc.length > 0 && (await reserveEmail())) {
-          sends.push(sendEmail(bcc, subject, html));
+        const sends = toSend.map((recipient) => sendEmail(recipient, subject, html));
+        if (bcc.length > 0 && (await reserveEmail())) {
+          sends.push(sendEmail(bcc[0], subject, html, { bcc: bcc.slice(1) }));
         }
         const results = await Promise.allSettled(sends);
         for (const r of results) {

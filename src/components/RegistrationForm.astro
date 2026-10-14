@@ -664,7 +664,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       if (price == null) {
         amount.textContent = '—';
       } else if (dancerCount > 1) {
-        amount.innerHTML = `${formatPrice(price * dancerCount)}<div class="text-xs text-muted">${formatPrice(price)} × ${dancerCount} dancers</div>`;
+        amount.innerHTML = `${formatPrice(price * dancerCount)}<div class="text-xs text-muted">${formatPrice(price)} × ${dancerCount} ${isEvent ? 'attendees' : 'dancers'}</div>`;
       } else {
         amount.textContent = formatPrice(price);
       }

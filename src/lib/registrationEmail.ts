@@ -12,7 +12,7 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
-import { formatPrice, quantityNote, type ReceiptLine } from './registrationReceipt';
+import { formatPrice, quantityNote, receiptHeading, type ReceiptLine } from './registrationReceipt';
 
 export interface RegistrationEmailParams {
   registrationTypeLabel: string;
@@ -22,15 +22,17 @@ export interface RegistrationEmailParams {
   // with the subtotal under them instead of a bare Subtotal row.
   receiptLines?: ReceiptLine[];
   subtotal: number | null;
+  // An event registration: the receipt is headed "Events", per "attendees".
+  isEvent?: boolean;
   // e.g. "You agreed to pay with Venmo.", shown under the classes.
   paymentNote?: string | null;
   faqs: { question: string; answer: string }[];
 }
 
-function receiptHtml(lines: ReceiptLine[], subtotal: number | null): string {
+function receiptHtml(lines: ReceiptLine[], subtotal: number | null, isEvent: boolean): string {
   const lineRows = lines
     .map((line) => {
-      const note = quantityNote(line);
+      const note = quantityNote(line, isEvent);
       return `<tr>
         <td style="padding:6px 12px 6px 0;vertical-align:top;color:#111;">
           <div style="font-weight:bold;">${escapeHtml(line.title)}</div>
@@ -48,7 +50,7 @@ function receiptHtml(lines: ReceiptLine[], subtotal: number | null): string {
       ? `<tr><td style="padding:8px 12px 0 0;border-top:1px solid #e5d9da;font-weight:bold;color:#111;">Subtotal</td><td style="padding:8px 0 0;border-top:1px solid #e5d9da;text-align:right;font-weight:bold;color:#111;">${formatPrice(subtotal)}</td></tr>`
       : '';
   return `
-    <p style="margin:16px 0 6px;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#888;">Classes</p>
+    <p style="margin:16px 0 6px;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#888;">${receiptHeading(isEvent)}</p>
     <table cellpadding="0" cellspacing="0" style="font-size:14px;width:100%;">${lineRows}${subtotalRow}</table>`;
 }
 
@@ -101,7 +103,7 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
           ${rowsHtml}
           ${subtotalRowHtml}
         </table>
-        ${hasReceipt ? receiptHtml(params.receiptLines!, params.subtotal) : ''}
+        ${hasReceipt ? receiptHtml(params.receiptLines!, params.subtotal, Boolean(params.isEvent)) : ''}
         ${params.paymentNote ? `<p style="margin:12px 0 0;font-size:14px;color:#333;">${escapeHtml(params.paymentNote)}</p>` : ''}
       </div>
 

@@ -298,6 +298,15 @@ function buildRegistrationRows(
   });
 }
 
+// Whether any selection costs money right now, priced exactly as the saved
+// registration rows will be — so the server can require a payment method for
+// a paid event (the form only asks for one then).
+export async function selectionsHaveCost(selections: ParsedClassSelection[]): Promise<boolean> {
+  if (selections.length === 0) return false;
+  const rows = buildRegistrationRows('', null, {}, selections, await lookupClassPrices(selections));
+  return rows.some((r) => (r.price ?? 0) > 0);
+}
+
 export function resolveClassSelections(classRaw: string | null | undefined, classSelectionsRaw: string | null | undefined): ParsedClassSelection[] {
   const structured = parseClassSelectionsJson(classSelectionsRaw);
   return structured.length > 0 ? structured : parseClassSelectionString(classRaw);

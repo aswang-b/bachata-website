@@ -25,7 +25,7 @@ One file per endpoint (Astro API routes, `export const GET`/`POST`). Every route
 ## Integration Points
 
 - **Depends on**: `src/lib/*` (almost every helper module — see [lib CONTEXT.md](../../../lib/CONTEXT.md) for what each does)
-- **Used by**: `src/pages/admin.astro` (dashboard: sign-ups, check-ins, workqueue, matches) and this directory's sibling pages — see [admin pages CONTEXT.md](../../admin/CONTEXT.md)
+- **Used by**: `src/pages/admin.astro` (dashboard: sign-ups, check-ins, workqueue, matches) and this directory's sibling pages — see [admin pages CONTEXT.md](../../admin/_CONTEXT.md)
 
 ## Architecture
 

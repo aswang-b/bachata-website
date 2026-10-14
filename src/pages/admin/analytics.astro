@@ -1462,7 +1462,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         const key = signupRowKey(s);
         if (isLockedByMe && editingEventRegistrationKey === key) return [eventRegistrationEditRowHtml(s)];
         const paymentLabel = s.paymentMethod === 'venmo' ? 'Venmo' : s.paymentMethod === 'cash' ? 'Cash' : '—';
-        return s.classRegistrations.map((entry, entryIndex) => {
+        // A registration with no saved event rows still gets one ("—") row.
+        const entries: ClassRegistrationEntry[] =
+          s.classRegistrations.length > 0
+            ? s.classRegistrations
+            : [{ id: null, classTitle: '', classLabel: '', seriesMode: null, price: null, occurrenceEventId: null, occurrenceLabel: null }];
+        return entries.map((entry, entryIndex) => {
           const isFirst = entryIndex === 0;
           const paymentSubtotalLabel =
             paymentLabel === '—' && entry.price == null ? '—' : `${paymentLabel}${entry.price != null ? ` — ${formatPrice(entry.price)}` : ''}`;

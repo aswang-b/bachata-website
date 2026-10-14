@@ -5,7 +5,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
 import { listFaqs } from '../../lib/faqs';
 import { getClassRegistrationsForSubmission } from '../../lib/classRegistrations';
-import { buildReceiptLines, formatPrice, paymentAgreementText, quantityNote, receiptSubtotal } from '../../lib/registrationReceipt';
+import { buildReceiptLines, formatPrice, paymentAgreementText, quantityNote, receiptHeading, receiptSubtotal } from '../../lib/registrationReceipt';
 
 const faqs = await listFaqs();
 const printFaqs = faqs.filter((f) => f.includeInConfirmation);
@@ -57,6 +57,9 @@ const classRegistrations = id && submission ? await getClassRegistrationsForSubm
 const receiptLines = await buildReceiptLines(classRegistrations);
 const subtotal = receiptSubtotal(receiptLines);
 
+// Event tickets are worded as such rather than as classes.
+const isEvent = submission?.registration_type === 'events';
+
 const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 ---
 
@@ -69,7 +72,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'nu
         </svg>
       </div>
       <h1 class="font-display text-3xl font-extrabold text-ink">Your Registration is Confirmed!</h1>
-      <p class="mt-3 text-muted">See you in class!</p>
+      <p class="mt-3 text-muted">{isEvent ? 'See you there!' : 'See you in class!'}</p>
 
       {submission && (
         <div class="mt-8 w-full rounded-2xl border border-border bg-surface p-6 text-left">
@@ -82,7 +85,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'nu
             {submission.dancers && submission.dancers.length > 0 ? (
               submission.dancers.map((d, i) => (
                 <div class="flex flex-col">
-                  <span class="font-semibold">Dancer {i + 1}: {d.firstName} {d.lastName}</span>
+                  <span class="font-semibold">{isEvent ? 'Attendee' : 'Dancer'} {i + 1}: {d.firstName} {d.lastName}</span>
                   <span class="text-ink/70">
                     {d.role}
                     {d.phone ? ` · ${d.phone}` : ''}
@@ -106,7 +109,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'nu
 
             {receiptLines.length > 0 ? (
               <div class="mt-2 flex flex-col gap-2 border-t border-border pt-2">
-                <span class="text-xs font-semibold uppercase tracking-wider text-muted">Classes</span>
+                <span class="text-xs font-semibold uppercase tracking-wider text-muted">{receiptHeading(isEvent)}</span>
                 <ul class="flex flex-col gap-2">
                   {receiptLines.map((line) => (
                     <li class="flex items-start justify-between gap-3">
@@ -116,7 +119,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'nu
                       </div>
                       <div class="shrink-0 text-right">
                         <div>{line.lineTotal != null ? formatPrice(line.lineTotal) : '—'}</div>
-                        {quantityNote(line) && <div class="text-xs text-muted">{quantityNote(line)}</div>}
+                        {quantityNote(line, isEvent) && <div class="text-xs text-muted">{quantityNote(line, isEvent)}</div>}
                       </div>
                     </li>
                   ))}

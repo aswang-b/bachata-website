@@ -76,10 +76,14 @@ export function receiptSubtotal(lines: ReceiptLine[]): number | null {
   return lines.some((l) => l.lineTotal != null) ? lines.reduce((sum, l) => sum + (l.lineTotal ?? 0), 0) : null;
 }
 
-// "$120 × 2 dancers" under a multi-dancer line; empty for a single dancer.
-export function quantityNote(line: ReceiptLine): string {
-  return line.quantity > 1 && line.unitPrice != null ? `${formatPrice(line.unitPrice)} × ${line.quantity} dancers` : '';
+// "$120 × 2 dancers" (or "attendees" for an event) under a multi-person line;
+// empty for a single person.
+export function quantityNote(line: ReceiptLine, isEvent = false): string {
+  return line.quantity > 1 && line.unitPrice != null ? `${formatPrice(line.unitPrice)} × ${line.quantity} ${isEvent ? 'attendees' : 'dancers'}` : '';
 }
+
+// The receipt's heading: event tickets aren't classes.
+export const receiptHeading = (isEvent: boolean) => (isEvent ? 'Events' : 'Classes');
 
 // The payment line under the receipt, e.g. "You agreed to pay with Venmo."
 export function paymentAgreementText(method: string | null | undefined): string | null {

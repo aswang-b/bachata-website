@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Each file is a standalone Astro page gated by `requireAdmin`-style client checks, heavy on inline `<script>` (no framework components in this project — see [components CONTEXT.md](../../components/CONTEXT.md)). All fetch their data from the matching route under [`src/pages/api/admin/`](../api/admin/CONTEXT.md).
+Each file is a standalone Astro page gated by `requireAdmin`-style client checks, heavy on inline `<script>` (no framework components in this project — see [components CONTEXT.md](../../components/CONTEXT.md)). All fetch their data from the matching route under [`src/pages/api/admin/`](../api/admin/_CONTEXT.md).
 
 ## Key Files
 

@@ -26,6 +26,8 @@ async function callBinFunction(fn: string, args: Record<string, unknown>, failur
   if (!error) return;
   // P0002 is the functions' "not found".
   if (error.code === 'P0002') throw new RecyclingBinError(error.message, 404);
+  // P0001 is a refused restore (its sign-up or dancer is still in the bin, migration 0043).
+  if (error.code === 'P0001') throw new RecyclingBinError(error.message, 409);
   console.error(`${fn} failed:`, error.message);
   throw new RecyclingBinError(failure, 500);
 }

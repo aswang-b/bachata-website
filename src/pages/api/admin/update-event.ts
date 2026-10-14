@@ -231,6 +231,8 @@ const handlePost: APIRoute = async ({ request }) => {
       await supabase
         .from('events')
         .update({
+          // The sync inserts new rows as 'event', so a class series must be set back.
+          event_type: rowEventType,
           price_whole_series: rowPriceWholeSeries,
           price_drop_in: rowPriceDropIn,
           price_student: rowPriceStudent,
@@ -251,6 +253,13 @@ const handlePost: APIRoute = async ({ request }) => {
           show_capacity: rowShowCapacity,
         })
         .eq('google_recurring_event_id', createdMaster.id);
+      // The series' sign-ups follow it to its new Google id so they keep
+      // counting toward its capacity (the spot-count trigger recounts it).
+      const { error: remapError } = await supabase
+        .from('class_registrations')
+        .update({ series_key: createdMaster.id })
+        .eq('series_key', before.google_recurring_event_id);
+      if (remapError) console.error('Failed to move sign-ups to the rebuilt series:', remapError.message);
     } catch (err) {
       console.error('Failed to create rebuilt series:', err);
       const message = err instanceof Error ? err.message : 'Failed to rebuild series.';
