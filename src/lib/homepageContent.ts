@@ -53,6 +53,36 @@ export async function setHomepageCardOrder(order: string[]): Promise<void> {
   if (error) throw new Error(`Failed to update homepage card order: ${error.message}`);
 }
 
+// The homepage's two card sections, in their default order (events first).
+// The admin-saved order (homepage_content.section_order, migration 0042) can
+// put classes first; until that column exists the default order is used.
+export const HOMEPAGE_SECTIONS = ['events', 'classes'] as const;
+export type HomepageSection = (typeof HOMEPAGE_SECTIONS)[number];
+
+export function isHomepageSection(value: unknown): value is HomepageSection {
+  return typeof value === 'string' && (HOMEPAGE_SECTIONS as readonly string[]).includes(value);
+}
+
+// Saved sections first, then any the saved list is missing, in default order.
+export function normalizeSectionOrder(saved: unknown): HomepageSection[] {
+  const valid = Array.isArray(saved) ? [...new Set(saved.filter(isHomepageSection))] : [];
+  return [...valid, ...HOMEPAGE_SECTIONS.filter((s) => !valid.includes(s))];
+}
+
+export async function getHomepageSectionOrder(): Promise<HomepageSection[]> {
+  const { data, error } = await supabase.from('homepage_content').select('section_order').eq('id', true).maybeSingle();
+  if (error) console.error('Failed to load homepage section order:', error.message);
+  return normalizeSectionOrder(data?.section_order);
+}
+
+// An empty list resets to the default order.
+export async function setHomepageSectionOrder(order: HomepageSection[]): Promise<void> {
+  const { error } = await supabase
+    .from('homepage_content')
+    .upsert({ id: true, section_order: order, updated_at: new Date().toISOString() });
+  if (error) throw new Error(`Failed to update homepage section order: ${error.message}`);
+}
+
 // Orders cards by the saved key list. Cards not in the list (new classes) go
 // after the ordered ones in their existing (default) order, and saved keys with
 // no card (classes that have passed) are ignored — so a saved order never keeps

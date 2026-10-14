@@ -25,6 +25,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         <button type="button" data-tab="signups" class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Sign-Ups
         </button>
+        <button type="button" data-tab="event-registration" class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+          Event Registration
+        </button>
         <button type="button" data-tab="checkins" class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Check-Ins
         </button>
@@ -103,6 +106,72 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
               <tbody id="signups-body"></tbody>
             </table>
             <p id="signups-empty" class="hidden px-4 py-6 text-center text-sm text-muted">No sign-ups match these filters.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== EVENT REGISTRATION TAB ==================== -->
+      <!-- Event sign-ups only (registration type "events"): kept out of Sign-Ups and Attendance since nobody checks in to events; this tab is for tracking payment. -->
+      <section id="tab-panel-event-registration" class="tab-panel hidden flex-col gap-6">
+        <div class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-end">
+          <label class="flex flex-1 flex-col gap-1.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Search by dancer name</span>
+            <input
+              id="event-registrations-name-search"
+              type="text"
+              placeholder="e.g. Jane Doe"
+              class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label class="flex flex-1 flex-col gap-1.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Filter by event</span>
+            <select
+              id="event-registrations-event-filter"
+              class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
+            >
+              <option value="">All events</option>
+            </select>
+          </label>
+          <button
+            id="event-registrations-clear-filters"
+            class="rounded-full border border-border px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-bg"
+          >
+            Clear
+          </button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface p-4">
+          <button
+            id="event-registrations-lock-btn"
+            class="rounded-full border border-accent px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Try Lock to Edit
+          </button>
+          <p id="event-registrations-lock-status" class="text-xs text-muted"></p>
+        </div>
+
+        <div>
+          <div class="flex items-baseline justify-between">
+            <h2 class="font-display text-xl font-bold text-ink">Event Registration</h2>
+            <p id="event-registrations-count" class="text-xs text-muted"></p>
+          </div>
+
+          <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
+            <table class="w-full min-w-[760px] text-left text-sm">
+              <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
+                <tr>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="firstName">First Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="lastName">Last Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="email">Contact Info</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[200px]" data-table="event-registrations" data-column="class">Event</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paymentSort">Payment</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paid">Paid</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="createdAt">Registered</th>
+                </tr>
+              </thead>
+              <tbody id="event-registrations-body"></tbody>
+            </table>
+            <p id="event-registrations-empty" class="hidden px-4 py-6 text-center text-sm text-muted">No event registrations match these filters.</p>
           </div>
         </div>
       </section>
@@ -461,6 +530,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const tabButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab-btn'));
   const tabPanels: Record<string, HTMLElement> = {
     signups: document.getElementById('tab-panel-signups')!,
+    'event-registration': document.getElementById('tab-panel-event-registration')!,
     checkins: document.getElementById('tab-panel-checkins')!,
     attendance: document.getElementById('tab-panel-attendance')!,
     recycling: document.getElementById('tab-panel-recycling')!,
@@ -498,6 +568,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   tabButtons.forEach((btn) => btn.addEventListener('click', () => setActiveTab(btn.dataset.tab ?? 'signups')));
 
   let allSignups: Signup[] = [];
+  // Same shape as Signup: event registrations, kept out of Sign-Ups by analytics-data.ts.
+  let allEventRegistrations: Signup[] = [];
   let allCheckins: Checkin[] = [];
   let classSeries: ClassSeriesEntry[] = [];
   let attendanceEntries: AttendanceEntry[] = [];
@@ -516,6 +588,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const DATE_COLUMNS = new Set(['createdAt', 'classDate', 'occurrenceDate', 'created_at', 'deletedAt']);
 
   let signupSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
+  let eventRegistrationSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
   let checkinSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
   let attendanceOrphanedSignupsSort: { column: string; direction: 'asc' | 'desc' } = { column: 'lastName', direction: 'asc' };
   let attendanceOrphanedCheckinsSort: { column: string; direction: 'asc' | 'desc' } = { column: 'last_name', direction: 'asc' };
@@ -548,7 +621,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
 
   function makeLockController(
-    resource: 'signups' | 'checkins' | 'attendance' | 'recycling',
+    resource: 'signups' | 'eventRegistrations' | 'checkins' | 'attendance' | 'recycling',
     lockBtn: HTMLButtonElement,
     lockStatus: HTMLElement,
     onChange: (locked: boolean) => void
@@ -715,7 +788,21 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     () => renderRecyclingBin()
   );
 
-  lockControllersByTab = { signups: signupsLock, checkins: checkinsLock, attendance: attendanceLock, recycling: recyclingLock };
+  // Locking this tab only enables its Paid checkboxes.
+  const eventRegistrationsLock = makeLockController(
+    'eventRegistrations',
+    document.getElementById('event-registrations-lock-btn') as HTMLButtonElement,
+    document.getElementById('event-registrations-lock-status')!,
+    () => renderEventRegistrations()
+  );
+
+  lockControllersByTab = {
+    signups: signupsLock,
+    'event-registration': eventRegistrationsLock,
+    checkins: checkinsLock,
+    attendance: attendanceLock,
+    recycling: recyclingLock,
+  };
 
   const signupsNameSearch = document.getElementById('signups-name-search') as HTMLInputElement;
   const checkinsNameSearch = document.getElementById('checkins-name-search') as HTMLInputElement;
@@ -796,6 +883,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
   const SORT_STATE_BY_TABLE: Record<string, { column: string; direction: 'asc' | 'desc' }> = {
     signups: signupSort,
+    'event-registrations': eventRegistrationSort,
     checkins: checkinSort,
     'attendance-orphaned-signups': attendanceOrphanedSignupsSort,
     'attendance-orphaned-checkins': attendanceOrphanedCheckinsSort,
@@ -805,6 +893,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const RENDER_BY_TABLE: Record<string, () => void> = {
     recycling: () => renderRecyclingBin(),
     signups: () => renderSignups(),
+    'event-registrations': () => renderEventRegistrations(),
     checkins: () => renderCheckins(),
     'attendance-orphaned-signups': () => renderAttendance(),
     'attendance-orphaned-checkins': () => renderAttendance(),
@@ -1290,6 +1379,96 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     signupsNameSearch.value = '';
     signupsClassFilters.reset();
     renderSignups();
+  });
+
+  // --- Event Registration tab ---
+  // Read-only apart from the Paid checkbox (enabled by this tab's own lock):
+  // it exists to see who registered for which event and reconcile payment.
+  const eventRegistrationsBody = document.getElementById('event-registrations-body')!;
+  const eventRegistrationsEmpty = document.getElementById('event-registrations-empty')!;
+  const eventRegistrationsCount = document.getElementById('event-registrations-count')!;
+  const eventRegistrationsNameSearch = document.getElementById('event-registrations-name-search') as HTMLInputElement;
+  const eventRegistrationsEventFilter = document.getElementById('event-registrations-event-filter') as HTMLSelectElement;
+
+  // The filter lists the events that have registrations, keeping the current pick.
+  function refreshEventFilterOptions() {
+    const current = eventRegistrationsEventFilter.value;
+    const titles = [...new Set(allEventRegistrations.flatMap((s) => s.classRegistrations.map((e) => e.classTitle)).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b)
+    );
+    eventRegistrationsEventFilter.innerHTML =
+      '<option value="">All events</option>' + titles.map((t) => `<option value="${escapeAttr(t)}">${escapeHtml(t)}</option>`).join('');
+    eventRegistrationsEventFilter.value = titles.includes(current) ? current : '';
+  }
+
+  function renderEventRegistrations() {
+    const nameQuery = eventRegistrationsNameSearch.value.trim();
+    const eventFilter = eventRegistrationsEventFilter.value;
+    const isLockedByMe = eventRegistrationsLock.isLocked();
+
+    const filtered = allEventRegistrations.filter(
+      (s) => matchesName(s.firstName, s.lastName, nameQuery) && (!eventFilter || s.classRegistrations.some((e) => e.classTitle === eventFilter))
+    );
+    const sorted = sortRows(filtered, eventRegistrationSort);
+
+    // One row per event the dancer registered for, like Sign-Ups; continuation
+    // rows repeat only the Event and Payment columns.
+    eventRegistrationsBody.innerHTML = sorted
+      .flatMap((s) => {
+        const paymentLabel = s.paymentMethod === 'venmo' ? 'Venmo' : s.paymentMethod === 'cash' ? 'Cash' : '—';
+        return s.classRegistrations.map((entry, entryIndex) => {
+          const isFirst = entryIndex === 0;
+          const paymentSubtotalLabel =
+            paymentLabel === '—' && entry.price == null ? '—' : `${paymentLabel}${entry.price != null ? ` — ${formatPrice(entry.price)}` : ''}`;
+          return `
+          <tr class="${isFirst ? 'border-t border-border' : 'border-t-0'}">
+            <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.firstName) : ''}</td>
+            <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.lastName) : ''}</td>
+            <td class="px-4 py-2.5 text-ink/70">${isFirst ? `<div>${escapeHtml(s.email)}</div><div>${escapeHtml(s.phone)}</div>` : ''}</td>
+            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.classTitle || '—')}</td>
+            <td class="px-4 py-2.5 text-ink/70">${paymentSubtotalLabel}</td>
+            <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" class="event-paid-checkbox h-4 w-4" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
+            <td class="px-4 py-2.5 text-ink/70">${isFirst ? dateFormatter.format(new Date(s.createdAt)) : ''}</td>
+          </tr>`;
+        });
+      })
+      .join('');
+
+    eventRegistrationsBody.querySelectorAll<HTMLInputElement>('.event-paid-checkbox').forEach((checkbox) => {
+      checkbox.addEventListener('change', async () => {
+        const submissionId = checkbox.dataset.submissionId!;
+        const paid = checkbox.checked;
+        checkbox.disabled = true;
+
+        const headers = await withAuthHeader();
+        const res = headers
+          ? await fetch('/api/admin/update-signup', { method: 'POST', headers, body: JSON.stringify({ submissionId, paid, holderId }) })
+          : null;
+
+        if (res?.ok) {
+          // Every dancer on a group registration shares the submission's paid flag.
+          allEventRegistrations.forEach((s) => {
+            if (s.submissionId === submissionId) s.paid = paid;
+          });
+          renderEventRegistrations();
+        } else {
+          checkbox.checked = !paid;
+          checkbox.disabled = false;
+        }
+      });
+    });
+
+    eventRegistrationsEmpty.classList.toggle('hidden', sorted.length > 0);
+    eventRegistrationsCount.textContent = `${sorted.length} ${sorted.length === 1 ? 'result' : 'results'}`;
+    updateSortHeaders('event-registrations', eventRegistrationSort);
+  }
+
+  eventRegistrationsNameSearch.addEventListener('input', renderEventRegistrations);
+  eventRegistrationsEventFilter.addEventListener('change', renderEventRegistrations);
+  document.getElementById('event-registrations-clear-filters')?.addEventListener('click', () => {
+    eventRegistrationsNameSearch.value = '';
+    eventRegistrationsEventFilter.value = '';
+    renderEventRegistrations();
   });
 
   addSignupBtn.addEventListener('click', () => {
@@ -2007,13 +2186,20 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     });
     if (!dataRes.ok) return false;
 
-    const { signups, checkins, classTitles, classSeries: series } = await dataRes.json();
+    const { signups, eventRegistrations, checkins, classTitles, classSeries: series } = await dataRes.json();
     allSignups = (signups as Signup[]).map((s) => ({
       ...s,
       class: serializeClassRegistrations(s.classRegistrations),
       seriesSort: s.classRegistrations.map((e) => (e.seriesMode === 'whole' ? 'Whole Series' : e.seriesMode === 'dropin' ? 'Drop In' : '—')).join(' / '),
       paymentSort: signupPaymentSortKey(s),
     }));
+    allEventRegistrations = ((eventRegistrations ?? []) as Signup[]).map((s) => ({
+      ...s,
+      class: serializeClassRegistrations(s.classRegistrations),
+      seriesSort: '',
+      paymentSort: signupPaymentSortKey(s),
+    }));
+    refreshEventFilterOptions();
     allCheckins = checkins;
     classSeries = series ?? [];
 
@@ -2065,6 +2251,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       reloadData(),
       loadAttendanceData(),
       signupsLock.refresh(),
+      eventRegistrationsLock.refresh(),
       checkinsLock.refresh(),
       attendanceLock.refresh(),
       recyclingLock.refresh(),
@@ -2072,6 +2259,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     ]);
     showPanel('dashboard');
     renderSignups();
+    renderEventRegistrations();
     renderCheckins();
     renderAttendance();
     renderRecyclingBin();

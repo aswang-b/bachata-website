@@ -152,7 +152,7 @@ export const GET: APIRoute = async ({ request }) => {
     else byDancer.set(reg.dancer_index, [entry]);
   }
 
-  const signups = (intakeRows ?? []).flatMap((row): SignupRow[] => {
+  const allSignups = (intakeRows ?? []).flatMap((row): SignupRow[] => {
     const dancers = Array.isArray(row.dancers) ? (row.dancers as Dancer[]) : null;
     const byDancer = registrationsBySubmission.get(row.id);
     const shared = {
@@ -202,6 +202,11 @@ export const GET: APIRoute = async ({ request }) => {
     ];
   });
 
+  // Event registrations get their own dashboard tab (payment tracking only;
+  // nobody checks in to events), so they're kept out of Sign-Ups.
+  const signups = allSignups.filter((s) => s.registrationType !== 'events');
+  const eventRegistrations = allSignups.filter((s) => s.registrationType === 'events');
+
   // Look up the specific scheduled date/time of the class each check-in was for.
   const eventDateById = new Map<string, string>((allClassEvents ?? []).map((e) => [e.id, e.start_time]));
 
@@ -226,7 +231,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   const classTitles = [...new Set((allClassEvents ?? []).map((e) => e.title))].sort((a, b) => a.localeCompare(b));
 
-  return new Response(JSON.stringify({ signups, checkins, classTitles, classSeries }), {
+  return new Response(JSON.stringify({ signups, eventRegistrations, checkins, classTitles, classSeries }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });

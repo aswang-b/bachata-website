@@ -15,8 +15,8 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
 ---
 
 <header class="sticky top-0 z-50 border-b border-border bg-bg/90 backdrop-blur print:hidden">
-  <div class="mx-auto grid max-w-6xl grid-cols-[auto_1fr_auto] items-center gap-4 px-6 py-4">
-    <a href="/" class="font-display text-xl font-extrabold tracking-tight text-ink">
+  <div id="header-row" class="mx-auto grid max-w-6xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 sm:gap-4 sm:px-6">
+    <a href="/" class="whitespace-nowrap font-display text-lg font-extrabold tracking-tight text-ink sm:text-xl">
       Dance with <span class="text-gradient-accent inline-block align-baseline">B</span>
     </a>
 
@@ -53,17 +53,19 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
       </a>
     </nav>
 
-    <div class="flex items-center justify-end gap-2 md:gap-4">
+    <div id="header-actions" class="flex items-center justify-end gap-2 md:gap-4">
       {/* Off until an admin turns it on (Admin → Site Visibility); the `hidden` attribute is removed by the script below. */}
+      {/* Both register buttons show at every width; the script below swaps in the short label when the full one doesn't fit. */}
       {
         currentPath !== '/register/events' && (
           <a
             href="/register/events"
             hidden
             data-show-settings-key="show_register_events_nav"
-            class={`hidden rounded-md px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors md:flex ${eventsButtonClass}`}
+            class={`register-btn flex whitespace-nowrap rounded-md px-2 py-1.5 sm:px-2.5 text-[10px] font-semibold uppercase tracking-wide transition-colors md:px-4 md:text-xs md:tracking-wider ${eventsButtonClass}`}
           >
-            Register for Events
+            <span class="register-label-full">Register for Events</span>
+            <span class="register-label-short hidden">Events</span>
           </a>
         )
       }
@@ -72,9 +74,10 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
         !isRegisterPage && (
           <a
             href="/register"
-            class="hidden rounded-md border border-accent/40 bg-accent/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-accent transition-colors hover:border-accent/70 hover:bg-accent/20 md:flex"
+            class="register-btn flex whitespace-nowrap rounded-md border border-accent/40 bg-accent/10 px-2 py-1.5 sm:px-2.5 text-[10px] font-semibold uppercase tracking-wide text-accent transition-colors hover:border-accent/70 hover:bg-accent/20 md:px-4 md:text-xs md:tracking-wider"
           >
-            Register for Classes
+            <span class="register-label-full">Register for Classes</span>
+            <span class="register-label-short hidden">Classes</span>
           </a>
         )
       }
@@ -90,17 +93,6 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
         </svg>
         <span id="inbox-dot" class="absolute -right-0.5 -top-0.5 hidden h-2 w-2 rounded-full bg-red-500 ring-2 ring-bg md:h-2.5 md:w-2.5"></span>
       </a>
-
-      {
-        !isRegisterPage && (
-          <a
-            href="/register"
-            class="flex whitespace-nowrap rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent transition-colors hover:border-accent/70 hover:bg-accent/20 md:hidden"
-          >
-            Register for Classes
-          </a>
-        )
-      }
 
       <button
         id="nav-toggle"
@@ -156,6 +148,27 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
   const toggle = document.getElementById('nav-toggle');
   const mobileNav = document.getElementById('mobile-nav');
 
+  // Register buttons show "Register for Classes/Events" when the header row
+  // has room, and just "Classes"/"Events" when it doesn't. Re-run whenever the
+  // row's contents change (resize, the events button or admin links appearing).
+  const headerRow = document.getElementById('header-row');
+  const headerActions = document.getElementById('header-actions');
+
+  function setShortLabels(short: boolean) {
+    document.querySelectorAll('.register-label-full').forEach((el) => el.classList.toggle('hidden', short));
+    document.querySelectorAll('.register-label-short').forEach((el) => el.classList.toggle('hidden', !short));
+  }
+
+  function fitRegisterLabels() {
+    if (!headerRow || !headerActions) return;
+    setShortLabels(false);
+    const overflowing = headerRow.scrollWidth > headerRow.clientWidth || headerActions.scrollWidth > headerActions.clientWidth;
+    if (overflowing) setShortLabels(true);
+  }
+
+  if (headerRow) new ResizeObserver(fitRegisterLabels).observe(headerRow);
+  fitRegisterLabels();
+
   toggle?.addEventListener('click', () => {
     const isHidden = mobileNav?.classList.contains('hidden');
     mobileNav?.classList.toggle('hidden');
@@ -172,6 +185,7 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
 
     document.querySelectorAll('.admin-nav-link').forEach((el) => el.classList.remove('hidden'));
     document.getElementById('inbox-link')?.classList.add('flex');
+    fitRegisterLabels();
 
     try {
       const countRes = await fetch('/api/admin/unseen-count', {
@@ -195,6 +209,7 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
         document.querySelectorAll(`[data-settings-key="${key}"]`).forEach((el) => el.classList.add('hidden'));
         document.querySelectorAll(`[data-show-settings-key="${key}"]`).forEach((el) => el.removeAttribute('hidden'));
       }
+      fitRegisterLabels();
     } catch {
       // If settings can't be fetched, fail open and leave nav links visible.
     }

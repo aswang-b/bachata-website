@@ -30,8 +30,11 @@ export const GET: APIRoute = async ({ request }) => {
   ] = await Promise.all([
     supabase
       .from('class_registrations')
-      .select('id, first_name, last_name, email, phone, class_title, series_mode, price, occurrence_event_id, created_at')
+      // Event registrations aren't checked in to, so they're left out of
+      // attendance matching entirely (see the dashboard's Event Registration tab).
+      .select('id, first_name, last_name, email, phone, class_title, series_mode, price, occurrence_event_id, created_at, intake_submissions!inner(registration_type)')
       .is('deleted_at', null)
+      .neq('intake_submissions.registration_type', 'events')
       .limit(ROW_LIMIT),
     supabase
       .from('class_checkins')

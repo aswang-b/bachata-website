@@ -184,7 +184,9 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
       <div class="flex flex-col gap-1.5">
         <span class="text-sm font-medium text-ink/80">{isEvent ? 'Events' : 'Classes'}<span class="text-accent"> *</span></span>
-        <p class="text-xs text-muted">Select any {isEvent ? 'events' : 'classes'} you'd like to register for — you can pick more than one.</p>
+        <p class="text-xs text-muted">
+          {isEvent ? "Select any events you'd like to register for." : "Select any classes you'd like to register for — you can pick more than one."}
+        </p>
 
         {seriesList.length === 0 ? (
           <p class="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
@@ -237,18 +239,13 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                           target="_blank"
                           rel="noopener noreferrer"
                           onclick="event.stopPropagation()"
-                          class="text-xs font-semibold text-accent underline"
+                          class="text-xs font-semibold text-accent"
                         >
-                          📍 {s.location}
+                          <span aria-hidden="true">📍</span> <span class="underline">{s.location}</span>
                         </a>
                       </>
                     )}
                   </div>
-                  {isEvent && s.priceWhole.originalPrice != null && (
-                    <span class="text-xs font-semibold text-ink">
-                      Ticket: <span set:html={priceDisplayHtml(s.priceWhole)} />
-                    </span>
-                  )}
                 </div>
 
                 {s.description && (
@@ -257,9 +254,18 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                   </div>
                 )}
 
-                {!isEvent && (s.isSeries || s.dropInOnly) && (
+                {(isEvent || s.isSeries || s.dropInOnly) && (
                   <div class="series-subchoice hidden flex-col gap-3 border-t border-border bg-bg p-4 last:rounded-b-xl">
-                    {s.dropInOnly ? (
+                    {isEvent ? (
+                      <label class="flex items-center justify-between gap-2 text-sm text-ink">
+                        {/* Events sell one ticket type, shown like a class with a single rate: one radio, always selected while the event is picked. */}
+                        <span class="flex items-center gap-2">
+                          <input type="radio" name={`series_mode_${s.key}`} value="whole" checked disabled={s.registrationClosed} class="series-mode-radio h-4 w-4" />
+                          Single Ticket
+                        </span>
+                        <span class="font-semibold text-ink" set:html={s.priceWhole.originalPrice != null ? priceDisplayHtml(s.priceWhole) : 'Free'} />
+                      </label>
+                    ) : s.dropInOnly ? (
                       <>
                         <label class="flex items-center justify-between gap-2 text-sm text-ink">
                           <span class="flex items-center gap-2">
@@ -356,7 +362,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                         <span class="font-semibold text-ink" set:html={priceDisplayHtml(s.priceWhole)} />
                       </label>
                     )}
-                    {s.priceStudent.originalPrice != null && (
+                    {!isEvent && s.priceStudent.originalPrice != null && (
                       <p class="pl-6 text-xs text-muted">
                         Student discount: <span set:html={priceDisplayHtml(s.priceStudent, s.isSeries ? '/class' : '')} />{s.dropInOnly ? '' : ' (whole series or drop-in)'}
                       </p>
@@ -372,18 +378,18 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       </div>
 
       <div class="flex flex-col gap-4">
-        <span class="text-sm font-medium text-ink/80">{isEvent ? 'Attendees' : 'Dancers'}<span class="text-accent"> *</span></span>
+        <span class="text-sm font-medium text-ink/80">Dancers<span class="text-accent"> *</span></span>
         <div id="dancers-container" class="flex flex-col gap-4"></div>
         <button
           type="button"
           id="add-dancer-btn"
           class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
         >
-          {isEvent ? '+ Add Another Attendee' : '+ Add Another Dancer'}
+          + Add Another Dancer
         </button>
         <p id="dancers-error" class="hidden text-xs font-semibold text-red-600">
           {isEvent
-            ? 'Please fill in first name, last name, and a phone or email for each attendee.'
+            ? 'Please fill in first name, last name, and a phone or email for each dancer.'
             : 'Please fill in first name, last name, role, and a phone or email for each dancer.'}
         </p>
       </div>
@@ -482,7 +488,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
   // Events sell one ticket per event and don't ask for a Leader/Follower role.
   const isEvent = document.querySelector<HTMLFormElement>('form[data-kind]')?.dataset.kind === 'event';
-  const personLabel = isEvent ? 'Attendee' : 'Dancer';
+  const personLabel = 'Dancer';
 
   const ROLE_PICKER_HTML = `
       <div class="flex flex-col gap-1.5">
@@ -828,6 +834,12 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     // has already flipped) by comparing against the currently stored mode.
     modeRadios.forEach((radio) =>
       radio.addEventListener('click', () => {
+        // An event's Single Ticket is its only option: it stays selected, and
+        // the event is deselected from its title row instead.
+        if (isEvent) {
+          radio.checked = true;
+          return;
+        }
         const selection = selections.get(key);
         if (selection && selection.mode === radio.value) {
           deselectSeries();

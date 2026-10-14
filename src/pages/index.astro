@@ -5,7 +5,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
 import { buildClassSeriesList } from '../lib/classSeries';
 import { getActivePrice, priceTierLabel } from '../lib/pricing';
-import { applyCardOrder, getHomepageCardOrder, getHomepageContent } from '../lib/homepageContent';
+import { applyCardOrder, getHomepageCardOrder, getHomepageContent, getHomepageSectionOrder, type HomepageSection } from '../lib/homepageContent';
 import { listFaqs } from '../lib/faqs';
 import { getSpotsByOccurrence, seriesSpots, spotsLabel } from '../lib/capacity';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
@@ -42,10 +42,25 @@ if (totalsError) console.error('Failed to load series totals:', totalsError);
 // Soonest first by default; an admin-saved order (set with the arrows shown to
 // admins on this page, reset from Admin Tools → Homepage) overrides it. Only
 // upcoming classes are loaded above, so a past class drops off regardless.
+const [cardOrder, sectionOrder] = await Promise.all([getHomepageCardOrder(), getHomepageSectionOrder()]);
 const offerings = applyCardOrder(
   buildClassSeriesList(events ?? [], allEventsForTotals ?? []).sort((a, b) => a.nextStartTime.localeCompare(b.nextStartTime)),
-  await getHomepageCardOrder()
+  cardOrder
 );
+
+// Events and classes get their own sections (events first by default; admins
+// can swap them). The one saved card order still applies within each section.
+const SECTION_TITLES: Record<HomepageSection, string> = {
+  events: 'Upcoming Events',
+  classes: 'Current Lesson Offerings',
+};
+const sections = sectionOrder
+  .map((id) => ({
+    id,
+    title: SECTION_TITLES[id],
+    offerings: offerings.filter((o) => (o.eventType === 'event') === (id === 'events')),
+  }))
+  .filter((section) => section.offerings.length > 0);
 
 // Spots per series (its tightest upcoming class). Shown on the card only when
 // the class/event shows its capacity publicly; admins get the rest from
@@ -102,7 +117,6 @@ function priceLine(offering: (typeof offerings)[number]): string | null {
 }
 
 function seriesTypeLabel(offering: (typeof offerings)[number]): string {
-  if (offering.eventType === 'event') return 'Event';
   return offering.isSeries ? `${offering.totalOccurrences}-Week Series` : 'Workshop';
 }
 
@@ -139,21 +153,38 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
   description="Weekly bachata sensual classes, private coaching, and social dance events in Madison, WI at Dance Life Studio. Beginner-friendly — no partner or experience required."
 >
   <section class="mx-auto max-w-6xl px-6 py-20">
-    <div class="mb-12 mx-auto max-w-4xl text-center">
-      <h2 class="font-display text-3xl font-extrabold text-ink">Current Lesson Offerings</h2>
-    </div>
-
-    {offerings.length === 0 ? (
-      <p class="mx-auto max-w-md text-center text-sm text-muted">
-        No upcoming classes or events right now — check back soon!
-      </p>
+    {sections.length === 0 ? (
+      <>
+        <div class="mb-12 mx-auto max-w-4xl text-center">
+          <h2 class="font-display text-3xl font-extrabold text-ink">Current Lesson Offerings</h2>
+        </div>
+        <p class="mx-auto max-w-md text-center text-sm text-muted">
+          No upcoming classes or events right now — check back soon!
+        </p>
+      </>
     ) : (
-      <p id="card-order-hint" class="mx-auto mb-4 hidden max-w-3xl rounded-xl border border-border bg-surface px-4 py-2.5 text-xs text-muted">
-        Admin: use the arrows on each card to reorder them. The order is saved for everyone, and you can reset it to the default under Admin Tools → Homepage.
+      <p id="card-order-hint" class="mx-auto mb-8 hidden max-w-3xl rounded-xl border border-border bg-surface px-4 py-2.5 text-xs text-muted">
+        Admin: use the arrows on each card to reorder it within its section, and the arrows by each section title to swap the sections. The order is saved for
+        everyone, and you can reset it to the default under Admin Tools → Homepage.
         <span id="card-order-status" class="ml-1 font-semibold text-accent"></span>
       </p>
-      <div id="offering-list" class="mx-auto flex max-w-3xl flex-col gap-6">
-        {offerings.map((offering, index) => {
+      <div id="offering-sections" class="flex flex-col gap-16">
+        {sections.map((section) => (
+        <div data-section={section.id} class="homepage-section flex flex-col">
+          <div class="mb-12 mx-auto flex max-w-4xl items-center justify-center gap-3 text-center">
+            <h2 class="font-display text-3xl font-extrabold text-ink">{section.title}</h2>
+            {/* Admin-only section arrows; revealed by the script below once an admin session is confirmed. */}
+            <div class="section-order-controls hidden gap-1.5">
+              <button type="button" data-section-move="-1" aria-label={`Move ${section.title} up`} title="Move section up" class="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink/70 transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-ink/70">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
+              </button>
+              <button type="button" data-section-move="1" aria-label={`Move ${section.title} down`} title="Move section down" class="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink/70 transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-ink/70">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+              </button>
+            </div>
+          </div>
+      <div class="offering-list mx-auto flex w-full max-w-3xl flex-col gap-6">
+        {section.offerings.map((offering, index) => {
           const image =
             offering.imageUrl ??
             (offering.eventType === 'event' ? eventPlaceholder.src : classPlaceholders[index % classPlaceholders.length].src);
@@ -177,9 +208,12 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
                   class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div class="absolute left-3 top-3 flex gap-2">
-                  <span class={`rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md ${bgClass(offering.color)}`}>
-                    {seriesTypeLabel(offering)}
-                  </span>
+                  {/* Events sit in their own "Upcoming Events" section, so only classes get a type pill. */}
+                  {offering.eventType !== 'event' && (
+                    <span class={`rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md ${bgClass(offering.color)}`}>
+                      {seriesTypeLabel(offering)}
+                    </span>
+                  )}
                   {!offering.registrationClosed && publicRemaining != null && (
                     <span class="rounded-full bg-black/60 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md backdrop-blur">
                       {spotsLabel(publicRemaining)}
@@ -211,9 +245,9 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
                         href={locationHref(offering.location)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="font-semibold text-accent underline underline-offset-2 hover:opacity-80"
+                        class="font-semibold text-accent hover:opacity-80"
                       >
-                        📍 {offering.location}
+                        <span aria-hidden="true">📍</span> <span class="underline underline-offset-2">{offering.location}</span>
                       </a>
                     </>
                   )}
@@ -265,6 +299,9 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
           );
         })}
       </div>
+        </div>
+        ))}
+      </div>
     )}
 
     {faqs.length > 0 && (
@@ -294,19 +331,30 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
   import { checkAdminSession } from '../lib/adminSession';
   import { isPreviewingAsPublic } from '../lib/previewMode';
 
-  const list = document.getElementById('offering-list');
+  const sectionsEl = document.getElementById('offering-sections');
   const hint = document.getElementById('card-order-hint');
   const status = document.getElementById('card-order-status');
 
   let saving = false;
 
-  const cards = () => Array.from(list?.querySelectorAll<HTMLElement>('[data-offering-key]') ?? []);
+  const sections = () => Array.from(sectionsEl?.querySelectorAll<HTMLElement>(':scope > [data-section]') ?? []);
+  // Every card on the page, in page order — the saved card order covers both
+  // sections, and a card only ever moves within its own.
+  const cards = () => Array.from(sectionsEl?.querySelectorAll<HTMLElement>('[data-offering-key]') ?? []);
+  const sectionCards = (list: Element) => Array.from(list.querySelectorAll<HTMLElement>(':scope > [data-offering-key]'));
 
   function refreshArrows() {
-    const all = cards();
-    all.forEach((card, index) => {
-      card.querySelector<HTMLButtonElement>('[data-move="-1"]')!.disabled = index === 0;
-      card.querySelector<HTMLButtonElement>('[data-move="1"]')!.disabled = index === all.length - 1;
+    sectionsEl?.querySelectorAll('.offering-list').forEach((list) => {
+      const all = sectionCards(list);
+      all.forEach((card, index) => {
+        card.querySelector<HTMLButtonElement>('[data-move="-1"]')!.disabled = index === 0;
+        card.querySelector<HTMLButtonElement>('[data-move="1"]')!.disabled = index === all.length - 1;
+      });
+    });
+    const allSections = sections();
+    allSections.forEach((section, index) => {
+      section.querySelector<HTMLButtonElement>('[data-section-move="-1"]')!.disabled = index === 0;
+      section.querySelector<HTMLButtonElement>('[data-section-move="1"]')!.disabled = index === allSections.length - 1;
     });
   }
 
@@ -337,68 +385,91 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
     }
   }
 
-  async function saveOrder(accessToken: string): Promise<boolean> {
+  async function saveOrder(accessToken: string, body: { order?: string[]; sectionOrder?: string[] }): Promise<boolean> {
     const res = await fetch('/api/admin/update-homepage-card-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ order: cards().map((card) => card.dataset.offeringKey) }),
+      body: JSON.stringify(body),
     });
     return res.ok;
   }
 
+  // Moves one element past its neighbor in `parent` (a card within its
+  // section, or a whole section), saves, and undoes the move if the save fails.
+  async function moveAndSave(
+    parent: HTMLElement,
+    siblings: HTMLElement[],
+    el: HTMLElement,
+    direction: number,
+    buildBody: () => { order?: string[]; sectionOrder?: string[] }
+  ) {
+    const target = siblings[siblings.indexOf(el) + direction];
+    if (!target) return;
+
+    // Ignore clicks while a save is in flight so responses can't land out of
+    // order, and so the rollback below always restores a known state.
+    if (saving) return;
+    saving = true;
+
+    // Move optimistically, then undo if the save fails.
+    if (direction < 0) parent.insertBefore(el, target);
+    else parent.insertBefore(target, el);
+    refreshArrows();
+    showStatus('Saving…');
+
+    try {
+      const {
+        data: { session: current },
+      } = await supabaseBrowser.auth.getSession();
+      if (current && (await saveOrder(current.access_token, buildBody()))) {
+        showStatus('Saved.');
+      } else {
+        throw new Error('save failed');
+      }
+    } catch {
+      siblings.forEach((sibling) => parent.appendChild(sibling));
+      refreshArrows();
+      showStatus('Could not save the new order — try again.');
+    } finally {
+      saving = false;
+    }
+  }
+
   async function revealReorderControlsIfAdmin() {
-    if (!list || cards().length === 0 || isPreviewingAsPublic()) return;
+    if (!sectionsEl || cards().length === 0 || isPreviewingAsPublic()) return;
 
     const gate = await checkAdminSession();
     if (gate.status !== 'admin') return;
 
-    revealAdminSpots(session.access_token);
+    revealAdminSpots(gate.session.access_token);
 
     hint?.classList.remove('hidden');
-    document.querySelectorAll('.card-order-controls').forEach((el) => {
+    document.querySelectorAll('.card-order-controls, .section-order-controls').forEach((el) => {
       el.classList.remove('hidden');
       el.classList.add('flex');
     });
     refreshArrows();
 
-    list.addEventListener('click', async (event) => {
-      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-move]');
-      const card = button?.closest<HTMLElement>('[data-offering-key]');
-      if (!button || !card || button.disabled) return;
+    sectionsEl.addEventListener('click', async (event) => {
+      const target = event.target as HTMLElement;
 
-      const all = cards();
-      const index = all.indexOf(card);
-      const target = all[index + Number(button.dataset.move)];
-      if (!target) return;
-
-      // Ignore clicks while a save is in flight so responses can't land out of
-      // order, and so the rollback below always restores a known state.
-      if (saving) return;
-      saving = true;
-      const previousOrder = cards();
-
-      // Move optimistically, then undo if the save fails.
-      if (Number(button.dataset.move) < 0) list.insertBefore(card, target);
-      else list.insertBefore(target, card);
-      refreshArrows();
-      showStatus('Saving…');
-
-      try {
-        const {
-          data: { session: current },
-        } = await supabaseBrowser.auth.getSession();
-        if (current && (await saveOrder(current.access_token))) {
-          showStatus('Saved.');
-        } else {
-          throw new Error('save failed');
-        }
-      } catch {
-        previousOrder.forEach((el) => list.appendChild(el));
-        refreshArrows();
-        showStatus('Could not save the new order — try again.');
-      } finally {
-        saving = false;
+      const sectionButton = target.closest<HTMLButtonElement>('[data-section-move]');
+      if (sectionButton) {
+        const section = sectionButton.closest<HTMLElement>('[data-section]');
+        if (!section || sectionButton.disabled) return;
+        await moveAndSave(sectionsEl, sections(), section, Number(sectionButton.dataset.sectionMove), () => ({
+          sectionOrder: sections().map((s) => s.dataset.section!),
+        }));
+        return;
       }
+
+      const button = target.closest<HTMLButtonElement>('[data-move]');
+      const card = button?.closest<HTMLElement>('[data-offering-key]');
+      const list = card?.parentElement;
+      if (!button || !card || !list || button.disabled) return;
+      await moveAndSave(list, sectionCards(list), card, Number(button.dataset.move), () => ({
+        order: cards().map((c) => c.dataset.offeringKey!),
+      }));
     });
   }
 

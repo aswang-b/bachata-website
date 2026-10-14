@@ -216,8 +216,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
           <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage Card Order</p>
           <p class="text-xs text-muted">
-            Reorder the class cards with the arrows that appear on each card when you view the homepage as an admin. The order sticks, but classes still drop off once
-            they've passed, and new classes are added at the end. Reset puts them back in the default order (soonest first).
+            Reorder the cards within each section, and the Upcoming Events and Current Lesson Offerings sections themselves, with the arrows that appear when you view
+            the homepage as an admin. The order sticks, but classes and events still drop off once they've passed, and new ones are added at the end of their
+            section. Reset puts everything back in the default order (events first, soonest first).
           </p>
           <button
             id="card-order-reset"
@@ -823,7 +824,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     const res = await fetch('/api/admin/update-homepage-card-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ order: [] }),
+      body: JSON.stringify({ order: [], sectionOrder: [] }),
     });
 
     statusEl.textContent = res.ok ? 'Reset — the homepage now uses the default order.' : 'Failed to reset — try again.';

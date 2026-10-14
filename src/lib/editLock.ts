@@ -8,10 +8,12 @@ export const SIGNUPS_LOCK_RESOURCE = 'analytics-signups';
 export const CHECKINS_LOCK_RESOURCE = 'analytics-checkins';
 export const ATTENDANCE_LOCK_RESOURCE = 'analytics-attendance';
 export const RECYCLING_LOCK_RESOURCE = 'analytics-recycling';
+export const EVENT_REGISTRATIONS_LOCK_RESOURCE = 'analytics-event-registrations';
 
 // The client-facing lock names (the `resource` field of the lock endpoints).
 export const LOCK_RESOURCES = {
   signups: SIGNUPS_LOCK_RESOURCE,
+  eventRegistrations: EVENT_REGISTRATIONS_LOCK_RESOURCE,
   checkins: CHECKINS_LOCK_RESOURCE,
   attendance: ATTENDANCE_LOCK_RESOURCE,
   recycling: RECYCLING_LOCK_RESOURCE,
