@@ -779,6 +779,7 @@ const MAX_BANNERS_PER_DAY = 3;
 
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { checkAdminSession } from '../lib/adminSession';
   import { showErrorDialog } from '../lib/errorDialog';
   import { isPreviewingAsPublic } from '../lib/previewMode';
   import { getActivePrice, priceTierLabel } from '../lib/pricing';
@@ -1172,6 +1173,17 @@ const MAX_BANNERS_PER_DAY = 3;
 
   function fromLocalParts(date: string, time: string) {
     return new Date(`${date}T${time}:00`).toISOString();
+  }
+
+  // The editor has one date for both times, so an end time earlier than the
+  // start means the event runs past midnight (e.g. 9 PM–12 AM ends at the
+  // start of the NEXT day). Null when start and end are the same.
+  function endAfterStart(date: string, startTime: string, endTime: string): string | null {
+    const start = new Date(`${date}T${startTime}:00`);
+    const end = new Date(`${date}T${endTime}:00`);
+    if (end.getTime() === start.getTime()) return null;
+    if (end < start) end.setDate(end.getDate() + 1);
+    return end.toISOString();
   }
 
   // datetime-local inputs want/give "YYYY-MM-DDTHH:mm" in local time.
@@ -1596,6 +1608,11 @@ const MAX_BANNERS_PER_DAY = 3;
     if (!titleInput.value.trim() || !dateInput.value || !startTimeInput.value || !endTimeInput.value) {
       return;
     }
+    const endTimeIso = endAfterStart(dateInput.value, startTimeInput.value, endTimeInput.value);
+    if (!endTimeIso) {
+      alert('The end time is the same as the start time — pick when the event ends.');
+      return;
+    }
 
     const payload: Record<string, unknown> = {
       id: editingId ?? undefined,
@@ -1624,7 +1641,7 @@ const MAX_BANNERS_PER_DAY = 3;
       color: selectedColor,
       visibility: privateInput.checked ? 'private' : 'public',
       startTime: fromLocalParts(dateInput.value, startTimeInput.value),
-      endTime: fromLocalParts(dateInput.value, endTimeInput.value),
+      endTime: endTimeIso,
     };
 
     if (selectedType === 'event') {
@@ -1889,16 +1906,9 @@ const MAX_BANNERS_PER_DAY = 3;
   async function revealAdminControlsIfAdmin() {
     if (isPreviewingAsPublic()) return;
 
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-    if (!session) return;
-
-    const res = await fetch('/api/admin/check', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    const { isAdmin } = await res.json();
-    if (!isAdmin) return;
+    const gate = await checkAdminSession();
+    if (gate.status !== 'admin') return;
+    const { session } = gate;
 
     adminModeActive = true;
     document.getElementById('add-event-btn')?.classList.remove('hidden');

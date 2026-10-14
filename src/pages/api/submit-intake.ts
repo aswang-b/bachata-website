@@ -10,10 +10,11 @@ import {
   validateClassSelections,
 } from '../../lib/classRegistrations';
 import { listFaqs } from '../../lib/faqs';
-import { getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
+import { getConfirmationBccEmails, getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
 import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
 import { validateCapacity } from '../../lib/capacity';
+import { buildReceiptLines, paymentAgreementText, receiptSubtotal } from '../../lib/registrationReceipt';
 
 export const prerender = false;
 
@@ -239,8 +240,12 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
       const emailRecipients = Array.from(
         new Set((dancers && dancers.length > 0 ? dancers.map((d) => d.email) : [email]).filter((e): e is string => Boolean(e)))
       );
+      // Admins who want a copy of every confirmation (Settings → Registration
+      // Confirmation BCC), minus anyone already getting it as a dancer.
+      const dancerAddresses = new Set(emailRecipients.map((e) => e.toLowerCase()));
+      const bcc = (await getConfirmationBccEmails()).filter((e) => !dancerAddresses.has(e.toLowerCase()));
 
-      if (emailRecipients.length > 0) {
+      if (emailRecipients.length > 0 || bcc.length > 0) {
         const rows: [string, string][] = [];
         if (dancers) {
           dancers.forEach((d) => {
@@ -254,28 +259,29 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
           if (instagram) rows.push(['Instagram', instagram]);
           if (whatsapp) rows.push(['WhatsApp', whatsapp]);
         }
-        // The classes are joined with "; " for storage/display elsewhere,
-        // but read better in the email as separate paragraphs.
-        const classesForEmail = className
-          .split(';')
-          .map((c) => c.trim())
-          .filter(Boolean)
-          .join('\n\n');
-        if (classesForEmail) rows.push(['Class', classesForEmail]);
-        if (paymentMethod) rows.push(['Payment', paymentMethod === 'venmo' ? 'Venmo' : 'Cash at the door']);
+        // Itemized classes + subtotal, same as /register/confirmation shows.
+        const receiptLines = await buildReceiptLines(await getClassRegistrationsForSubmission(row.id));
+        const subtotal = receiptSubtotal(receiptLines);
+        if (receiptLines.length === 0) {
+          // No saved registration rows to itemize: fall back to the class text,
+          // one class per paragraph (it's joined with "; " for storage).
+          const classesForEmail = className
+            .split(';')
+            .map((c) => c.trim())
+            .filter(Boolean)
+            .join('\n\n');
+          if (classesForEmail) rows.push(['Class', classesForEmail]);
+        }
         if (comments) rows.push(['Notes', comments]);
-
-        const classRegistrations = await getClassRegistrationsForSubmission(row.id);
-        const subtotal = classRegistrations.some((r) => r.price != null)
-          ? classRegistrations.reduce((sum, r) => sum + (r.price ?? 0), 0)
-          : null;
 
         const faqs = await listFaqs();
         const html = buildRegistrationConfirmationEmailHtml({
           registrationTypeLabel: REGISTRATION_TYPE_LABELS[registrationType] ?? registrationType,
           createdAt: new Date(),
           summaryRows: rows,
+          receiptLines,
           subtotal,
+          paymentNote: paymentAgreementText(paymentMethod),
           faqs: faqs.filter((f) => f.includeInConfirmation).map((f) => ({ question: f.question, answer: f.answer })),
         });
 
@@ -284,26 +290,33 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
         // wifi) just misses the email. Checked before the global cap so a
         // throttled IP doesn't use up everyone else's quota.
         const perIpCap = await getConfirmationEmailPerIpCap();
+        let capped = false;
+        const reserveEmail = async () => {
+          if (capped) return false;
+          if (!(await checkAndIncrementUsage(`confirmation_email_ip:${ip}`, perIpCap))) {
+            console.warn('Per-IP confirmation email cap reached — skipping remaining confirmation emails for this network.');
+            capped = true;
+          } else if (!(await checkAndIncrementUsage('resend_confirmation_email', CONFIRMATION_EMAIL_DAILY_CAP))) {
+            console.warn('Daily confirmation email cap reached — skipping remaining registration confirmation emails.');
+            capped = true;
+          }
+          return !capped;
+        };
 
         const toSend: string[] = [];
         for (const recipient of emailRecipients) {
-          const ipAllowed = await checkAndIncrementUsage(`confirmation_email_ip:${ip}`, perIpCap);
-          if (!ipAllowed) {
-            console.warn('Per-IP confirmation email cap reached — skipping remaining confirmation emails for this network.');
-            break;
-          }
-          const allowed = await checkAndIncrementUsage('resend_confirmation_email', CONFIRMATION_EMAIL_DAILY_CAP);
-          if (!allowed) {
-            console.warn('Daily confirmation email cap reached — skipping remaining registration confirmation emails.');
-            break;
-          }
+          if (!(await reserveEmail())) break;
           toSend.push(recipient);
         }
-        const results = await Promise.allSettled(
-          toSend.map((recipient) =>
-            sendEmail(recipient, `Your ${isEvent ? 'Event' : 'Class'} Registration is Confirmed — Dance with B`, html)
-          )
-        );
+
+        // One admin copy per registration: BCC'd on the first dancer's email,
+        // or sent on its own when no dancer email goes out.
+        const subject = `Your ${isEvent ? 'Event' : 'Class'} Registration is Confirmed — Dance with B`;
+        const sends = toSend.map((recipient, i) => sendEmail(recipient, subject, html, i === 0 ? { bcc } : {}));
+        if (toSend.length === 0 && bcc.length > 0 && (await reserveEmail())) {
+          sends.push(sendEmail(bcc, subject, html));
+        }
+        const results = await Promise.allSettled(sends);
         for (const r of results) {
           if (r.status === 'rejected') console.error('Failed to send registration confirmation to a recipient:', r.reason);
         }

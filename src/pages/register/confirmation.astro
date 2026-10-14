@@ -5,13 +5,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
 import { listFaqs } from '../../lib/faqs';
 import { getClassRegistrationsForSubmission } from '../../lib/classRegistrations';
+import { buildReceiptLines, formatPrice, paymentAgreementText, quantityNote, receiptSubtotal } from '../../lib/registrationReceipt';
 
 const faqs = await listFaqs();
 const printFaqs = faqs.filter((f) => f.includeInConfirmation);
-
-function formatPrice(value: number): string {
-  return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
-}
 
 interface Dancer {
   firstName?: string;
@@ -55,9 +52,10 @@ if (id) {
 }
 
 const classRegistrations = id && submission ? await getClassRegistrationsForSubmission(id) : [];
-const subtotal = classRegistrations.some((r) => r.price != null)
-  ? classRegistrations.reduce((sum, r) => sum + (r.price ?? 0), 0)
-  : null;
+// Itemized like /register's live subtotal; legacy sign-ups with no saved
+// registration rows fall back to the plain class text below.
+const receiptLines = await buildReceiptLines(classRegistrations);
+const subtotal = receiptSubtotal(receiptLines);
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 ---
@@ -106,26 +104,40 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'nu
               </div>
             )}
 
-            {submission.class && (
-              <div class="mt-2 flex flex-col border-t border-border pt-2">
-                <span class="text-xs font-semibold uppercase tracking-wider text-muted">Class</span>
-                <span>{submission.class}</span>
+            {receiptLines.length > 0 ? (
+              <div class="mt-2 flex flex-col gap-2 border-t border-border pt-2">
+                <span class="text-xs font-semibold uppercase tracking-wider text-muted">Classes</span>
+                <ul class="flex flex-col gap-2">
+                  {receiptLines.map((line) => (
+                    <li class="flex items-start justify-between gap-3">
+                      <div class="flex min-w-0 flex-col">
+                        <span class="font-medium">{line.title}</span>
+                        {line.detail && <span class="text-xs text-muted">{line.detail}</span>}
+                      </div>
+                      <div class="shrink-0 text-right">
+                        <div>{line.lineTotal != null ? formatPrice(line.lineTotal) : '—'}</div>
+                        {quantityNote(line) && <div class="text-xs text-muted">{quantityNote(line)}</div>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {subtotal != null && (
+                  <div class="flex items-center justify-between border-t border-border pt-2 font-semibold">
+                    <span>Subtotal</span>
+                    <span>{formatPrice(subtotal)}</span>
+                  </div>
+                )}
               </div>
+            ) : (
+              submission.class && (
+                <div class="mt-2 flex flex-col border-t border-border pt-2">
+                  <span class="text-xs font-semibold uppercase tracking-wider text-muted">Class</span>
+                  <span>{submission.class}</span>
+                </div>
+              )
             )}
 
-            {submission.payment_method && (
-              <div class="flex flex-col">
-                <span class="text-xs font-semibold uppercase tracking-wider text-muted">Payment</span>
-                <span>{submission.payment_method === 'venmo' ? 'Venmo' : 'Cash at the door'}</span>
-              </div>
-            )}
-
-            {subtotal != null && (
-              <div class="flex flex-col">
-                <span class="text-xs font-semibold uppercase tracking-wider text-muted">Subtotal</span>
-                <span>{formatPrice(subtotal)}</span>
-              </div>
-            )}
+            {paymentAgreementText(submission.payment_method) && <p>{paymentAgreementText(submission.payment_method)}</p>}
 
             {submission.comments && (
               <div class="flex flex-col">

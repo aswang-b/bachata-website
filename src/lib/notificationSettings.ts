@@ -84,3 +84,23 @@ export async function setNotificationRecipients(recipientEmails: string): Promis
     .upsert({ id: true, recipient_emails: recipientEmails, updated_at: new Date().toISOString() });
   if (error) throw new Error(`Failed to update notification settings: ${error.message}`);
 }
+
+// Admin emails BCC'd on registration confirmation emails (Settings ->
+// Registration Confirmation BCC). A lookup failure (e.g. before migration
+// 0041) just means no copies, never a failed confirmation.
+export async function getConfirmationBccRaw(): Promise<string> {
+  const { data, error } = await supabase.from('notification_settings').select('confirmation_bcc_emails').eq('id', true).maybeSingle();
+  if (error) console.error('Failed to load confirmation BCC emails:', error.message);
+  return data?.confirmation_bcc_emails ?? '';
+}
+
+export async function getConfirmationBccEmails(): Promise<string[]> {
+  return parseRecipientEmails(await getConfirmationBccRaw());
+}
+
+export async function setConfirmationBccEmails(bccEmails: string): Promise<void> {
+  const { error } = await supabase
+    .from('notification_settings')
+    .upsert({ id: true, confirmation_bcc_emails: bccEmails, updated_at: new Date().toISOString() });
+  if (error) throw new Error(`Failed to update confirmation BCC emails: ${error.message}`);
+}

@@ -341,6 +341,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 <script>
   import { supabaseBrowser } from '../../lib/supabaseBrowser';
   import { DUPLICATE_DELETED_BY } from '../../lib/duplicateFlag';
+  import { checkAdminSession } from '../../lib/adminSession';
   import { createClassFilterGroup } from '../../lib/classFilterGroup';
 
   // The index signatures below exist only so sortRows()'s generic
@@ -2050,22 +2051,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   }
 
   async function init() {
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-
-    if (!session) {
-      showPanel('signedOut');
-      return;
-    }
-
-    const checkRes = await fetch('/api/admin/check', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    const { isAdmin } = await checkRes.json();
-
-    if (!isAdmin) {
-      showPanel('notAdmin');
+    const gate = await checkAdminSession();
+    if (gate.status !== 'admin') {
+      showPanel(gate.status);
       return;
     }
 

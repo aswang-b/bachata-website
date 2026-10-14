@@ -191,7 +191,10 @@ const handlePost: APIRoute = async ({ request }) => {
     const newEndTime = new Date(endTime);
     const endTimePart = `${String(newEndTime.getHours()).padStart(2, '0')}:${String(newEndTime.getMinutes()).padStart(2, '0')}`;
     const anchorStart = `${anchorDate}T${timePart}:00`;
-    const anchorEnd = `${anchorDate}T${endTimePart}:00`;
+    // An end at or before the start time (e.g. ending at midnight) is on the next day.
+    const anchorEndDate =
+      endTimePart <= timePart ? new Date(Date.parse(`${anchorDate}T00:00:00Z`) + 24 * 60 * 60 * 1000).toISOString().slice(0, 10) : anchorDate;
+    const anchorEnd = `${anchorEndDate}T${endTimePart}:00`;
 
     try {
       await deleteCalendarEvent(accessToken, oldVisibility, before.google_recurring_event_id);

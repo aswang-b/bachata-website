@@ -264,6 +264,27 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </div>
 
         <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+          <p class="text-xs font-bold uppercase tracking-wider text-muted">Registration Confirmation BCC</p>
+          <p class="text-xs text-muted">
+            Comma-separated emails that get a hidden copy (BCC) of every registration confirmation email — one copy per registration. Leave blank to turn
+            copies off.
+          </p>
+          <input
+            id="confirmation-bcc-input"
+            type="text"
+            placeholder="you@example.com, someone-else@example.com"
+            class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+          />
+          <button
+            id="confirmation-bcc-save"
+            class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Save BCC
+          </button>
+          <p id="confirmation-bcc-status" class="min-h-4 text-xs text-muted"></p>
+        </div>
+
+        <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
           <p class="text-xs font-bold uppercase tracking-wider text-muted">Confirmation Email Limit</p>
           <p class="text-xs text-muted">
             Most registration confirmation emails one network (IP address) can trigger per day. Registrations are always saved — only the email is skipped once
@@ -375,6 +396,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   import { supabaseBrowser } from '../lib/supabaseBrowser';
   import { isPreviewingAsPublic, setPreviewAsPublic } from '../lib/previewMode';
   import { showErrorDialog } from '../lib/errorDialog';
+  import { checkAdminSession } from '../lib/adminSession';
 
   const panels = {
     loading: document.getElementById('account-loading')!,
@@ -420,14 +442,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   adminTabButtons.forEach((btn) => btn.addEventListener('click', () => setActiveAdminTab(btn.dataset.tab ?? 'general')));
 
   async function init() {
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-
-    if (!session) {
+    const gate = await checkAdminSession();
+    if (gate.status === 'signedOut') {
       showPanel('signedOut');
       return;
     }
+    const { session } = gate;
 
     // Right after a fresh Google OAuth login, the session carries Google's
     // tokens. Capture the refresh token now — it won't be here on later
@@ -445,12 +465,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       });
     }
 
-    const checkRes = await fetch('/api/admin/check', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    const { isAdmin } = await checkRes.json();
-
-    if (isAdmin) {
+    if (gate.status === 'admin') {
       document.getElementById('admin-email')!.textContent = session.user.email ?? '';
       renderPreviewToggle();
       loadSiteSettings();
@@ -566,7 +581,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       const res = await fetch('/api/admin/notification-settings', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      const { recipientEmails, confirmationEmailPerIpCap, contactEmailPerIpCap, checkinPerIpCap } = await res.json();
+      const { recipientEmails, confirmationEmailPerIpCap, contactEmailPerIpCap, checkinPerIpCap, confirmationBccEmails } = await res.json();
+      (document.getElementById('confirmation-bcc-input') as HTMLInputElement).value = confirmationBccEmails ?? '';
       (document.getElementById('contact-cap-input') as HTMLInputElement).value = String(contactEmailPerIpCap ?? 3);
       (document.getElementById('checkin-cap-input') as HTMLInputElement).value = String(checkinPerIpCap ?? 300);
       (document.getElementById('notification-emails-input') as HTMLInputElement).value = recipientEmails ?? '';
@@ -588,6 +604,29 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ recipientEmails }),
+    });
+
+    if (res.ok) {
+      statusEl.textContent = 'Saved.';
+      setTimeout(() => (statusEl.textContent = ''), 1500);
+    } else {
+      const { error } = await res.json().catch(() => ({ error: 'Failed to save — try again.' }));
+      statusEl.textContent = error ?? 'Failed to save — try again.';
+    }
+  });
+
+  document.getElementById('confirmation-bcc-save')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('confirmation-bcc-status')!;
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const bccEmails = (document.getElementById('confirmation-bcc-input') as HTMLInputElement).value;
+    const res = await fetch('/api/admin/update-confirmation-bcc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ bccEmails }),
     });
 
     if (res.ok) {
@@ -958,12 +997,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   });
 
   document.getElementById('signout-not-admin')?.addEventListener('click', async () => {
-    await supabaseBrowser.auth.signOut();
+    await supabaseBrowser.auth.signOut({ scope: 'local' });
     showPanel('signedOut');
   });
 
   document.getElementById('signout-admin')?.addEventListener('click', async () => {
-    await supabaseBrowser.auth.signOut();
+    await supabaseBrowser.auth.signOut({ scope: 'local' });
     showPanel('signedOut');
   });
 

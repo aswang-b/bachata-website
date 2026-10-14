@@ -27,7 +27,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 </BaseLayout>
 
 <script>
-  import { supabaseBrowser } from '../../lib/supabaseBrowser';
+  import { checkAdminSession } from '../../lib/adminSession';
 
   const panels = {
     loading: document.getElementById('loading')!,
@@ -51,21 +51,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   async function init() {
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-
-    if (!session) {
-      showPanel('signedOut');
+    const gate = await checkAdminSession();
+    if (gate.status !== 'admin') {
+      showPanel(gate.status);
       return;
     }
-
-    const checkRes = await fetch('/api/admin/check', { headers: { Authorization: `Bearer ${session.access_token}` } });
-    const { isAdmin } = await checkRes.json();
-    if (!isAdmin) {
-      showPanel('notAdmin');
-      return;
-    }
+    const { session } = gate;
 
     const res = await fetch('/api/admin/inbox-data', { headers: { Authorization: `Bearer ${session.access_token}` } });
     if (!res.ok) {
