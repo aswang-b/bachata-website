@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
-import { getSpotsByOccurrence, type CapacityEventRow } from '../../../lib/capacity';
+import { getSpotsByOccurrence, spotsLabel, type CapacityEventRow, type SpotsInfo } from '../../../lib/capacity';
 
 export const prerender = false;
 
@@ -20,7 +20,7 @@ export const GET: APIRoute = async ({ request }) => {
     const { data, error } = await supabase
       .from('events')
       .select(
-        'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity'
+        'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
       )
       .order('start_time', { ascending: true })
       .order('id', { ascending: true })
@@ -34,13 +34,17 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   // Admins see spots remaining even when it's hidden from the public.
-  let spots = new Map<string, { remaining: number }>();
+  let spots = new Map<string, SpotsInfo>();
   try {
     spots = await getSpotsByOccurrence(events);
   } catch {
     // Leave spots out rather than failing the whole calendar.
   }
-  const withSpots = events.map((e) => ({ ...e, spots_remaining: spots.get(e.id)?.remaining ?? null }));
+  const withSpots = events.map((e) => ({
+    ...e,
+    spots_label: spots.has(e.id) ? spotsLabel(spots.get(e.id)!) : null,
+    spots_admin_only: !e.show_capacity,
+  }));
 
   return new Response(JSON.stringify({ events: withSpots }), { status: 200 });
 };

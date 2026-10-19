@@ -6,7 +6,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
 import { countOccurrencesByKey } from '../lib/classSeries';
 import { getActivePrice, priceTierLabel, type ActivePriceResult } from '../lib/pricing';
-import { getSpotsByOccurrence, seriesSpots, spotsLabel } from '../lib/capacity';
+import { getSpotsByOccurrence, publicSpotsLabel, remainingFor, seriesSpots } from '../lib/capacity';
+import { getCommunityGuidelines, hasGuidelines } from '../lib/communityGuidelines';
 
 interface Props {
   kind?: 'class' | 'event';
@@ -15,6 +16,11 @@ interface Props {
 const { kind = 'class' } = Astro.props;
 const isEvent = kind === 'event';
 const eventType = isEvent ? 'event' : 'class';
+
+// Event registrants read and agree to the community guidelines (admin →
+// Guidelines); the section is left out while they're blank.
+const guidelines = isEvent ? await getCommunityGuidelines() : '';
+const showGuidelines = hasGuidelines(guidelines);
 
 const TIME_ZONE = 'America/Chicago';
 
@@ -41,12 +47,15 @@ interface ClassOccurrence {
   flash_sale_until: string | null;
   capacity: number | null;
   show_capacity: boolean;
+  capacity_by_role: boolean;
+  leader_capacity: number | null;
+  follower_capacity: number | null;
 }
 
 const { data: classEvents, error } = await supabase
   .from('events')
   .select(
-    'id, title, description, location, start_time, end_time, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, capacity, show_capacity'
+    'id, title, description, location, start_time, end_time, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
   )
   .eq('visibility', 'public')
   .eq('event_type', eventType)
@@ -106,7 +115,7 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     spotsByOccurrence,
     sorted.map((occ) => occ.id)
   );
-  const full = spots != null && spots.remaining <= 0;
+  const full = spots?.full ?? false;
 
   const tieredInput = {
     earlyBirdUntil: first.early_bird_until,
@@ -126,7 +135,9 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     // A full class or event can't be picked, just like a closed one.
     registrationClosed: first.registration_closed || full,
     full,
-    spotsRemaining: first.show_capacity && spots ? spots.remaining : null,
+    spotsText: publicSpotsLabel(spots, first.show_capacity),
+    // A role that's full (capped by role): checked on submit against the dancers' roles.
+    fullRoles: spots ? (['leader', 'follower'] as const).filter((r) => remainingFor(spots, r) === 0) : [],
     // No whole-series/flat price, only a drop-in price (e.g. a practica): the
     // Drop In option is shown with its price and preselected, as the only choice.
     // Events only ever have the one ticket price.
@@ -208,6 +219,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                 data-price-whole={s.priceWhole.activePrice ?? ''}
                 data-price-drop-in={s.priceDropIn.activePrice ?? ''}
                 data-occurrences={JSON.stringify(s.occurrences)}
+                data-full-roles={s.fullRoles.join(',')}
               >
                 <div
                   role="button"
@@ -223,9 +235,9 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                         {s.full ? 'Full' : 'Registration Closed'}
                       </span>
                     )}
-                    {!s.registrationClosed && s.spotsRemaining != null && (
+                    {!s.registrationClosed && s.spotsText && (
                       <span class="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
-                        {spotsLabel(s.spotsRemaining)}
+                        {s.spotsText}
                       </span>
                     )}
                   </div>
@@ -392,6 +404,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
             ? 'Please fill in first name, last name, and a phone or email for each dancer.'
             : 'Please fill in first name, last name, role, and a phone or email for each dancer.'}
         </p>
+        <p id="role-full-error" class="hidden text-xs font-semibold text-red-600"></p>
       </div>
 
       {/* A free event has nothing to pay, so events only show these once a priced event is picked. */}
@@ -463,6 +476,30 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
           class="rounded-xl border border-border bg-surface px-3 py-2.5 text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
         ></textarea>
       </label>
+
+      {showGuidelines && (
+        <div class="flex flex-col gap-3">
+          <span class="text-sm font-medium text-ink/80">Community Guidelines<span class="text-accent"> *</span></span>
+          <p class="text-xs text-muted">
+            We are dedicated to creating a safe, inclusive, and creative space for dancers of all backgrounds. Please read and confirm that you agree to
+            abide by the community guidelines below. Failure to reasonably comply may lead to removal from the event without a refund.
+          </p>
+          <div
+            tabindex="0"
+            aria-label="Community guidelines"
+            class="themed-scrollbar max-h-64 overflow-y-auto rounded-xl border border-border bg-surface px-4 py-3 text-sm leading-relaxed text-ink/80 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_h3]:mt-3 [&_h3]:font-bold [&_h3]:text-ink [&_h3:first-child]:mt-0 [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-2 [&_ul]:list-disc [&_ul]:pl-5"
+            set:html={guidelines}
+          />
+          <label class="flex items-start gap-2 text-sm text-ink">
+            <input type="checkbox" name="agree_guidelines" id="agree-guidelines" class="mt-0.5 h-4 w-4 shrink-0 rounded border-border" />
+            <span>
+              I and all other dancers registering for this event have read the community guidelines and understand that violations may result in
+              removal from events without a refund.
+            </span>
+          </label>
+          <p id="guidelines-error" class="hidden text-xs font-semibold text-red-600">Please confirm you've read the community guidelines.</p>
+        </div>
+      )}
 
       <button
         type="submit"
@@ -897,6 +934,16 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     });
   });
 
+  function fullRoleConflict(dancers: Dancer[]): string | null {
+    for (const sel of selections.values()) {
+      const item = document.querySelector<HTMLElement>(`.series-item[data-key="${CSS.escape(sel.key)}"]`);
+      const fullRoles = (item?.dataset.fullRoles ?? '').split(',').filter(Boolean);
+      const role = dancers.find((d) => d.role && fullRoles.includes(d.role))?.role;
+      if (role) return `"${sel.title}" is full for ${role}s — please pick another class or role.`;
+    }
+    return null;
+  }
+
   document.querySelector('form')?.addEventListener('submit', (e) => {
     let hasError = false;
 
@@ -937,12 +984,34 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       dancersError.classList.add('hidden');
     }
 
+    // A class capped by role whose Leader or Follower spots are gone (the
+    // server checks the counts too; this just says so before submitting).
+    const roleFullError = document.getElementById('role-full-error')!;
+    const roleFullMessage = fullRoleConflict(dancers);
+    roleFullError.textContent = roleFullMessage ?? '';
+    roleFullError.classList.toggle('hidden', !roleFullMessage);
+    if (roleFullMessage) hasError = true;
+
+    // Events with community guidelines: everyone's agreement is required.
+    const agreeGuidelines = document.getElementById('agree-guidelines') as HTMLInputElement | null;
+    const guidelinesError = document.getElementById('guidelines-error');
+    if (agreeGuidelines && !agreeGuidelines.checked) {
+      guidelinesError?.classList.remove('hidden');
+      hasError = true;
+    } else {
+      guidelinesError?.classList.add('hidden');
+    }
+
     if (hasError) {
       e.preventDefault();
       return;
     }
 
     (document.getElementById('dancers-value') as HTMLInputElement).value = JSON.stringify(dancers);
+  });
+
+  document.getElementById('agree-guidelines')?.addEventListener('change', (e) => {
+    if ((e.target as HTMLInputElement).checked) document.getElementById('guidelines-error')?.classList.add('hidden');
   });
 
   // Bootstrap the first dancer block now that updateSubtotal (and everything

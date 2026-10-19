@@ -51,6 +51,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <button type="button" data-tab="homepage" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Homepage
         </button>
+        <button type="button" data-tab="guidelines" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+          Guidelines
+        </button>
         <button type="button" data-tab="admin" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Admin
         </button>
@@ -244,6 +247,42 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </div>
       </section>
 
+      <!-- ==================== GUIDELINES TAB ==================== -->
+      <section id="admin-tab-panel-guidelines" class="admin-tab-panel hidden w-full flex-col items-center gap-6">
+        <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+          <p class="text-xs font-bold uppercase tracking-wider text-muted">Community Guidelines</p>
+          <p class="text-xs text-muted">
+            Everyone registering for an event reads these and ticks a box agreeing to them before submitting. Start each guideline with a
+            <strong>Heading</strong>: on the event confirmation page, email, and printout, each heading becomes its own item under
+            &ldquo;Our Community Guidelines&rdquo;, like the FAQs. Leave this blank to skip the guidelines entirely.
+          </p>
+          <div class="flex flex-wrap gap-1 border-b border-border pb-2">
+            <button type="button" id="guidelines-heading-btn" class="rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg" title="Heading (toggle)">Heading</button>
+            <button type="button" data-cmd="bold" class="guidelines-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
+            <button type="button" data-cmd="italic" class="guidelines-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
+            <button type="button" data-cmd="underline" class="guidelines-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
+            <button type="button" data-cmd="insertUnorderedList" class="guidelines-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">&#8226;&nbsp;List</button>
+            <button type="button" data-cmd="insertOrderedList" class="guidelines-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">1.&nbsp;List</button>
+            <button type="button" id="guidelines-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+          </div>
+          <div
+            id="guidelines-editor"
+            contenteditable="true"
+            role="textbox"
+            aria-multiline="true"
+            aria-label="Community guidelines"
+            class="themed-scrollbar max-h-[60vh] min-h-48 overflow-y-auto rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none [&_a]:text-accent [&_a]:underline [&_h3]:mt-3 [&_h3]:font-bold [&_h3]:text-ink [&_h3:first-child]:mt-0 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+          ></div>
+          <button
+            id="guidelines-save"
+            class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Save Guidelines
+          </button>
+          <p id="guidelines-status" class="min-h-4 text-xs text-muted"></p>
+        </div>
+      </section>
+
       <!-- ==================== ADMIN TAB ==================== -->
       <section id="admin-tab-panel-admin" class="admin-tab-panel hidden w-full flex-col items-center gap-6">
         <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
@@ -418,6 +457,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   const adminTabPanels: Record<string, HTMLElement> = {
     general: document.getElementById('admin-tab-panel-general')!,
     homepage: document.getElementById('admin-tab-panel-homepage')!,
+    guidelines: document.getElementById('admin-tab-panel-guidelines')!,
     admin: document.getElementById('admin-tab-panel-admin')!,
     debug: document.getElementById('admin-tab-panel-debug')!,
   };
@@ -473,6 +513,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       loadNotificationEmails();
       loadBanner();
       loadOverview();
+      loadGuidelines();
       loadFaqs();
       showPanel('admin');
     } else {
@@ -810,6 +851,61 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     });
 
     statusEl.textContent = res.ok ? 'Saved.' : 'Failed to save — try again.';
+    if (res.ok) setTimeout(() => (statusEl.textContent = ''), 1500);
+  });
+
+  // Community guidelines (Guidelines tab). Headings are H3s: each starts one
+  // guideline on the event confirmations (see communityGuidelines.ts).
+  const guidelinesEditor = document.getElementById('guidelines-editor') as HTMLElement;
+
+  async function loadGuidelines() {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+    try {
+      const res = await fetch('/api/admin/guidelines', { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const { body } = await res.json();
+      guidelinesEditor.innerHTML = body ?? '';
+    } catch {
+      // Leave the editor blank if it can't load.
+    }
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('.guidelines-format-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      guidelinesEditor.focus();
+      document.execCommand(btn.dataset.cmd!, false);
+    });
+  });
+
+  document.getElementById('guidelines-heading-btn')?.addEventListener('click', () => {
+    guidelinesEditor.focus();
+    const isHeading = document.queryCommandValue('formatBlock').toLowerCase() === 'h3';
+    document.execCommand('formatBlock', false, isHeading ? 'div' : 'h3');
+  });
+
+  document.getElementById('guidelines-link-btn')?.addEventListener('click', () => {
+    const url = prompt('Link URL (must start with https:// or /):');
+    if (!url) return;
+    guidelinesEditor.focus();
+    document.execCommand('createLink', false, url);
+  });
+
+  document.getElementById('guidelines-save')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('guidelines-status')!;
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    const res = await fetch('/api/admin/guidelines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ body: guidelinesEditor.innerHTML }),
+    });
+    const data = await res.json().catch(() => ({}));
+    statusEl.textContent = res.ok ? 'Saved.' : `Failed to save — ${data.error ?? 'try again.'}`;
     if (res.ok) setTimeout(() => (statusEl.textContent = ''), 1500);
   });
 

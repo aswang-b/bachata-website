@@ -79,7 +79,7 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
   const { data: existingRows, error: rowsError } = await supabase
     .from('events')
     .select(
-      'id, title, description, location, color, event_type, start_time, end_time, google_event_id, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, updated_at'
+      'id, title, description, location, color, event_type, start_time, end_time, google_event_id, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity, updated_at'
     )
     .eq('visibility', visibility)
     .gte('start_time', timeMin);
@@ -116,6 +116,9 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
       hideLessonOverview: boolean;
       capacity: number | null;
       showCapacity: boolean;
+      capacityByRole: boolean;
+      leaderCapacity: number | null;
+      followerCapacity: number | null;
     }
   >();
   for (const r of rows) {
@@ -139,6 +142,9 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
         hideLessonOverview: r.hide_lesson_overview,
         capacity: r.capacity,
         showCapacity: r.show_capacity,
+        capacityByRole: r.capacity_by_role,
+        leaderCapacity: r.leader_capacity,
+        followerCapacity: r.follower_capacity,
       });
     }
   }
@@ -208,6 +214,9 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
           hide_lesson_overview: seriesMeta?.hideLessonOverview ?? false,
           capacity: seriesMeta?.capacity ?? null,
           show_capacity: seriesMeta?.showCapacity ?? false,
+          capacity_by_role: seriesMeta?.capacityByRole ?? false,
+          leader_capacity: seriesMeta?.leaderCapacity ?? null,
+          follower_capacity: seriesMeta?.followerCapacity ?? null,
         }
       );
       if (!insertError) {

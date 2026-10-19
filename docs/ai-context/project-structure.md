@@ -30,7 +30,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0042)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0044)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker)
@@ -41,7 +41,7 @@
 │   │   ├── adminSession.ts              # Browser-only shared admin check (refreshes stale sessions, local sign-out)
 │   │   ├── apiUsage.ts                  # API usage tracking (e.g. Google Places quota, daily caps)
 │   │   ├── calendarSync.ts              # Google Calendar sync logic
-│   │   ├── capacity.ts                  # Per-series capacity: spots remaining per occurrence (from the trigger-maintained event_spot_counts cache), server-side full check
+│   │   ├── capacity.ts                  # Per-series capacity: spots remaining per occurrence (a general cap, or separate Leader/Follower caps for classes), from the trigger-maintained event_spot_counts cache; server-side full check
 │   │   ├── attendanceMatching.ts        # Matches sign-ups to check-ins per dancer, expanding series sign-ups into per-occurrence entries
 │   │   ├── checkinToken.ts              # Signed per-event token authorizing check-in auto-registration (QR link)
 │   │   ├── classRegistrations.ts        # One-row-per-(dancer,class) registration records with snapshotted prices
@@ -53,6 +53,7 @@
 │   │   ├── email.ts                     # Transactional email sending
 │   │   ├── errorDialog.ts               # Browser-only copyable error modal (sync/save failures)
 │   │   ├── env.ts                       # Env var access/validation
+│   │   ├── communityGuidelines.ts       # Community guidelines event registrants agree to; split into FAQ-style items for confirmations
 │   │   ├── faqs.ts                      # FAQ list persistence
 │   │   ├── googleCalendar.ts            # Google Calendar API client
 │   │   ├── homepageContent.ts           # Editable homepage copy (lesson overview) persistence

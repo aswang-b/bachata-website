@@ -1,8 +1,8 @@
 // Builds the HTML for the class-registration confirmation email sent to
 // dancers. Content mirrors what /register/confirmation shows (and prints):
 // who's registered, the class, payment method, subtotal, and the site's FAQ
-// reminders shown fully expanded (email clients don't support the on-screen
-// <details> accordion interaction).
+// reminders (an event's community guidelines instead) shown fully expanded
+// (email clients don't support the on-screen <details> accordion interaction).
 
 function escapeHtml(str: string): string {
   return str
@@ -26,7 +26,10 @@ export interface RegistrationEmailParams {
   isEvent?: boolean;
   // e.g. "You agreed to pay with Venmo.", shown under the classes.
   paymentNote?: string | null;
+  // FAQ-style items under faqsHeading (default "A Few Reminders"). Events pass
+  // their community guidelines here; an item with no question is just its text.
   faqs: { question: string; answer: string }[];
+  faqsHeading?: string;
 }
 
 function receiptHtml(lines: ReceiptLine[], subtotal: number | null, isEvent: boolean): string {
@@ -78,13 +81,13 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
 
   const faqsHtml = params.faqs.length
     ? `
-      <h2 style="margin:28px 0 12px;font-size:12px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#888;">A Few Reminders</h2>
+      <h2 style="margin:28px 0 12px;font-size:12px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#888;">${escapeHtml(params.faqsHeading ?? 'A Few Reminders')}</h2>
       ${params.faqs
         .map(
           (faq) => `
         <div style="margin-bottom:10px;border:1px solid #e5d9da;border-radius:12px;overflow:hidden;">
-          <p style="margin:0;padding:12px 16px;font-size:14px;font-weight:600;color:#111;background:#f7f1f1;">${escapeHtml(faq.question)}</p>
-          <div style="padding:12px 16px;font-size:14px;line-height:1.5;color:#333;border-top:1px solid #e5d9da;">${faq.answer}</div>
+          ${faq.question ? `<p style="margin:0;padding:12px 16px;font-size:14px;font-weight:600;color:#111;background:#f7f1f1;border-bottom:1px solid #e5d9da;">${escapeHtml(faq.question)}</p>` : ''}
+          <div style="padding:12px 16px;font-size:14px;line-height:1.5;color:#333;">${faq.answer}</div>
         </div>`
         )
         .join('')}
@@ -94,7 +97,7 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
   return `
     <div style="max-width:560px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;">
       <h1 style="font-size:22px;margin:0 0 4px;color:#111;">Your Registration is Confirmed!</h1>
-      <p style="margin:0 0 20px;color:#666;">See you in class!</p>
+      <p style="margin:0 0 20px;color:#666;">${params.isEvent ? 'See you there!' : 'See you in class!'}</p>
 
       <div style="border:1px solid #e5d9da;border-radius:16px;padding:20px;">
         <p style="margin:0;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#c0392b;">${escapeHtml(params.registrationTypeLabel)}</p>

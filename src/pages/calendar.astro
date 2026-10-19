@@ -4,7 +4,7 @@ export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
 import { getActivePrice, priceTierLabel } from '../lib/pricing';
-import { getSpotsByOccurrence, spotsLabel } from '../lib/capacity';
+import { getSpotsByOccurrence, publicSpotsLabel, type SpotsInfo } from '../lib/capacity';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -33,7 +33,7 @@ const monthStart = new Date(year, month, 1);
 const monthEnd = new Date(year, month + 1, 1);
 
 const EVENT_COLUMNS =
-  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity';
+  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity';
 
 const { data: monthEvents, error: monthError } = await supabase
   .from('events')
@@ -54,18 +54,19 @@ const { data: upcomingEvents, error: upcomingError } = await supabase
 if (monthError) console.error('Failed to load month events:', monthError);
 if (upcomingError) console.error('Failed to load upcoming events:', upcomingError);
 
-// Spots remaining per occurrence, sent to the page only where the class or
-// event shows its capacity publicly (the capacity itself is never sent;
-// admins get theirs from /api/admin/all-events).
-let spotsByOccurrence = new Map<string, { remaining: number }>();
+// Spots remaining per occurrence as a label, sent to the page only where the
+// class or event shows its capacity publicly (or a role or the class is full;
+// the capacities themselves are never sent; admins get theirs from
+// /api/admin/all-events).
+let spotsByOccurrence = new Map<string, SpotsInfo>();
 try {
   spotsByOccurrence = await getSpotsByOccurrence(monthEvents ?? []);
 } catch {
   // Show the calendar without spots rather than failing the page.
 }
-const gridEvents = (monthEvents ?? []).map(({ capacity: _capacity, ...event }) => ({
+const gridEvents = (monthEvents ?? []).map(({ capacity: _capacity, leader_capacity: _leaderCapacity, follower_capacity: _followerCapacity, ...event }) => ({
   ...event,
-  spots_remaining: event.show_capacity ? (spotsByOccurrence.get(event.id)?.remaining ?? null) : null,
+  spots_label: publicSpotsLabel(spotsByOccurrence.get(event.id) ?? null, event.show_capacity),
 }));
 const sidebarEvents = upcomingEvents ?? [];
 
@@ -302,7 +303,7 @@ const MAX_BANNERS_PER_DAY = 3;
                           )}
                           {buildPriceLines(event).main && <p class="mt-1 text-xs font-semibold text-ink" set:html={buildPriceLines(event).main} />}
                           {buildPriceLines(event).student && <p class="text-xs font-semibold text-ink" set:html={buildPriceLines(event).student} />}
-                          {event.spots_remaining != null && <p class="mt-1 text-xs font-bold text-accent">{spotsLabel(event.spots_remaining)}</p>}
+                          {event.spots_label && <p class="mt-1 text-xs font-bold text-accent">{event.spots_label}</p>}
                           {event.location && (
                             <a
                               href={locationHref(event.location)}
@@ -433,7 +434,7 @@ const MAX_BANNERS_PER_DAY = 3;
                   />
                 )}
                 {priceLines.main && <p class="text-xs font-semibold text-ink" set:html={priceLines.main} />}
-                {event.spots_remaining != null && <p class="text-xs font-bold text-accent">{spotsLabel(event.spots_remaining)}</p>}
+                {event.spots_label && <p class="text-xs font-bold text-accent">{event.spots_label}</p>}
               </div>
               </div>
 
@@ -612,7 +613,21 @@ const MAX_BANNERS_PER_DAY = 3;
         </label>
 
         <div class="flex flex-col gap-2 rounded-xl border border-border p-3">
-          <label class="flex items-center gap-2 text-sm text-ink/80">
+          {/* Classes can cap Leaders and Followers separately. Both sets of fields
+              keep their values; only the one the toggle shows is used. */}
+          <label id="event-capacity-by-role-row" class="flex items-center justify-between gap-2 text-sm text-ink/80">
+            Separate Leader / Follower caps
+            <button
+              id="event-capacity-by-role"
+              type="button"
+              role="switch"
+              aria-checked="false"
+              class="group relative h-6 w-10 shrink-0 rounded-full bg-border transition-colors aria-checked:bg-accent"
+            >
+              <span class="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform group-aria-checked:translate-x-4"></span>
+            </button>
+          </label>
+          <label id="event-capacity-general" class="flex items-center gap-2 text-sm text-ink/80">
             Capacity
             <input
               id="event-capacity"
@@ -623,11 +638,35 @@ const MAX_BANNERS_PER_DAY = 3;
               class="w-28 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </label>
+          <div id="event-capacity-roles" class="hidden flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink/80">
+            <label class="flex items-center gap-2">
+              Leaders
+              <input
+                id="event-leader-capacity"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="No limit"
+                class="w-24 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
+              />
+            </label>
+            <label class="flex items-center gap-2">
+              Followers
+              <input
+                id="event-follower-capacity"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="No limit"
+                class="w-24 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
+              />
+            </label>
+          </div>
           <label class="flex items-center gap-2 text-sm text-ink/80">
             <input id="event-show-capacity" type="checkbox" class="h-4 w-4 rounded border-border" />
             Show "spots remaining" to registrants (otherwise only admins see it)
           </label>
-          <p class="text-xs text-muted">Registration stops once it's full. Applies to the whole series.</p>
+          <p class="text-xs text-muted">Registration stops once it&rsquo;s full (with separate caps, a role stops once that role is full; a blank role has no limit). Applies to the whole series.</p>
         </div>
 
         <label class="flex items-center gap-2 text-sm text-ink/80">
@@ -857,8 +896,13 @@ const MAX_BANNERS_PER_DAY = 3;
     hide_lesson_overview: boolean;
     capacity?: number | null;
     show_capacity?: boolean;
-    // Present for the public only when show_capacity; always for admins.
-    spots_remaining?: number | null;
+    capacity_by_role?: boolean;
+    leader_capacity?: number | null;
+    follower_capacity?: number | null;
+    // e.g. "5 spots remaining". For the public only when show_capacity (or
+    // something is full); always for admins, with spots_admin_only when hidden.
+    spots_label?: string | null;
+    spots_admin_only?: boolean;
     weekNumber?: number | null;
   }
 
@@ -1040,6 +1084,13 @@ const MAX_BANNERS_PER_DAY = 3;
   const privateInput = document.getElementById('event-private') as HTMLInputElement;
   const capacityInput = document.getElementById('event-capacity') as HTMLInputElement;
   const showCapacityInput = document.getElementById('event-show-capacity') as HTMLInputElement;
+  const capacityByRoleToggle = document.getElementById('event-capacity-by-role') as HTMLButtonElement;
+  const capacityByRoleRow = document.getElementById('event-capacity-by-role-row')!;
+  const capacityGeneralRow = document.getElementById('event-capacity-general')!;
+  const capacityRolesRow = document.getElementById('event-capacity-roles')!;
+  const leaderCapacityInput = document.getElementById('event-leader-capacity') as HTMLInputElement;
+  const followerCapacityInput = document.getElementById('event-follower-capacity') as HTMLInputElement;
+  let capacityByRole = false;
   const priceGrid = document.getElementById('event-price-grid')!;
   const priceWholeLabel = document.getElementById('event-price-whole-label')!;
   const classOnlyPriceEls = Array.from(document.querySelectorAll<HTMLElement>('.class-only-price'));
@@ -1107,16 +1158,34 @@ const MAX_BANNERS_PER_DAY = 3;
 
   // "X spots remaining", noting when only admins can see it.
   function spotsText(event: SiteEvent): string {
-    if (event.spots_remaining == null) return '';
-    const n = event.spots_remaining;
-    const label = n <= 0 ? 'Full' : `${n} ${n === 1 ? 'spot' : 'spots'} remaining`;
-    return event.show_capacity ? label : `${label} (admin only)`;
+    if (!event.spots_label) return '';
+    return event.spots_admin_only ? `${event.spots_label} (admin only)` : event.spots_label;
   }
   const detailAdminActions = document.getElementById('detail-admin-actions')!;
   const detailDeleteSeriesBtn = document.getElementById('detail-delete-series-btn')!;
 
   // Events have one ticket price (plus its early bird / flash sale), so the
   // per-series, drop-in and student columns only show for classes.
+  // Swaps the general Capacity field for the Leader/Follower ones. Events
+  // never ask for a role, so they only get the general cap.
+  function renderCapacityFields() {
+    const isEvent = selectedType === 'event';
+    const byRole = capacityByRole && !isEvent;
+    capacityByRoleRow.classList.toggle('hidden', isEvent);
+    capacityByRoleRow.classList.toggle('flex', !isEvent);
+    capacityByRoleToggle.setAttribute('aria-checked', String(byRole));
+    capacityGeneralRow.classList.toggle('hidden', byRole);
+    capacityGeneralRow.classList.toggle('flex', !byRole);
+    capacityRolesRow.classList.toggle('hidden', !byRole);
+    capacityRolesRow.classList.toggle('flex', byRole);
+  }
+
+  capacityByRoleToggle.addEventListener('click', (e) => {
+    e.preventDefault();
+    capacityByRole = !capacityByRole;
+    renderCapacityFields();
+  });
+
   function renderPricingForType() {
     const isEvent = selectedType === 'event';
     priceWholeLabel.textContent = isEvent ? 'Ticket price' : 'Whole series';
@@ -1130,6 +1199,7 @@ const MAX_BANNERS_PER_DAY = 3;
 
   function renderTypeButtons() {
     renderPricingForType();
+    renderCapacityFields();
     for (const btn of typeButtons) {
       const active = btn.dataset.type === selectedType;
       btn.classList.toggle('gradient-accent', active);
@@ -1299,6 +1369,9 @@ const MAX_BANNERS_PER_DAY = 3;
     privateInput.checked = event?.visibility === 'private';
     capacityInput.value = event?.capacity != null ? String(event.capacity) : '';
     showCapacityInput.checked = event?.show_capacity ?? false;
+    leaderCapacityInput.value = event?.leader_capacity != null ? String(event.leader_capacity) : '';
+    followerCapacityInput.value = event?.follower_capacity != null ? String(event.follower_capacity) : '';
+    capacityByRole = event?.capacity_by_role ?? false;
 
     const isSeriesOccurrence = mode === 'edit' && Boolean(editingRecurringId);
     recurrenceRow.classList.toggle('hidden', !(mode === 'add' || isSeriesOccurrence));
@@ -1645,6 +1718,9 @@ const MAX_BANNERS_PER_DAY = 3;
       eventType: selectedType,
       capacity: capacityInput.value.trim(),
       showCapacity: showCapacityInput.checked,
+      capacityByRole: capacityByRole && selectedType === 'class',
+      leaderCapacity: leaderCapacityInput.value.trim(),
+      followerCapacity: followerCapacityInput.value.trim(),
       color: selectedColor,
       visibility: privateInput.checked ? 'private' : 'public',
       startTime: fromLocalParts(dateInput.value, startTimeInput.value),

@@ -7,7 +7,7 @@ import { buildClassSeriesList } from '../lib/classSeries';
 import { getActivePrice, priceTierLabel } from '../lib/pricing';
 import { applyCardOrder, getHomepageCardOrder, getHomepageContent, getHomepageSectionOrder, type HomepageSection } from '../lib/homepageContent';
 import { listFaqs } from '../lib/faqs';
-import { getSpotsByOccurrence, seriesSpots, spotsLabel } from '../lib/capacity';
+import { getSpotsByOccurrence, publicSpotsLabel, seriesSpots } from '../lib/capacity';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
 import classPlaceholder2 from '../assets/stock/class-placeholder-2.jpg';
 import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
@@ -20,7 +20,7 @@ const faqs = await listFaqs();
 const { data: events, error } = await supabase
   .from('events')
   .select(
-    'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity'
+    'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
   )
   .eq('visibility', 'public')
   .in('event_type', ['class', 'event'])
@@ -77,7 +77,8 @@ function offeringSpots(offering: (typeof offerings)[number]) {
     spotsByOccurrence,
     offering.occurrences.map((o) => o.id)
   );
-  return { full: spots != null && spots.remaining <= 0, publicRemaining: spots && showCapacityByKey.get(offering.key) ? spots.remaining : null };
+  const shown = showCapacityByKey.get(offering.key) ?? false;
+  return { full: spots?.full ?? false, shown, hasSpots: spots != null, publicLabel: publicSpotsLabel(spots, shown) };
 }
 
 function formatPrice(value: number): string {
@@ -194,7 +195,7 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
           const overviewTitle = offering.lessonOverviewTitle ?? 'About This Class Format';
           const overviewBody = offering.lessonOverviewBody ?? lessonOverview;
           const href = `${registerBase(offering)}?series=${encodeURIComponent(offering.key)}`;
-          const { full, publicRemaining } = offeringSpots(offering);
+          const { full, shown, hasSpots, publicLabel } = offeringSpots(offering);
 
           return (
             <article
@@ -214,13 +215,13 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
                       {seriesTypeLabel(offering)}
                     </span>
                   )}
-                  {!offering.registrationClosed && publicRemaining != null && (
-                    <span class="rounded-full bg-black/60 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md backdrop-blur">
-                      {spotsLabel(publicRemaining)}
+                  {!offering.registrationClosed && publicLabel && (
+                    <span data-public-spots class="rounded-full bg-black/60 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md backdrop-blur">
+                      {publicLabel}
                     </span>
                   )}
                   {/* Filled in for admins by the script below when the count is hidden from the public. */}
-                  {publicRemaining == null && !full && (
+                  {hasSpots && !shown && !full && (
                     <span data-admin-spots-key={offering.key} class="hidden rounded-full bg-black/60 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md backdrop-blur"></span>
                   )}
                 </div>
@@ -373,12 +374,14 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
     try {
       const res = await fetch('/api/admin/series-spots', { headers: { Authorization: `Bearer ${accessToken}` } });
       if (!res.ok) return;
-      const { series } = (await res.json()) as { series: Record<string, { remaining: number }> };
+      const { series } = (await res.json()) as { series: Record<string, { label: string }> };
       for (const tag of tags) {
         const info = series[tag.dataset.adminSpotsKey ?? ''];
         if (!info) continue;
-        tag.textContent = `${info.remaining} ${info.remaining === 1 ? 'spot' : 'spots'} remaining (admin only)`;
+        tag.textContent = `${info.label} (admin only)`;
         tag.classList.remove('hidden');
+        // The public's partial badge (e.g. "Leaders full") is covered by this one.
+        tag.parentElement?.querySelector('[data-public-spots]')?.classList.add('hidden');
       }
     } catch {
       // Leave the tags hidden if the count can't be loaded.

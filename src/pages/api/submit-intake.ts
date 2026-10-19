@@ -16,6 +16,7 @@ import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEm
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
 import { validateCapacity } from '../../lib/capacity';
 import { buildReceiptLines, paymentAgreementText, receiptSubtotal } from '../../lib/registrationReceipt';
+import { getCommunityGuidelines, guidelineSections, hasGuidelines } from '../../lib/communityGuidelines';
 
 export const prerender = false;
 
@@ -176,9 +177,16 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   if (isEvent && !paymentMethod && (await selectionsHaveCost(selections))) {
     return new Response('Please choose a payment method.', { status: 400 });
   }
-  const capacityError = await validateCapacity(selections, dancers && dancers.length > 0 ? dancers.length : 1);
+  const capacityError = await validateCapacity(selections, dancers && dancers.length > 0 ? dancers.map((d) => d.role) : ['']);
   if (capacityError) {
     return new Response(capacityError.message, { status: capacityError.status });
+  }
+
+  // Event registrants agree to the community guidelines (when there are any).
+  const guidelines = isEvent ? await getCommunityGuidelines() : '';
+  const agreedToGuidelines = formData.get('agree_guidelines') === 'on';
+  if (hasGuidelines(guidelines) && !agreedToGuidelines) {
+    return new Response("Please confirm you've read the community guidelines.", { status: 400 });
   }
 
   const { data: row, error } = await supabase
@@ -195,6 +203,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
       comments: comments || null,
       dancers: dancers ?? null,
       payment_method: paymentMethod || null,
+      ...(isEvent && agreedToGuidelines ? { guidelines_agreed_at: new Date().toISOString() } : {}),
     })
     .select('id')
     .single();
@@ -279,7 +288,10 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
         }
         if (comments) rows.push(['Notes', comments]);
 
-        const faqs = await listFaqs();
+        // Events list their community guidelines where classes list the FAQ reminders.
+        const reminders = isEvent
+          ? guidelineSections(guidelines).map((s) => ({ question: s.title ?? '', answer: s.body }))
+          : (await listFaqs()).filter((f) => f.includeInConfirmation).map((f) => ({ question: f.question, answer: f.answer }));
         const html = buildRegistrationConfirmationEmailHtml({
           registrationTypeLabel: REGISTRATION_TYPE_LABELS[registrationType] ?? registrationType,
           createdAt: new Date(),
@@ -288,7 +300,8 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
           subtotal,
           isEvent,
           paymentNote: paymentAgreementText(paymentMethod),
-          faqs: faqs.filter((f) => f.includeInConfirmation).map((f) => ({ question: f.question, answer: f.answer })),
+          faqs: reminders,
+          faqsHeading: isEvent ? 'Our Community Guidelines' : undefined,
         });
 
         // Per-IP throttle on confirmation emails only — the registration itself is

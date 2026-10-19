@@ -12,7 +12,7 @@ import {
 import { runCalendarSync, syncErrorText } from '../../../lib/calendarSync';
 import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
 import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
-import { toCapacity } from '../../../lib/capacity';
+import { capacityColumns } from '../../../lib/capacity';
 
 export const prerender = false;
 
@@ -53,8 +53,6 @@ const handlePost: APIRoute = async ({ request }) => {
     lessonOverviewTitle,
     lessonOverviewBody,
     hideLessonOverview,
-    capacity,
-    showCapacity,
   } = body ?? {};
 
   if (!title || !startTime || !endTime) {
@@ -81,8 +79,7 @@ const handlePost: APIRoute = async ({ request }) => {
   const rowImageUrl = imageUrl || null;
   const rowLessonOverview = normalizeLessonOverviewOverride(lessonOverviewTitle, lessonOverviewBody);
   const rowHideLessonOverview = Boolean(hideLessonOverview);
-  const rowCapacity = toCapacity(capacity);
-  const rowShowCapacity = rowCapacity != null && Boolean(showCapacity);
+  const rowCapacityColumns = capacityColumns(body ?? {}, rowEventType);
   const rowDescription = description ? sanitizeEventDescriptionHtml(description) : null;
 
   const isSeries = recurrence && Array.isArray(recurrence.byDay) && recurrence.byDay.length > 0;
@@ -134,8 +131,7 @@ const handlePost: APIRoute = async ({ request }) => {
           lesson_overview_title: rowLessonOverview.title,
           lesson_overview_body: rowLessonOverview.body,
           hide_lesson_overview: rowHideLessonOverview,
-          capacity: rowCapacity,
-          show_capacity: rowShowCapacity,
+          ...rowCapacityColumns,
         })
         .eq('google_recurring_event_id', createdMaster.id);
     } catch (err) {
@@ -177,8 +173,7 @@ const handlePost: APIRoute = async ({ request }) => {
       lesson_overview_title: rowLessonOverview.title,
       lesson_overview_body: rowLessonOverview.body,
       hide_lesson_overview: rowHideLessonOverview,
-      capacity: rowCapacity,
-      show_capacity: rowShowCapacity,
+      ...rowCapacityColumns,
     })
     .select()
     .single();
