@@ -465,333 +465,368 @@ const MAX_BANNERS_PER_DAY = 3;
     </div>
   </div>
 
-  <div id="event-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
-    <div class="flex max-h-[85vh] w-full max-w-[36.5rem] flex-col rounded-2xl bg-bg shadow-2xl">
-    <div id="event-modal-scroll" class="themed-scrollbar flex-1 overflow-y-auto p-6">
-      <h3 id="modal-heading" class="font-display text-lg font-bold text-ink">Add Event</h3>
-      <input
-        id="event-title"
-        type="text"
-        placeholder="Add title"
-        class="mt-4 w-full border-b border-border pb-2 text-xl font-semibold text-ink focus:border-accent focus:outline-none"
-      />
-      <div class="mt-4 flex flex-col gap-3">
+  {/* The event editor (above the cookie banner, below the image cropper): a header (title, type, color, status), a section menu
+      (a list on the left on wide screens, a sideways-scrolling chip row on
+      phones), and collapsible sections. Picking a section in the menu opens
+      it and scrolls it into view. */}
+  <div id="event-modal" class="fixed inset-0 z-[55] hidden items-stretch justify-center bg-black/40 sm:items-center sm:p-4">
+    <div class="flex h-full w-full flex-col bg-bg shadow-2xl sm:h-auto sm:max-h-[90vh] sm:max-w-5xl sm:rounded-2xl">
+      <div class="flex flex-col gap-3 border-b border-border px-4 pb-4 pt-3 sm:px-6 sm:pt-5">
+        <div class="flex items-center justify-between gap-3">
+          <h3 id="modal-heading" class="text-xs font-bold uppercase tracking-wider text-muted">Add Event</h3>
+          <div class="flex items-center gap-2">
+            <div id="event-status-chips" class="flex flex-wrap justify-end gap-1.5"></div>
+            <button type="button" id="event-close" aria-label="Close" class="flex h-9 w-9 items-center justify-center rounded-full text-ink/70 hover:bg-surface">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+            </button>
+          </div>
+        </div>
         <input
-          id="event-date"
-          type="date"
-          class="rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none"
-        />
-        <div class="flex items-center gap-2">
-          <input
-            id="event-start-time"
-            type="time"
-            class="flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none"
-          />
-          <span class="text-sm text-muted">to</span>
-          <input
-            id="event-end-time"
-            type="time"
-            class="flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none"
-          />
-        </div>
-        <p class="text-xs text-muted">Times use your browser's local timezone.</p>
-
-        <div class="flex gap-2">
-          <button type="button" data-type="class" class="event-type-btn flex-1 rounded-full border px-3 py-1.5 text-sm font-semibold">
-            Class
-          </button>
-          <button type="button" data-type="event" class="event-type-btn flex-1 rounded-full border px-3 py-1.5 text-sm font-semibold">
-            Event
-          </button>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <span class="text-sm text-muted">Color</span>
-          <button type="button" data-color="green" class="event-color-btn h-7 w-7 rounded-full bg-green-500"></button>
-          <button type="button" data-color="blue" class="event-color-btn h-7 w-7 rounded-full bg-blue-500"></button>
-          <button type="button" data-color="red" class="event-color-btn h-7 w-7 rounded-full bg-red-500"></button>
-          <button type="button" data-color="orange" class="event-color-btn h-7 w-7 rounded-full bg-orange-500"></button>
-          <button type="button" data-color="purple" class="event-color-btn h-7 w-7 rounded-full bg-purple-400"></button>
-        </div>
-
-        <input
-          id="event-location"
+          id="event-title"
           type="text"
-          placeholder="Location"
-          class="rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none"
+          placeholder="Add title"
+          class="w-full border-b border-border bg-transparent pb-2 font-display text-xl font-bold text-ink focus:border-accent focus:outline-none sm:text-2xl"
         />
-
-        <div class="flex flex-col gap-2">
-          <span class="text-xs font-semibold uppercase tracking-wider text-muted">Homepage thumbnail (optional)</span>
-          <input id="event-image-url" type="hidden" />
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div class="flex w-full gap-2 sm:w-56">
+            <button type="button" data-type="class" class="event-type-btn flex-1 rounded-full border px-3 py-1.5 text-sm font-semibold">
+              Class
+            </button>
+            <button type="button" data-type="event" class="event-type-btn flex-1 rounded-full border px-3 py-1.5 text-sm font-semibold">
+              Event
+            </button>
+          </div>
           <div class="flex items-center gap-3">
-            <img id="event-image-preview" class="hidden aspect-[16/3] w-40 rounded-lg border border-border object-cover" alt="" />
-            <label class="cursor-pointer rounded-full border border-border px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-surface">
-              <span id="event-image-upload-label">Upload Image</span>
-              <input id="event-image-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" />
-            </label>
-            <button
-              type="button"
-              id="event-image-remove"
-              class="hidden text-xs font-semibold text-red-600 hover:underline"
-            >
-              Remove
-            </button>
-          </div>
-          <p id="event-image-error" class="hidden text-xs font-semibold text-red-600"></p>
-        </div>
-
-        <details class="group rounded-xl border border-border">
-          <summary class="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted [&::-webkit-details-marker]:hidden">
-            Pricing (optional)
-            <span class="shrink-0 transition-transform group-open:rotate-180">⌄</span>
-          </summary>
-          <div class="flex flex-col gap-2 border-t border-border p-3">
-          <div id="event-price-grid" class="grid grid-cols-3 gap-2">
-            <label class="flex flex-col gap-1">
-              <span id="event-price-whole-label" class="text-xs text-muted">Whole series</span>
-              <input
-                id="event-price-whole-series"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="$"
-                class="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
-              />
-            </label>
-            <label class="class-only-price flex flex-col gap-1">
-              <span class="text-xs text-muted">Drop-in</span>
-              <input
-                id="event-price-drop-in"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="$"
-                class="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
-              />
-            </label>
-            <label class="class-only-price flex flex-col gap-1">
-              <span class="text-xs text-muted">Student /class</span>
-              <input
-                id="event-price-student"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="$"
-                class="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
-              />
-            </label>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <span class="w-16 shrink-0 text-xs font-semibold text-accent">Early Bird</span>
-            <input id="event-price-whole-series-early-bird" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
-            <input id="event-price-drop-in-early-bird" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
-            <input id="event-price-student-early-bird" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
-          </div>
-          <div class="flex items-center gap-2 pl-[72px]">
-            <span class="text-xs text-muted">Until</span>
-            <input id="event-early-bird-until" type="datetime-local" class="flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none" />
-          </div>
-
-          <div class="flex items-center gap-2">
-            <span class="w-16 shrink-0 text-xs font-semibold text-accent">Flash Sale</span>
-            <input id="event-price-whole-series-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
-            <input id="event-price-drop-in-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
-            <input id="event-price-student-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
-          </div>
-          <div class="flex items-center gap-2 pl-[72px]">
-            <span class="text-xs text-muted">Until</span>
-            <input id="event-flash-sale-until" type="datetime-local" class="flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none" />
-          </div>
-          </div>
-        </details>
-
-        <label class="flex items-center gap-2 text-sm text-ink/80">
-          <input id="event-registration-closed" type="checkbox" class="h-4 w-4 rounded border-border" />
-          Registration Closed (greys out Register Now everywhere this class appears)
-        </label>
-
-        <div class="flex flex-col gap-2 rounded-xl border border-border p-3">
-          {/* Classes can cap Leaders and Followers separately. Both sets of fields
-              keep their values; only the one the toggle shows is used. */}
-          <label id="event-capacity-by-role-row" class="flex items-center justify-between gap-2 text-sm text-ink/80">
-            Separate Leader / Follower caps
-            <button
-              id="event-capacity-by-role"
-              type="button"
-              role="switch"
-              aria-checked="false"
-              class="group relative h-6 w-10 shrink-0 rounded-full bg-border transition-colors aria-checked:bg-accent"
-            >
-              <span class="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform group-aria-checked:translate-x-4"></span>
-            </button>
-          </label>
-          <label id="event-capacity-general" class="flex items-center gap-2 text-sm text-ink/80">
-            Capacity
-            <input
-              id="event-capacity"
-              type="number"
-              min="1"
-              step="1"
-              placeholder="No limit"
-              class="w-28 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
-            />
-          </label>
-          <div id="event-capacity-roles" class="hidden flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink/80">
-            <label class="flex items-center gap-2">
-              Leaders
-              <input
-                id="event-leader-capacity"
-                type="number"
-                min="1"
-                step="1"
-                placeholder="No limit"
-                class="w-24 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
-              />
-            </label>
-            <label class="flex items-center gap-2">
-              Followers
-              <input
-                id="event-follower-capacity"
-                type="number"
-                min="1"
-                step="1"
-                placeholder="No limit"
-                class="w-24 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
-              />
-            </label>
-          </div>
-          <label class="flex items-center gap-2 text-sm text-ink/80">
-            <input id="event-show-capacity" type="checkbox" class="h-4 w-4 rounded border-border" />
-            Show "spots remaining" to registrants (otherwise only admins see it)
-          </label>
-          <p class="text-xs text-muted">Registration stops once it&rsquo;s full (with separate caps, a role stops once that role is full; a blank role has no limit). Applies to the whole series.</p>
-        </div>
-
-        <label class="flex items-center gap-2 text-sm text-ink/80">
-          <input id="event-private" type="checkbox" class="h-4 w-4 rounded border-border" />
-          Private (only visible to admins)
-        </label>
-
-        <div id="event-recurrence-row" class="flex flex-col gap-2 text-sm text-ink/80">
-          <label class="flex items-center gap-2">
-            <input id="event-repeat" type="checkbox" class="h-4 w-4 rounded border-border" />
-            This is a recurring event
-          </label>
-          <p id="event-recurrence-hint" class="hidden pl-6 text-xs text-muted"></p>
-
-          <div id="event-repeat-options" class="hidden flex-col gap-3 pl-6">
-            <label class="flex items-center gap-2">
-              Every
-              <input id="event-repeat-interval" type="number" min="1" max="52" value="1" class="w-14 rounded-lg border border-border bg-surface px-2 py-1" />
-              week(s)
-            </label>
-
-            <div class="flex gap-1">
-              {[
-                ['SU', 'S'],
-                ['MO', 'M'],
-                ['TU', 'T'],
-                ['WE', 'W'],
-                ['TH', 'T'],
-                ['FR', 'F'],
-                ['SA', 'S'],
-              ].map(([value, label]) => (
-                <button
-                  type="button"
-                  data-day={value}
-                  class="repeat-day-btn flex h-7 w-7 items-center justify-center rounded-full border border-border text-xs font-semibold text-ink/70"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold uppercase tracking-wider text-muted">Ends</span>
-              <label class="flex items-center gap-2">
-                <input type="radio" name="repeat-end" value="count" checked class="h-4 w-4" />
-                After
-                <input id="event-repeat-count" type="number" min="1" max="52" value="4" class="w-14 rounded-lg border border-border bg-surface px-2 py-1" />
-                occurrences
-              </label>
-              <label class="flex items-center gap-2">
-                <input type="radio" name="repeat-end" value="until" class="h-4 w-4" />
-                On
-                <input id="event-repeat-until" type="date" class="rounded-lg border border-border bg-surface px-2 py-1" disabled />
-              </label>
-            </div>
+            <span class="text-sm text-muted">Color</span>
+            <button type="button" data-color="green" aria-label="Green" class="event-color-btn h-7 w-7 rounded-full bg-green-500"></button>
+            <button type="button" data-color="blue" aria-label="Blue" class="event-color-btn h-7 w-7 rounded-full bg-blue-500"></button>
+            <button type="button" data-color="red" aria-label="Red" class="event-color-btn h-7 w-7 rounded-full bg-red-500"></button>
+            <button type="button" data-color="orange" aria-label="Orange" class="event-color-btn h-7 w-7 rounded-full bg-orange-500"></button>
+            <button type="button" data-color="purple" aria-label="Purple" class="event-color-btn h-7 w-7 rounded-full bg-purple-400"></button>
           </div>
         </div>
-
-        <div class="flex flex-col gap-1.5">
-          <div class="flex flex-wrap gap-1 border-b border-border pb-1.5">
-            <button type="button" data-cmd="bold" class="description-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
-            <button type="button" data-cmd="italic" class="description-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
-            <button type="button" data-cmd="underline" class="description-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
-            <button type="button" data-cmd="strikeThrough" class="description-format-btn rounded-lg px-2.5 py-1 text-sm line-through text-ink/70 hover:bg-bg">S</button>
-            <button type="button" data-cmd="insertUnorderedList" class="description-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
-            <button type="button" data-cmd="insertOrderedList" class="description-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
-            <button type="button" id="event-description-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
-          </div>
-          <div
-            id="event-description"
-            contenteditable="true"
-            role="textbox"
-            aria-multiline="true"
-            aria-label="Description"
-            data-placeholder="Description"
-            class="event-description-editor min-h-20 rounded-xl border border-border bg-surface px-3 py-2 text-ink empty:before:text-muted/60 empty:before:content-[attr(data-placeholder)] focus:border-accent focus:outline-none [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
-          ></div>
-        </div>
-
-        <details class="group rounded-xl border border-border">
-          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-semibold text-ink/80 [&::-webkit-details-marker]:hidden">
-            Homepage lesson overview override
-            <span class="shrink-0 text-muted transition-transform group-open:rotate-180">⌄</span>
-          </summary>
-          <div class="flex flex-col gap-3 border-t border-border p-3">
-            <p class="text-xs text-muted">
-              Replaces the "About This Class Format" section on this class's homepage card. Fill in a header, a body, or both — anything left blank keeps the
-              default. Applies to the whole series.
-            </p>
-            <label class="flex items-center gap-2 text-sm text-ink/80">
-              <input id="event-hide-lesson-overview" type="checkbox" class="h-4 w-4 rounded border-border" />
-              Hide this section entirely on the homepage card
-            </label>
-            <div id="event-lesson-overview-fields" class="flex flex-col gap-2 transition-opacity">
-              <input
-                id="event-lesson-overview-title"
-                type="text"
-                maxlength="120"
-                placeholder="Header (default: About This Class Format)"
-                class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none"
-              />
-              <div class="flex flex-wrap gap-1 border-b border-border pb-1.5">
-                <button type="button" data-cmd="bold" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
-                <button type="button" data-cmd="italic" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
-                <button type="button" data-cmd="underline" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
-                <button type="button" data-cmd="insertUnorderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
-                <button type="button" data-cmd="insertOrderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
-                <button type="button" id="event-lesson-overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
-              </div>
-              <div
-                id="event-lesson-overview-body"
-                contenteditable="true"
-                role="textbox"
-                aria-multiline="true"
-                aria-label="Lesson overview body"
-                data-placeholder="Body (default: the site-wide lesson overview)"
-                class="min-h-20 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink empty:before:text-muted/60 empty:before:content-[attr(data-placeholder)] focus:border-accent focus:outline-none [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
-              ></div>
-            </div>
-          </div>
-        </details>
+        <p id="event-series-banner" class="hidden rounded-xl border border-border bg-surface px-3 py-2 text-xs text-ink/80"></p>
       </div>
-    </div>
 
-      <div class="flex items-center justify-between border-t border-border p-6 pt-4">
+      <div class="flex min-h-0 flex-1 flex-col md:flex-row">
+        <nav
+          id="event-section-nav"
+          aria-label="Editor sections"
+          class="flex shrink-0 snap-x snap-proximity gap-2 overflow-x-auto scroll-smooth border-b border-border px-4 py-2.5 [mask-image:linear-gradient(to_right,transparent_0,#000_14px,#000_calc(100%-36px),transparent)] [scroll-padding-inline:16px] [scrollbar-width:none] md:w-60 md:snap-none md:flex-col md:gap-1 md:overflow-visible md:border-b-0 md:border-r md:px-3 md:py-4 md:[mask-image:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {[
+            ['schedule', 'Schedule'],
+            ['details', 'Location & description'],
+            ['registration', 'Registration'],
+            ['pricing', 'Pricing'],
+            ['homepage', 'Homepage card'],
+          ].map(([id, label]) => (
+            <button
+              type="button"
+              data-section={id}
+              aria-current="false"
+              class="event-nav-btn shrink-0 snap-start rounded-full border border-border px-4 py-2 text-left text-sm font-semibold text-ink/70 transition-colors aria-[current=true]:border-accent aria-[current=true]:bg-surface aria-[current=true]:text-ink md:rounded-lg md:border-transparent md:px-3 md:aria-[current=true]:border-transparent"
+            >
+              <span class="block whitespace-nowrap md:whitespace-normal">{id === 'details' ? <><span class="md:hidden">Details</span><span class="hidden md:inline">{label}</span></> : label}</span>
+              <span data-summary={id} class="hidden truncate text-xs font-normal text-muted md:block"></span>
+            </button>
+          ))}
+        </nav>
+
+        <div id="event-modal-scroll" class="themed-scrollbar relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto scroll-smooth p-4 sm:p-6">
+          <details id="sec-schedule" class="event-section group/sec scroll-mt-3 rounded-2xl border border-border open:border-accent/60">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <span class="min-w-0"><span class="font-display font-bold text-ink">Schedule</span><span data-summary="schedule" class="block truncate text-xs text-muted md:hidden"></span></span>
+              <svg class="h-5 w-5 shrink-0 text-muted transition-transform group-open/sec:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+            </summary>
+            <div class="flex flex-col gap-3 border-t border-border p-4">
+              <div class="grid gap-3 sm:grid-cols-3">
+                <label class="flex flex-col gap-1.5">
+                  <span class="text-xs font-semibold text-muted">Date</span>
+                  <input id="event-date" type="date" class="rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none" />
+                </label>
+                <label class="flex flex-col gap-1.5">
+                  <span class="text-xs font-semibold text-muted">Starts</span>
+                  <input id="event-start-time" type="time" class="rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none" />
+                </label>
+                <label class="flex flex-col gap-1.5">
+                  <span class="text-xs font-semibold text-muted">Ends</span>
+                  <input id="event-end-time" type="time" class="rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none" />
+                </label>
+              </div>
+              <p class="text-xs text-muted">Times use your browser's local timezone. An end time before the start is the next day.</p>
+
+              <div id="event-recurrence-row" class="flex flex-col gap-2 border-t border-border pt-3 text-sm text-ink/80">
+                <label class="flex items-center gap-2">
+                  <input id="event-repeat" type="checkbox" class="h-4 w-4 rounded border-border" />
+                  Repeats (a recurring series)
+                </label>
+                <p id="event-recurrence-hint" class="hidden pl-6 text-xs text-muted"></p>
+
+                <div id="event-repeat-options" class="hidden flex-col gap-3 pl-6">
+                  <label class="flex items-center gap-2">
+                    Every
+                    <input id="event-repeat-interval" type="number" min="1" max="52" value="1" class="w-14 rounded-lg border border-border bg-surface px-2 py-1" />
+                    week(s)
+                  </label>
+
+                  <div class="flex gap-1">
+                    {[
+                      ['SU', 'S'],
+                      ['MO', 'M'],
+                      ['TU', 'T'],
+                      ['WE', 'W'],
+                      ['TH', 'T'],
+                      ['FR', 'F'],
+                      ['SA', 'S'],
+                    ].map(([value, label]) => (
+                      <button
+                        type="button"
+                        data-day={value}
+                        class="repeat-day-btn flex h-8 w-8 items-center justify-center rounded-full border border-border text-xs font-semibold text-ink/70"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div class="flex flex-col gap-1.5">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted">Ends</span>
+                    <label class="flex items-center gap-2">
+                      <input type="radio" name="repeat-end" value="count" checked class="h-4 w-4" />
+                      After
+                      <input id="event-repeat-count" type="number" min="1" max="52" value="4" class="w-14 rounded-lg border border-border bg-surface px-2 py-1" />
+                      occurrences
+                    </label>
+                    <label class="flex items-center gap-2">
+                      <input type="radio" name="repeat-end" value="until" class="h-4 w-4" />
+                      On
+                      <input id="event-repeat-until" type="date" class="rounded-lg border border-border bg-surface px-2 py-1" disabled />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details id="sec-details" class="event-section group/sec scroll-mt-3 rounded-2xl border border-border open:border-accent/60">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <span class="min-w-0"><span class="font-display font-bold text-ink">Location &amp; description</span><span data-summary="details" class="block truncate text-xs text-muted md:hidden"></span></span>
+              <svg class="h-5 w-5 shrink-0 text-muted transition-transform group-open/sec:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+            </summary>
+            <div class="flex flex-col gap-3 border-t border-border p-4">
+              <label class="flex flex-col gap-1.5">
+                <span class="text-xs font-semibold text-muted">Location</span>
+                <input
+                  id="event-location"
+                  type="text"
+                  placeholder="Location"
+                  class="rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none"
+                />
+              </label>
+              <div class="flex flex-col gap-1.5">
+                <span class="text-xs font-semibold text-muted">Description (also shown on Google Calendar)</span>
+                <div class="flex flex-wrap gap-1 border-b border-border pb-1.5">
+                  <button type="button" data-cmd="bold" class="description-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
+                  <button type="button" data-cmd="italic" class="description-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
+                  <button type="button" data-cmd="underline" class="description-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
+                  <button type="button" data-cmd="strikeThrough" class="description-format-btn rounded-lg px-2.5 py-1 text-sm line-through text-ink/70 hover:bg-bg">S</button>
+                  <button type="button" data-cmd="insertUnorderedList" class="description-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
+                  <button type="button" data-cmd="insertOrderedList" class="description-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
+                  <button type="button" id="event-description-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+                </div>
+                <div
+                  id="event-description"
+                  contenteditable="true"
+                  role="textbox"
+                  aria-multiline="true"
+                  aria-label="Description"
+                  data-placeholder="Description"
+                  class="event-description-editor min-h-20 rounded-xl border border-border bg-surface px-3 py-2 text-ink empty:before:text-muted/60 empty:before:content-[attr(data-placeholder)] focus:border-accent focus:outline-none [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+                ></div>
+              </div>
+            </div>
+          </details>
+
+          <details id="sec-registration" class="event-section group/sec scroll-mt-3 rounded-2xl border border-border open:border-accent/60">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <span class="min-w-0"><span class="font-display font-bold text-ink">Registration</span><span data-summary="registration" class="block truncate text-xs text-muted md:hidden"></span></span>
+              <svg class="h-5 w-5 shrink-0 text-muted transition-transform group-open/sec:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+            </summary>
+            <div class="flex flex-col gap-3 border-t border-border p-4">
+              <label class="flex items-center gap-2 text-sm text-ink/80">
+                <input id="event-registration-closed" type="checkbox" class="h-4 w-4 rounded border-border" />
+                Registration closed (greys out Register Now everywhere this appears)
+              </label>
+              <label class="flex items-center gap-2 text-sm text-ink/80">
+                <input id="event-private" type="checkbox" class="h-4 w-4 rounded border-border" />
+                Private (only visible to admins)
+              </label>
+
+              <div class="flex flex-col gap-2 border-t border-border pt-3">
+                {/* Classes can cap Leaders and Followers separately. Both sets of fields
+                    keep their values; only the one the toggle shows is used. */}
+                <label id="event-capacity-by-role-row" class="flex items-center justify-between gap-2 text-sm text-ink/80">
+                  Separate Leader / Follower caps
+                  <button
+                    id="event-capacity-by-role"
+                    type="button"
+                    role="switch"
+                    aria-checked="false"
+                    class="group relative h-6 w-10 shrink-0 rounded-full bg-border transition-colors aria-checked:bg-accent"
+                  >
+                    <span class="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform group-aria-checked:translate-x-4"></span>
+                  </button>
+                </label>
+                <label id="event-capacity-general" class="flex items-center gap-2 text-sm text-ink/80">
+                  Capacity
+                  <input
+                    id="event-capacity"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="No limit"
+                    class="w-28 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
+                  />
+                </label>
+                <div id="event-capacity-roles" class="hidden flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink/80">
+                  <label class="flex items-center gap-2">
+                    Leaders
+                    <input
+                      id="event-leader-capacity"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="No limit"
+                      class="w-24 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
+                    />
+                  </label>
+                  <label class="flex items-center gap-2">
+                    Followers
+                    <input
+                      id="event-follower-capacity"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="No limit"
+                      class="w-24 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
+                    />
+                  </label>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-ink/80">
+                  <input id="event-show-capacity" type="checkbox" class="h-4 w-4 rounded border-border" />
+                  Show "spots remaining" to registrants (otherwise only admins see it)
+                </label>
+                <p class="text-xs text-muted">Registration stops once it&rsquo;s full (with separate caps, a role stops once that role is full; a blank role has no limit).</p>
+              </div>
+            </div>
+          </details>
+
+          <details id="sec-pricing" class="event-section group/sec scroll-mt-3 rounded-2xl border border-border open:border-accent/60">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <span class="min-w-0"><span class="font-display font-bold text-ink">Pricing</span><span data-summary="pricing" class="block truncate text-xs text-muted md:hidden"></span></span>
+              <svg class="h-5 w-5 shrink-0 text-muted transition-transform group-open/sec:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+            </summary>
+            {/* One row per price tier, one column per price type; the drop-in and student columns are classes-only. */}
+            <div class="flex flex-col gap-2 border-t border-border p-4">
+              <div id="event-price-grid" class="flex items-end gap-2">
+                <span class="w-20 shrink-0 sm:w-24"></span>
+                <span id="event-price-whole-label" class="w-0 flex-1 text-xs text-muted">Whole series</span>
+                <span class="class-only-price w-0 flex-1 text-xs text-muted">Drop-in</span>
+                <span class="class-only-price w-0 flex-1 text-xs text-muted">Student /class</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-20 shrink-0 text-xs font-semibold text-ink sm:w-24">Regular</span>
+                <input id="event-price-whole-series" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+                <input id="event-price-drop-in" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+                <input id="event-price-student" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-20 shrink-0 text-xs font-semibold text-accent sm:w-24">Early bird</span>
+                <input id="event-price-whole-series-early-bird" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+                <input id="event-price-drop-in-early-bird" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+                <input id="event-price-student-early-bird" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+              </div>
+              <label class="flex items-center gap-2 pl-[5.5rem] sm:pl-[6.5rem]">
+                <span class="text-xs text-muted">Until</span>
+                <input id="event-early-bird-until" type="datetime-local" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none" />
+              </label>
+              <div class="flex items-center gap-2">
+                <span class="w-20 shrink-0 text-xs font-semibold text-accent sm:w-24">Flash sale</span>
+                <input id="event-price-whole-series-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+                <input id="event-price-drop-in-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+                <input id="event-price-student-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+              </div>
+              <label class="flex items-center gap-2 pl-[5.5rem] sm:pl-[6.5rem]">
+                <span class="text-xs text-muted">Until</span>
+                <input id="event-flash-sale-until" type="datetime-local" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none" />
+              </label>
+              <p class="text-xs text-muted">Leave a price blank to hide that option. Discounts apply automatically until their end time.</p>
+            </div>
+          </details>
+
+          <details id="sec-homepage" class="event-section group/sec scroll-mt-3 rounded-2xl border border-border open:border-accent/60">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <span class="min-w-0"><span class="font-display font-bold text-ink">Homepage card</span><span data-summary="homepage" class="block truncate text-xs text-muted md:hidden"></span></span>
+              <svg class="h-5 w-5 shrink-0 text-muted transition-transform group-open/sec:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+            </summary>
+            <div class="flex flex-col gap-3 border-t border-border p-4">
+              <div class="flex flex-col gap-2">
+                <span class="text-xs font-semibold text-muted">Thumbnail (optional)</span>
+                <input id="event-image-url" type="hidden" />
+                <div class="flex flex-wrap items-center gap-3">
+                  <img id="event-image-preview" class="hidden aspect-[16/3] w-40 rounded-lg border border-border object-cover" alt="" />
+                  <label class="cursor-pointer rounded-full border border-border px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-surface">
+                    <span id="event-image-upload-label">Upload Image</span>
+                    <input id="event-image-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" />
+                  </label>
+                  <button type="button" id="event-image-remove" class="hidden text-xs font-semibold text-red-600 hover:underline">Remove</button>
+                </div>
+                <p id="event-image-error" class="hidden text-xs font-semibold text-red-600"></p>
+              </div>
+
+              <div class="flex flex-col gap-3 border-t border-border pt-3">
+                <span class="text-sm font-semibold text-ink/80">Lesson overview override</span>
+                <p class="text-xs text-muted">
+                  Replaces the "About This Class Format" section on this card. Fill in a header, a body, or both — anything left blank keeps the default.
+                </p>
+                <label class="flex items-center gap-2 text-sm text-ink/80">
+                  <input id="event-hide-lesson-overview" type="checkbox" class="h-4 w-4 rounded border-border" />
+                  Hide this section entirely on the homepage card
+                </label>
+                <div id="event-lesson-overview-fields" class="flex flex-col gap-2 transition-opacity">
+                  <input
+                    id="event-lesson-overview-title"
+                    type="text"
+                    maxlength="120"
+                    placeholder="Header (default: About This Class Format)"
+                    class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none"
+                  />
+                  <div class="flex flex-wrap gap-1 border-b border-border pb-1.5">
+                    <button type="button" data-cmd="bold" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
+                    <button type="button" data-cmd="italic" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
+                    <button type="button" data-cmd="underline" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
+                    <button type="button" data-cmd="insertUnorderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
+                    <button type="button" data-cmd="insertOrderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
+                    <button type="button" id="event-lesson-overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+                  </div>
+                  <div
+                    id="event-lesson-overview-body"
+                    contenteditable="true"
+                    role="textbox"
+                    aria-multiline="true"
+                    aria-label="Lesson overview body"
+                    data-placeholder="Body (default: the site-wide lesson overview)"
+                    class="min-h-20 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink empty:before:text-muted/60 empty:before:content-[attr(data-placeholder)] focus:border-accent focus:outline-none [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-6 sm:py-4">
         <div class="flex gap-3">
           <button id="event-delete" class="hidden text-sm font-semibold text-red-600 hover:underline">Delete</button>
           <button id="event-delete-series" class="hidden text-sm font-semibold text-red-600 hover:underline">Delete Series</button>
@@ -1095,7 +1130,6 @@ const MAX_BANNERS_PER_DAY = 3;
   const leaderCapacityInput = document.getElementById('event-leader-capacity') as HTMLInputElement;
   const followerCapacityInput = document.getElementById('event-follower-capacity') as HTMLInputElement;
   let capacityByRole = false;
-  const priceGrid = document.getElementById('event-price-grid')!;
   const priceWholeLabel = document.getElementById('event-price-whole-label')!;
   const classOnlyPriceEls = Array.from(document.querySelectorAll<HTMLElement>('.class-only-price'));
   const repeatInput = document.getElementById('event-repeat') as HTMLInputElement;
@@ -1193,8 +1227,6 @@ const MAX_BANNERS_PER_DAY = 3;
   function renderPricingForType() {
     const isEvent = selectedType === 'event';
     priceWholeLabel.textContent = isEvent ? 'Ticket price' : 'Whole series';
-    priceGrid.classList.toggle('grid-cols-3', !isEvent);
-    priceGrid.classList.toggle('grid-cols-1', isEvent);
     classOnlyPriceEls.forEach((el) => {
       el.classList.toggle('hidden', isEvent);
       if (el.tagName === 'LABEL') el.classList.toggle('flex', !isEvent);
@@ -1391,7 +1423,7 @@ const MAX_BANNERS_PER_DAY = 3;
       repeatInput.checked = true;
       repeatOptions.classList.remove('hidden');
       repeatOptions.classList.add('flex');
-      recurrenceHint.textContent = "This occurrence is part of a series. Uncheck 'This is a recurring event' to edit just this one instead of the whole series.";
+      recurrenceHint.textContent = "This class is part of a series. Turn off Repeats to edit just this one instead of the whole series.";
       recurrenceHint.classList.remove('hidden');
     } else {
       repeatInput.checked = false;
@@ -1425,6 +1457,7 @@ const MAX_BANNERS_PER_DAY = 3;
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     document.getElementById('event-modal-scroll')!.scrollTop = 0;
+    prepareEditorSections(mode, event);
 
     // Deferred until the modal (and its location input) is actually visible —
     // Google's Autocomplete widget measures the input's width when it's
@@ -1437,6 +1470,124 @@ const MAX_BANNERS_PER_DAY = 3;
     modal.classList.add('hidden');
     modal.classList.remove('flex');
     editingId = null;
+  }
+
+  // ---- Editor sections: the section menu, summaries and status ----
+  // The menu is a list on wide screens and a sideways-scrolling chip row on
+  // phones. Picking a section opens it and scrolls it into view; scrolling by
+  // hand highlights the section at the top.
+  const modalScroll = document.getElementById('event-modal-scroll')!;
+  const sectionNavButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.event-nav-btn'));
+  const editorSections = Array.from(document.querySelectorAll<HTMLDetailsElement>('.event-section'));
+  const statusChips = document.getElementById('event-status-chips')!;
+  const seriesBanner = document.getElementById('event-series-banner')!;
+  const wideEditor = window.matchMedia('(min-width: 768px)');
+  let activeSection = 'schedule';
+  let sectionJumpUntil = 0;
+
+  function setActiveSection(id: string, centerChip = true) {
+    activeSection = id;
+    for (const btn of sectionNavButtons) {
+      const on = btn.dataset.section === id;
+      btn.setAttribute('aria-current', on ? 'true' : 'false');
+      if (on && centerChip && !wideEditor.matches) btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }
+
+  function jumpToSection(id: string) {
+    const section = document.getElementById(`sec-${id}`) as HTMLDetailsElement | null;
+    if (!section) return;
+    section.open = true;
+    // Don't let the scroll-spy flicker through the sections passed on the way.
+    sectionJumpUntil = Date.now() + 800;
+    setActiveSection(id);
+    modalScroll.scrollTo({ top: Math.max(0, section.offsetTop - 12), behavior: 'smooth' });
+  }
+
+  sectionNavButtons.forEach((btn) => btn.addEventListener('click', () => jumpToSection(btn.dataset.section ?? 'schedule')));
+
+  modalScroll.addEventListener('scroll', () => {
+    if (Date.now() < sectionJumpUntil) return;
+    let current = editorSections[0]?.id.replace('sec-', '') ?? 'schedule';
+    for (const section of editorSections) {
+      if (section.offsetTop - 40 <= modalScroll.scrollTop) current = section.id.replace('sec-', '');
+    }
+    if (current !== activeSection) setActiveSection(current);
+  });
+
+  const formatTimeOfDay = (date: string, time: string) =>
+    date && time ? new Date(`${date}T${time}:00`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  const dollars = (v: string) => (v.trim() ? `$${v.trim()}` : '');
+
+  // The one-line summary each section shows in the menu (and under its
+  // title on phones), so a closed section still says what's in it.
+  function updateEditorSummaries() {
+    const isEvent = selectedType === 'event';
+    const date = dateInput.value ? new Date(`${dateInput.value}T00:00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) : 'No date';
+    const byRole = !isEvent && capacityByRole;
+    const capacityText = byRole
+      ? `${leaderCapacityInput.value || '∞'} leaders / ${followerCapacityInput.value || '∞'} followers`
+      : capacityInput.value
+        ? `${capacityInput.value} spots`
+        : 'No limit';
+    const earlyBird = (priceWholeSeriesEarlyBirdInput.value || priceDropInEarlyBirdInput.value) && earlyBirdUntilInput.value;
+    const flashSale = (priceWholeSeriesFlashSaleInput.value || priceDropInFlashSaleInput.value) && flashSaleUntilInput.value;
+    const prices = [
+      dollars(priceWholeSeriesInput.value) && `${dollars(priceWholeSeriesInput.value)} ${isEvent ? 'ticket' : 'series'}`,
+      !isEvent && dollars(priceDropInInput.value) && `${dollars(priceDropInInput.value)} drop-in`,
+      earlyBird && 'early bird',
+      flashSale && 'flash sale',
+    ].filter(Boolean);
+    const overviewSet = lessonOverviewTitleInput.value.trim() || lessonOverviewBodyInput.textContent?.trim();
+    const summaries: Record<string, string> = {
+      schedule: [date, `${formatTimeOfDay(dateInput.value, startTimeInput.value)}–${formatTimeOfDay(dateInput.value, endTimeInput.value)}`, repeatInput.checked ? 'repeats' : '']
+        .filter(Boolean)
+        .join(' · '),
+      details: locationInput.value.trim() || 'No location yet',
+      registration: [registrationClosedInput.checked ? 'Closed' : 'Open', privateInput.checked ? 'Private' : '', capacityText].filter(Boolean).join(' · '),
+      pricing: prices.length ? prices.join(' · ') : isEvent ? 'Free' : 'No prices',
+      homepage: [imageUrlInput.value ? 'Image set' : 'No image', hideLessonOverviewInput.checked ? 'overview hidden' : overviewSet ? 'custom overview' : 'default overview'].join(' · '),
+    };
+    document.querySelectorAll<HTMLElement>('#event-modal [data-summary]').forEach((el) => {
+      el.textContent = summaries[el.dataset.summary ?? ''] ?? '';
+    });
+
+    const chip = (text: string, on: boolean) =>
+      `<span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${on ? 'bg-green-500/15 text-green-300' : 'bg-border text-ink/70'}">${text}</span>`;
+    statusChips.innerHTML = chip(privateInput.checked ? 'Private' : 'Public', !privateInput.checked) + chip(registrationClosedInput.checked ? 'Closed' : 'Open', !registrationClosedInput.checked);
+  }
+
+  // Editing one class of a series with Repeats on changes every class in it
+  // (each keeps its own date and time); say so up front.
+  function updateSeriesBanner() {
+    const siblingCount = editingRecurringId ? cachedAllEvents.filter((e) => e.google_recurring_event_id === editingRecurringId).length : 0;
+    const show = Boolean(editingId && editingRecurringId);
+    seriesBanner.classList.toggle('hidden', !show);
+    if (!show) return;
+    seriesBanner.textContent = repeatInput.checked
+      ? `Part of a ${siblingCount}-class series: changes here apply to all ${siblingCount} classes (each keeps its own date and time). Turn off Repeats under Schedule to edit only this one.`
+      : 'Editing only this class of the series.';
+  }
+
+  ['input', 'change', 'click'].forEach((type) =>
+    modal.addEventListener(type, () => {
+      updateEditorSummaries();
+      updateSeriesBanner();
+    })
+  );
+
+  function prepareEditorSections(mode: 'add' | 'edit', event?: SiteEvent) {
+    // Wide screens show every section open; phones start with all closed so
+    // the menu and summaries give the overview.
+    editorSections.forEach((section) => (section.open = wideEditor.matches));
+    setActiveSection('schedule', false);
+    document.getElementById('event-section-nav')!.scrollLeft = 0;
+    const typeLabel = selectedType === 'event' ? 'event' : 'class';
+    const total = editingRecurringId ? cachedAllEvents.filter((e) => e.google_recurring_event_id === editingRecurringId).length : 0;
+    modalHeading.textContent =
+      mode === 'add' ? 'New event' : event?.weekNumber && total > 1 ? `Edit ${typeLabel} · Week ${event.weekNumber} of ${total}` : `Edit ${typeLabel}`;
+    updateEditorSummaries();
+    updateSeriesBanner();
   }
 
   function updateImagePreview() {
@@ -1633,6 +1784,7 @@ const MAX_BANNERS_PER_DAY = 3;
 
   document.getElementById('add-event-btn')?.addEventListener('click', () => openModal('add'));
   document.getElementById('event-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('event-close')?.addEventListener('click', closeModal);
   document.getElementById('event-delete')?.addEventListener('click', () => editingId && performDelete(editingId));
   document.getElementById('event-delete-series')?.addEventListener('click', () => editingId && performDelete(editingId, true));
 

@@ -47,7 +47,7 @@ Test data rules (`support/db.ts`):
 | `event-registration` | Guidelines shown and required, confirmation/email list them FAQ-style; blank guidelines; free vs paid events |
 | `checkin-and-contact` | QR check-in, duplicate check-in, contact form → admin notification |
 | `admin-access` | Every admin API route rejects missing/bogus sessions; sign-in gate; stale-session recovery; sign-out is local only |
-| `admin-editor` | Capacity toggle round trip; events have no role caps; midnight end times; editing before admin data loads; Guidelines tab |
+| `admin-editor` | Capacity toggle round trip; events have no role caps; midnight end times; editing before admin data loads; the section menu (desktop list, phone chip row that opens and scrolls to a section); Guidelines tab |
 | `admin-dashboard` | Dashboard data (roles, events kept separate), dashboard page, check-in QR |
 
 ## Adding a test

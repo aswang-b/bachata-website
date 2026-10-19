@@ -93,6 +93,57 @@ test('an event can end at midnight (the next day), but not at its start time', a
   expect(Date.parse(data!.end_time) - Date.parse(data!.start_time)).toBe(4 * 60 * 60 * 1000);
 });
 
+test('desktop: the section menu shows summaries and jumps to a section', async ({ page, adminPage }) => {
+  void adminPage;
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openEditor(page, klass);
+  // Every section starts open on a wide screen, and the menu summarizes each.
+  for (const id of ['schedule', 'details', 'registration', 'pricing', 'homepage']) await expect(page.locator(`#sec-${id}`)).toHaveAttribute('open', '');
+  await expect(page.locator('#event-section-nav [data-summary="details"]')).toHaveText('ZZZ Test Studio');
+  await expect(page.locator('#event-status-chips')).toContainText('Public');
+
+  await page.locator('.event-nav-btn[data-section="homepage"]').click();
+  await expect(page.locator('.event-nav-btn[data-section="homepage"]')).toHaveAttribute('aria-current', 'true');
+  await expect(page.locator('#sec-homepage summary')).toBeInViewport();
+  await page.screenshot({ path: 'tests/e2e/.output/editor-desktop.png' });
+});
+
+test('phone: the chip row scrolls on its own row, and a chip opens and scrolls to its section', async ({ page, adminPage }) => {
+  void adminPage;
+  await openEditor(page, klass);
+  await page.locator('#event-close').click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#detail-edit-btn').click();
+  await expect(page.locator('#event-modal')).toBeVisible();
+
+  // Sections start closed on a phone; the chips sit in one sideways-scrolling row.
+  await expect(page.locator('#sec-pricing')).not.toHaveAttribute('open', '');
+  const nav = page.locator('#event-section-nav');
+  const overflow = await nav.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, overflowX: getComputedStyle(el).overflowX }));
+  expect(overflow.overflowX).toBe('auto');
+  expect(overflow.scrollWidth).toBeGreaterThan(overflow.clientWidth);
+  const firstChipTop = await page.locator('.event-nav-btn').first().evaluate((el) => el.getBoundingClientRect().top);
+  const lastChipTop = await page.locator('.event-nav-btn').last().evaluate((el) => el.getBoundingClientRect().top);
+  expect(lastChipTop).toBe(firstChipTop);
+  await page.screenshot({ path: 'tests/e2e/.output/editor-phone-start.png' });
+
+  await page.locator('.event-nav-btn[data-section="pricing"]').click();
+  await expect(page.locator('#sec-pricing')).toHaveAttribute('open', '');
+  await expect(page.locator('#event-price-whole-series')).toBeInViewport();
+  await expect(page.locator('.event-nav-btn[data-section="pricing"]')).toHaveAttribute('aria-current', 'true');
+  // The picked chip is scrolled fully into the row.
+  await expect
+    .poll(async () => {
+      const [chip, row] = await Promise.all([
+        page.locator('.event-nav-btn[data-section="pricing"]').boundingBox(),
+        nav.boundingBox(),
+      ]);
+      return Boolean(chip && row && chip.x >= row.x && chip.x + chip.width <= row.x + row.width);
+    })
+    .toBe(true);
+  await page.screenshot({ path: 'tests/e2e/.output/editor-phone-pricing.png' });
+});
+
 test('the admin calendar feed labels spots, marking ones hidden from the public', async ({ request, admin }) => {
   const all = await (await request.get('/api/admin/all-events', { headers: bearer(admin) })).json();
   const row = all.events.find((e: { id: string }) => e.id === event.ids[0]);
