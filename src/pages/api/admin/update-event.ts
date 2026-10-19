@@ -15,6 +15,7 @@ import { runCalendarSync, syncErrorText } from '../../../lib/calendarSync';
 import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
 import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
 import { capacityColumns } from '../../../lib/capacity';
+import { seriesAnchorEndDate } from '../../../lib/eventTimes';
 
 export const prerender = false;
 
@@ -189,8 +190,7 @@ const handlePost: APIRoute = async ({ request }) => {
     const endTimePart = `${String(newEndTime.getHours()).padStart(2, '0')}:${String(newEndTime.getMinutes()).padStart(2, '0')}`;
     const anchorStart = `${anchorDate}T${timePart}:00`;
     // An end at or before the start time (e.g. ending at midnight) is on the next day.
-    const anchorEndDate =
-      endTimePart <= timePart ? new Date(Date.parse(`${anchorDate}T00:00:00Z`) + 24 * 60 * 60 * 1000).toISOString().slice(0, 10) : anchorDate;
+    const anchorEndDate = seriesAnchorEndDate(anchorDate, timePart, endTimePart);
     const anchorEnd = `${anchorEndDate}T${endTimePart}:00`;
 
     try {

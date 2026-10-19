@@ -823,6 +823,7 @@ const MAX_BANNERS_PER_DAY = 3;
   import { isPreviewingAsPublic } from '../lib/previewMode';
   import { getActivePrice, priceTierLabel } from '../lib/pricing';
   import { openImageCropper } from '../lib/imageCropper';
+  import { endAfterStart } from '../lib/eventTimes';
 
   // --- Calendar / List view toggle ---
   const viewToggleButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.view-toggle-btn'));
@@ -913,6 +914,9 @@ const MAX_BANNERS_PER_DAY = 3;
   let detailEvent: SiteEvent | null = null;
   let selectedRepeatDays = new Set<string>();
   let cachedAllEvents: SiteEvent[] = [];
+  // Settles once the admin copy of the events (with capacities, which the
+  // public page leaves out) has loaded.
+  let adminEventsReady: Promise<void> = Promise.resolve();
   let editingRecurringId: string | null = null;
   let originalPattern: { byDay: string[]; count: number; interval: number } | null = null;
 
@@ -1243,17 +1247,6 @@ const MAX_BANNERS_PER_DAY = 3;
 
   function fromLocalParts(date: string, time: string) {
     return new Date(`${date}T${time}:00`).toISOString();
-  }
-
-  // The editor has one date for both times, so an end time earlier than the
-  // start means the event runs past midnight (e.g. 9 PM–12 AM ends at the
-  // start of the NEXT day). Null when start and end are the same.
-  function endAfterStart(date: string, startTime: string, endTime: string): string | null {
-    const start = new Date(`${date}T${startTime}:00`);
-    const end = new Date(`${date}T${endTime}:00`);
-    if (end.getTime() === start.getTime()) return null;
-    if (end < start) end.setDate(end.getDate() + 1);
-    return end.toISOString();
   }
 
   // datetime-local inputs want/give "YYYY-MM-DDTHH:mm" in local time.
@@ -1643,8 +1636,18 @@ const MAX_BANNERS_PER_DAY = 3;
   document.getElementById('event-delete')?.addEventListener('click', () => editingId && performDelete(editingId));
   document.getElementById('event-delete-series')?.addEventListener('click', () => editingId && performDelete(editingId, true));
 
-  document.getElementById('detail-edit-btn')?.addEventListener('click', () => {
-    if (detailEvent) openModal('edit', detailEvent);
+  // Edits the admin copy of the event: one clicked before the admin data
+  // loaded only has the public fields, and saving that would wipe its capacity.
+  document.getElementById('detail-edit-btn')?.addEventListener('click', async () => {
+    if (!detailEvent) return;
+    const id = detailEvent.id;
+    await adminEventsReady;
+    const full = cachedAllEvents.find((e) => e.id === id);
+    if (!full) {
+      alert("This event's details haven't finished loading — reload the page and try again.");
+      return;
+    }
+    openModal('edit', full);
   });
   document.getElementById('detail-delete-btn')?.addEventListener('click', () => {
     if (detailEvent) performDelete(detailEvent.id);
@@ -1996,14 +1999,17 @@ const MAX_BANNERS_PER_DAY = 3;
     adminModeActive = true;
     document.getElementById('add-event-btn')?.classList.remove('hidden');
 
-    const allEventsRes = await fetch('/api/admin/all-events', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    if (allEventsRes.ok) {
-      const { events } = await allEventsRes.json();
-      cachedAllEvents = events;
-      rerenderWithMergedEvents(events);
-    }
+    adminEventsReady = (async () => {
+      const allEventsRes = await fetch('/api/admin/all-events', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (allEventsRes.ok) {
+        const { events } = await allEventsRes.json();
+        cachedAllEvents = events;
+        rerenderWithMergedEvents(events);
+      }
+    })().catch(() => undefined);
+    await adminEventsReady;
   }
 
   fitBannerLabels();

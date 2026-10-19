@@ -82,7 +82,11 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
       'id, title, description, location, color, event_type, start_time, end_time, google_event_id, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity, updated_at'
     )
     .eq('visibility', visibility)
-    .gte('start_time', timeMin);
+    // The same window Google was asked for: a linked row past it would look
+    // deleted on Google's side (and be deleted here), and an unlinked one
+    // would be pushed before it's due.
+    .gte('start_time', timeMin)
+    .lte('start_time', timeMax);
 
   if (rowsError) throw new Error(`Failed to load existing ${visibility} events: ${rowsError.message}`);
 
