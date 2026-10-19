@@ -10,6 +10,7 @@
 - **Hosting**: Netlify (see `netlify.toml`, `netlify/functions/`)
 - **Language**: TypeScript
 - **Other**: `qrcode` (check-in QR generation)
+- **Testing**: Vitest (unit), Playwright (end-to-end, using the installed Edge)
 - **Node**: >=22.12.0
 
 ## Commands
@@ -20,6 +21,7 @@
 | `npm run build` | Build production site to `./dist/` |
 | `npm run preview` | Preview a production build locally |
 | `npm run astro ...` | Run Astro CLI commands (e.g. `astro check`) |
+| `npm test` / `npm run test:unit` / `npm run test:e2e` | Unit tests (Vitest), end-to-end tests (Playwright in Edge), or both; see tests/CONTEXT.md |
 
 ## File Tree
 
@@ -51,6 +53,7 @@
 │   │   ├── duplicateFlag.ts / duplicateSubmissions.ts  # Auto-detect double-submitted sign-ups/check-ins → Recycling Bin
 │   │   ├── editLock.ts                  # Admin edit-lock (prevents concurrent edits)
 │   │   ├── email.ts                     # Transactional email sending
+│   │   ├── eventTimes.ts                # Event end-time rules (an end before the start is the next day), pure
 │   │   ├── errorDialog.ts               # Browser-only copyable error modal (sync/save failures)
 │   │   ├── env.ts                       # Env var access/validation
 │   │   ├── communityGuidelines.ts       # Community guidelines event registrants agree to; split into FAQ-style items for confirmations
@@ -67,14 +70,16 @@
 │   │   ├── siteBanner.ts                # Site-wide announcement banner
 │   │   ├── siteSettings.ts              # Site settings persistence
 │   │   ├── supabase.ts / supabaseBrowser.ts  # Supabase clients (server/browser)
+│   │   ├── testMode.ts                  # Dev-server-only switches the e2e suite uses (email sink, Google off, no quotas)
 │   └── pages/
 │       ├── index.astro, about.astro, contact.astro, contact/confirmation.astro, privacy-policy.astro, calendar.astro
 │       ├── register.astro, register/events.astro, register/confirmation.astro
 │       ├── check-in.astro, check-in/[eventId].astro, check-in/confirmation.astro
 │       ├── admin.astro, admin/analytics.astro, admin/checkin-qr.astro, admin/inbox.astro
 │       └── api/
-│           ├── banner.ts, faqs.ts, homepage-content.ts, settings.ts, submit-checkin.ts, submit-intake.ts
+│           ├── banner.ts, faqs.ts, homepage-content.ts, settings.ts, submit-checkin.ts, submit-intake.ts, test-mode.ts (dev-only)
 │           └── admin/                    # Admin-only API routes (events, signups, sync, lock, uploads, FAQs, homepage content, inbox)
+├── tests/                               # Vitest unit tests (tests/unit) + Playwright e2e tests (tests/e2e); see tests/CONTEXT.md
 └── docs/ai-context/                     # This Tier 1 documentation set
 ```
 

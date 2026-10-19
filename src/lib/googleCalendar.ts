@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from './env';
 import { supabase } from './supabase';
+import { googleDisabled } from './testMode';
 
 // Google requires an explicit timeZone alongside dateTime for recurring
 // events (it won't infer one from a bare "Z" UTC offset the way it does for
@@ -201,6 +202,7 @@ export class GoogleAuthExpiredError extends Error {
 // rejected as expired/revoked, so one dead token (e.g. a second admin who
 // hasn't signed in lately) can't take the whole calendar sync down with it.
 export async function getGoogleAccessToken(): Promise<string> {
+  if (googleDisabled()) throw new GoogleNotConnectedError();
   const { data: rows, error } = await supabase
     .from('admin_google_tokens')
     .select('email, refresh_token')

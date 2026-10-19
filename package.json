@@ -9,7 +9,11 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "test": "vitest run && playwright test",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report tests/e2e/.output/report"
   },
   "dependencies": {
     "@astrojs/netlify": "^8.2.5",
@@ -26,7 +30,9 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@playwright/test": "^1.64.1",
     "@types/qrcode": "^1.5.6",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.7"
   }
 }

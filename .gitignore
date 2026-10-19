@@ -36,3 +36,6 @@ pnpm-debug.log*
 # Local env overrides
 .env.local
 .env.*.local
+
+# Test runs (Playwright results, report, and the e2e email sink)
+tests/e2e/.output/

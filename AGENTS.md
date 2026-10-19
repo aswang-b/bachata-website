@@ -18,6 +18,10 @@ Manage the background server with `astro dev stop`, `astro dev status`, and `ast
 
 This folder is synced by OneDrive, which can make the dev server miss file edits and serve stale pages/scripts. If a change doesn't show up, restart the dev server (`astro dev stop`, then `astro dev --background`) before debugging.
 
+## Testing
+
+Run `npm test` (unit tests, then the end-to-end suite) before pushing, and add a test for every bug fixed. The e2e suite runs against the shared live database with emails, Google Calendar and usage quotas switched off for its own dev server; see [tests/CONTEXT.md](tests/CONTEXT.md) for how it stays safe and what each test guards.
+
 ## Documentation
 
 Full documentation: https://docs.astro.build

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { usageCountersDisabled } from './testMode';
 
 /**
  * Atomically checks + increments today's usage counter for a paid API.
@@ -8,6 +9,7 @@ import { supabase } from './supabase';
  * bug shouldn't be the reason a feature stops working.
  */
 export async function checkAndIncrementUsage(api: string, dailyCap: number): Promise<boolean> {
+  if (usageCountersDisabled()) return true;
   const today = new Date().toISOString().slice(0, 10);
 
   const { data, error } = await supabase.rpc('increment_api_usage', {

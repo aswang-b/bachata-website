@@ -1,5 +1,6 @@
 import { env } from './env';
 import { getNotificationRecipients } from './notificationSettings';
+import { emailSinkPath, recordSunkEmail } from './testMode';
 
 const RESEND_API_KEY = env('RESEND_API_KEY');
 const NOTIFICATION_EMAILS_ENV = env('NOTIFICATION_EMAILS');
@@ -12,6 +13,10 @@ export async function sendEmail(
   html: string,
   options: { bcc?: string[] } = {}
 ): Promise<void> {
+  if (emailSinkPath()) {
+    recordSunkEmail({ to, ...(options.bcc && options.bcc.length > 0 ? { bcc: options.bcc } : {}), subject, html });
+    return;
+  }
   if (!RESEND_API_KEY) {
     console.warn('Skipping email: RESEND_API_KEY not set.');
     return;
