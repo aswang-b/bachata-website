@@ -107,11 +107,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'nu
               submission.dancers.map((d, i) => (
                 <div class="flex flex-col">
                   <span class="font-semibold">{isEvent ? 'Attendee' : 'Dancer'} {i + 1}: {d.firstName} {d.lastName}</span>
-                  <span class="text-ink/70">
-                    {d.role}
-                    {d.phone ? ` · ${d.phone}` : ''}
-                    {d.email ? ` · ${d.email}` : ''}
-                  </span>
+                  <span class="text-ink/70">{[d.role, d.phone, d.email].filter(Boolean).join(' · ')}</span>
                 </div>
               ))
             ) : (
