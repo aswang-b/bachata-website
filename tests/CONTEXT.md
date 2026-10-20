@@ -26,7 +26,7 @@ Pure logic plus server modules with Supabase replaced by `fakeSupabase.ts` (an i
 | `registration.test.ts` | Class-selection parsing/labels, closed classes by key, free vs paid events, itemized receipt, confirmation email (FAQs vs guidelines), check-in tokens |
 | `scheduling.test.ts` | Midnight end times (`src/lib/eventTimes.ts`), tiered pricing, recurrence rules, color mapping |
 | `content.test.ts` | Guidelines → FAQ-style sections, rich-text sanitizing |
-| `codebaseRules.test.ts` | Source-level rules: every admin route calls `requireAdmin`, every `signOut` is local, no events upsert in the sync, forms don't lock their submit button, migrations numbered without gaps |
+| `codebaseRules.test.ts` | Source-level rules: every admin route calls `requireAdmin`, every `signOut` is local, no events upsert in the sync, forms don't lock their submit button, migrations numbered without gaps, every new table granted to `service_role` (Supabase stopped doing it automatically) |
 
 ## End-to-end tests (`tests/e2e`)
 

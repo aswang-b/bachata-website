@@ -49,6 +49,18 @@ describe('codebase rules', () => {
     expect(numbers).toEqual(numbers.map((_, i) => i + 1));
   });
 
+  it('every migration that creates a table grants it to service_role (Supabase no longer does it automatically)', () => {
+    const missing: string[] = [];
+    for (const name of readdirSync(join(root, 'supabase/migrations')).filter((n) => n.endsWith('.sql') && Number(n.slice(0, 4)) >= 45)) {
+      const sql = read(`supabase/migrations/${name}`);
+      for (const [, table] of sql.matchAll(/create table (?:if not exists )?(?:public\.)?([a-z_]+)/gi)) {
+        const granted = new RegExp(`grant [a-z, ]+ on (?:table )?(?:public\\.)?${table}\\b[^;]* to [^;]*service_role`, 'i').test(sql);
+        if (!granted) missing.push(`${name}: ${table}`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
   it('test-mode switches are only honored by the dev server', () => {
     expect(read('src/lib/testMode.ts')).toMatch(/env\?\.DEV/);
   });
