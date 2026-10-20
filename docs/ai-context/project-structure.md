@@ -7,7 +7,7 @@
 - **Framework**: Astro 7 (SSR, `@astrojs/netlify` adapter)
 - **Styling**: Tailwind CSS 4 (`@tailwindcss/vite`)
 - **Database/Auth**: Supabase (`@supabase/supabase-js`)
-- **Hosting**: Netlify (see `netlify.toml`, `netlify/functions/`)
+- **Hosting**: Netlify (see `netlify.toml`, `netlify/functions/`). In `astro dev`, the adapter's local edge-functions server is off (`devFeatures.edgeFunctions: false` in `astro.config.mjs`): the site has no edge functions.
 - **Language**: TypeScript
 - **Other**: `qrcode` (check-in QR generation)
 - **Testing**: Vitest (unit), Playwright (end-to-end, using the installed Edge)
@@ -86,4 +86,9 @@
 
 ## Domain Overview
 
-The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (events and classes are edited in a sectioned editor on `/calendar`: a section menu that is a list on desktop and a sideways-scrolling chip row on phones) (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, attendance matching/reconciliation, Google Calendar sync, site settings/banner, an editable FAQ list, editable homepage copy (including admin-reorderable offering cards and per-class overrides of the lesson-overview section), and an inbox. Check-in supports a public picker plus admin QR codes for one or several classes, optionally registering drop-in attendees. Registration shows an itemized subtotal (also on the confirmation page/email, optionally BCC'd to admins), and double-submitted sign-ups/check-ins are auto-moved to the Recycling Bin. Data is stored in Supabase (see `supabase/migrations/`); the admin area uses edit-locks to avoid concurrent-edit conflicts.
+The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, attendance matching/reconciliation, Google Calendar sync, site settings/banner, an editable FAQ list, community guidelines, editable homepage copy (including admin-reorderable offering cards and per-class overrides of the lesson-overview section), and an inbox.
+
+- **Event editor**: classes and events are edited in a sectioned editor on `/calendar`. Its section menu is a list on desktop and a sideways-scrolling chip row on phones. It offers any color (a picker plus the five most recently used colors), a single capacity cap or separate Leader/Follower caps for classes, and tiered pricing. Calendar banner text shrinks to fit, and all banners share one size.
+- **Registration**: shows an itemized subtotal (also on the confirmation page and email, optionally BCC'd to admins) and enforces capacity, per role where capped. Event registrants agree to the community guidelines, which event confirmations list FAQ-style. Double-submitted sign-ups and check-ins are moved to the Recycling Bin automatically.
+- **Check-in**: a public picker, plus admin QR codes for one or several classes that can optionally register drop-in attendees.
+- **Data**: stored in Supabase (see `supabase/migrations/`; each table is granted to `service_role` explicitly). The admin area uses edit-locks to avoid concurrent-edit conflicts.
