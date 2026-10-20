@@ -8,7 +8,8 @@ import { db, seedEvent, type Seeded } from './support/db';
 let series: Seeded;
 
 test.beforeAll(async () => {
-  series = await seedEvent({ name: 'Bachata Foundations Intermediate', occurrences: 2 });
+  // A day of its own: other specs' classes share the early dates, and a crowded day hides banners behind "+ more".
+  series = await seedEvent({ name: 'Bachata Foundations Intermediate', occurrences: 2, dayOffset: 30 });
 });
 
 for (const width of [1280, 1100, 1000, 900]) {

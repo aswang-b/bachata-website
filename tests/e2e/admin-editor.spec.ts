@@ -144,6 +144,31 @@ test('phone: the chip row scrolls on its own row, and a chip opens and scrolls t
   await page.screenshot({ path: 'tests/e2e/.output/editor-phone-pricing.png' });
 });
 
+test('any color can be picked, is saved as picked, and becomes a quick pick', async ({ page, adminPage }) => {
+  void adminPage;
+  await openEditor(page, klass);
+  // Five quick picks, the event's current color among them and marked.
+  await expect(page.locator('#event-recent-colors .event-color-btn')).toHaveCount(5);
+  await page.locator('#event-color-picker').fill('#12abef');
+  await save(page);
+  const { data } = await db.from('events').select('color').eq('id', klass.ids[0]).single();
+  expect(data!.color).toBe('#12abef');
+
+  // The calendar draws it, and the editor now offers it first.
+  await openEditor(page, klass);
+  const banner = page.locator('.event-banner-label', { hasText: klass.title }).first();
+  await expect(banner).toHaveCSS('background-color', 'rgb(18, 171, 239)');
+  await expect(page.locator('#event-recent-colors .event-color-btn').first()).toHaveAttribute('data-color', '#12abef');
+  await expect(page.locator('#event-recent-colors .event-color-btn').first()).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#event-modal > div').screenshot({ path: 'tests/e2e/.output/editor-colors.png' });
+
+  // A quick pick sets the color too.
+  const second = page.locator('#event-recent-colors .event-color-btn').nth(1);
+  const secondColor = await second.getAttribute('data-color');
+  await second.click();
+  await expect(page.locator('#event-color-picker')).toHaveValue(secondColor!);
+});
+
 test('the admin calendar feed labels spots, marking ones hidden from the public', async ({ request, admin }) => {
   const all = await (await request.get('/api/admin/all-events', { headers: bearer(admin) })).json();
   const row = all.events.find((e: { id: string }) => e.id === event.ids[0]);

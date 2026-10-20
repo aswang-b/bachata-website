@@ -5,6 +5,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
 import { getActivePrice, priceTierLabel } from '../lib/pricing';
 import { getSpotsByOccurrence, publicSpotsLabel, type SpotsInfo } from '../lib/capacity';
+import { eventBannerStyle, eventDotStyle, eventTextStyle } from '../lib/eventColors';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -97,28 +98,6 @@ if (recurringIds.length > 0) {
   }
 }
 
-// 'accent' and 'yellow' are kept here (though no longer offered in the admin
-// picker) so existing events with those legacy colors still render correctly.
-const dotColorClasses: Record<string, string> = {
-  green: 'bg-green-500',
-  blue: 'bg-blue-500',
-  red: 'bg-red-500',
-  orange: 'bg-orange-500',
-  purple: 'bg-purple-400',
-  accent: 'bg-accent',
-  yellow: 'bg-yellow-500',
-};
-const textColorClasses: Record<string, string> = {
-  green: 'text-green-600',
-  blue: 'text-blue-600',
-  red: 'text-red-600',
-  orange: 'text-orange-600',
-  purple: 'text-purple-600',
-  accent: 'text-accent',
-  yellow: 'text-yellow-600',
-};
-const dotClass = (color: string | null) => dotColorClasses[color ?? 'accent'] ?? 'bg-accent';
-const textClass = (color: string | null) => textColorClasses[color ?? 'accent'] ?? 'text-accent';
 
 function locationHref(location: string): string {
   if (/^https?:\/\//i.test(location)) return location;
@@ -281,17 +260,18 @@ const MAX_BANNERS_PER_DAY = 3;
                         <div
                           class={
                             isCompact
-                              ? `truncate rounded px-1 py-0.5 text-[10px] font-semibold text-white ${dotClass(event.color)}`
-                              : `event-banner-label whitespace-normal rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug text-white ${dotClass(event.color)}`
+                              ? `truncate rounded px-1 py-0.5 text-[10px] font-semibold`
+                              : `event-banner-label whitespace-normal rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug`
                           }
+                          style={eventBannerStyle(event.color)}
                         >
                           {/* The space after the pill lets the title wrap below it in a narrow cell. */}
                           {weekNumber && <><span class="whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk {weekNumber}</span>{' '}</>}
                           {event.title}
                         </div>
                         <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
-                          <p class={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider ${textClass(event.color)}`}>
-                            <span class={`h-2 w-2 rounded-full ${dotClass(event.color)}`}></span>
+                          <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider" style={eventTextStyle(event.color)}>
+                            <span class="h-2 w-2 rounded-full" style={eventDotStyle(event.color)}></span>
                             {event.event_type === 'event' ? 'Event' : 'Class'}
                             {weekNumber && <span class="font-bold text-ink">&middot; Week {weekNumber}</span>}
                           </p>
@@ -326,7 +306,7 @@ const MAX_BANNERS_PER_DAY = 3;
                   </div>
                   <div class="day-dots flex flex-1 cursor-pointer flex-wrap content-start items-center justify-center gap-1 sm:hidden">
                     {dayEvents.slice(0, MAX_BANNERS_PER_DAY).map((event) => (
-                      <span class={`h-2 w-2 rounded-full ${dotClass(event.color)}`}></span>
+                      <span class="h-2 w-2 rounded-full" style={eventDotStyle(event.color)}></span>
                     ))}
                     {dayEvents.length > MAX_BANNERS_PER_DAY && (
                       <span class="text-[9px] font-semibold text-muted">+{dayEvents.length - MAX_BANNERS_PER_DAY}</span>
@@ -410,7 +390,7 @@ const MAX_BANNERS_PER_DAY = 3;
 
               <div class="flex flex-1 flex-col gap-1 overflow-hidden">
                 <div class="flex items-center gap-2">
-                  <span class={`h-2 w-2 shrink-0 rounded-full ${dotClass(event.color)}`} />
+                  <span class="h-2 w-2 shrink-0 rounded-full" style={eventDotStyle(event.color)} />
                   <p class="font-display font-bold text-ink">
                     {event.title}
                     {weekNumber && <span class="ml-1 text-xs font-semibold text-muted">&middot; Week {weekNumber}</span>}
@@ -497,13 +477,19 @@ const MAX_BANNERS_PER_DAY = 3;
               Event
             </button>
           </div>
-          <div class="flex items-center gap-3">
+          {/* Any color from the picker, plus the five most recently used for one tap. */}
+          <div class="flex flex-wrap items-center gap-3">
             <span class="text-sm text-muted">Color</span>
-            <button type="button" data-color="green" aria-label="Green" class="event-color-btn h-7 w-7 rounded-full bg-green-500"></button>
-            <button type="button" data-color="blue" aria-label="Blue" class="event-color-btn h-7 w-7 rounded-full bg-blue-500"></button>
-            <button type="button" data-color="red" aria-label="Red" class="event-color-btn h-7 w-7 rounded-full bg-red-500"></button>
-            <button type="button" data-color="orange" aria-label="Orange" class="event-color-btn h-7 w-7 rounded-full bg-orange-500"></button>
-            <button type="button" data-color="purple" aria-label="Purple" class="event-color-btn h-7 w-7 rounded-full bg-purple-400"></button>
+            <label class="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[conic-gradient(#ef4444,#eab308,#22c55e,#06b6d4,#3b82f6,#c084fc,#ef4444)] p-[3px]" title="Pick any color">
+              <input
+                id="event-color-picker"
+                type="color"
+                aria-label="Pick any color"
+                class="h-full w-full cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0 [&::-moz-color-swatch]:rounded-full [&::-moz-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-2 [&::-webkit-color-swatch]:border-bg"
+              />
+            </label>
+            <span class="h-6 w-px bg-border" aria-hidden="true"></span>
+            <div id="event-recent-colors" class="flex items-center gap-2" role="group" aria-label="Recently used colors"></div>
           </div>
         </div>
         <p id="event-series-banner" class="hidden rounded-xl border border-border bg-surface px-3 py-2 text-xs text-ink/80"></p>
@@ -860,6 +846,7 @@ const MAX_BANNERS_PER_DAY = 3;
   import { getActivePrice, priceTierLabel } from '../lib/pricing';
   import { openImageCropper } from '../lib/imageCropper';
   import { endAfterStart } from '../lib/eventTimes';
+  import { DEFAULT_QUICK_COLORS, eventBannerStyle, eventColorHex, eventDotStyle, eventTextStyle, recentEventColors } from '../lib/eventColors';
 
   // --- Calendar / List view toggle ---
   const viewToggleButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.view-toggle-btn'));
@@ -940,11 +927,13 @@ const MAX_BANNERS_PER_DAY = 3;
     // something is full); always for admins, with spots_admin_only when hidden.
     spots_label?: string | null;
     spots_admin_only?: boolean;
+    // Admin feed only: when the event was last edited (for the recent-color picks).
+    updated_at?: string;
     weekNumber?: number | null;
   }
 
   let selectedType: 'class' | 'event' = 'class';
-  let selectedColor = 'green';
+  let selectedColor: string = 'green';
   let editingId: string | null = null;
   let adminModeActive = false;
   let detailEvent: SiteEvent | null = null;
@@ -956,27 +945,6 @@ const MAX_BANNERS_PER_DAY = 3;
   let editingRecurringId: string | null = null;
   let originalPattern: { byDay: string[]; count: number; interval: number } | null = null;
 
-  // 'accent' and 'yellow' are legacy colors kept only so older events still render correctly.
-  const dotColorClasses: Record<string, string> = {
-    green: 'bg-green-500',
-    blue: 'bg-blue-500',
-    red: 'bg-red-500',
-    orange: 'bg-orange-500',
-    purple: 'bg-purple-400',
-    accent: 'bg-accent',
-    yellow: 'bg-yellow-500',
-  };
-  const textColorClasses: Record<string, string> = {
-    green: 'text-green-600',
-    blue: 'text-blue-600',
-    red: 'text-red-600',
-    orange: 'text-orange-600',
-    purple: 'text-purple-600',
-    accent: 'text-accent',
-    yellow: 'text-yellow-600',
-  };
-  const dotClass = (c: string) => dotColorClasses[c] ?? 'bg-accent';
-  const textClass = (c: string) => textColorClasses[c] ?? 'text-accent';
 
   function locationHref(location: string): string {
     if (/^https?:\/\//i.test(location)) return location;
@@ -1145,7 +1113,8 @@ const MAX_BANNERS_PER_DAY = 3;
   const deleteBtn = document.getElementById('event-delete')!;
   const deleteSeriesBtn = document.getElementById('event-delete-series')!;
   const typeButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.event-type-btn'));
-  const colorButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.event-color-btn'));
+  const colorPicker = document.getElementById('event-color-picker') as HTMLInputElement;
+  const recentColorsRow = document.getElementById('event-recent-colors')!;
   const syncIndicator = document.getElementById('sync-indicator')!;
   const syncIndicatorText = document.getElementById('sync-indicator-text')!;
 
@@ -1247,13 +1216,30 @@ const MAX_BANNERS_PER_DAY = 3;
     }
   }
 
+  // The picker shows the event's color; the quick picks are the five colors
+  // most recently used on events (newest first), with the current one ringed.
   function renderColorButtons() {
-    for (const btn of colorButtons) {
-      const active = btn.dataset.color === selectedColor;
-      btn.classList.toggle('ring-2', active);
-      btn.classList.toggle('ring-offset-2', active);
-      btn.classList.toggle('ring-ink', active);
-    }
+    const current = eventColorHex(selectedColor);
+    colorPicker.value = current;
+    const quick = cachedAllEvents.length > 0 ? recentEventColors(cachedAllEvents) : DEFAULT_QUICK_COLORS;
+    recentColorsRow.replaceChildren(
+      ...quick.map((hex) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.color = hex;
+        btn.className = 'event-color-btn h-7 w-7 rounded-full';
+        btn.style.backgroundColor = hex;
+        btn.setAttribute('aria-label', `Use ${hex}`);
+        btn.title = hex;
+        const active = hex === current;
+        btn.setAttribute('aria-pressed', String(active));
+        btn.classList.toggle('ring-2', active);
+        btn.classList.toggle('ring-offset-2', active);
+        btn.classList.toggle('ring-offset-bg', active);
+        btn.classList.toggle('ring-ink', active);
+        return btn;
+      })
+    );
   }
 
   function renderRepeatDayButtons() {
@@ -1301,8 +1287,9 @@ const MAX_BANNERS_PER_DAY = 3;
     detailContent.classList.add('flex');
 
     const lock = event.visibility === 'private' ? '🔒 ' : '';
-    detailType.className = `flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${textClass(event.color)}`;
-    detailType.innerHTML = `<span class="h-2 w-2 rounded-full ${dotClass(event.color)}"></span>${event.event_type === 'event' ? 'Event' : 'Class'}${event.weekNumber ? `<span class="font-bold text-ink">&middot; Week ${event.weekNumber}</span>` : ''}`;
+    detailType.className = 'flex items-center gap-2 text-xs font-bold uppercase tracking-wider';
+    detailType.style.cssText = eventTextStyle(event.color);
+    detailType.innerHTML = `<span class="h-2 w-2 rounded-full" style="${eventDotStyle(event.color)}"></span>${event.event_type === 'event' ? 'Event' : 'Class'}${event.weekNumber ? `<span class="font-bold text-ink">&middot; Week ${event.weekNumber}</span>` : ''}`;
     detailTitle.textContent = `${lock}${event.title}`;
     detailDatetime.textContent = `${dateFormatter.format(new Date(event.start_time))} · ${timeFormatter.format(new Date(event.start_time))}–${timeFormatter.format(new Date(event.end_time))}`;
     detailDescription.innerHTML = event.description ?? '';
@@ -1391,7 +1378,8 @@ const MAX_BANNERS_PER_DAY = 3;
     imageError.classList.add('hidden');
     updateImagePreview();
     selectedType = event?.event_type === 'event' ? 'event' : 'class';
-    selectedColor = event?.color ?? 'green';
+    // A new event starts with the most recently used color.
+    selectedColor = event?.color ?? (cachedAllEvents.length > 0 ? recentEventColors(cachedAllEvents)[0] : DEFAULT_QUICK_COLORS[0]);
     privateInput.checked = event?.visibility === 'private';
     capacityInput.value = event?.capacity != null ? String(event.capacity) : '';
     showCapacityInput.checked = event?.show_capacity ?? false;
@@ -1717,12 +1705,16 @@ const MAX_BANNERS_PER_DAY = 3;
     })
   );
 
-  colorButtons.forEach((btn) =>
-    btn.addEventListener('click', () => {
-      selectedColor = btn.dataset.color as typeof selectedColor;
-      renderColorButtons();
-    })
-  );
+  recentColorsRow.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.event-color-btn');
+    if (!btn?.dataset.color) return;
+    selectedColor = btn.dataset.color;
+    renderColorButtons();
+  });
+  colorPicker.addEventListener('input', () => {
+    selectedColor = colorPicker.value.toLowerCase();
+    renderColorButtons();
+  });
 
   document.querySelectorAll<HTMLButtonElement>('.description-format-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1970,17 +1962,17 @@ const MAX_BANNERS_PER_DAY = 3;
 
   function buildBannerHTML(event: SiteEvent, isCompact: boolean): string {
     const bannerClass = isCompact
-      ? `truncate rounded px-1 py-0.5 text-[10px] font-semibold text-white ${dotClass(event.color)}`
-      : `event-banner-label whitespace-normal rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug text-white ${dotClass(event.color)}`;
+      ? `truncate rounded px-1 py-0.5 text-[10px] font-semibold`
+      : `event-banner-label whitespace-normal rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug`;
     const weekTag = event.weekNumber
       ? `<span class="whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk ${event.weekNumber}</span> `
       : '';
     return `
       <div class="event-banner group relative cursor-pointer" data-event='${JSON.stringify(event).replace(/'/g, '&#39;')}'>
-        <div class="${bannerClass}">${weekTag}${event.visibility === 'private' ? '🔒 ' : ''}${escapeHtml(event.title)}</div>
+        <div class="${bannerClass}" style="${eventBannerStyle(event.color)}">${weekTag}${event.visibility === 'private' ? '🔒 ' : ''}${escapeHtml(event.title)}</div>
         <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
-          <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider ${textClass(event.color)}">
-            <span class="h-2 w-2 rounded-full ${dotClass(event.color)}"></span>
+          <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider" style="${eventTextStyle(event.color)}">
+            <span class="h-2 w-2 rounded-full" style="${eventDotStyle(event.color)}"></span>
             ${event.event_type === 'event' ? 'Event' : 'Class'}
             ${event.weekNumber ? `<span class="font-bold text-ink">&middot; Week ${event.weekNumber}</span>` : ''}
           </p>
@@ -2032,7 +2024,7 @@ const MAX_BANNERS_PER_DAY = 3;
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'flex items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-bg';
-      item.innerHTML = `<span class="h-2.5 w-2.5 shrink-0 rounded-full ${dotClass(event.color)}"></span><span class="flex-1 truncate font-semibold text-ink">${escapeHtml(event.title)}</span><span class="shrink-0 text-xs text-muted">${timeFormatter.format(new Date(event.start_time))}</span>`;
+      item.innerHTML = `<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="${eventDotStyle(event.color)}"></span><span class="flex-1 truncate font-semibold text-ink">${escapeHtml(event.title)}</span><span class="shrink-0 text-xs text-muted">${timeFormatter.format(new Date(event.start_time))}</span>`;
       item.addEventListener('click', () => {
         showEventDetail(event);
         closeDayExpandPanel();
@@ -2112,7 +2104,7 @@ const MAX_BANNERS_PER_DAY = 3;
         dotsContainer.innerHTML =
           dayEvents
             .slice(0, MAX)
-            .map((e) => `<span class="h-2 w-2 rounded-full ${dotClass(e.color)}"></span>`)
+            .map((e) => `<span class="h-2 w-2 rounded-full" style="${eventDotStyle(e.color)}"></span>`)
             .join('') + (dayEvents.length > MAX ? `<span class="text-[9px] font-semibold text-muted">+${dayEvents.length - MAX}</span>` : '');
       }
     });

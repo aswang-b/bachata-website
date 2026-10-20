@@ -13,12 +13,12 @@ import { runCalendarSync, syncErrorText } from '../../../lib/calendarSync';
 import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
 import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
 import { capacityColumns } from '../../../lib/capacity';
+import { isValidEventColor } from '../../../lib/eventColors';
 
 export const prerender = false;
 
 // Includes legacy colors ('accent', 'yellow') so existing data of those
 // colors keeps validating even though the admin picker no longer offers them.
-const ALLOWED_COLORS = ['green', 'blue', 'red', 'orange', 'purple', 'accent', 'yellow'];
 
 const handlePost: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
@@ -60,7 +60,8 @@ const handlePost: APIRoute = async ({ request }) => {
   }
 
   const rowVisibility = visibility === 'private' ? 'private' : 'public';
-  const rowColor = ALLOWED_COLORS.includes(color) ? color : 'accent';
+  // A named color or any "#rrggbb" from the color picker.
+  const rowColor = isValidEventColor(color) ? color.toLowerCase() : 'accent';
   const rowEventType = eventType === 'event' ? 'event' : 'class';
   const toPrice = (v: unknown) => (v === '' || v === null || v === undefined ? null : Number(v));
   const toTimestamp = (v: unknown) => (v === '' || v === null || v === undefined ? null : String(v));
@@ -115,6 +116,8 @@ const handlePost: APIRoute = async ({ request }) => {
         .from('events')
         .update({
           event_type: rowEventType,
+          // The sync can only give the new rows Google's closest color; keep the picked one.
+          color: rowColor,
           price_whole_series: rowPriceWholeSeries,
           price_drop_in: rowPriceDropIn,
           price_student: rowPriceStudent,

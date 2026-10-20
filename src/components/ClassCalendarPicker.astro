@@ -89,6 +89,8 @@ const {
 </div>
 
 <script>
+  import { eventDotStyle } from '../lib/eventColors';
+
   interface ClassEvent {
     id: string;
     title: string;
@@ -112,7 +114,6 @@ const {
     const seriesChoiceEl = document.getElementById('picker-series-choice')!;
     const seriesRadios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="series_choice_radio"]'));
 
-    const dotClass: Record<string, string> = { green: 'bg-green-500', blue: 'bg-blue-500', accent: 'bg-accent', yellow: 'bg-yellow-500' };
 
     const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
     const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -162,7 +163,7 @@ const {
           'flex items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-left text-sm text-ink transition-colors hover:border-accent aria-pressed:border-accent aria-pressed:bg-surface';
         btn.dataset.eventId = event.id;
         btn.setAttribute('aria-pressed', 'false');
-        btn.innerHTML = `<span class="h-2 w-2 rounded-full ${dotClass[event.color] ?? dotClass.accent}" aria-hidden="true"></span>${event.title} — ${timeFormatter.format(new Date(event.start_time))}`;
+        btn.innerHTML = `<span class="h-2 w-2 rounded-full" style="${eventDotStyle(event.color)}" aria-hidden="true"></span>${event.title} — ${timeFormatter.format(new Date(event.start_time))}`;
         btn.addEventListener('click', () => {
           optionsEl.querySelectorAll('button').forEach((b) => {
             b.setAttribute('aria-pressed', 'false');
@@ -222,7 +223,8 @@ const {
           const uniqueColors = [...new Set(dayEvents.map((e) => e.color))];
           for (const color of uniqueColors) {
             const dot = document.createElement('span');
-            dot.className = `h-1 w-1 rounded-full ${dotClass[color] ?? dotClass.accent}`;
+            dot.className = 'h-1 w-1 rounded-full';
+            dot.style.cssText = eventDotStyle(color);
             dotsWrap.appendChild(dot);
           }
           cell.appendChild(dotsWrap);

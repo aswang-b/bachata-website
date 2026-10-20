@@ -151,6 +151,46 @@ describe('pushing to Google', () => {
   });
 });
 
+describe('custom (picked) colors', () => {
+  // '#00a0ff' is closest to Google's Peacock (colorId 7).
+  const picked = '#00a0ff';
+
+  it("isn't re-pushed while Google shows the picked color's closest match", async () => {
+    const { row, gEvent } = linkedPair('a', { color: picked, updated_at: new Date().toISOString() });
+    db.current.seed('events', [row]);
+    google.events.public = [{ ...gEvent, colorId: '7' }];
+    await runCalendarSync();
+    expect(google.updateCalendarEvent).not.toHaveBeenCalled();
+  });
+
+  it('survives pulling an edit made on Google to something else (e.g. the title)', async () => {
+    const { row, gEvent } = linkedPair('a', { color: picked });
+    db.current.seed('events', [row]);
+    google.events.public = [{ ...gEvent, colorId: '7', summary: 'Renamed on Google', updated: new Date(Date.now() + 1000).toISOString() }];
+    await runCalendarSync();
+    expect(db.current.rows('events')[0]).toMatchObject({ title: 'Renamed on Google', color: picked });
+  });
+
+  it('gives way when the color itself was changed on Google', async () => {
+    const { row, gEvent } = linkedPair('a', { color: picked });
+    db.current.seed('events', [row]);
+    google.events.public = [{ ...gEvent, colorId: '11', updated: new Date(Date.now() + 1000).toISOString() }];
+    await runCalendarSync();
+    expect(db.current.rows('events')[0].color).toBe('red');
+  });
+
+  it('carries over onto classes Google re-creates for a series', async () => {
+    const { row } = linkedPair('a', { color: picked, google_recurring_event_id: 'R' });
+    db.current.seed('events', [row]);
+    google.events.public = [
+      { id: 'g-a', summary: row.title, location: row.location, colorId: '7', start: { dateTime: row.start_time }, end: { dateTime: row.end_time }, recurringEventId: 'R' },
+      { id: 'g-new', summary: row.title, colorId: '7', recurringEventId: 'R', start: { dateTime: at(14) }, end: { dateTime: at(14, 20) } },
+    ];
+    await runCalendarSync();
+    expect(db.current.rows('events').find((r) => r.google_event_id === 'g-new')!.color).toBe(picked);
+  });
+});
+
 describe('deletions and the sync window', () => {
   it('deletes a linked row whose Google event is gone', async () => {
     const { row } = linkedPair('a');

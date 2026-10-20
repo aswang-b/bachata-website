@@ -54,6 +54,7 @@
 │   │   ├── editLock.ts                  # Admin edit-lock (prevents concurrent edits)
 │   │   ├── email.ts                     # Transactional email sending
 │   │   ├── eventTimes.ts                # Event end-time rules (an end before the start is the next day), pure
+│   │   ├── eventColors.ts               # Event colors (legacy names or picked #rrggbb): styles, readable text, closest Google color, recent picks
 │   │   ├── errorDialog.ts               # Browser-only copyable error modal (sync/save failures)
 │   │   ├── env.ts                       # Env var access/validation
 │   │   ├── communityGuidelines.ts       # Community guidelines event registrants agree to; split into FAQ-style items for confirmations

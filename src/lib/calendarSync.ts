@@ -5,6 +5,7 @@ import {
   insertCalendarEvent,
   updateCalendarEvent,
   googleColorIdToSiteColor,
+  siteColorToGoogleColorId,
   type EventVisibility,
   type GoogleCalendarEvent,
 } from './googleCalendar';
@@ -56,8 +57,15 @@ function differsFromGoogle(
     (row.location ?? null) !== (gEvent.location ?? null) ||
     Date.parse(row.start_time) !== Date.parse(startTime) ||
     Date.parse(row.end_time) !== Date.parse(endTime) ||
-    (row.color ?? 'accent') !== googleColorIdToSiteColor(gEvent.colorId)
+    !sameColorOnGoogle(row.color, gEvent.colorId)
   );
+}
+
+// Google only has 11 colors, so a picked "#rrggbb" color counts as unchanged
+// while Google shows its closest one (compared as the site color each maps to,
+// so e.g. Sage and Basil both count as green, as before).
+function sameColorOnGoogle(siteColor: string | null, googleColorId: string | undefined): boolean {
+  return googleColorIdToSiteColor(siteColorToGoogleColorId(siteColor ?? 'accent')) === googleColorIdToSiteColor(googleColorId);
 }
 
 export interface SyncResult {
@@ -103,6 +111,7 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
     string,
     {
       eventType: string;
+      color: string | null;
       priceWholeSeries: number | null;
       priceDropIn: number | null;
       priceStudent: number | null;
@@ -129,6 +138,7 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
     if (r.google_recurring_event_id && !seriesMetaByRecurringId.has(r.google_recurring_event_id)) {
       seriesMetaByRecurringId.set(r.google_recurring_event_id, {
         eventType: r.event_type,
+        color: r.color,
         priceWholeSeries: r.price_whole_series,
         priceDropIn: r.price_drop_in,
         priceStudent: r.price_student,
@@ -195,7 +205,8 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
           description: gEvent.description ? sanitizeEventDescriptionHtml(gEvent.description) : null,
           location: gEvent.location ?? null,
           event_type: seriesMeta?.eventType ?? 'event',
-          color: googleColorIdToSiteColor(gEvent.colorId),
+          // A series's picked color carries over unless the color was changed on Google.
+          color: seriesMeta && sameColorOnGoogle(seriesMeta.color, gEvent.colorId) ? seriesMeta.color : googleColorIdToSiteColor(gEvent.colorId),
           visibility,
           start_time: startTime,
           end_time: endTime,
@@ -268,7 +279,8 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
           location: gEvent.location ?? null,
           start_time: startTime,
           end_time: endTime,
-          color: googleColorIdToSiteColor(gEvent.colorId),
+          // A picked color Google can only approximate stays as picked.
+          color: sameColorOnGoogle(existing.color, gEvent.colorId) ? existing.color : googleColorIdToSiteColor(gEvent.colorId),
         })
         .eq('id', existing.id);
       if (updateError) recordError(gEvent, updateError.message);

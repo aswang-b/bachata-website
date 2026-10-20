@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from './env';
 import { supabase } from './supabase';
 import { googleDisabled } from './testMode';
+import { nearestGoogleColorId } from './eventColors';
 
 // Google requires an explicit timeZone alongside dateTime for recurring
 // events (it won't infer one from a bare "Z" UTC offset the way it does for
@@ -111,7 +112,10 @@ const GOOGLE_TO_SITE_COLOR: Record<string, string> = {
   '5': 'yellow', // Banana
 };
 
+// A named color keeps its fixed mapping; a picked "#rrggbb" color goes to the
+// closest color Google Calendar offers.
 export function siteColorToGoogleColorId(color: string | null | undefined): string | undefined {
+  if (color && /^#[0-9a-f]{6}$/i.test(color)) return nearestGoogleColorId(color);
   return SITE_TO_GOOGLE_COLOR[color ?? 'accent'];
 }
 
