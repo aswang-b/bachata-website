@@ -179,3 +179,26 @@ test('a double-submitted sign-up goes to the Recycling Bin and shows the origina
   const { data: restored } = await db.from('intake_submissions').select('deleted_at').eq('id', dup.id).single();
   expect(restored!.deleted_at).toBeNull();
 });
+
+test('a blocked submit jumps to the first problem: a missing dancer detail, then the payment choice', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 700 });
+  await page.goto(`/register?series=${series.key}`);
+  await selectSeries(page, series.key);
+  // First name left empty; everything below the dancers left for later.
+  await page.locator('.dancer-block').first().locator('.dancer-role-btn[data-role="leader"]').click();
+  await page.locator('.dancer-block').first().locator('.dancer-phone').fill('6085550100');
+  await page.locator('form button[type="submit"]').scrollIntoViewIfNeeded();
+  await submitRegistration(page);
+
+  const firstName = page.locator('.dancer-block').first().locator('.dancer-first-name');
+  await expect(firstName).toBeFocused();
+  await expect(firstName).toBeInViewport();
+
+  // Dancer filled in: the next problem is the missing payment choice.
+  await fillDancer(page, 0, { first: 'JumpTest', role: 'leader' });
+  await page.locator('#dancers-value').evaluate(() => window.scrollTo(0, 0));
+  await submitRegistration(page);
+  await expect(page.locator('#payment-error')).toBeVisible();
+  await expect(page.locator('#payment-error')).toBeInViewport();
+  await expect(page).toHaveURL(/\/register\?/);
+});

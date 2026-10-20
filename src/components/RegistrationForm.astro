@@ -934,6 +934,30 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     });
   });
 
+  // After a blocked submit, scrolls to the first problem on the page (in page
+  // order). A missing dancer detail jumps to that dancer, with the cursor in
+  // the first empty field, rather than to the message under the dancer list.
+  function jumpToFirstError(dancerBlocks: HTMLElement[], dancers: Dancer[]) {
+    const firstError = Array.from(document.querySelectorAll<HTMLElement>('form p.text-red-600')).find(
+      (el) => !el.classList.contains('hidden') && el.offsetParent !== null
+    );
+    if (!firstError) return;
+
+    if (firstError.id === 'dancers-error') {
+      const index = dancers.findIndex((d) => !(d.firstName && d.lastName && (isEvent || d.role) && (d.phone || d.email)));
+      const block = dancerBlocks[index];
+      if (block) {
+        block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const empty = ['.dancer-first-name', '.dancer-last-name', '.dancer-phone']
+          .map((sel) => block.querySelector<HTMLInputElement>(sel))
+          .find((input) => input && !input.value.trim());
+        empty?.focus({ preventScroll: true });
+        return;
+      }
+    }
+    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   function fullRoleConflict(dancers: Dancer[]): string | null {
     for (const sel of selections.values()) {
       const item = document.querySelector<HTMLElement>(`.series-item[data-key="${CSS.escape(sel.key)}"]`);
@@ -1004,6 +1028,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
     if (hasError) {
       e.preventDefault();
+      jumpToFirstError(dancerBlocks, dancers);
       return;
     }
 
