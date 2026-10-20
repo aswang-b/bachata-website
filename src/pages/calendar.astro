@@ -285,7 +285,8 @@ const MAX_BANNERS_PER_DAY = 3;
                               : `event-banner-label whitespace-normal rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug text-white ${dotClass(event.color)}`
                           }
                         >
-                          {weekNumber && <span class="mr-1 whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk {weekNumber}</span>}
+                          {/* The space after the pill lets the title wrap below it in a narrow cell. */}
+                          {weekNumber && <><span class="whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk {weekNumber}</span>{' '}</>}
                           {event.title}
                         </div>
                         <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
@@ -1972,7 +1973,7 @@ const MAX_BANNERS_PER_DAY = 3;
       ? `truncate rounded px-1 py-0.5 text-[10px] font-semibold text-white ${dotClass(event.color)}`
       : `event-banner-label whitespace-normal rounded-lg px-2 py-1.5 text-xs font-semibold leading-snug text-white ${dotClass(event.color)}`;
     const weekTag = event.weekNumber
-      ? `<span class="mr-1 whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk ${event.weekNumber}</span>`
+      ? `<span class="whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk ${event.weekNumber}</span> `
       : '';
     return `
       <div class="event-banner group relative cursor-pointer" data-event='${JSON.stringify(event).replace(/'/g, '&#39;')}'>
@@ -2127,11 +2128,14 @@ const MAX_BANNERS_PER_DAY = 3;
   function fitBannerLabels() {
     document.querySelectorAll<HTMLElement>('.event-banner-label').forEach((label) => {
       label.style.fontSize = '';
+      label.style.overflowWrap = '';
       let fontSizePx = parseFloat(getComputedStyle(label).fontSize);
       while (label.scrollWidth > label.clientWidth + 1 && fontSizePx > BANNER_MIN_FONT_PX) {
         fontSizePx -= 0.5;
         label.style.fontSize = `${fontSizePx}px`;
       }
+      // Still too wide at the smallest size (one very long word): break it rather than spill past the edge.
+      if (label.scrollWidth > label.clientWidth + 1) label.style.overflowWrap = 'anywhere';
     });
   }
 
