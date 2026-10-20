@@ -2124,18 +2124,34 @@ const MAX_BANNERS_PER_DAY = 3;
   // word is still too wide for the banner at the current font size (a
   // narrow cell, a long word, or a high browser zoom level), shrink the
   // font size a step at a time until it fits, rather than breaking the word.
-  const BANNER_MIN_FONT_PX = 8;
+  const BANNER_MIN_FONT_PX = 10;
+  // True when any line of the label's text reaches into its right padding.
+  // (scrollWidth only notices text that spills past the padding too, so a
+  // word squeezed against the edge used to count as fitting.)
+  function labelOverflows(label: HTMLElement): boolean {
+    const style = getComputedStyle(label);
+    const limit = label.getBoundingClientRect().right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth);
+    const range = document.createRange();
+    range.selectNodeContents(label);
+    return Array.from(range.getClientRects()).some((r) => r.right > limit + 0.5);
+  }
+
   function fitBannerLabels() {
     document.querySelectorAll<HTMLElement>('.event-banner-label').forEach((label) => {
       label.style.fontSize = '';
       label.style.overflowWrap = '';
+      label.style.hyphens = '';
       let fontSizePx = parseFloat(getComputedStyle(label).fontSize);
-      while (label.scrollWidth > label.clientWidth + 1 && fontSizePx > BANNER_MIN_FONT_PX) {
+      while (labelOverflows(label) && fontSizePx > BANNER_MIN_FONT_PX) {
         fontSizePx -= 0.5;
         label.style.fontSize = `${fontSizePx}px`;
       }
-      // Still too wide at the smallest size (one very long word): break it rather than spill past the edge.
-      if (label.scrollWidth > label.clientWidth + 1) label.style.overflowWrap = 'anywhere';
+      // Still too wide at the smallest readable size (one long word in a narrow
+      // cell): hyphenate it rather than shrink further or spill past the edge.
+      if (labelOverflows(label)) {
+        label.style.hyphens = 'auto';
+        label.style.overflowWrap = 'anywhere';
+      }
     });
   }
 
@@ -2169,5 +2185,7 @@ const MAX_BANNERS_PER_DAY = 3;
   }
 
   fitBannerLabels();
+  // Measured again once the web font has loaded: it's wider than the fallback the first pass measured.
+  document.fonts?.ready.then(fitBannerLabels);
   revealAdminControlsIfAdmin();
 </script>
