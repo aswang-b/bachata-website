@@ -32,6 +32,11 @@ for (const width of [1280, 1100, 1000, 900]) {
         })
       )
       .toBe(true);
+    // Every banner shares one font size, so a shrunk one doesn't stand out.
+    const sizes = await page
+      .locator('.event-banner-label')
+      .evaluateAll((els) => [...new Set(els.filter((el) => (el as HTMLElement).offsetParent).map((el) => getComputedStyle(el).fontSize))]);
+    expect(sizes).toHaveLength(1);
     // The pill and the title wrap as separate words.
     expect(await label.evaluate((el) => el.textContent?.includes('Wk 1 '))).toBe(true);
   });

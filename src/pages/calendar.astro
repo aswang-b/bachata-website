@@ -2136,23 +2136,38 @@ const MAX_BANNERS_PER_DAY = 3;
     return Array.from(range.getClientRects()).some((r) => r.right > limit + 0.5);
   }
 
+  // Every banner uses the same font size, so one long title doesn't leave
+  // its banner in smaller text than the rest: find the size each one needs
+  // to fit, then give them all the smallest.
   function fitBannerLabels() {
-    document.querySelectorAll<HTMLElement>('.event-banner-label').forEach((label) => {
+    const labels = Array.from(document.querySelectorAll<HTMLElement>('.event-banner-label'));
+    for (const label of labels) {
       label.style.fontSize = '';
       label.style.overflowWrap = '';
       label.style.hyphens = '';
-      let fontSizePx = parseFloat(getComputedStyle(label).fontSize);
+    }
+    // Hidden banners (e.g. the phone layout's) have no width to measure.
+    const visible = labels.filter((label) => label.offsetParent !== null);
+    if (visible.length === 0) return;
+    let sharedPx = parseFloat(getComputedStyle(visible[0]).fontSize);
+    for (const label of visible) {
+      let fontSizePx = sharedPx;
+      label.style.fontSize = `${fontSizePx}px`;
       while (labelOverflows(label) && fontSizePx > BANNER_MIN_FONT_PX) {
         fontSizePx -= 0.5;
         label.style.fontSize = `${fontSizePx}px`;
       }
+      sharedPx = fontSizePx;
+    }
+    for (const label of labels) {
+      label.style.fontSize = `${sharedPx}px`;
       // Still too wide at the smallest readable size (one long word in a narrow
-      // cell): hyphenate it rather than shrink further or spill past the edge.
-      if (labelOverflows(label)) {
+      // cell): break it rather than shrink further or spill past the edge.
+      if (label.offsetParent !== null && labelOverflows(label)) {
         label.style.hyphens = 'auto';
         label.style.overflowWrap = 'anywhere';
       }
-    });
+    }
   }
 
   let fitBannerLabelsResizeTimer: ReturnType<typeof setTimeout> | null = null;

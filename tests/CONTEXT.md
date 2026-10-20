@@ -42,7 +42,7 @@ Test data rules (`support/db.ts`):
 | Spec | Covers |
 | --- | --- |
 | `public-pages` | Every public page renders without errors |
-| `calendar-layout` | Calendar banner text (with a "Wk N" pill) stays inside its box at narrow widths, e.g. 125% zoom |
+| `calendar-layout` | Calendar banner text (with a "Wk N" pill) stays inside its box at narrow widths, e.g. 125% zoom, and every banner shares one font size |
 | `class-registration` | Full sign-up → itemized confirmation page and email (+ one BCC copy per the admin setting); drop-in date; whole-series-only and drop-in-only radios; closed classes; server validation; double submit → Recycling Bin → admin restore |
 | `capacity` | Full classes; Leader/Follower caps (badge, form block, server refusal, role-edit recount); hidden counts |
 | `event-registration` | Guidelines shown and required, confirmation/email list them FAQ-style; blank guidelines; free vs paid events |
