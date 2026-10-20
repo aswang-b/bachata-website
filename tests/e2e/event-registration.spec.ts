@@ -43,6 +43,13 @@ test.describe.serial('with community guidelines', () => {
     await selectSeries(page, paid.key);
     await expect(page.locator('body')).toContainText('We are dedicated to creating a safe, inclusive, and creative space');
     await expect(page.locator('body')).toContainText(`ZZZ intro ${RUN_ID}`);
+    // The guidelines come before the subtotal and payment step.
+    const guidelinesFirst = await page.evaluate(() => {
+      const box = document.getElementById('agree-guidelines')!;
+      const subtotal = document.getElementById('subtotal-row')!;
+      return Boolean(box.compareDocumentPosition(subtotal) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    expect(guidelinesFirst).toBe(true);
     // Events never ask for a role.
     await expect(page.locator('.dancer-role-btn')).toHaveCount(0);
 
