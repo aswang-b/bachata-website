@@ -13,5 +13,7 @@ export default defineConfig({
     plugins: [tailwindcss()]
   },
 
-  adapter: netlify()
+  // The site has no Netlify edge functions; starting their local dev server
+  // (which needs Deno) only fails and shows an error overlay in `astro dev`.
+  adapter: netlify({ devFeatures: { edgeFunctions: false } })
 });
