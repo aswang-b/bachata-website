@@ -46,8 +46,9 @@ export async function checkAdminSession(): Promise<AdminGate> {
     if (second === 'admin' || second === 'notAdmin') return { status: second, session: data.session };
     if (second === 'unavailable') return { status: 'unavailable' };
   }
-  // The refresh couldn't reach Supabase: the session may well still be good.
-  if (error?.name === 'AuthRetryableFetchError') return { status: 'unavailable' };
+  // The refresh couldn't reach Supabase, or Supabase was rate limiting or
+  // having trouble: the session may well still be good.
+  if (error && (error.name === 'AuthRetryableFetchError' || error.status === 429 || (error.status ?? 0) >= 500)) return { status: 'unavailable' };
 
   // Only this browser's copy: never end the account's other sessions.
   await supabaseBrowser.auth.signOut({ scope: 'local' });

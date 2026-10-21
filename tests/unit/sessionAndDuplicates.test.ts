@@ -88,6 +88,16 @@ describe('admin session gate', () => {
     expect((await checkAdminSession()).status).toBe('unavailable');
     expect(auth.signOut).not.toHaveBeenCalled();
   });
+
+  it('keeps the session when the refresh is rate limited or Supabase Auth errors', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: session('stale') } });
+    answers.set('stale', { isAdmin: false, sessionInvalid: true });
+    for (const status of [429, 500]) {
+      auth.refreshSession.mockResolvedValue({ data: { session: null }, error: { name: 'AuthApiError', status, message: 'nope' } });
+      expect((await checkAdminSession()).status).toBe('unavailable');
+    }
+    expect(auth.signOut).not.toHaveBeenCalled();
+  });
 });
 
 describe('admin check endpoint', () => {
@@ -101,6 +111,8 @@ describe('admin check endpoint', () => {
     (db.current as unknown as { auth: unknown }).auth = { getUser: async () => ({ data: { user: null }, error: { status: 0, message: 'fetch failed' } }) };
     expect((await get()).status).toBe(503);
     (db.current as unknown as { auth: unknown }).auth = { getUser: async () => ({ data: { user: null }, error: { status: 502, message: 'bad gateway' } }) };
+    expect((await get()).status).toBe(503);
+    (db.current as unknown as { auth: unknown }).auth = { getUser: async () => ({ data: { user: null }, error: { status: 429, message: 'rate limited' } }) };
     expect((await get()).status).toBe(503);
   });
 

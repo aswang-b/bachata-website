@@ -40,6 +40,7 @@ const MAX_CONTACT_LENGTH = 200;
 const MAX_COMMENTS_LENGTH = 2000;
 const MAX_CLASS_LENGTH = 200;
 const MAX_CLASS_SELECTIONS_LENGTH = 10000;
+const MAX_DANCERS_LENGTH = 10000;
 const EMAIL_RE = /^[^\s@,;<>()]+@[^\s@,;<>()]+\.[^\s@,;<>()]+$/;
 
 // Dancer confirmation emails get their own daily counter so a bot posting
@@ -52,6 +53,22 @@ interface Dancer {
   role: 'leader' | 'follower' | '';
   phone: string;
   email: string;
+}
+
+function field(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+// Rebuilt from the known fields only, so nothing else the browser sends (such
+// as the "deleted" flag the Recycling Bin reads) is ever saved with a dancer.
+function toDancer(d: Record<string, unknown>, isEvent: boolean): Dancer {
+  return {
+    firstName: field(d.firstName),
+    lastName: field(d.lastName),
+    role: isEvent ? '' : (field(d.role).toLowerCase() as Dancer['role']),
+    phone: field(d.phone),
+    email: field(d.email),
+  };
 }
 
 function escapeHtml(str: string): string {
@@ -91,13 +108,14 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   const isRegistration = registrationType === 'group' || isEvent;
   if (isRegistration) {
     const dancersRaw = String(formData.get('dancers') ?? '');
+    if (dancersRaw.length > MAX_DANCERS_LENGTH) {
+      return new Response('One of the fields is too long.', { status: 400 });
+    }
     try {
       const parsed: unknown = JSON.parse(dancersRaw);
       // Spots are counted per role in lowercase, so the role is normalized
       // here and anything but "leader" or "follower" is refused below.
-      dancers = Array.isArray(parsed)
-        ? parsed.map((d) => (d && typeof d === 'object' ? { ...d, role: isEvent ? '' : String(d.role ?? '').trim().toLowerCase() } : d))
-        : null;
+      dancers = Array.isArray(parsed) ? parsed.map((d) => (d && typeof d === 'object' ? toDancer(d, isEvent) : d)) : null;
     } catch {
       dancers = null;
     }

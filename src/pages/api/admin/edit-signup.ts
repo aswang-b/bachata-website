@@ -90,6 +90,8 @@ export const POST: APIRoute = async ({ request }) => {
       fallbackLastName: lastName,
       fallbackEmail: email || null,
       fallbackPhone: phone || null,
+      // Always a group sign-up, so a selection without a key matches a class by title.
+      eventType: 'class',
     });
 
     return new Response(JSON.stringify({ ok: true }), { status: 200 });

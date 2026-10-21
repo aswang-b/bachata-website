@@ -14,14 +14,15 @@ import { POST } from '../../src/pages/api/submit-intake';
 // refuses, and the rows it hands register_submission (migration 0046), which
 // enforces capacity on exactly those rows.
 const CLASS = '00000000-0000-4000-8000-0000000000c1';
+const upcoming = { visibility: 'public', start_time: '2099-01-06T19:00:00Z' };
 
 let saved: { p_submission: Record<string, unknown>; p_rows: Record<string, unknown>[] }[];
 
 beforeEach(() => {
   db.current = new FakeSupabase();
   db.current.seed('events', [
-    { id: CLASS, event_type: 'class', google_recurring_event_id: null, title: 'Bachata 1', price_whole_series: 80, registration_closed: false },
-    { id: 'gala', event_type: 'event', google_recurring_event_id: null, title: 'Gala', price_whole_series: 15, registration_closed: false },
+    { id: CLASS, event_type: 'class', google_recurring_event_id: null, title: 'Bachata 1', price_whole_series: 80, registration_closed: false, ...upcoming },
+    { id: 'gala', event_type: 'event', google_recurring_event_id: null, title: 'Gala', price_whole_series: 15, registration_closed: false, ...upcoming },
   ]);
   saved = [];
   // Refuse with a capacity error, so the test stops before any emails.
@@ -78,6 +79,16 @@ describe('submit-intake', () => {
     const res = await group({ class: 'Gala', class_selections: JSON.stringify([{ key: 'gala', title: 'Gala', label: '', mode: null }]) });
     expect(res.status).toBe(400);
     expect(saved).toHaveLength(0);
+  });
+
+  it('saves only the known dancer fields, so a direct POST cannot slip in a Recycling Bin flag or a huge blob', async () => {
+    await group({ dancers: JSON.stringify([{ ...dancer('leader'), firstName: ' Ana ', deleted: true, deletionId: 'x', notes: 'junk' }]) });
+    expect(saved[0].p_submission.dancers).toEqual([{ firstName: 'Ana', lastName: 'Lee', role: 'leader', phone: '6085550100', email: '' }]);
+
+    const res = await group({ dancers: JSON.stringify([{ ...dancer('leader'), notes: 'x'.repeat(20000) }]) });
+    expect(res.status).toBe(400);
+    expect((await group({ dancers: JSON.stringify([{ ...dancer('leader'), firstName: { $ne: '' } }]) })).status).toBe(400);
+    expect(saved).toHaveLength(1);
   });
 
   it('refuses unknown registration types and malformed dancer lists', async () => {

@@ -29,6 +29,7 @@ export interface SeedOptions {
   followerCapacity?: number | null;
   showCapacity?: boolean;
   registrationClosed?: boolean;
+  description?: string;
   dayOffset?: number;
 }
 
@@ -57,6 +58,7 @@ export async function seedEvent(o: SeedOptions): Promise<Seeded> {
     price_whole_series: o.priceWhole === undefined ? 50 : o.priceWhole,
     price_drop_in: o.priceDropIn ?? null,
     registration_closed: o.registrationClosed ?? false,
+    description: o.description ?? null,
     capacity: o.capacity ?? null,
     capacity_by_role: o.capacityByRole ?? false,
     leader_capacity: o.leaderCapacity ?? null,

@@ -305,6 +305,42 @@ function buildRegistrationRows(
 
 export type RegistrationRow = Omit<ReturnType<typeof buildRegistrationRows>[number], 'submission_id'>;
 
+// A public sign-up can only book what the form offers: a public class (or
+// event) with a date still to come, and for a Drop-In, a date still to come.
+// Otherwise a direct POST could book a private-calendar class (and see its
+// title on the confirmation) or a past date, which capacity never counts.
+async function findUnbookable(rows: RegistrationRow[]): Promise<ClassSelectionError | null> {
+  const seriesKeys = Array.from(new Set(rows.map((r) => r.series_key).filter((k): k is string => !!k)));
+  const ids = seriesKeys.filter((k) => UUID_RE.test(k));
+  const now = new Date().toISOString();
+  const base = () => supabase.from('events').select('id, google_recurring_event_id').eq('visibility', 'public').gte('start_time', now);
+  const results = await Promise.all([ids.length > 0 ? base().in('id', ids) : null, base().in('google_recurring_event_id', seriesKeys)]);
+
+  const upcomingSeries = new Set<string>();
+  const upcomingIds = new Set<string>();
+  for (const r of results) {
+    if (!r) continue;
+    if (r.error) {
+      console.error('Failed to check classes are bookable:', r.error.message);
+      return { message: "We couldn't confirm these classes are open for registration right now. Please try again in a minute.", status: 503 };
+    }
+    for (const e of r.data ?? []) {
+      upcomingSeries.add(e.google_recurring_event_id ?? e.id);
+      upcomingIds.add(e.id);
+    }
+  }
+
+  for (const row of rows) {
+    if (!row.series_key || !upcomingSeries.has(row.series_key)) {
+      return { message: `"${row.class_title}" isn't open for registration. Please reload the page and pick again.`, status: 400 };
+    }
+    if (row.occurrence_event_id && !upcomingIds.has(row.occurrence_event_id)) {
+      return { message: `That "${row.class_title}" date has already passed. Please pick another date.`, status: 400 };
+    }
+  }
+  return null;
+}
+
 // The class_registrations rows a public sign-up will save (one per dancer per
 // class; register_submission in migration 0046 fills in submission_id and
 // enforces capacity on them), or why they can't be saved. Checked on the
@@ -333,6 +369,8 @@ export async function prepareRegistrationRows(
   if (undated) {
     return { error: { message: `Please pick which "${undated.class_title}" class you're dropping into.`, status: 400 } };
   }
+  const unbookable = await findUnbookable(perDancer);
+  if (unbookable) return { error: unbookable };
 
   const rows = dancers.flatMap((d, i) => buildRegistrationRows('', i, d, sanitized, priceMap).map(({ submission_id: _, ...row }) => row));
   return { rows, hasCost: perDancer.some((r) => (r.price ?? 0) > 0) };

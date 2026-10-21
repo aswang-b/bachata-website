@@ -14,7 +14,7 @@ test.beforeAll(async () => {
   series = await seedEvent({ name: 'Bachata Series', occurrences: 2, priceWhole: 50, priceDropIn: 15 });
   wholeOnly = await seedEvent({ name: 'Whole Only', occurrences: 2, priceWhole: 40, priceDropIn: null, dayOffset: 1 });
   dropInOnly = await seedEvent({ name: 'Practica', occurrences: 2, priceWhole: null, priceDropIn: 10, dayOffset: 2 });
-  closed = await seedEvent({ name: 'Closed Class', registrationClosed: true, dayOffset: 3 });
+  closed = await seedEvent({ name: 'Closed Class', registrationClosed: true, dayOffset: 3, description: '<p>Back next term.</p>' });
 });
 
 async function bccList(): Promise<string[]> {
@@ -108,9 +108,16 @@ test('a closed class is shown but cannot be picked, and the server refuses it', 
   await page.goto('/register');
   const item = page.locator(`.series-item[data-key="${closed.key}"]`);
   await expect(item).toContainText('Registration Closed');
-  // Marked disabled for screen readers too; clicked anyway to prove it stays unpicked.
-  await expect(item.locator('.series-toggle-btn')).toHaveAttribute('aria-disabled', 'true');
-  await item.locator('.series-toggle-btn').click({ force: true });
+  // Announced as something that expands to its description (which it does),
+  // not as a disabled button or a pickable one, and it stays unpicked.
+  const toggle = item.locator('.series-toggle-btn');
+  await expect(toggle).not.toHaveAttribute('aria-disabled', /.*/);
+  await expect(toggle).not.toHaveAttribute('aria-pressed', /.*/);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(item.locator('.series-details')).toBeVisible();
   await expect(item).not.toHaveAttribute('data-selected', 'true');
 
   const res = await postForm(request, '/api/submit-intake', {
@@ -203,4 +210,43 @@ test('a blocked submit jumps to the first problem: a missing dancer detail, then
   await expect(page.locator('#payment-error')).toBeVisible();
   await expect(page.locator('#payment-error')).toBeInViewport();
   await expect(page).toHaveURL(/\/register\?/);
+});
+
+test('a blocked submit is announced every time, even when the same message is already showing', async ({ page }) => {
+  await page.goto(`/register?series=${series.key}`);
+  await selectSeries(page, series.key);
+  await fillDancer(page, 0, { first: 'Announce', role: 'leader' });
+  const announcer = page.locator('#form-error-announcer');
+  await expect(announcer).toHaveAttribute('role', 'alert');
+  for (let i = 0; i < 2; i++) {
+    await submitRegistration(page);
+    await expect(announcer).toHaveText('Please choose a payment method.');
+    await expect(page.locator('#payment-error')).not.toHaveAttribute('role', /.*/);
+  }
+});
+
+test('with no class picked, a blocked submit focuses a class that can be picked, never a closed one', async ({ page }) => {
+  await page.goto('/register');
+  // Put the closed class first, where the focus used to land on its hidden controls.
+  await page.locator(`.series-item[data-key="${closed.key}"]`).evaluate((el) => el.parentElement!.prepend(el));
+  await fillDancer(page, 0, { first: 'NoClass', role: 'leader' });
+  await payCash(page);
+  await submitRegistration(page);
+  const focused = page.locator(':focus');
+  await expect(focused).toHaveClass(/series-toggle-btn/);
+  expect(await focused.evaluate((el) => el.closest('.series-item')?.getAttribute('data-registration-closed'))).toBe('false');
+});
+
+test('the drop-in policy note stays on a phone screen, and Escape closes it', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto(`/register?series=${series.key}`);
+  const item = await selectSeries(page, series.key);
+  await item.locator('button[aria-label="Drop-in policy"]').focus();
+  const tip = item.locator('[role="tooltip"]');
+  await expect(tip).toBeVisible();
+  const box = (await tip.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(375);
+  await page.keyboard.press('Escape');
+  await expect(tip).toBeHidden();
 });

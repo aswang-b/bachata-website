@@ -12,6 +12,7 @@ import {
   parseClassSelectionString,
   parseClassSelectionsJson,
   resolveClassSelections,
+  insertClassRegistrations,
   prepareRegistrationRows,
   validateClassSelections,
   type ClassRegistrationRow,
@@ -23,6 +24,11 @@ import { createCheckinRegisterToken, verifyCheckinRegisterToken } from '../../sr
 beforeEach(() => {
   db.current = new FakeSupabase();
 });
+
+// What the public form offers: a public class or event with a date to come.
+const FREE = '00000000-0000-4000-8000-0000000000f1';
+const PAID = '00000000-0000-4000-8000-0000000000f2';
+const upcoming = { visibility: 'public', start_time: '2099-01-06T19:00:00Z' };
 
 describe('class selections', () => {
   it('stores labels as "<title> — <schedule>" whatever form the form sent', () => {
@@ -59,15 +65,15 @@ describe('class selections', () => {
 
   it('knows whether a free event needs a payment method', async () => {
     db.current.seed('events', [
-      { id: 'free', event_type: 'event', google_recurring_event_id: null, title: 'Free Social', price_whole_series: null },
-      { id: 'paid', event_type: 'event', google_recurring_event_id: null, title: 'Gala', price_whole_series: 15 },
+      { id: FREE, event_type: 'event', google_recurring_event_id: null, title: 'Free Social', price_whole_series: null, ...upcoming },
+      { id: PAID, event_type: 'event', google_recurring_event_id: null, title: 'Gala', price_whole_series: 15, ...upcoming },
     ]);
     const cost = async (key: string, title: string) => {
       const prepared = await prepareRegistrationRows([{ key, title, label: title, mode: null }], 'event', [{ firstName: 'A', lastName: 'B' }]);
       return 'hasCost' in prepared && prepared.hasCost;
     };
-    expect(await cost('free', 'Free Social')).toBe(false);
-    expect(await cost('paid', 'Gala')).toBe(true);
+    expect(await cost(FREE, 'Free Social')).toBe(false);
+    expect(await cost(PAID, 'Gala')).toBe(true);
   });
 });
 
@@ -80,14 +86,47 @@ describe('registration rows (what a public sign-up saves, and is capacity-checke
   const W1 = '00000000-0000-4000-8000-000000000001';
   const W2 = '00000000-0000-4000-8000-000000000002';
   const X1 = '00000000-0000-4000-8000-000000000003';
+  const PAST = '00000000-0000-4000-8000-000000000004';
+  const W0 = '00000000-0000-4000-8000-000000000005';
+  const PRIV = '00000000-0000-4000-8000-000000000006';
+  const OVER = '00000000-0000-4000-8000-000000000007';
   beforeEach(() => {
     db.current.seed('events', [
-      { id: W1, event_type: 'class', google_recurring_event_id: 'S', title: 'Bachata 1', price_whole_series: 80, price_drop_in: 20 },
-      { id: W2, event_type: 'class', google_recurring_event_id: 'S', title: 'Bachata 1', price_whole_series: 80, price_drop_in: 20 },
-      { id: X1, event_type: 'class', google_recurring_event_id: 'X', title: 'Styling', price_whole_series: 60, price_drop_in: 15 },
-      { id: 'w0', event_type: 'class', google_recurring_event_id: null, title: 'Workshop', price_whole_series: 30, price_drop_in: null },
-      { id: 'gala', event_type: 'event', google_recurring_event_id: null, title: 'Bachata 1', price_whole_series: 15 },
+      { id: W1, event_type: 'class', google_recurring_event_id: 'S', title: 'Bachata 1', price_whole_series: 80, price_drop_in: 20, ...upcoming },
+      { id: W2, event_type: 'class', google_recurring_event_id: 'S', title: 'Bachata 1', price_whole_series: 80, price_drop_in: 20, ...upcoming },
+      { id: X1, event_type: 'class', google_recurring_event_id: 'X', title: 'Styling', price_whole_series: 60, price_drop_in: 15, ...upcoming },
+      { id: W0, event_type: 'class', google_recurring_event_id: null, title: 'Workshop', price_whole_series: 30, price_drop_in: null, ...upcoming },
+      { id: 'gala', event_type: 'event', google_recurring_event_id: null, title: 'Bachata 1', price_whole_series: 15, ...upcoming },
+      { id: PAST, event_type: 'class', google_recurring_event_id: 'S', title: 'Bachata 1', price_whole_series: 80, price_drop_in: 20, visibility: 'public', start_time: '2020-01-07T19:00:00Z' },
+      { id: PRIV, event_type: 'class', google_recurring_event_id: null, title: 'Private Lesson', price_whole_series: 90, visibility: 'private', start_time: upcoming.start_time },
+      { id: OVER, event_type: 'class', google_recurring_event_id: null, title: 'Old Series', price_whole_series: 50, visibility: 'public', start_time: '2020-01-07T19:00:00Z' },
     ]);
+  });
+
+  it('refuses a private-calendar class and a class whose dates have all passed (the form never offers them)', async () => {
+    for (const [key, title] of [[PRIV, 'Private Lesson'], [OVER, 'Old Series']]) {
+      const prepared = await prepareRegistrationRows([{ key, title, label: title, mode: 'whole' }], 'class', [dancers[0]]);
+      expect('error' in prepared && prepared.error.message).toContain("isn't open for registration");
+    }
+  });
+
+  it('refuses a Drop-In for a date that has already passed (capacity never counts it)', async () => {
+    const prepared = await prepareRegistrationRows([{ key: 'S', title: 'Bachata 1', label: 'x', mode: 'dropin', occurrenceEventId: PAST }], 'class', [dancers[0]]);
+    expect('error' in prepared && prepared.error.message).toContain('already passed');
+  });
+
+  it("lets an admin add someone to a class picked by title alone, whatever the class's dates", async () => {
+    await insertClassRegistrations({
+      submissionId: 'sub',
+      classRaw: 'Old Series — Tuesdays — Whole Series',
+      dancers: null,
+      fallbackFirstName: 'Ana',
+      fallbackLastName: 'Lee',
+      fallbackEmail: null,
+      fallbackPhone: null,
+      eventType: 'class',
+    });
+    expect(db.current.tables.class_registrations).toEqual([expect.objectContaining({ series_key: OVER, price: 50 })]);
   });
 
   it('makes one row per dancer per class, each with its series so it is counted', async () => {
@@ -123,8 +162,8 @@ describe('registration rows (what a public sign-up saves, and is capacity-checke
   });
 
   it('turns a Drop-In without a drop-in price into the Whole Series, the way it is counted', async () => {
-    const prepared = await prepareRegistrationRows([{ key: 'w0', title: 'Workshop', label: 'x', mode: 'dropin', occurrenceEventId: 'w0' }], 'class', [dancers[0]]);
-    expect('rows' in prepared && prepared.rows[0]).toMatchObject({ series_mode: 'whole', is_drop_in: false, occurrence_event_id: null, series_key: 'w0' });
+    const prepared = await prepareRegistrationRows([{ key: W0, title: 'Workshop', label: 'x', mode: 'dropin', occurrenceEventId: W0 }], 'class', [dancers[0]]);
+    expect('rows' in prepared && prepared.rows[0]).toMatchObject({ series_mode: 'whole', is_drop_in: false, occurrence_event_id: null, series_key: W0 });
   });
 });
 

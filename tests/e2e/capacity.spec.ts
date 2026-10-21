@@ -28,8 +28,8 @@ test('a full class shows "Full", cannot be picked, and the server refuses more s
   await page.goto('/register');
   const item = page.locator(`.series-item[data-key="${full.key}"]`);
   await expect(item).toContainText('Full');
-  // Marked disabled for screen readers too; clicked anyway to prove it stays unpicked.
-  await expect(item.locator('.series-toggle-btn')).toHaveAttribute('aria-disabled', 'true');
+  // With nothing to expand it isn't a control at all; clicked anyway to prove it stays unpicked.
+  await expect(item.locator('.series-toggle-btn')).not.toHaveAttribute('role', /.*/);
   await item.locator('.series-toggle-btn').click({ force: true });
   await expect(item).not.toHaveAttribute('data-selected', 'true');
 

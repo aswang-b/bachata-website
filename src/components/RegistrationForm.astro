@@ -231,11 +231,12 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                 data-full-roles={s.fullRoles.join(',')}
                 data-whole-full={String(s.wholeFull)}
               >
+                {/* A closed class can't be picked, only expanded to read its description (its badge says why), so it is announced as expandable rather than as a disabled button; with no description it isn't a control at all. */}
                 <div
-                  role="button"
-                  tabindex="0"
+                  role={s.registrationClosed && !s.description ? undefined : 'button'}
+                  tabindex={s.registrationClosed && !s.description ? undefined : '0'}
                   aria-pressed={s.registrationClosed ? undefined : 'false'}
-                  aria-disabled={s.registrationClosed ? 'true' : undefined}
+                  aria-expanded={s.registrationClosed && s.description ? 'false' : undefined}
                   class="series-toggle-btn flex w-full cursor-pointer flex-col items-start gap-1 rounded-t-xl px-4 py-3 text-left transition-colors last:rounded-b-xl hover:bg-bg"
                 >
                   <div class="flex w-full flex-wrap items-center gap-1.5">
@@ -316,7 +317,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                                 </button>
                               ))}
                             </div>
-                            <p class="occurrence-error hidden text-xs font-semibold text-red-600" role="alert">
+                            <p class="occurrence-error hidden text-xs font-semibold text-red-600">
                               Please pick which class you're dropping into.
                             </p>
                           </div>
@@ -331,12 +332,12 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                           </span>
                           <span class="font-semibold text-ink" set:html={priceDisplayHtml(s.priceWhole)} />
                         </label>
-                        <label class="flex items-center justify-between gap-2 text-sm text-ink">
+                        <label class="relative flex items-center justify-between gap-2 text-sm text-ink">
                           <span class="flex items-center gap-2">
                             <input type="radio" name={`series_mode_${s.key}`} value="dropin" disabled={s.registrationClosed} class="series-mode-radio h-4 w-4" />
                             Drop In
-                            {/* Shown on hover, and on focus so keyboard and touch users can read it too. */}
-                            <span class="group relative inline-flex">
+                            {/* Shown on hover, and on focus so keyboard and touch users can read it too. It hangs from the row's left edge (not the small button) so it never runs off a phone screen, stays open while the pointer moves onto it, and Escape closes it. */}
+                            <span class="dropin-tip group inline-flex">
                               <button
                                 type="button"
                                 class="flex h-4 w-4 items-center justify-center rounded-full border border-muted text-[10px] font-bold text-muted"
@@ -348,7 +349,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                               <div
                                 id={`dropin-policy-${s.key}`}
                                 role="tooltip"
-                                class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-3 text-left text-xs text-ink/70 shadow-xl group-focus-within:block group-hover:block"
+                                class="dropin-tip-text absolute left-0 top-full z-30 mt-2 hidden w-full max-w-96 rounded-2xl before:absolute before:inset-x-0 before:-top-3 before:h-3 before:content-[''] border-2 border-ink bg-bg p-3 text-left text-xs text-ink/70 shadow-xl group-focus-within:block group-hover:block"
                               >
                                 <strong class="text-ink">Quick Note</strong> — These classes follow a progressive
                                 curriculum, so dancers who missed previous classes in a series may have difficulty
@@ -382,7 +383,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                               </button>
                             ))}
                           </div>
-                          <p class="occurrence-error hidden text-xs font-semibold text-red-600" role="alert">
+                          <p class="occurrence-error hidden text-xs font-semibold text-red-600">
                             Please pick which class you're dropping into.
                           </p>
                         </div>
@@ -408,7 +409,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
           </div>
         )}
 
-        <p id="class-error" class="hidden text-xs font-semibold text-red-600" role="alert">Please select at least one {isEvent ? 'event' : 'class'}.</p>
+        <p id="class-error" class="hidden text-xs font-semibold text-red-600">Please select at least one {isEvent ? 'event' : 'class'}.</p>
       </div>
 
       <div class="flex flex-col gap-4">
@@ -421,12 +422,12 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         >
           + Add Another Dancer
         </button>
-        <p id="dancers-error" class="hidden text-xs font-semibold text-red-600" role="alert">
+        <p id="dancers-error" class="hidden text-xs font-semibold text-red-600">
           {isEvent
             ? 'Please fill in first name, last name, and a phone or email for each dancer.'
             : 'Please fill in first name, last name, role, and a phone or email for each dancer.'}
         </p>
-        <p id="role-full-error" class="hidden text-xs font-semibold text-red-600" role="alert"></p>
+        <p id="role-full-error" class="hidden text-xs font-semibold text-red-600"></p>
       </div>
 
       {showGuidelines && (
@@ -448,7 +449,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
               I/We agree to abide by the community guidelines and understand that violations may result in removal without refund.
             </span>
           </label>
-          <p id="guidelines-error" class="hidden text-xs font-semibold text-red-600" role="alert">Please confirm you've read the community guidelines.</p>
+          <p id="guidelines-error" class="hidden text-xs font-semibold text-red-600">Please confirm you've read the community guidelines.</p>
         </div>
       )}
 
@@ -512,7 +513,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
             </div>
           </div>
         </div>
-        <p id="payment-error" class="hidden text-xs font-semibold text-red-600" role="alert">Please choose a payment method.</p>
+        <p id="payment-error" class="hidden text-xs font-semibold text-red-600">Please choose a payment method.</p>
       </div>
 
       <label class="flex flex-col gap-1.5">
@@ -530,6 +531,8 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       >
         Submit
       </button>
+      {/* One live region for a blocked submit, refilled each time so screen readers announce the first problem on every attempt (the messages under each field are always in the page, so they aren't announced when they reappear). */}
+      <p id="form-error-announcer" class="sr-only" role="alert"></p>
     </form>
   </div>
 </BaseLayout>
@@ -813,9 +816,11 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     // Registration is closed for this class — still let its description
     // expand for info, but never add it to the form's selections.
     if (registrationClosed) {
+      if (!details) return;
       toggleBtn.addEventListener('click', () => {
-        details?.classList.toggle('hidden');
-        details?.classList.toggle('flex');
+        const open = details.classList.toggle('flex');
+        details.classList.toggle('hidden', !open);
+        toggleBtn.setAttribute('aria-expanded', String(open));
       });
       toggleBtn.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -973,6 +978,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       (el) => !el.classList.contains('hidden') && el.offsetParent !== null
     );
     if (!firstError) return;
+    announceError(firstError.textContent?.trim() ?? '');
 
     if (firstError.id === 'dancers-error') {
       const index = dancers.findIndex((d) => !(d.firstName && d.lastName && (isEvent || d.role) && (d.phone || d.email)));
@@ -989,11 +995,36 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     }
     firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
     // Focus the control the message is about, so keyboard and screen-reader
-    // users land where they need to fix it.
-    firstError.parentElement
-      ?.querySelector<HTMLElement>('input:not([type="hidden"]):not(:disabled), button:not(:disabled), [role="button"]:not([aria-disabled="true"])')
+    // users land where they need to fix it: the first one that's showing and
+    // usable (a closed class can only be expanded, not picked).
+    Array.from(firstError.parentElement?.querySelectorAll<HTMLElement>('input:not([type="hidden"]):not(:disabled), button:not(:disabled), [role="button"]') ?? [])
+      .find((el) => el.offsetParent !== null && !el.closest('[data-registration-closed="true"]'))
       ?.focus({ preventScroll: true });
   }
+
+  // Emptied, then refilled a moment later, so the same message is announced
+  // again on a second blocked submit.
+  const errorAnnouncer = document.getElementById('form-error-announcer')!;
+  function announceError(message: string) {
+    errorAnnouncer.textContent = '';
+    setTimeout(() => (errorAnnouncer.textContent = message), 100);
+  }
+
+  // Escape closes an open drop-in policy tooltip (hovered or focused) until
+  // the pointer or focus leaves it.
+  const dropinTips = Array.from(document.querySelectorAll<HTMLElement>('.dropin-tip'));
+  dropinTips.forEach((tip) => {
+    const reset = () => tip.querySelector<HTMLElement>('.dropin-tip-text')?.style.removeProperty('display');
+    tip.addEventListener('mouseleave', reset);
+    tip.addEventListener('focusout', reset);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    for (const tip of dropinTips) {
+      const text = tip.querySelector<HTMLElement>('.dropin-tip-text');
+      if (text && (tip.matches(':hover') || tip.contains(document.activeElement))) text.style.display = 'none';
+    }
+  });
 
   function fullRoleConflict(dancers: Dancer[]): string | null {
     for (const sel of selections.values()) {

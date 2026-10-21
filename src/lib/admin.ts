@@ -31,8 +31,9 @@ export async function requireAdmin(request: Request) {
 
   const { data, error } = await supabase.auth.getUser(token);
   // Only a 4xx from Supabase Auth means the token itself was rejected; a
-  // network error or 5xx just means it couldn't be checked right now.
-  if (error && !(error.status && error.status >= 400 && error.status < 500)) {
+  // network error, 5xx or 429 (rate limited) just means it couldn't be
+  // checked right now.
+  if (error && !(error.status && error.status >= 400 && error.status < 500 && error.status !== 429)) {
     return { user: null, error: AUTH_UNAVAILABLE };
   }
   if (error || !data.user) {
