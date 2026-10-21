@@ -18,6 +18,13 @@ describe('event colors', () => {
     for (const bad of ['#fff', 'rgb(1,2,3)', 'teal', '', null, '#12abeg']) expect(isValidEventColor(bad)).toBe(false);
   });
 
+  it("rejects names every object inherits (they'd be stored and drawn as a function)", () => {
+    for (const bad of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(isValidEventColor(bad)).toBe(false);
+      expect(eventColorHex(bad)).toBe('#ff5577');
+    }
+  });
+
   it('turns any stored color into a hex, falling back to the site accent', () => {
     expect(eventColorHex('blue')).toBe('#3b82f6');
     expect(eventColorHex('#12ABEF')).toBe('#12abef');

@@ -211,6 +211,20 @@ describe('deletions and the sync window', () => {
     expect(google.insertCalendarEvent).not.toHaveBeenCalled();
   });
 
+  it("keeps a linked row starting exactly at the window's end (Google's timeMax is exclusive, so it never lists it)", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-01-01T12:00:00.000Z'));
+    try {
+      const edge = new Date(Date.now() + 180 * day).toISOString();
+      db.current.seed('events', [{ ...linkedPair('edge').row, start_time: edge, end_time: edge }]);
+      const result = await runCalendarSync();
+      expect(result.public.pulledDeleted).toBe(0);
+      expect(db.current.rows('events')).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('skips cancelled instances and all-day events without times', async () => {
     google.events.public = [
       { id: 'c', status: 'cancelled', start: { dateTime: at(2) }, end: { dateTime: at(2, 20) } },

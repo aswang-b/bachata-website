@@ -92,9 +92,9 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
     .eq('visibility', visibility)
     // The same window Google was asked for: a linked row past it would look
     // deleted on Google's side (and be deleted here), and an unlinked one
-    // would be pushed before it's due.
+    // would be pushed before it's due. (Google's timeMax is exclusive.)
     .gte('start_time', timeMin)
-    .lte('start_time', timeMax);
+    .lt('start_time', timeMax);
 
   if (rowsError) throw new Error(`Failed to load existing ${visibility} events: ${rowsError.message}`);
 

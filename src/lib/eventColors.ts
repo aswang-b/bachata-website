@@ -21,13 +21,14 @@ export const DEFAULT_QUICK_COLORS = ['#22c55e', '#3b82f6', '#ef4444', '#f97316',
 const HEX_RE = /^#[0-9a-f]{6}$/i;
 
 export function isValidEventColor(color: unknown): color is string {
-  return typeof color === 'string' && (color in NAMED_EVENT_COLORS || HEX_RE.test(color));
+  // Own keys only: `in` would also accept inherited names like "constructor".
+  return typeof color === 'string' && (Object.hasOwn(NAMED_EVENT_COLORS, color) || HEX_RE.test(color));
 }
 
 // The color as "#rrggbb" (lowercase); unknown or missing → the site accent.
 export function eventColorHex(color: string | null | undefined): string {
   if (color && HEX_RE.test(color)) return color.toLowerCase();
-  return NAMED_EVENT_COLORS[color ?? ''] ?? NAMED_EVENT_COLORS.accent;
+  return color && Object.hasOwn(NAMED_EVENT_COLORS, color) ? NAMED_EVENT_COLORS[color] : NAMED_EVENT_COLORS.accent;
 }
 
 function rgb(hex: string): [number, number, number] {
