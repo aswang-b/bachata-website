@@ -108,7 +108,9 @@ test('a closed class is shown but cannot be picked, and the server refuses it', 
   await page.goto('/register');
   const item = page.locator(`.series-item[data-key="${closed.key}"]`);
   await expect(item).toContainText('Registration Closed');
-  await item.locator('.series-toggle-btn').click();
+  // Marked disabled for screen readers too; clicked anyway to prove it stays unpicked.
+  await expect(item.locator('.series-toggle-btn')).toHaveAttribute('aria-disabled', 'true');
+  await item.locator('.series-toggle-btn').click({ force: true });
   await expect(item).not.toHaveAttribute('data-selected', 'true');
 
   const res = await postForm(request, '/api/submit-intake', {

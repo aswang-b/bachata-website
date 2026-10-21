@@ -28,7 +28,9 @@ test('a full class shows "Full", cannot be picked, and the server refuses more s
   await page.goto('/register');
   const item = page.locator(`.series-item[data-key="${full.key}"]`);
   await expect(item).toContainText('Full');
-  await item.locator('.series-toggle-btn').click();
+  // Marked disabled for screen readers too; clicked anyway to prove it stays unpicked.
+  await expect(item.locator('.series-toggle-btn')).toHaveAttribute('aria-disabled', 'true');
+  await item.locator('.series-toggle-btn').click({ force: true });
   await expect(item).not.toHaveAttribute('data-selected', 'true');
 
   const res = await postForm(request, '/api/submit-intake', { registration_type: 'group', class: full.title, payment_method: 'cash', class_selections: selection(full), dancers: people('leader', 1) });

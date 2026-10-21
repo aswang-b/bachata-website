@@ -12,7 +12,7 @@ import {
   parseClassSelectionString,
   parseClassSelectionsJson,
   resolveClassSelections,
-  selectionsHaveCost,
+  prepareRegistrationRows,
   validateClassSelections,
   type ClassRegistrationRow,
 } from '../../src/lib/classRegistrations';
@@ -59,11 +59,72 @@ describe('class selections', () => {
 
   it('knows whether a free event needs a payment method', async () => {
     db.current.seed('events', [
-      { id: 'free', google_recurring_event_id: null, title: 'Free Social', price_whole_series: null },
-      { id: 'paid', google_recurring_event_id: null, title: 'Gala', price_whole_series: 15 },
+      { id: 'free', event_type: 'event', google_recurring_event_id: null, title: 'Free Social', price_whole_series: null },
+      { id: 'paid', event_type: 'event', google_recurring_event_id: null, title: 'Gala', price_whole_series: 15 },
     ]);
-    expect(await selectionsHaveCost([{ key: 'free', title: 'Free Social', label: 'Free Social', mode: null }])).toBe(false);
-    expect(await selectionsHaveCost([{ key: 'paid', title: 'Gala', label: 'Gala', mode: null }])).toBe(true);
+    const cost = async (key: string, title: string) => {
+      const prepared = await prepareRegistrationRows([{ key, title, label: title, mode: null }], 'event', [{ firstName: 'A', lastName: 'B' }]);
+      return 'hasCost' in prepared && prepared.hasCost;
+    };
+    expect(await cost('free', 'Free Social')).toBe(false);
+    expect(await cost('paid', 'Gala')).toBe(true);
+  });
+});
+
+describe('registration rows (what a public sign-up saves, and is capacity-checked on)', () => {
+  const dancers = [
+    { firstName: 'Ana', lastName: 'Lee' },
+    { firstName: 'Bo', lastName: 'Kim' },
+  ];
+  // Drop-In dates are only kept when they're real (uuid) class ids.
+  const W1 = '00000000-0000-4000-8000-000000000001';
+  const W2 = '00000000-0000-4000-8000-000000000002';
+  const X1 = '00000000-0000-4000-8000-000000000003';
+  beforeEach(() => {
+    db.current.seed('events', [
+      { id: W1, event_type: 'class', google_recurring_event_id: 'S', title: 'Bachata 1', price_whole_series: 80, price_drop_in: 20 },
+      { id: W2, event_type: 'class', google_recurring_event_id: 'S', title: 'Bachata 1', price_whole_series: 80, price_drop_in: 20 },
+      { id: X1, event_type: 'class', google_recurring_event_id: 'X', title: 'Styling', price_whole_series: 60, price_drop_in: 15 },
+      { id: 'w0', event_type: 'class', google_recurring_event_id: null, title: 'Workshop', price_whole_series: 30, price_drop_in: null },
+      { id: 'gala', event_type: 'event', google_recurring_event_id: null, title: 'Bachata 1', price_whole_series: 15 },
+    ]);
+  });
+
+  it('makes one row per dancer per class, each with its series so it is counted', async () => {
+    const prepared = await prepareRegistrationRows([{ key: 'S', title: 'Bachata 1', label: 'Bachata 1', mode: 'whole' }], 'class', dancers);
+    expect('rows' in prepared && prepared.rows).toEqual([
+      expect.objectContaining({ dancer_index: 0, first_name: 'Ana', series_key: 'S', series_mode: 'whole', is_drop_in: false, price: 80 }),
+      expect.objectContaining({ dancer_index: 1, first_name: 'Bo', series_key: 'S', series_mode: 'whole', is_drop_in: false, price: 80 }),
+    ]);
+    expect('rows' in prepared && prepared.rows[0]).not.toHaveProperty('submission_id');
+  });
+
+  it('resolves a class picked by title alone to that class, never an event sharing its title', async () => {
+    const prepared = await prepareRegistrationRows([{ title: 'Bachata 1', label: 'Bachata 1', mode: 'whole' }], 'class', [dancers[0]]);
+    expect('rows' in prepared && prepared.rows[0]).toMatchObject({ series_key: 'S', price: 80 });
+  });
+
+  it("refuses an event on the class form (it would skip the guidelines) and a class it can't find", async () => {
+    const event = await prepareRegistrationRows([{ key: 'gala', title: 'Bachata 1', label: 'x', mode: null }], 'class', [dancers[0]]);
+    expect('error' in event && event.error.status).toBe(400);
+    const unknown = await prepareRegistrationRows([{ key: 'nope', title: 'Bachata 1', label: 'x', mode: 'whole' }], 'class', [dancers[0]]);
+    expect('error' in unknown && unknown.error.message).toContain("couldn't find");
+  });
+
+  it("refuses a Drop-In whose date isn't one of its own classes (it would count toward nothing)", async () => {
+    const dropIn = (occurrenceEventId: string | null) =>
+      prepareRegistrationRows([{ key: 'S', title: 'Bachata 1', label: 'x', mode: 'dropin', occurrenceEventId }], 'class', [dancers[0]]);
+    for (const bad of [null, X1, '00000000-0000-4000-8000-00000000ffff']) {
+      const prepared = await dropIn(bad);
+      expect('error' in prepared && prepared.error.message).toContain('dropping into');
+    }
+    const ok = await dropIn(W2);
+    expect('rows' in ok && ok.rows[0]).toMatchObject({ is_drop_in: true, occurrence_event_id: W2, series_key: 'S', price: 20 });
+  });
+
+  it('turns a Drop-In without a drop-in price into the Whole Series, the way it is counted', async () => {
+    const prepared = await prepareRegistrationRows([{ key: 'w0', title: 'Workshop', label: 'x', mode: 'dropin', occurrenceEventId: 'w0' }], 'class', [dancers[0]]);
+    expect('rows' in prepared && prepared.rows[0]).toMatchObject({ series_mode: 'whole', is_drop_in: false, occurrence_event_id: null, series_key: 'w0' });
   });
 });
 

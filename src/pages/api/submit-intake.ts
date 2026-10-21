@@ -5,16 +5,16 @@ import { checkAndIncrementUsage } from '../../lib/apiUsage';
 import { env } from '../../lib/env';
 import {
   getClassRegistrationsForSubmission,
-  insertClassRegistrations,
+  prepareRegistrationRows,
   resolveClassSelections,
-  selectionsHaveCost,
   validateClassSelections,
+  type RegistrationRow,
 } from '../../lib/classRegistrations';
 import { listFaqs } from '../../lib/faqs';
 import { getConfirmationBccEmails, getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
 import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
-import { validateCapacity } from '../../lib/capacity';
+import { capacityErrorMessage } from '../../lib/capacity';
 import { buildReceiptLines, paymentAgreementText, receiptSubtotal } from '../../lib/registrationReceipt';
 import { getCommunityGuidelines, guidelineSections, hasGuidelines } from '../../lib/communityGuidelines';
 
@@ -79,14 +79,25 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   let whatsapp = '';
   let dancers: Dancer[] | null = null;
 
+  if (!Object.hasOwn(REGISTRATION_TYPE_LABELS, registrationType)) {
+    return new Response('Unknown registration type.', { status: 400 });
+  }
+
   // Classes (group) and events share the multi-attendee form; only classes
   // ask for a Leader/Follower role, and an event only needs a payment method
-  // when it has a price (the form only asks then).
+  // when it has a price (the form only asks then). Only these two sign people
+  // up for classes; the Contact form (private) just sends a message.
   const isEvent = registrationType === 'events';
-  if (registrationType === 'group' || isEvent) {
+  const isRegistration = registrationType === 'group' || isEvent;
+  if (isRegistration) {
     const dancersRaw = String(formData.get('dancers') ?? '');
     try {
-      dancers = JSON.parse(dancersRaw);
+      const parsed: unknown = JSON.parse(dancersRaw);
+      // Spots are counted per role in lowercase, so the role is normalized
+      // here and anything but "leader" or "follower" is refused below.
+      dancers = Array.isArray(parsed)
+        ? parsed.map((d) => (d && typeof d === 'object' ? { ...d, role: isEvent ? '' : String(d.role ?? '').trim().toLowerCase() } : d))
+        : null;
     } catch {
       dancers = null;
     }
@@ -106,11 +117,13 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
       dancers.length > MAX_DANCERS ||
       !dancers.every(
         (d) =>
+          d &&
+          typeof d === 'object' &&
           d.firstName &&
           d.firstName.length <= MAX_NAME_LENGTH &&
           d.lastName &&
           d.lastName.length <= MAX_NAME_LENGTH &&
-          (d.role || isEvent) &&
+          (isEvent || d.role === 'leader' || d.role === 'follower') &&
           (d.phone || d.email) &&
           (!d.phone || d.phone.length <= MAX_CONTACT_LENGTH) &&
           (!d.email || d.email.length <= MAX_CONTACT_LENGTH)
@@ -123,10 +136,6 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
         { status: 400 }
       );
     }
-    if (isEvent) {
-      dancers = dancers.map((d) => ({ ...d, role: '' }));
-    }
-
     firstName = dancers[0].firstName;
     lastName = dancers[0].lastName;
     email = dancers.map((d) => d.email).find(Boolean) ?? '';
@@ -168,18 +177,24 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     return new Response('One of the fields is too long.', { status: 400 });
   }
 
-  const selections = resolveClassSelections(className || null, classSelectionsRaw || null);
-  const selectionError = await validateClassSelections(selections);
-  if (selectionError) {
-    return new Response(selectionError.message, { status: selectionError.status });
-  }
-  // Events skip the payment step only when they're free.
-  if (isEvent && !paymentMethod && (await selectionsHaveCost(selections))) {
-    return new Response('Please choose a payment method.', { status: 400 });
-  }
-  const capacityError = await validateCapacity(selections, dancers && dancers.length > 0 ? dancers.map((d) => d.role) : ['']);
-  if (capacityError) {
-    return new Response(capacityError.message, { status: capacityError.status });
+  let registrationRows: RegistrationRow[] = [];
+  if (isRegistration) {
+    const selections = resolveClassSelections(className || null, classSelectionsRaw || null);
+    const selectionError = await validateClassSelections(selections);
+    if (selectionError) {
+      return new Response(selectionError.message, { status: selectionError.status });
+    }
+    // Only classes on the class form and only events on the events form, so
+    // an event can't be booked here without agreeing to the guidelines.
+    const prepared = await prepareRegistrationRows(selections, isEvent ? 'event' : 'class', dancers!);
+    if ('error' in prepared) {
+      return new Response(prepared.error.message, { status: prepared.error.status });
+    }
+    // Events skip the payment step only when they're free.
+    if (isEvent && !paymentMethod && prepared.hasCost) {
+      return new Response('Please choose a payment method.', { status: 400 });
+    }
+    registrationRows = prepared.rows;
   }
 
   // Event registrants agree to the community guidelines (when there are any).
@@ -189,10 +204,11 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     return new Response("Please confirm you've read the community guidelines.", { status: 400 });
   }
 
-  const { data: row, error } = await supabase
-    .from('intake_submissions')
-    .insert({
-      registration_type: registrationType || 'unspecified',
+  // The sign-up and its class registrations are saved together, with
+  // capacity enforced on them in the same transaction (migration 0046).
+  const { data: submissionId, error } = await supabase.rpc('register_submission', {
+    p_submission: {
+      registration_type: registrationType,
       first_name: firstName,
       last_name: lastName,
       email: email || null,
@@ -203,36 +219,28 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
       comments: comments || null,
       dancers: dancers ?? null,
       payment_method: paymentMethod || null,
-      ...(isEvent && agreedToGuidelines ? { guidelines_agreed_at: new Date().toISOString() } : {}),
-    })
-    .select('id')
-    .single();
+      guidelines_agreed_at: isEvent && agreedToGuidelines ? new Date().toISOString() : null,
+    },
+    p_rows: registrationRows,
+  });
 
-  if (error || !row) {
+  if (error?.message === 'capacity_exceeded') {
+    return new Response(capacityErrorMessage(error.details), { status: 400 });
+  }
+  if (error || typeof submissionId !== 'string') {
     console.error('Failed to insert intake submission:', error);
     return new Response('Something went wrong submitting your form. Please try again.', {
       status: 500,
     });
   }
 
-  await insertClassRegistrations({
-    submissionId: row.id,
-    classRaw: className || null,
-    classSelectionsRaw: classSelectionsRaw || null,
-    dancers,
-    fallbackFirstName: firstName,
-    fallbackLastName: lastName,
-    fallbackEmail: email || null,
-    fallbackPhone: phone || null,
-  });
-
   const confirmationBase = registrationType === 'private' ? '/contact/confirmation' : '/register/confirmation';
-  const confirmationUrl = `${confirmationBase}?id=${row.id}`;
+  const confirmationUrl = `${confirmationBase}?id=${submissionId}`;
 
   // The same form submitted twice (double-click, back-and-resubmit): the
   // repeat goes to the Recycling Bin, sends no second email, and shows the
   // original's confirmation.
-  const originalId = await flagDuplicateSubmission(row.id);
+  const originalId = await flagDuplicateSubmission(submissionId);
   if (originalId) {
     return redirect(`${confirmationBase}?id=${originalId}`, 303);
   }
@@ -274,7 +282,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
           if (whatsapp) rows.push(['WhatsApp', whatsapp]);
         }
         // Itemized classes + subtotal, same as /register/confirmation shows.
-        const receiptLines = await buildReceiptLines(await getClassRegistrationsForSubmission(row.id));
+        const receiptLines = await buildReceiptLines(await getClassRegistrationsForSubmission(submissionId));
         const subtotal = receiptSubtotal(receiptLines);
         if (receiptLines.length === 0) {
           // No saved registration rows to itemize: fall back to the class text,

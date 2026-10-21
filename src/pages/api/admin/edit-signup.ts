@@ -157,6 +157,7 @@ export const POST: APIRoute = async ({ request }) => {
           classRaw: className || null,
           classSelectionsRaw: serializeClassSelections(body.classSelections),
           dancer,
+          eventType: row.registration_type === 'events' ? 'event' : 'class',
         });
       }
     } catch (err) {

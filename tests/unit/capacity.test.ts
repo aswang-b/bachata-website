@@ -10,15 +10,13 @@ vi.mock('../../src/lib/supabase', () => ({
 
 import {
   capacityColumns,
+  capacityErrorMessage,
   getSpotsByOccurrence,
   publicSpotsLabel,
   seriesSpots,
   spotsLabel,
-  validateCapacity,
   type SpotsInfo,
 } from '../../src/lib/capacity';
-
-const future = (days: number) => new Date(Date.now() + days * 86400000).toISOString();
 
 beforeEach(() => {
   db.current = new FakeSupabase();
@@ -116,42 +114,35 @@ describe('capacityColumns (editor → row)', () => {
   });
 });
 
-describe('validateCapacity (server-side check on registration)', () => {
-  const series = (extra: Record<string, unknown>) => [
-    { id: 'w1', google_recurring_event_id: 'S', start_time: future(7), ...extra },
-    { id: 'w2', google_recurring_event_id: 'S', start_time: future(14), ...extra },
-  ];
-  const whole = [{ key: 'S', title: 'Bachata 1', label: 'Bachata 1', mode: 'whole' as const }];
+describe('capacityErrorMessage (register_submission refused a sign-up)', () => {
+  const detail = (role: string, remaining: number) => JSON.stringify({ title: 'Bachata 1', role, remaining });
 
-  it('turns away a role that is full and names it', async () => {
-    db.current.seed('events', series({ capacity_by_role: true, leader_capacity: 1, follower_capacity: 2 }));
-    db.current.seed('event_spot_counts', [
-      { event_id: 'w1', taken: 1, leaders_taken: 1, followers_taken: 0 },
-      { event_id: 'w2', taken: 1, leaders_taken: 1, followers_taken: 0 },
-    ]);
-    expect((await validateCapacity(whole, ['leader']))?.message).toBe('Sorry, "Bachata 1" is full for leaders.');
-    expect((await validateCapacity(whole, ['follower', 'follower', 'follower']))?.message).toContain('only has 2 follower spots left');
-    expect(await validateCapacity(whole, ['follower', 'follower'])).toBeNull();
+  it('names a full role, or how many of it are left', () => {
+    expect(capacityErrorMessage(detail('leader', 0))).toBe('Sorry, "Bachata 1" is full for leaders.');
+    expect(capacityErrorMessage(detail('follower', 2))).toBe('Sorry, "Bachata 1" only has 2 follower spots left — please register fewer followers.');
   });
 
-  it('checks a general cap against the number of people', async () => {
-    db.current.seed('events', series({ capacity: 3 }));
-    db.current.seed('event_spot_counts', [{ event_id: 'w2', taken: 2, leaders_taken: 0, followers_taken: 0 }]);
-    expect((await validateCapacity(whole, ['', '']))?.message).toContain('only has 1 spot remaining');
-    expect(await validateCapacity(whole, [''])).toBeNull();
+  it('words the general cap by people', () => {
+    expect(capacityErrorMessage(detail('', 0))).toBe('Sorry, "Bachata 1" is full.');
+    expect(capacityErrorMessage(detail('', 1))).toBe('Sorry, "Bachata 1" only has 1 spot remaining — please register fewer people.');
   });
 
-  it('only counts the picked class for a drop-in', async () => {
-    db.current.seed('events', series({ capacity: 1 }));
-    db.current.seed('event_spot_counts', [{ event_id: 'w1', taken: 1, leaders_taken: 0, followers_taken: 0 }]);
-    const dropIn = [{ ...whole[0], mode: 'dropin' as const, occurrenceEventId: 'w2' }];
-    expect(await validateCapacity(dropIn, [''])).toBeNull();
-    expect((await validateCapacity([{ ...dropIn[0], occurrenceEventId: 'w1' }], ['']))?.message).toBe('Sorry, "Bachata 1" is full.');
+  it('still says something sensible without a usable detail', () => {
+    expect(capacityErrorMessage(null)).toBe('Sorry, "this class" is full.');
+    expect(capacityErrorMessage('not json')).toBe('Sorry, "this class" is full.');
   });
+});
 
-  it('fails closed (503) when the counts cannot be loaded', async () => {
-    db.current.seed('events', series({ capacity: 3 }));
+describe('getSpotsByOccurrence with many classes', () => {
+  it('loads every chunk of counts (in parallel) and fails if any chunk fails', async () => {
+    const events = Array.from({ length: 320 }, (_, i) => ({ id: `e${i}`, google_recurring_event_id: null, capacity: 5 }));
+    db.current.seed('event_spot_counts', [{ event_id: 'e310', taken: 4, leaders_taken: 0, followers_taken: 0 }]);
+    const spots = await getSpotsByOccurrence(events);
+    expect(spots.size).toBe(320);
+    expect(spots.get('e310')!.total!.remaining).toBe(1);
+    expect(db.current.callsTo('event_spot_counts', 'select')).toHaveLength(3);
+
     db.current.failNext.set('event_spot_counts.select', { message: 'boom' });
-    expect((await validateCapacity(whole, ['']))?.status).toBe(503);
+    await expect(getSpotsByOccurrence(events)).rejects.toThrow('Failed to load spot counts.');
   });
 });

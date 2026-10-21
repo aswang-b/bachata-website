@@ -44,7 +44,12 @@ export class FakeSupabase {
   async rpc(name: string, args: Record<string, unknown>) {
     const handler = this.rpcHandlers[name];
     if (!handler) return { data: null, error: { message: `no rpc ${name}` } };
-    return { data: handler(args), error: null };
+    // A handler throws a { message, details?, code? } object to answer with a database error.
+    try {
+      return { data: handler(args), error: null };
+    } catch (err) {
+      return { data: null, error: err as FakeError & { details?: string } };
+    }
   }
 
   takeFailure(table: string, op: string): FakeError | undefined {

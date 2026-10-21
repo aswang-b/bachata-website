@@ -17,11 +17,6 @@ const { kind = 'class' } = Astro.props;
 const isEvent = kind === 'event';
 const eventType = isEvent ? 'event' : 'class';
 
-// Event registrants read and agree to the community guidelines (admin →
-// Guidelines); the section is left out while they're blank.
-const guidelines = isEvent ? await getCommunityGuidelines() : '';
-const showGuidelines = hasGuidelines(guidelines);
-
 const TIME_ZONE = 'America/Chicago';
 
 interface ClassOccurrence {
@@ -52,26 +47,27 @@ interface ClassOccurrence {
   follower_capacity: number | null;
 }
 
-const { data: classEvents, error } = await supabase
-  .from('events')
-  .select(
-    'id, title, description, location, start_time, end_time, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
-  )
-  .eq('visibility', 'public')
-  .eq('event_type', eventType)
-  .gte('start_time', new Date().toISOString())
-  .order('start_time', { ascending: true });
+// Independent, so loaded together. Event registrants read and agree to the
+// community guidelines (admin → Guidelines); the section is left out while
+// they're blank. The series totals are unfiltered by date, so a series'
+// whole-series occurrence count doesn't shrink as classes pass (see
+// classSeries.ts's countOccurrencesByKey).
+const [guidelines, { data: classEvents, error }, { data: allClassEventsForTotals, error: totalsError }] = await Promise.all([
+  isEvent ? getCommunityGuidelines() : Promise.resolve(''),
+  supabase
+    .from('events')
+    .select(
+      'id, title, description, location, start_time, end_time, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
+    )
+    .eq('visibility', 'public')
+    .eq('event_type', eventType)
+    .gte('start_time', new Date().toISOString())
+    .order('start_time', { ascending: true }),
+  supabase.from('events').select('id, google_recurring_event_id').eq('visibility', 'public').eq('event_type', eventType),
+]);
+const showGuidelines = hasGuidelines(guidelines);
 
 if (error) console.error(`Failed to load ${eventType} events:`, error);
-
-// Unfiltered by date, so a series' whole-series occurrence count doesn't
-// shrink as classes pass (see classSeries.ts's countOccurrencesByKey).
-const { data: allClassEventsForTotals, error: totalsError } = await supabase
-  .from('events')
-  .select('id, google_recurring_event_id')
-  .eq('visibility', 'public')
-  .eq('event_type', eventType);
-
 if (totalsError) console.error('Failed to load series totals:', totalsError);
 
 const totalCountByKey = countOccurrencesByKey(allClassEventsForTotals ?? []);
@@ -115,7 +111,21 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     spotsByOccurrence,
     sorted.map((occ) => occ.id)
   );
-  const full = spots?.full ?? false;
+  const dates = sorted.map((occ) => {
+    const s = spotsByOccurrence.get(occ.id);
+    return {
+      id: occ.id,
+      label: `${dateFormatter.format(new Date(occ.start_time))}, ${timeFormatter.format(new Date(occ.start_time))}`,
+      full: s?.full ?? false,
+      fullRoles: s ? (['leader', 'follower'] as const).filter((r) => remainingFor(s, r) === 0) : [],
+    };
+  });
+  // A Whole Series needs room in every class, a Drop-In only in its own: when
+  // the fullest class is full, the series still takes Drop-Ins for the dates
+  // that have room.
+  const wholeFull = spots?.full ?? false;
+  const openDropIns = !isEvent && isSeries && first.price_drop_in != null && dates.some((o) => !o.full);
+  const full = wholeFull && !openDropIns;
 
   const tieredInput = {
     earlyBirdUntil: first.early_bird_until,
@@ -135,17 +145,16 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     // A full class or event can't be picked, just like a closed one.
     registrationClosed: first.registration_closed || full,
     full,
-    spotsText: publicSpotsLabel(spots, first.show_capacity),
+    // Only Drop-Ins are left (see openDropIns above).
+    wholeFull: wholeFull && !full,
+    spotsText: wholeFull && !full ? 'Whole series full · Drop-ins open' : publicSpotsLabel(spots, first.show_capacity),
     // A role that's full (capped by role): checked on submit against the dancers' roles.
     fullRoles: spots ? (['leader', 'follower'] as const).filter((r) => remainingFor(spots, r) === 0) : [],
     // No whole-series/flat price, only a drop-in price (e.g. a practica): the
     // Drop In option is shown with its price and preselected, as the only choice.
     // Events only ever have the one ticket price.
     dropInOnly: !isEvent && first.price_whole_series == null && first.price_drop_in != null,
-    occurrences: sorted.map((occ) => ({
-      id: occ.id,
-      label: `${dateFormatter.format(new Date(occ.start_time))}, ${timeFormatter.format(new Date(occ.start_time))}`,
-    })),
+    occurrences: dates,
     priceWhole: getActivePrice(now, { ...tieredInput, base: first.price_whole_series, earlyBird: first.price_whole_series_early_bird, flashSale: first.price_whole_series_flash_sale }),
     priceDropIn: getActivePrice(now, { ...tieredInput, base: first.price_drop_in, earlyBird: first.price_drop_in_early_bird, flashSale: first.price_drop_in_flash_sale }),
     priceStudent: getActivePrice(now, { ...tieredInput, base: first.price_student, earlyBird: first.price_student_early_bird, flashSale: first.price_student_flash_sale }),
@@ -220,10 +229,13 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                 data-price-drop-in={s.priceDropIn.activePrice ?? ''}
                 data-occurrences={JSON.stringify(s.occurrences)}
                 data-full-roles={s.fullRoles.join(',')}
+                data-whole-full={String(s.wholeFull)}
               >
                 <div
                   role="button"
                   tabindex="0"
+                  aria-pressed={s.registrationClosed ? undefined : 'false'}
+                  aria-disabled={s.registrationClosed ? 'true' : undefined}
                   class="series-toggle-btn flex w-full cursor-pointer flex-col items-start gap-1 rounded-t-xl px-4 py-3 text-left transition-colors last:rounded-b-xl hover:bg-bg"
                 >
                   <div class="flex w-full flex-wrap items-center gap-1.5">
@@ -295,14 +307,16 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                               {s.occurrences.map((occ) => (
                                 <button
                                   type="button"
-                                  class="occurrence-btn rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-ink/70 transition-colors"
+                                  class="occurrence-btn rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-ink/70 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                                   data-event-id={occ.id}
+                                  aria-pressed="false"
+                                  disabled={occ.full}
                                 >
-                                  {occ.label}
+                                  {occ.label}{occ.full && ' (Full)'}
                                 </button>
                               ))}
                             </div>
-                            <p class="occurrence-error hidden text-xs font-semibold text-red-600">
+                            <p class="occurrence-error hidden text-xs font-semibold text-red-600" role="alert">
                               Please pick which class you're dropping into.
                             </p>
                           </div>
@@ -312,8 +326,8 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                       <>
                         <label class="flex items-center justify-between gap-2 text-sm text-ink">
                           <span class="flex items-center gap-2">
-                            <input type="radio" name={`series_mode_${s.key}`} value="whole" checked disabled={s.registrationClosed} class="series-mode-radio h-4 w-4" />
-                            Whole Series
+                            <input type="radio" name={`series_mode_${s.key}`} value="whole" checked={!s.wholeFull} disabled={s.registrationClosed || s.wholeFull} class="series-mode-radio h-4 w-4" />
+                            Whole Series{s.wholeFull && ' (Full)'}
                           </span>
                           <span class="font-semibold text-ink" set:html={priceDisplayHtml(s.priceWhole)} />
                         </label>
@@ -321,15 +335,21 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                           <span class="flex items-center gap-2">
                             <input type="radio" name={`series_mode_${s.key}`} value="dropin" disabled={s.registrationClosed} class="series-mode-radio h-4 w-4" />
                             Drop In
+                            {/* Shown on hover, and on focus so keyboard and touch users can read it too. */}
                             <span class="group relative inline-flex">
                               <button
                                 type="button"
                                 class="flex h-4 w-4 items-center justify-center rounded-full border border-muted text-[10px] font-bold text-muted"
                                 aria-label="Drop-in policy"
+                                aria-describedby={`dropin-policy-${s.key}`}
                               >
                                 i
                               </button>
-                              <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-3 text-left text-xs text-ink/70 shadow-xl group-hover:block">
+                              <div
+                                id={`dropin-policy-${s.key}`}
+                                role="tooltip"
+                                class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-3 text-left text-xs text-ink/70 shadow-xl group-focus-within:block group-hover:block"
+                              >
                                 <strong class="text-ink">Quick Note</strong> — These classes follow a progressive
                                 curriculum, so dancers who missed previous classes in a series may have difficulty
                                 following along. If you've missed multiple classes, you're welcome to contact me with
@@ -353,14 +373,16 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                             {s.occurrences.map((occ) => (
                               <button
                                 type="button"
-                                class="occurrence-btn rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-ink/70 transition-colors"
+                                class="occurrence-btn rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-ink/70 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                                 data-event-id={occ.id}
+                                aria-pressed="false"
+                                disabled={occ.full}
                               >
-                                {occ.label}
+                                {occ.label}{occ.full && ' (Full)'}
                               </button>
                             ))}
                           </div>
-                          <p class="occurrence-error hidden text-xs font-semibold text-red-600">
+                          <p class="occurrence-error hidden text-xs font-semibold text-red-600" role="alert">
                             Please pick which class you're dropping into.
                           </p>
                         </div>
@@ -386,7 +408,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
           </div>
         )}
 
-        <p id="class-error" class="hidden text-xs font-semibold text-red-600">Please select at least one {isEvent ? 'event' : 'class'}.</p>
+        <p id="class-error" class="hidden text-xs font-semibold text-red-600" role="alert">Please select at least one {isEvent ? 'event' : 'class'}.</p>
       </div>
 
       <div class="flex flex-col gap-4">
@@ -399,12 +421,12 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         >
           + Add Another Dancer
         </button>
-        <p id="dancers-error" class="hidden text-xs font-semibold text-red-600">
+        <p id="dancers-error" class="hidden text-xs font-semibold text-red-600" role="alert">
           {isEvent
             ? 'Please fill in first name, last name, and a phone or email for each dancer.'
             : 'Please fill in first name, last name, role, and a phone or email for each dancer.'}
         </p>
-        <p id="role-full-error" class="hidden text-xs font-semibold text-red-600"></p>
+        <p id="role-full-error" class="hidden text-xs font-semibold text-red-600" role="alert"></p>
       </div>
 
       {showGuidelines && (
@@ -426,7 +448,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
               I/We agree to abide by the community guidelines and understand that violations may result in removal without refund.
             </span>
           </label>
-          <p id="guidelines-error" class="hidden text-xs font-semibold text-red-600">Please confirm you've read the community guidelines.</p>
+          <p id="guidelines-error" class="hidden text-xs font-semibold text-red-600" role="alert">Please confirm you've read the community guidelines.</p>
         </div>
       )}
 
@@ -453,6 +475,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
             <button
               type="button"
               class="payment-toggle-btn flex w-full items-center rounded-t-xl px-4 py-3 text-left transition-colors hover:bg-bg"
+              aria-pressed="false"
             >
               <span class="font-semibold text-ink">Pay Cash at the Door</span>
             </button>
@@ -467,6 +490,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
             <button
               type="button"
               class="payment-toggle-btn flex w-full items-center rounded-t-xl px-4 py-3 text-left transition-colors hover:bg-bg"
+              aria-pressed="false"
             >
               <span class="font-semibold text-ink">Pay with Venmo</span>
             </button>
@@ -488,7 +512,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
             </div>
           </div>
         </div>
-        <p id="payment-error" class="hidden text-xs font-semibold text-red-600">Please choose a payment method.</p>
+        <p id="payment-error" class="hidden text-xs font-semibold text-red-600" role="alert">Please choose a payment method.</p>
       </div>
 
       <label class="flex flex-col gap-1.5">
@@ -530,10 +554,10 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       <div class="flex flex-col gap-1.5">
         <span class="text-sm font-medium text-ink/80">Role<span class="text-accent"> *</span></span>
         <div class="flex gap-2">
-          <button type="button" data-role="leader" class="dancer-role-btn flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
+          <button type="button" data-role="leader" aria-pressed="false" class="dancer-role-btn flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
             Leader
           </button>
-          <button type="button" data-role="follower" class="dancer-role-btn flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
+          <button type="button" data-role="follower" aria-pressed="false" class="dancer-role-btn flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
             Follower
           </button>
         </div>
@@ -603,6 +627,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     function renderRoleButtons() {
       for (const btn of roleButtons) {
         const active = btn.dataset.role === block.dataset.role;
+        btn.setAttribute('aria-pressed', String(active));
         btn.classList.toggle('gradient-accent', active);
         btn.classList.toggle('text-white', active);
         btn.classList.toggle('border-transparent', active);
@@ -732,6 +757,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         (document.getElementById('payment-method-value') as HTMLInputElement).value = '';
         document.querySelectorAll<HTMLElement>('.payment-item').forEach((item) => {
           item.dataset.selected = 'false';
+          item.querySelector('.payment-toggle-btn')?.setAttribute('aria-pressed', 'false');
           item.querySelector('.payment-details')?.classList.add('hidden');
           item.querySelector('.payment-details')?.classList.remove('flex');
         });
@@ -769,6 +795,8 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     const isSeries = item.dataset.isSeries === 'true';
     const registrationClosed = item.dataset.registrationClosed === 'true';
     const dropInOnly = item.dataset.dropInOnly === 'true';
+    // The Whole Series is full but some dates still take Drop-Ins.
+    const wholeFull = item.dataset.wholeFull === 'true';
     // A one-off drop-in class has exactly one occurrence, so there's nothing to pick.
     const singleOccurrenceId: string | null = !isSeries ? (JSON.parse(item.dataset.occurrences ?? '[]')[0]?.id ?? null) : null;
     const priceWhole = item.dataset.priceWhole ? Number(item.dataset.priceWhole) : null;
@@ -798,20 +826,27 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       return;
     }
 
+    function markOccurrence(btn: HTMLButtonElement, active: boolean) {
+      btn.setAttribute('aria-pressed', String(active));
+      btn.classList.toggle('gradient-accent', active);
+      btn.classList.toggle('text-white', active);
+      btn.classList.toggle('border-transparent', active);
+      btn.classList.toggle('border-border', !active);
+      btn.classList.toggle('text-ink/70', !active);
+    }
+
     function showOccurrencePicker(show: boolean) {
       occurrencePicker?.classList.toggle('hidden', !show);
       occurrencePicker?.classList.toggle('flex', show);
       if (!show) {
         occurrenceError?.classList.add('hidden');
-        occurrenceButtons.forEach((b) => {
-          b.classList.remove('gradient-accent', 'text-white', 'border-transparent');
-          b.classList.add('border-border', 'text-ink/70');
-        });
+        occurrenceButtons.forEach((b) => markOccurrence(b, false));
       }
     }
 
     function deselectSeries() {
       selections.delete(key);
+      toggleBtn.setAttribute('aria-pressed', 'false');
       toggleBtn.classList.remove('bg-bg');
       item.dataset.selected = 'false';
       subchoice?.classList.add('hidden');
@@ -828,7 +863,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       if (selections.has(key)) {
         deselectSeries();
       } else {
-        const startMode = dropInOnly ? 'dropin' : 'whole';
+        const startMode = dropInOnly || wholeFull ? 'dropin' : 'whole';
         modeRadios.forEach((r) => (r.checked = r.value === startMode));
         selections.set(key, {
           key,
@@ -841,15 +876,16 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
           priceDropIn,
           occurrenceEventId: dropInOnly ? singleOccurrenceId : null,
         });
+        toggleBtn.setAttribute('aria-pressed', 'true');
         toggleBtn.classList.add('bg-bg');
         item.dataset.selected = 'true';
         subchoice?.classList.remove('hidden');
         subchoice?.classList.add('flex');
         details?.classList.remove('hidden');
         details?.classList.add('flex');
-        dropinNote?.classList.add('hidden');
+        dropinNote?.classList.toggle('hidden', !wholeFull);
         // A drop-in-only series still needs to know which class they're dropping into.
-        showOccurrencePicker(dropInOnly && isSeries);
+        showOccurrencePicker(startMode === 'dropin' && isSeries);
         updateClassValue();
       }
     });
@@ -894,12 +930,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       btn.addEventListener('click', () => {
         const selection = selections.get(key);
         if (!selection) return;
-        occurrenceButtons.forEach((b) => {
-          b.classList.remove('gradient-accent', 'text-white', 'border-transparent');
-          b.classList.add('border-border', 'text-ink/70');
-        });
-        btn.classList.add('gradient-accent', 'text-white', 'border-transparent');
-        btn.classList.remove('border-border', 'text-ink/70');
+        occurrenceButtons.forEach((b) => markOccurrence(b, b === btn));
         selection.occurrenceEventId = btn.dataset.eventId ?? null;
         occurrenceError?.classList.add('hidden');
         updateClassValue();
@@ -920,6 +951,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     toggleBtn.addEventListener('click', () => {
       document.querySelectorAll<HTMLElement>('.payment-item').forEach((other) => {
         other.dataset.selected = 'false';
+        other.querySelector('.payment-toggle-btn')?.setAttribute('aria-pressed', String(other === item));
         if (other !== item) {
           other.querySelector('.payment-details')?.classList.add('hidden');
           other.querySelector('.payment-details')?.classList.remove('flex');
@@ -950,17 +982,26 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         const empty = ['.dancer-first-name', '.dancer-last-name', '.dancer-phone']
           .map((sel) => block.querySelector<HTMLInputElement>(sel))
           .find((input) => input && !input.value.trim());
-        empty?.focus({ preventScroll: true });
+        // Nothing typed is missing, so it is the role.
+        (empty ?? block.querySelector<HTMLElement>('.dancer-role-btn'))?.focus({ preventScroll: true });
         return;
       }
     }
     firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Focus the control the message is about, so keyboard and screen-reader
+    // users land where they need to fix it.
+    firstError.parentElement
+      ?.querySelector<HTMLElement>('input:not([type="hidden"]):not(:disabled), button:not(:disabled), [role="button"]:not([aria-disabled="true"])')
+      ?.focus({ preventScroll: true });
   }
 
   function fullRoleConflict(dancers: Dancer[]): string | null {
     for (const sel of selections.values()) {
       const item = document.querySelector<HTMLElement>(`.series-item[data-key="${CSS.escape(sel.key)}"]`);
-      const fullRoles = (item?.dataset.fullRoles ?? '').split(',').filter(Boolean);
+      // A Drop-In only needs room on its own date; a Whole Series in every class.
+      const occurrences: { id: string; fullRoles: string[] }[] = JSON.parse(item?.dataset.occurrences ?? '[]');
+      const date = sel.mode === 'dropin' ? occurrences.find((o) => o.id === sel.occurrenceEventId) : undefined;
+      const fullRoles = date ? date.fullRoles : (item?.dataset.fullRoles ?? '').split(',').filter(Boolean);
       const role = dancers.find((d) => d.role && fullRoles.includes(d.role))?.role;
       if (role) return `"${sel.title}" is full for ${role}s — please pick another class or role.`;
     }

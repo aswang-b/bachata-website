@@ -105,6 +105,7 @@ export interface ClassRegistrationRow {
 }
 
 interface ClassPriceInfo {
+  eventType: EventType;
   // The event's own title, used as the stored `class_title` for keyed
   // selections so a client can't pair one series' key with another's title.
   title: string;
@@ -125,18 +126,21 @@ interface ClassPriceInfo {
 }
 
 const PRICE_COLUMNS =
-  'id, title, google_recurring_event_id, price_whole_series, price_drop_in, price_student, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until' as const;
+  'id, title, event_type, google_recurring_event_id, price_whole_series, price_drop_in, price_student, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until' as const;
 
 // Keyed by both `id` and `google_recurring_event_id` (so a lookup by
 // either form of series key resolves), and by `title` as a first-match
 // fallback for selections with no key (the admin's free-text edit path).
+// The title fallback only matches `titleType` (classes, unless it's an event
+// sign-up), so a class and an event that share a title are never confused.
+type EventType = 'class' | 'event';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SAFE_KEY_RE = /^[A-Za-z0-9_-]+$/;
 
 // Only loads the rows the selections can actually reference (by id, recurring
 // id, or title), so the lookup never scans — or gets truncated by the row cap
 // on — the whole events table.
-async function lookupClassPrices(selections: ParsedClassSelection[]): Promise<Map<string, ClassPriceInfo>> {
+async function lookupClassPrices(selections: ParsedClassSelection[], titleType: EventType = 'class'): Promise<Map<string, ClassPriceInfo>> {
   const keys = Array.from(new Set(selections.map((s) => s.key).filter((k): k is string => !!k && SAFE_KEY_RE.test(k))));
   const ids = keys.filter((k) => UUID_RE.test(k));
   const titles = Array.from(new Set(selections.map((s) => s.title)));
@@ -146,7 +150,7 @@ async function lookupClassPrices(selections: ParsedClassSelection[]): Promise<Ma
   const results = await Promise.all([
     ids.length > 0 ? base().in('id', ids) : null,
     keys.length > 0 ? base().in('google_recurring_event_id', keys) : null,
-    base().in('title', titles),
+    base().eq('event_type', titleType).in('title', titles),
   ]);
 
   const data: NonNullable<(typeof results)[number]>['data'] = [];
@@ -159,6 +163,7 @@ async function lookupClassPrices(selections: ParsedClassSelection[]): Promise<Ma
   const map = new Map<string, ClassPriceInfo>();
   for (const e of data ?? []) {
     const info: ClassPriceInfo = {
+      eventType: e.event_type === 'event' ? 'event' : 'class',
       title: e.title,
       seriesKey: e.google_recurring_event_id ?? e.id,
       whole: e.price_whole_series,
@@ -175,7 +180,7 @@ async function lookupClassPrices(selections: ParsedClassSelection[]): Promise<Ma
     };
     map.set(e.id, info);
     if (e.google_recurring_event_id) map.set(e.google_recurring_event_id, info);
-    if (!map.has(e.title)) map.set(e.title, info);
+    if (e.event_type === titleType && !map.has(e.title)) map.set(e.title, info);
   }
   return map;
 }
@@ -298,13 +303,39 @@ function buildRegistrationRows(
   });
 }
 
-// Whether any selection costs money right now, priced exactly as the saved
-// registration rows will be — so the server can require a payment method for
-// a paid event (the form only asks for one then).
-export async function selectionsHaveCost(selections: ParsedClassSelection[]): Promise<boolean> {
-  if (selections.length === 0) return false;
-  const rows = buildRegistrationRows('', null, {}, selections, await lookupClassPrices(selections));
-  return rows.some((r) => (r.price ?? 0) > 0);
+export type RegistrationRow = Omit<ReturnType<typeof buildRegistrationRows>[number], 'submission_id'>;
+
+// The class_registrations rows a public sign-up will save (one per dancer per
+// class; register_submission in migration 0046 fills in submission_id and
+// enforces capacity on them), or why they can't be saved. Checked on the
+// resolved rows rather than on what the browser sent: every selection must be
+// a real class (on the events form, an event), and every class Drop-In must
+// name one of its own series' dates, so every row counts toward a capacity.
+// hasCost: whether any of it costs money right now, priced exactly as the
+// rows are, so a paid event needs a payment method (the form only asks then).
+export async function prepareRegistrationRows(
+  selections: ParsedClassSelection[],
+  eventType: EventType,
+  dancers: DancerLike[]
+): Promise<{ rows: RegistrationRow[]; hasCost: boolean } | { error: ClassSelectionError }> {
+  const sanitized = await sanitizeOccurrenceIds(selections);
+  const priceMap = await lookupClassPrices(sanitized, eventType);
+
+  for (const sel of sanitized) {
+    const info = priceMap.get(sel.key ?? sel.title);
+    if (!info || info.eventType !== eventType) {
+      return { error: { message: `We couldn't find the ${eventType} "${sel.title}". Please reload the page and pick again.`, status: 400 } };
+    }
+  }
+
+  const perDancer = buildRegistrationRows('', null, {}, sanitized, priceMap);
+  const undated = eventType === 'class' ? perDancer.find((r) => r.is_drop_in && !r.occurrence_event_id) : undefined;
+  if (undated) {
+    return { error: { message: `Please pick which "${undated.class_title}" class you're dropping into.`, status: 400 } };
+  }
+
+  const rows = dancers.flatMap((d, i) => buildRegistrationRows('', i, d, sanitized, priceMap).map(({ submission_id: _, ...row }) => row));
+  return { rows, hasCost: perDancer.some((r) => (r.price ?? 0) > 0) };
 }
 
 export function resolveClassSelections(classRaw: string | null | undefined, classSelectionsRaw: string | null | undefined): ParsedClassSelection[] {
@@ -324,12 +355,13 @@ export async function insertClassRegistrations(params: {
   fallbackLastName: string;
   fallbackEmail: string | null;
   fallbackPhone: string | null;
+  eventType?: EventType;
 }): Promise<void> {
   const parsed = resolveClassSelections(params.classRaw, params.classSelectionsRaw);
   if (parsed.length === 0) return;
 
   const selections = await sanitizeOccurrenceIds(parsed);
-  const priceMap = await lookupClassPrices(selections);
+  const priceMap = await lookupClassPrices(selections, params.eventType);
   const recipients: DancerLike[] =
     params.dancers && params.dancers.length > 0
       ? params.dancers
@@ -353,6 +385,7 @@ export async function replaceClassRegistrations(params: {
   classRaw: string | null;
   classSelectionsRaw?: string | null;
   dancer: DancerLike;
+  eventType?: EventType;
 }): Promise<void> {
   // Rows in the Recycling Bin aren't the dancer's current classes; leave them for a restore.
   let deleteQuery = supabase.from('class_registrations').delete().eq('submission_id', params.submissionId).is('deleted_at', null);
@@ -364,7 +397,7 @@ export async function replaceClassRegistrations(params: {
   if (parsed.length === 0) return;
 
   const selections = await sanitizeOccurrenceIds(parsed);
-  const priceMap = await lookupClassPrices(selections);
+  const priceMap = await lookupClassPrices(selections, params.eventType);
   const rows = buildRegistrationRows(params.submissionId, params.dancerIndex, params.dancer, selections, priceMap);
 
   const { error } = await supabase.from('class_registrations').insert(rows);
