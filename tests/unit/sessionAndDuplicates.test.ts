@@ -19,6 +19,7 @@ const bin = vi.hoisted(() => ({ softDeleteDancer: vi.fn(), softDeleteCheckin: vi
 vi.mock('../../src/lib/recyclingBin', () => bin);
 
 import { checkAdminSession } from '../../src/lib/adminSession';
+import { GET as checkRoute } from '../../src/pages/api/admin/check';
 import { flagDuplicateCheckins, flagDuplicateSubmission } from '../../src/lib/duplicateSubmissions';
 import { DUPLICATE_DELETED_BY } from '../../src/lib/duplicateFlag';
 
@@ -68,6 +69,46 @@ describe('admin session gate', () => {
     auth.refreshSession.mockResolvedValue({ data: { session: null }, error: { message: 'expired' } });
     expect((await checkAdminSession()).status).toBe('signedOut');
     expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it("says the check is unavailable, never 'not an admin', when the server can't be reached or errors", async () => {
+    auth.getSession.mockResolvedValue({ data: { session: session('ok') } });
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    expect((await checkAdminSession()).status).toBe('unavailable');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>Bad gateway</html>', { status: 502 })));
+    expect((await checkAdminSession()).status).toBe('unavailable');
+    expect(auth.refreshSession).not.toHaveBeenCalled();
+    expect(auth.signOut).not.toHaveBeenCalled();
+  });
+
+  it("keeps the session when the refresh itself can't reach Supabase", async () => {
+    auth.getSession.mockResolvedValue({ data: { session: session('stale') } });
+    answers.set('stale', { isAdmin: false, sessionInvalid: true });
+    auth.refreshSession.mockResolvedValue({ data: { session: null }, error: { name: 'AuthRetryableFetchError', message: 'Failed to fetch' } });
+    expect((await checkAdminSession()).status).toBe('unavailable');
+    expect(auth.signOut).not.toHaveBeenCalled();
+  });
+});
+
+describe('admin check endpoint', () => {
+  beforeEach(() => {
+    db.current = new FakeSupabase();
+  });
+
+  const get = () => checkRoute({ request: new Request('http://x/api/admin/check', { headers: { Authorization: 'Bearer t' } }) } as never);
+
+  it('reports an outage of Supabase Auth as 503, not as an invalid session (which signs the admin out)', async () => {
+    (db.current as unknown as { auth: unknown }).auth = { getUser: async () => ({ data: { user: null }, error: { status: 0, message: 'fetch failed' } }) };
+    expect((await get()).status).toBe(503);
+    (db.current as unknown as { auth: unknown }).auth = { getUser: async () => ({ data: { user: null }, error: { status: 502, message: 'bad gateway' } }) };
+    expect((await get()).status).toBe(503);
+  });
+
+  it('still calls a rejected token invalid, and a valid non-admin token not an admin', async () => {
+    (db.current as unknown as { auth: unknown }).auth = { getUser: async () => ({ data: { user: null }, error: { status: 403, message: 'bad_jwt' } }) };
+    expect(await (await get()).json()).toEqual({ isAdmin: false, sessionInvalid: true });
+    (db.current as unknown as { auth: unknown }).auth = { getUser: async () => ({ data: { user: { email: 'someone@else.com' } }, error: null }) };
+    expect(await (await get()).json()).toEqual({ isAdmin: false, sessionInvalid: false });
   });
 });
 

@@ -20,6 +20,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       <a href="/admin" class="text-sm font-semibold text-accent hover:underline">Go to Admin Tools</a>
     </div>
 
+    <div id="admin-unavailable" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">We couldn't check your sign-in just now. Check your connection, then reload the page.</p>
+    </div>
+
     <div id="not-admin" class="mt-8 hidden flex-col items-start gap-3">
       <p class="text-sm text-muted">This account isn't authorized as an admin.</p>
     </div>
@@ -93,6 +97,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     loading: document.getElementById('loading')!,
     signedOut: document.getElementById('signed-out')!,
     notAdmin: document.getElementById('not-admin')!,
+    unavailable: document.getElementById('admin-unavailable')!,
   };
 
   function showPanel(name: keyof typeof panels | 'dashboard') {

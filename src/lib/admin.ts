@@ -13,6 +13,9 @@ export function isAdminEmail(email: string | null | undefined): boolean {
   return ADMIN_EMAILS.includes(email.trim().toLowerCase());
 }
 
+export const INVALID_SESSION = 'Invalid or expired session.';
+export const AUTH_UNAVAILABLE = "Couldn't verify the session right now. Please try again.";
+
 /**
  * Verifies the Supabase access token from an Authorization: Bearer header
  * and confirms the associated user's email is in ADMIN_EMAIL. Used to
@@ -27,8 +30,13 @@ export async function requireAdmin(request: Request) {
   }
 
   const { data, error } = await supabase.auth.getUser(token);
+  // Only a 4xx from Supabase Auth means the token itself was rejected; a
+  // network error or 5xx just means it couldn't be checked right now.
+  if (error && !(error.status && error.status >= 400 && error.status < 500)) {
+    return { user: null, error: AUTH_UNAVAILABLE };
+  }
   if (error || !data.user) {
-    return { user: null, error: 'Invalid or expired session.' };
+    return { user: null, error: INVALID_SESSION };
   }
 
   if (!isAdminEmail(data.user.email)) {

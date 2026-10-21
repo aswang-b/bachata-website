@@ -18,6 +18,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </button>
     </div>
 
+    <div id="admin-unavailable" class="mt-8 hidden flex-col items-center gap-4">
+      <p class="text-sm text-muted">We couldn't check your sign-in just now. Check your connection, then reload the page.</p>
+    </div>
+
     <div id="account-not-admin" class="mt-8 hidden flex-col items-center gap-4">
       <p class="text-sm text-muted">
         Signed in as <span id="not-admin-email" class="font-semibold text-ink"></span>, but this account isn't
@@ -442,6 +446,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     loading: document.getElementById('account-loading')!,
     signedOut: document.getElementById('account-signed-out')!,
     notAdmin: document.getElementById('account-not-admin')!,
+    unavailable: document.getElementById('admin-unavailable')!,
     admin: document.getElementById('account-admin')!,
   };
 
@@ -484,8 +489,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
   async function init() {
     const gate = await checkAdminSession();
-    if (gate.status === 'signedOut') {
-      showPanel('signedOut');
+    if (gate.status === 'signedOut' || gate.status === 'unavailable') {
+      showPanel(gate.status);
       return;
     }
     const { session } = gate;
