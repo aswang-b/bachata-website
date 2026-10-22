@@ -39,11 +39,11 @@ function receiptHtml(lines: ReceiptLine[], subtotal: number | null, isEvent: boo
       return `<tr>
         <td style="padding:6px 12px 6px 0;vertical-align:top;color:#111;">
           <div style="font-weight:bold;">${escapeHtml(line.title)}</div>
-          ${line.detail ? `<div style="font-size:12px;color:#888;">${escapeHtml(line.detail)}</div>` : ''}
+          ${line.detail ? `<div style="font-size:12px;color:#666;">${escapeHtml(line.detail)}</div>` : ''}
         </td>
         <td style="padding:6px 0;vertical-align:top;text-align:right;color:#333;white-space:nowrap;">
           <div>${line.lineTotal != null ? formatPrice(line.lineTotal) : '—'}</div>
-          ${note ? `<div style="font-size:12px;color:#888;">${escapeHtml(note)}</div>` : ''}
+          ${note ? `<div style="font-size:12px;color:#666;">${escapeHtml(note)}</div>` : ''}
         </td>
       </tr>`;
     })
@@ -53,7 +53,7 @@ function receiptHtml(lines: ReceiptLine[], subtotal: number | null, isEvent: boo
       ? `<tr><td style="padding:8px 12px 0 0;border-top:1px solid #e5d9da;font-weight:bold;color:#111;">Subtotal</td><td style="padding:8px 0 0;border-top:1px solid #e5d9da;text-align:right;font-weight:bold;color:#111;">${formatPrice(subtotal)}</td></tr>`
       : '';
   return `
-    <p style="margin:16px 0 6px;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#888;">${receiptHeading(isEvent)}</p>
+    <p style="margin:16px 0 6px;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#666;">${receiptHeading(isEvent)}</p>
     <table cellpadding="0" cellspacing="0" style="font-size:14px;width:100%;">${lineRows}${subtotalRow}</table>`;
 }
 
@@ -81,7 +81,7 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
 
   const faqsHtml = params.faqs.length
     ? `
-      <h2 style="margin:28px 0 12px;font-size:12px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#888;">${escapeHtml(params.faqsHeading ?? 'A Few Reminders')}</h2>
+      <h2 style="margin:28px 0 12px;font-size:12px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#666;">${escapeHtml(params.faqsHeading ?? 'A Few Reminders')}</h2>
       ${params.faqs
         .map(
           (faq) => `
@@ -101,7 +101,7 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
 
       <div style="border:1px solid #e5d9da;border-radius:16px;padding:20px;">
         <p style="margin:0;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#c0392b;">${escapeHtml(params.registrationTypeLabel)}</p>
-        <p style="margin:4px 0 16px;font-size:12px;color:#888;">Submitted ${escapeHtml(dateLabel)}</p>
+        <p style="margin:4px 0 16px;font-size:12px;color:#666;">Submitted ${escapeHtml(dateLabel)}</p>
         <table cellpadding="0" cellspacing="0" style="font-size:14px;width:100%;">
           ${rowsHtml}
           ${subtotalRowHtml}

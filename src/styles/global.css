@@ -15,6 +15,19 @@
   --color-accent: #ff5577;
 }
 
+/* Paper is white (browsers skip the page background when printing), so print
+   swaps in dark-on-light colors; otherwise the cream text all but vanishes. */
+@media print {
+  :root {
+    --color-bg: #ffffff;
+    --color-surface: #f7f1f1;
+    --color-ink: #1a1210;
+    --color-muted: #5f5049;
+    --color-border: #d9c4c8;
+    --color-accent: #b81640;
+  }
+}
+
 html {
   scroll-behavior: smooth;
 }

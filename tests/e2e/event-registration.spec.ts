@@ -74,6 +74,13 @@ test.describe.serial('with community guidelines', () => {
     const contactLine = page.locator('span', { hasText: 'Attendee 1:' }).locator('xpath=following-sibling::span[1]');
     await expect(contactLine).toHaveText(email);
 
+    // Printed on white paper, the text is dark (it was once the site's cream,
+    // all but invisible) and the cookie banner stays off the page.
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.getByRole('heading', { name: 'Your Registration is Confirmed!' })).toHaveCSS('color', 'rgb(26, 18, 16)');
+    await expect(page.locator('#cookie-consent')).toBeHidden();
+    await page.emulateMedia({ media: 'screen' });
+
     const { data } = await db.from('intake_submissions').select('guidelines_agreed_at').eq('id', confirmationId(page.url())!).single();
     expect(data!.guidelines_agreed_at).not.toBeNull();
 
