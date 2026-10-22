@@ -42,3 +42,20 @@ for (const width of [1280, 1100, 1000, 900]) {
     expect(await label.evaluate((el) => el.textContent?.includes('Wk 1 '))).toBe(true);
   });
 }
+
+test('a one-off class shows as a Workshop with a single price; a series class keeps both prices', async ({ page }) => {
+  const workshop = await seedEvent({ name: 'Pop-Up Workshop', priceWhole: 40, priceDropIn: 25, dayOffset: 33 });
+  const { data } = await db.from('events').select('start_time').eq('id', workshop.ids[0]).single();
+  const d = new Date(data!.start_time);
+  await page.goto(`/calendar?month=${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+
+  const card = page.locator('.event-banner', { hasText: workshop.title }).first();
+  await expect(card).toContainText('Workshop');
+  await expect(card).toContainText('Price: $40');
+  await expect(card).not.toContainText('Whole Series');
+  await expect(card).not.toContainText('Wk 1');
+
+  const seriesCard = page.locator('.event-banner', { hasText: series.title }).first();
+  await expect(seriesCard).toContainText('Class');
+  await expect(seriesCard).toContainText('Whole Series');
+});
