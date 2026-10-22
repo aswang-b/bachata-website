@@ -51,7 +51,8 @@ test('a one-off class shows as a Workshop with a single price; a series class ke
 
   const card = page.locator('.event-banner', { hasText: workshop.title }).first();
   await expect(card).toContainText('Workshop');
-  await expect(card).toContainText('Price: $40');
+  await expect(card).toContainText('$40/dancer');
+  await expect(card).not.toContainText('Price:');
   await expect(card).not.toContainText('Whole Series');
   await expect(card).not.toContainText('Wk 1');
 

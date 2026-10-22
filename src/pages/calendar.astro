@@ -136,8 +136,9 @@ function priceTypeHtml(label: string, event: PricedEvent, field: 'whole' | 'drop
     flashSale,
     flashSaleUntil: event.flash_sale_until,
   });
-  if (result.display === 'original') return `${label}: ${formatPrice(result.originalPrice!)}${suffix}`;
-  return `${label}: <s class="text-muted">${formatPrice(result.originalPrice!)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
+  const prefix = label ? `${label}: ` : '';
+  if (result.display === 'original') return `${prefix}${formatPrice(result.originalPrice!)}${suffix}`;
+  return `${prefix}<s class="text-muted">${formatPrice(result.originalPrice!)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
 }
 
 function buildPriceLines(event: PricedEvent & { event_type?: string }, weekNumber: number | null): { main: string; student: string } {
@@ -146,7 +147,7 @@ function buildPriceLines(event: PricedEvent & { event_type?: string }, weekNumbe
   // A workshop (a class that doesn't repeat) has one price: what registration
   // charges for it, its whole-series price, or its drop-in price without one.
   if (!weekNumber) {
-    return { main: priceTypeHtml('Price', event, event.price_whole_series != null ? 'whole' : 'dropIn'), student: priceTypeHtml('Student Discount', event, 'student') };
+    return { main: priceTypeHtml('', event, event.price_whole_series != null ? 'whole' : 'dropIn', '/dancer'), student: priceTypeHtml('Student Discount', event, 'student', '/dancer') };
   }
   const perClass = event.event_type === 'event' ? '' : '/class';
   const whole = priceTypeHtml('Whole Series', event, 'whole');
@@ -1153,8 +1154,9 @@ const MAX_BANNERS_PER_DAY = 3;
       flashSale,
       flashSaleUntil: event.flash_sale_until,
     });
-    if (result.display === 'original') return `${label}: ${formatPrice(result.originalPrice!)}${suffix}`;
-    return `${label}: <s class="text-muted">${formatPrice(result.originalPrice!)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
+    const prefix = label ? `${label}: ` : '';
+    if (result.display === 'original') return `${prefix}${formatPrice(result.originalPrice!)}${suffix}`;
+    return `${prefix}<s class="text-muted">${formatPrice(result.originalPrice!)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
   }
 
   function buildPriceLines(event: SiteEvent): { main: string; student: string } {
@@ -1163,7 +1165,7 @@ const MAX_BANNERS_PER_DAY = 3;
     // A workshop (a class that doesn't repeat) has one price: what registration
     // charges for it, its whole-series price, or its drop-in price without one.
     if (!event.weekNumber) {
-      return { main: priceTypeHtml('Price', event, event.price_whole_series != null ? 'whole' : 'dropIn'), student: priceTypeHtml('Student Discount', event, 'student') };
+      return { main: priceTypeHtml('', event, event.price_whole_series != null ? 'whole' : 'dropIn', '/dancer'), student: priceTypeHtml('Student Discount', event, 'student', '/dancer') };
     }
     const parts: string[] = [];
     // Events (not classes) just list the price, with no per-class unit.
