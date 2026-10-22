@@ -23,7 +23,7 @@ Pure logic plus server modules with Supabase replaced by `fakeSupabase.ts` (an i
 | `googleAuth.test.ts` | Tokens without the Calendar scope rejected; dead tokens skipped freshest-first; rate-limit retries (only for real rate limits); 410 on delete is fine; pagination |
 | `sessionAndDuplicates.test.ts` | Stale admin sessions refreshed, unrecoverable ones signed out with `scope: 'local'`; duplicate sign-up/check-in fingerprints |
 | `capacity.test.ts` | Spot math, per-role caps, series = tightest class, labels, hidden-count labels, editor → row columns, server-side capacity check (fails closed) |
-| `registration.test.ts` | Class-selection parsing/labels, closed classes by key, free vs paid events, itemized receipt (deal discounts as their own line), deals applied per dancer on saved rows, confirmation email (FAQs vs guidelines), check-in tokens |
+| `registration.test.ts` | Class-selection parsing/labels, closed classes by key, free vs paid events, itemized receipt (deal discounts as their own line), deals applied per dancer on saved rows, admin edits keeping unchanged classes' saved prices and deals, confirmation email (FAQs vs guidelines), check-in tokens |
 | `scheduling.test.ts` | Midnight end times (`src/lib/eventTimes.ts`), tiered pricing, recurrence rules, color mapping |
 | `deals.test.ts` | Bundle deals: bundle price / amount / percent off, all vs any-N (repeating), best price wins, drop-ins never count, one deal per class, cent-exact split, "add this class" suggestions |
 | `content.test.ts` | Guidelines → FAQ-style sections, rich-text sanitizing |

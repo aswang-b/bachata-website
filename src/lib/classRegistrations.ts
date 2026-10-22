@@ -318,14 +318,15 @@ export type RegistrationRow = Omit<ReturnType<typeof buildRegistrationRows>[numb
 type DealPricedRow = Pick<RegistrationRow, 'dancer_index' | 'series_key' | 'price' | 'is_drop_in' | 'deal_id' | 'deal_name' | 'deal_discount'>;
 
 // Takes each dancer's bundle deals off their rows' prices (see deals.ts),
-// recording the deal on each discounted row. Mutates and returns the rows.
+// recording the deal on each discounted row. Rows that already carry a deal
+// (kept from before an admin edit) are left as they are. Mutates and returns the rows.
 export function applyDealsToRows<T extends DealPricedRow>(rows: T[], deals: Deal[]): T[] {
   if (deals.length === 0) return rows;
   const byDancer = new Map<number | null, T[]>();
   for (const row of rows) byDancer.set(row.dancer_index, [...(byDancer.get(row.dancer_index) ?? []), row]);
   for (const dancerRows of byDancer.values()) {
     const { discounts } = applyDeals(
-      dancerRows.map((r) => ({ key: r.series_key ?? '', price: r.price, eligible: !r.is_drop_in && Boolean(r.series_key) })),
+      dancerRows.map((r) => ({ key: r.series_key ?? '', price: r.price, eligible: !r.is_drop_in && Boolean(r.series_key) && !r.deal_name })),
       deals
     );
     dancerRows.forEach((row, i) => {
@@ -453,6 +454,41 @@ export async function insertClassRegistrations(params: {
   if (error) console.error('Failed to insert class registrations:', error.message);
 }
 
+type SavedPricing = Pick<ClassRegistrationRow, 'series_mode' | 'occurrence_event_id' | 'price' | 'price_tier' | 'deal_id' | 'deal_name' | 'deal_discount'> & { series_key: string | null };
+type RebuiltRow = ReturnType<typeof buildRegistrationRows>[number];
+
+// An admin edit rebuilds a dancer's rows; a class they already had (same
+// series, option and date) keeps the price and deal it was saved with, so an
+// edit never re-prices what didn't change (an early bird that has since
+// ended, a deal that has since ended or been paused). A deal only stays while
+// the dancer still has every class it covered; otherwise the classes left go
+// back to the full price they were saved at. Mutates and returns the rows.
+export function carryOverPricing<T extends RebuiltRow>(rows: T[], saved: SavedPricing[]): T[] {
+  const matchKey = (r: Pick<SavedPricing, 'series_key' | 'series_mode' | 'occurrence_event_id'>) => [r.series_key, r.series_mode, r.occurrence_event_id ?? ''].join('|');
+  const unused = [...saved];
+  const kept = new Map<T, SavedPricing>();
+  for (const row of rows) {
+    const i = unused.findIndex((s) => matchKey(s) === matchKey(row));
+    if (i === -1) continue;
+    kept.set(row, unused[i]);
+    unused.splice(i, 1);
+  }
+  const dealGroup = (s: SavedPricing) => `${s.deal_id ?? ''}|${s.deal_name}`;
+  const brokenDeals = new Set(unused.filter((s) => s.deal_name).map(dealGroup));
+  for (const [row, s] of kept) {
+    row.price_tier = s.price_tier;
+    if (s.deal_name && !brokenDeals.has(dealGroup(s))) {
+      row.price = s.price;
+      row.deal_id = s.deal_id ?? null;
+      row.deal_name = s.deal_name;
+      row.deal_discount = s.deal_discount ?? null;
+    } else {
+      row.price = s.price != null ? Math.round((s.price + (s.deal_discount ?? 0)) * 100) / 100 : null;
+    }
+  }
+  return rows;
+}
+
 // Replaces exactly one dancer's class registrations (matched by submission +
 // dancer_index, or dancer_index IS NULL for a class-less single-registrant
 // submission) without touching any other dancer's rows on the same
@@ -466,6 +502,16 @@ export async function replaceClassRegistrations(params: {
   dancer: DancerLike;
   eventType?: EventType;
 }): Promise<void> {
+  // What the dancer's current classes were saved at, so unchanged ones keep it.
+  let savedQuery = supabase
+    .from('class_registrations')
+    .select('series_key, series_mode, occurrence_event_id, price, price_tier, deal_id, deal_name, deal_discount')
+    .eq('submission_id', params.submissionId)
+    .is('deleted_at', null);
+  savedQuery = params.dancerIndex == null ? savedQuery.is('dancer_index', null) : savedQuery.eq('dancer_index', params.dancerIndex);
+  const { data: saved, error: savedError } = await savedQuery;
+  if (savedError) throw new Error(`Failed to load existing class registrations: ${savedError.message}`);
+
   // Rows in the Recycling Bin aren't the dancer's current classes; leave them for a restore.
   let deleteQuery = supabase.from('class_registrations').delete().eq('submission_id', params.submissionId).is('deleted_at', null);
   deleteQuery = params.dancerIndex == null ? deleteQuery.is('dancer_index', null) : deleteQuery.eq('dancer_index', params.dancerIndex);
@@ -477,7 +523,10 @@ export async function replaceClassRegistrations(params: {
 
   const selections = await sanitizeOccurrenceIds(parsed);
   const priceMap = await lookupClassPrices(selections, params.eventType);
-  const rows = applyDealsToRows(buildRegistrationRows(params.submissionId, params.dancerIndex, params.dancer, selections, priceMap), await listActiveDeals());
+  const rows = applyDealsToRows(
+    carryOverPricing(buildRegistrationRows(params.submissionId, params.dancerIndex, params.dancer, selections, priceMap), (saved ?? []) as SavedPricing[]),
+    await listActiveDeals()
+  );
 
   const { error } = await supabase.from('class_registrations').insert(rows);
   if (error) throw new Error(`Failed to insert class registrations: ${error.message}`);

@@ -16,6 +16,7 @@ import {
   prepareRegistrationRows,
   validateClassSelections,
   applyDealsToRows,
+  carryOverPricing,
   type ClassRegistrationRow,
 } from '../../src/lib/classRegistrations';
 import { buildReceiptLines, paymentAgreementText, quantityNote, receiptSubtotal } from '../../src/lib/registrationReceipt';
@@ -316,5 +317,63 @@ describe('bundle deals on saved registrations', () => {
       ['Zouk Bundle', -10],
     ]);
     expect(receiptSubtotal(lines)).toBe(40);
+  });
+});
+
+describe('an admin edit keeps what unchanged classes were saved at', () => {
+  // A rebuilt row, at today's price (no early bird, no deal any more).
+  const rebuilt = (key: string, price: number) => ({
+    submission_id: 's',
+    dancer_index: 0,
+    first_name: 'A',
+    last_name: 'B',
+    email: null,
+    phone: null,
+    class_title: key,
+    class_label: key,
+    series_key: key,
+    series_mode: 'whole' as const,
+    price: price as number | null,
+    price_tier: null as 'early_bird' | 'flash_sale' | null,
+    occurrence_event_id: null,
+    is_drop_in: false,
+    deal_id: null as string | null,
+    deal_name: null as string | null,
+    deal_discount: null as number | null,
+  });
+  const saved = (key: string, price: number, deal?: number) => ({
+    series_key: key,
+    series_mode: 'whole' as const,
+    occurrence_event_id: null,
+    price,
+    price_tier: null,
+    deal_id: deal ? 'd' : null,
+    deal_name: deal ? 'Zouk Bundle' : null,
+    deal_discount: deal ?? null,
+  });
+
+  it('a deal that has since ended stays on the classes it covered; an added class is priced today', () => {
+    const rows = carryOverPricing([rebuilt('a', 25), rebuilt('b', 25), rebuilt('c', 30)], [saved('a', 20, 5), saved('b', 20, 5)]);
+    expect(rows.map((r) => [r.series_key, r.price, r.deal_name])).toEqual([
+      ['a', 20, 'Zouk Bundle'],
+      ['b', 20, 'Zouk Bundle'],
+      ['c', 30, null],
+    ]);
+  });
+
+  it('removing one of a deal\'s classes returns the other to its full saved price', () => {
+    const rows = carryOverPricing([rebuilt('a', 28)], [saved('a', 20, 5), saved('b', 20, 5)]);
+    expect(rows.map((r) => [r.price, r.deal_name])).toEqual([[25, null]]);
+  });
+
+  it('keeps an early-bird price that has since ended', () => {
+    const rows = carryOverPricing([rebuilt('a', 30)], [{ ...saved('a', 22), price_tier: 'early_bird' as const }]);
+    expect(rows[0]).toMatchObject({ price: 22, price_tier: 'early_bird' });
+  });
+
+  it('a kept deal is left alone when today\'s deals are applied', () => {
+    const today = { id: 'n', name: 'New Deal', kind: 'amount_off' as const, amount: 10, seriesKeys: ['a', 'c'], requiredCount: null };
+    const rows = applyDealsToRows(carryOverPricing([rebuilt('a', 25), rebuilt('b', 25), rebuilt('c', 30)], [saved('a', 20, 5), saved('b', 20, 5)]), [today]);
+    expect(rows.map((r) => r.deal_name)).toEqual(['Zouk Bundle', 'Zouk Bundle', null]);
   });
 });
