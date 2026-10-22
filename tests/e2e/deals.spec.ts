@@ -114,3 +114,25 @@ test.describe.serial('a bundle price for two workshops', () => {
     await expect(page.locator('#subtotal-items .deal-line')).toHaveCount(0);
   });
 });
+
+test('a deal covers classes or events, never both', async ({ page, adminPage, request, admin }) => {
+  void adminPage;
+  const event = await seedEvent({ name: 'Deal Social', type: 'event', priceWhole: 10, dayOffset: 41 });
+  const mixed = await request.post('/api/admin/deals', {
+    headers: { Authorization: `Bearer ${admin.access_token}`, Origin: new URL(page.url() || 'http://localhost:4322').origin },
+    data: { name: testTitle('Mixed Deal'), kind: 'amount_off', amount: 5, seriesKeys: [intro.key, event.key] },
+  });
+  expect(mixed.status()).toBe(400);
+  expect((await mixed.json()).error).toBe('A deal can cover classes or events, not both.');
+
+  // In the form, ticking a class locks the events (and the reverse).
+  await page.goto('/admin');
+  await page.locator('.admin-tab-btn[data-tab="deals"]').click();
+  await page.locator('#deal-new').click();
+  await page.locator(`#deal-options input[value="${intro.key}"]`).check();
+  await expect(page.locator(`#deal-options input[value="${event.key}"]`)).toBeDisabled();
+  await expect(page.locator('#deal-type-note')).toBeVisible();
+  await page.locator(`#deal-options input[value="${intro.key}"]`).uncheck();
+  await page.locator(`#deal-options input[value="${event.key}"]`).check();
+  await expect(page.locator(`#deal-options input[value="${open.key}"]`)).toBeDisabled();
+});

@@ -63,6 +63,20 @@ async function loadOptions(dealKeys: string[]): Promise<DealOption[]> {
   return [...byKey.values()].sort((a, b) => a.first.localeCompare(b.first));
 }
 
+// Whether the keys name both classes and events (a deal covers one or the
+// other: they're registered on separate forms).
+async function mixesClassesAndEvents(keys: string[]): Promise<boolean> {
+  const ids = keys.filter((k) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k));
+  const [byRecurring, byId] = await Promise.all([
+    supabase.from('events').select('event_type').in('google_recurring_event_id', keys),
+    ids.length > 0 ? supabase.from('events').select('event_type').in('id', ids) : null,
+  ]);
+  const error = byRecurring.error ?? byId?.error;
+  if (error) throw new Error(`Failed to check the deal's classes: ${error.message}`);
+  const types = new Set([...(byRecurring.data ?? []), ...(byId?.data ?? [])].map((e) => (e.event_type === 'event' ? 'event' : 'class')));
+  return types.size > 1;
+}
+
 // Admin → Deals: list (with the classes a deal can cover), save, delete.
 export const GET: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
@@ -84,6 +98,9 @@ export const POST: APIRoute = async ({ request }) => {
   if ('error' in checked) return json({ error: checked.error }, 400);
   const id = typeof payload?.id === 'string' && payload.id ? payload.id : null;
   try {
+    if (await mixesClassesAndEvents(checked.row.series_keys ?? [])) {
+      return json({ error: 'A deal can cover classes or events, not both.' }, 400);
+    }
     await saveDeal(id, checked.row);
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : 'Failed to save the deal.' }, 500);

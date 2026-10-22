@@ -61,6 +61,7 @@ const buttonClass =
     <div class="flex flex-col gap-1.5">
       <span class="text-sm font-medium text-ink/80">Classes and events in the deal</span>
       <div id="deal-options" class="themed-scrollbar flex max-h-80 flex-col gap-1 overflow-y-auto rounded-xl border border-border bg-bg p-2"></div>
+      <p id="deal-type-note" class="hidden text-xs text-muted">A deal covers classes or events, not both (they're registered on separate forms).</p>
     </div>
 
     <div class="grid gap-3 sm:grid-cols-2">
@@ -120,11 +121,14 @@ const buttonClass =
   const endsInput = document.getElementById('deal-ends') as HTMLInputElement;
   const activeInput = document.getElementById('deal-active') as HTMLInputElement;
   const preview = document.getElementById('deal-preview')!;
+  const typeNote = document.getElementById('deal-type-note')!;
 
   let deals: DealRecord[] = [];
   let options: DealOption[] = [];
   let editingId: string | null = null;
-  let loaded = false;
+  // The first load, shared so New Deal can wait for the class list.
+  let firstLoad: Promise<void> | null = null;
+  const ensureLoaded = () => (firstLoad ??= load());
 
   const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' });
   const money = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
@@ -196,27 +200,55 @@ const buttonClass =
       optionsBox.textContent = 'No upcoming public classes or events.';
       return;
     }
-    for (const o of shown) {
-      const label = document.createElement('label');
-      label.className = 'flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-surface';
-      const box = document.createElement('input');
-      box.type = 'checkbox';
-      box.value = o.key;
-      box.checked = selected.includes(o.key);
-      box.className = 'deal-option mt-0.5 h-4 w-4 shrink-0';
-      box.addEventListener('change', updatePreview);
-      const text = document.createElement('span');
-      text.className = 'flex flex-col';
-      const title = document.createElement('span');
-      title.className = 'text-sm font-medium text-ink';
-      title.textContent = o.title;
-      const sub = document.createElement('span');
-      sub.className = 'text-xs text-muted';
-      sub.textContent = optionLabel(o);
-      text.append(title, sub);
-      label.append(box, text);
-      optionsBox.append(label);
+    for (const type of ['class', 'event'] as const) {
+      const group = shown.filter((o) => o.type === type);
+      if (group.length === 0) continue;
+      const heading = document.createElement('p');
+      heading.className = 'px-2 pt-1 text-[10px] font-bold uppercase tracking-wider text-muted';
+      heading.textContent = type === 'class' ? 'Classes' : 'Events';
+      optionsBox.append(heading);
+      for (const o of group) renderOption(o, selected);
     }
+    lockOtherType();
+  }
+
+  function renderOption(o: DealOption, selected: string[]) {
+    const label = document.createElement('label');
+    label.className = 'flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-surface';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.value = o.key;
+    box.checked = selected.includes(o.key);
+    box.className = 'deal-option mt-0.5 h-4 w-4 shrink-0';
+    box.dataset.type = o.type;
+    box.addEventListener('change', () => {
+      lockOtherType();
+      updatePreview();
+    });
+    const text = document.createElement('span');
+    text.className = 'flex flex-col';
+    const title = document.createElement('span');
+    title.className = 'text-sm font-medium text-ink';
+    title.textContent = o.title;
+    const sub = document.createElement('span');
+    sub.className = 'text-xs text-muted';
+    sub.textContent = optionLabel(o);
+    text.append(title, sub);
+    label.append(box, text);
+    optionsBox.append(label);
+  }
+
+  // Once a class (or an event) is ticked, the other kind can't be.
+  function lockOtherType() {
+    const boxes = Array.from(optionsBox.querySelectorAll<HTMLInputElement>('.deal-option'));
+    const chosen = boxes.find((b) => b.checked)?.dataset.type ?? null;
+    for (const box of boxes) {
+      const locked = chosen != null && box.dataset.type !== chosen;
+      box.disabled = locked;
+      box.closest('label')?.classList.toggle('opacity-40', locked);
+      box.closest('label')?.classList.toggle('cursor-not-allowed', locked);
+    }
+    typeNote.classList.toggle('hidden', chosen == null);
   }
 
   const ruleValue = () => (form.querySelector<HTMLInputElement>('input[name="deal-rule"]:checked')?.value ?? 'all') as 'all' | 'any';
@@ -275,12 +307,13 @@ const buttonClass =
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       status.textContent = body.error ?? 'Failed to load deals.';
+      // Try again on the next click.
+      firstLoad = null;
       return;
     }
     deals = body.deals;
     options = body.options;
     status.textContent = '';
-    loaded = true;
     renderList();
   }
 
@@ -339,12 +372,13 @@ const buttonClass =
     status.textContent = 'Deleted.';
   }
 
-  document.getElementById('deal-new')!.addEventListener('click', () => openForm(null));
+  document.getElementById('deal-new')!.addEventListener('click', async () => {
+    await ensureLoaded();
+    openForm(null);
+  });
   document.getElementById('deal-cancel')!.addEventListener('click', closeForm);
   [kindSelect, amountInput, requiredInput].forEach((el) => el.addEventListener('input', updatePreview));
   form.querySelectorAll('input[name="deal-rule"]').forEach((r) => r.addEventListener('change', updatePreview));
   // Loads the first time the tab is opened.
-  document.querySelector('.admin-tab-btn[data-tab="deals"]')?.addEventListener('click', () => {
-    if (!loaded) void load();
-  });
+  document.querySelector('.admin-tab-btn[data-tab="deals"]')?.addEventListener('click', () => void ensureLoaded());
 </script>
