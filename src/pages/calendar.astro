@@ -277,7 +277,7 @@ const MAX_BANNERS_PER_DAY = 3;
                           {weekNumber && <><span class="whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk {weekNumber}</span>{' '}</>}
                           {event.title}
                         </div>
-                        <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
+                        <div class="event-tooltip pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden max-h-[calc(100vh-1rem)] w-96 -translate-x-1/2 overflow-hidden rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
                           <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider" style={eventTextStyle(event.color)}>
                             <span class="h-2 w-2 rounded-full" style={eventDotStyle(event.color)}></span>
                             {eventTypeLabel(event.event_type, weekNumber)}
@@ -288,7 +288,10 @@ const MAX_BANNERS_PER_DAY = 3;
                             {dateFormatter.format(new Date(event.start_time))} &middot; {timeFormatter.format(new Date(event.start_time))}
                           </p>
                           {event.description && (
-                            <div class="mt-1 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-4 [&_ul]:list-disc [&_ul]:pl-4" set:html={event.description} />
+                            <>
+                              <div class="tooltip-desc line-clamp-6 mt-1 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-4 [&_ul]:list-disc [&_ul]:pl-4" set:html={event.description} />
+                              <p class="tooltip-more mt-1 hidden text-[10px] font-bold uppercase tracking-wider text-accent">Click for full details</p>
+                            </>
                           )}
                           {buildPriceLines(event, weekNumber).main && <p class="mt-1 text-xs font-semibold text-ink" set:html={buildPriceLines(event, weekNumber).main} />}
                           {buildPriceLines(event, weekNumber).student && <p class="text-xs font-semibold text-ink" set:html={buildPriceLines(event, weekNumber).student} />}
@@ -417,10 +420,16 @@ const MAX_BANNERS_PER_DAY = 3;
                   )}
                 </p>
                 {event.description && (
-                  <div
-                    class="line-clamp-2 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline"
-                    set:html={event.description}
-                  />
+                  <>
+                    <div
+                      class="list-desc line-clamp-2 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-4 [&_ul]:list-disc [&_ul]:pl-4"
+                      set:html={event.description}
+                    />
+                    {/* Shown by the script below only when the description is cut off. */}
+                    <button type="button" class="list-desc-toggle hidden self-start text-xs font-semibold text-accent hover:underline" aria-expanded="false">
+                      Read more
+                    </button>
+                  </>
                 )}
                 {priceLines.main && <p class="text-xs font-semibold text-ink" set:html={priceLines.main} />}
                 {event.spots_label && <p class="text-xs font-bold text-accent">{event.spots_label}</p>}
@@ -866,6 +875,7 @@ const MAX_BANNERS_PER_DAY = 3;
     calendarViewEl.classList.toggle('hidden', view !== 'calendar');
     listViewEl.classList.toggle('hidden', view !== 'list');
     listViewEl.classList.toggle('flex', view === 'list');
+    if (view === 'list') refreshReadMoreLinks();
     viewToggleButtons.forEach((btn) => {
       const active = btn.dataset.view === view;
       btn.classList.toggle('gradient-accent', active);
@@ -873,6 +883,56 @@ const MAX_BANNERS_PER_DAY = 3;
       btn.classList.toggle('text-ink/70', !active);
     });
   }
+
+
+  // List view: a "Read more" link under each description that's cut off,
+  // expanding it in place.
+  function refreshReadMoreLinks() {
+    listViewEl.querySelectorAll<HTMLElement>('.list-desc').forEach((desc) => {
+      const toggle = desc.nextElementSibling as HTMLButtonElement | null;
+      if (!toggle?.classList.contains('list-desc-toggle') || toggle.getAttribute('aria-expanded') === 'true') return;
+      toggle.classList.toggle('hidden', desc.scrollHeight <= desc.clientHeight + 1);
+    });
+  }
+  listViewEl.addEventListener('click', (e) => {
+    const toggle = (e.target as HTMLElement).closest<HTMLButtonElement>('.list-desc-toggle');
+    if (!toggle) return;
+    const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+    toggle.previousElementSibling?.classList.toggle('line-clamp-2', !expanded);
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.textContent = expanded ? 'Show less' : 'Read more';
+  });
+  window.addEventListener('resize', refreshReadMoreLinks);
+
+  // Calendar hover card: opens below the banner, or above it when there's
+  // more room there, and slides sideways to stay inside the window. A long
+  // description is cut to a few lines, with a hint to click for the rest.
+  const TOOLTIP_MARGIN = 8;
+  function placeTooltip(banner: HTMLElement) {
+    const tip = banner.querySelector<HTMLElement>('.event-tooltip');
+    if (!tip) return;
+    tip.classList.remove('bottom-full', 'mb-2');
+    tip.classList.add('top-full', 'mt-2');
+    tip.style.marginLeft = '';
+    const desc = tip.querySelector<HTMLElement>('.tooltip-desc');
+    tip.querySelector('.tooltip-more')?.classList.toggle('hidden', !desc || desc.scrollHeight <= desc.clientHeight + 1);
+
+    const rect = tip.getBoundingClientRect();
+    const bannerRect = banner.getBoundingClientRect();
+    const roomBelow = window.innerHeight - bannerRect.bottom;
+    const roomAbove = bannerRect.top;
+    if (rect.bottom > window.innerHeight - TOOLTIP_MARGIN && roomAbove > roomBelow) {
+      tip.classList.remove('top-full', 'mt-2');
+      tip.classList.add('bottom-full', 'mb-2');
+    }
+    if (rect.left < TOOLTIP_MARGIN) tip.style.marginLeft = `${TOOLTIP_MARGIN - rect.left}px`;
+    else if (rect.right > window.innerWidth - TOOLTIP_MARGIN) tip.style.marginLeft = `${window.innerWidth - TOOLTIP_MARGIN - rect.right}px`;
+  }
+  // Delegated so it keeps working after client-side re-rendering.
+  document.addEventListener('mouseover', (e) => {
+    const banner = (e.target as HTMLElement).closest<HTMLElement>('.event-banner');
+    if (banner && !banner.contains(e.relatedTarget as Node | null)) placeTooltip(banner);
+  });
 
   const VIEW_STORAGE_KEY = 'bwb-calendar-view';
 
@@ -1985,7 +2045,7 @@ const MAX_BANNERS_PER_DAY = 3;
     return `
       <div class="event-banner group relative cursor-pointer" data-event='${JSON.stringify(event).replace(/'/g, '&#39;')}'>
         <div class="${bannerClass}" style="${eventBannerStyle(event.color)}">${weekTag}${event.visibility === 'private' ? '🔒 ' : ''}${escapeHtml(event.title)}</div>
-        <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
+        <div class="event-tooltip pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden max-h-[calc(100vh-1rem)] w-96 -translate-x-1/2 overflow-hidden rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
           <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider" style="${eventTextStyle(event.color)}">
             <span class="h-2 w-2 rounded-full" style="${eventDotStyle(event.color)}"></span>
             ${eventTypeLabel(event.event_type, event.weekNumber)}
@@ -1993,7 +2053,7 @@ const MAX_BANNERS_PER_DAY = 3;
           </p>
           <p class="mt-1 font-display font-bold text-ink">${escapeHtml(event.title)}</p>
           <p class="mt-1 text-xs text-muted">${dateFormatter.format(new Date(event.start_time))} &middot; ${timeFormatter.format(new Date(event.start_time))}</p>
-          ${event.description ? `<div class="mt-1 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-4 [&_ul]:list-disc [&_ul]:pl-4">${event.description}</div>` : ''}
+          ${event.description ? `<div class="tooltip-desc line-clamp-6 mt-1 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-4 [&_ul]:list-disc [&_ul]:pl-4">${event.description}</div><p class="tooltip-more mt-1 hidden text-[10px] font-bold uppercase tracking-wider text-accent">Click for full details</p>` : ''}
           ${buildPriceLines(event).main ? `<p class="mt-1 text-xs font-semibold text-ink">${buildPriceLines(event).main}</p>` : ''}
           ${buildPriceLines(event).student ? `<p class="text-xs font-semibold text-ink">${buildPriceLines(event).student}</p>` : ''}
           ${spotsText(event) ? `<p class="mt-1 text-xs font-bold text-accent">${spotsText(event)}</p>` : ''}

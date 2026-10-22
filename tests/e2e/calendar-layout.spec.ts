@@ -60,3 +60,51 @@ test('a one-off class shows as a Workshop with a single price; a series class ke
   await expect(seriesCard).toContainText('Class');
   await expect(seriesCard).toContainText('Whole Series');
 });
+
+test.describe('a long description', () => {
+  const longText = Array.from({ length: 30 }, (_, i) => `<p>Line ${i + 1} of a very long class description that keeps going.</p>`).join('');
+  let long: Seeded;
+  let month = '';
+  test.beforeAll(async () => {
+    long = await seedEvent({ name: 'Long Description', description: longText, dayOffset: 36 });
+    const { data } = await db.from('events').select('start_time').eq('id', long.ids[0]).single();
+    const d = new Date(data!.start_time);
+    month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  test('the hover card stays inside the window and offers to click for the rest', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 700 });
+    await page.goto(`/calendar?month=${month}`);
+    const banner = page.locator('.day-banners .event-banner', { hasText: long.title }).first();
+    // Near the bottom of the window, where the card used to run off the screen.
+    await banner.evaluate((el) => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      el.scrollIntoView({ block: 'end' });
+    });
+    await banner.hover();
+    const tip = banner.locator('.event-tooltip');
+    await expect(tip).toBeVisible();
+    await expect(tip.locator('.tooltip-more')).toHaveText('Click for full details');
+    const box = (await tip.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(700);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(1280);
+  });
+
+  test('list view cuts it short with a Read more link that expands it', async ({ page }) => {
+    await page.goto(`/calendar?month=${month}`);
+    await page.locator('[data-view="list"]').first().click();
+    const row = page.locator('#list-view > div', { hasText: long.title });
+    const toggle = row.locator('.list-desc-toggle');
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toHaveText('Read more');
+    const clamped = (await row.locator('.list-desc').boundingBox())!.height;
+    await toggle.click();
+    await expect(toggle).toHaveText('Show less');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect((await row.locator('.list-desc').boundingBox())!.height).toBeGreaterThan(clamped * 5);
+    await toggle.click();
+    await expect(toggle).toHaveText('Read more');
+  });
+});
