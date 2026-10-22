@@ -147,7 +147,7 @@ function buildPriceLines(event: PricedEvent & { event_type?: string }, weekNumbe
   // A workshop (a class that doesn't repeat) has one price: what registration
   // charges for it, its whole-series price, or its drop-in price without one.
   if (!weekNumber) {
-    return { main: priceTypeHtml('', event, event.price_whole_series != null ? 'whole' : 'dropIn', '/dancer'), student: priceTypeHtml('Student Discount', event, 'student', '/dancer') };
+    return { main: priceTypeHtml('Workshop', event, event.price_whole_series != null ? 'whole' : 'dropIn'), student: priceTypeHtml('Student Discount', event, 'student') };
   }
   const perClass = event.event_type === 'event' ? '' : '/class';
   const whole = priceTypeHtml('Whole Series', event, 'whole');
@@ -1225,7 +1225,7 @@ const MAX_BANNERS_PER_DAY = 3;
     // A workshop (a class that doesn't repeat) has one price: what registration
     // charges for it, its whole-series price, or its drop-in price without one.
     if (!event.weekNumber) {
-      return { main: priceTypeHtml('', event, event.price_whole_series != null ? 'whole' : 'dropIn', '/dancer'), student: priceTypeHtml('Student Discount', event, 'student', '/dancer') };
+      return { main: priceTypeHtml('Workshop', event, event.price_whole_series != null ? 'whole' : 'dropIn'), student: priceTypeHtml('Student Discount', event, 'student') };
     }
     const parts: string[] = [];
     // Events (not classes) just list the price, with no per-class unit.
