@@ -50,6 +50,8 @@ test.describe.serial('with community guidelines', () => {
       return Boolean(box.compareDocumentPosition(subtotal) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
     expect(guidelinesFirst).toBe(true);
+    // An event's card has no "· Event" label (the page only lists events) and no stray "·" before its location.
+    await expect(page.locator(`.series-item[data-key="${paid.key}"] .series-toggle-btn`)).not.toContainText('·');
     // Events never ask for a role.
     await expect(page.locator('.dancer-role-btn')).toHaveCount(0);
 
