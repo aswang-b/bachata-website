@@ -3,9 +3,6 @@ import { db, seedEvent, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { bearer } from './support/admin';
 import type { Page } from '@playwright/test';
-import { eventBannerBg } from '../../src/lib/eventColors';
-
-const hexToRgb = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
 
 // The event editor, with Google Calendar off for the test server: saves only
 // write the database (the editor then shows its "not synced" dialog).
@@ -157,11 +154,10 @@ test('any color can be picked, is saved as picked, and becomes a quick pick', as
   const { data } = await db.from('events').select('color').eq('id', klass.ids[0]).single();
   expect(data!.color).toBe('#12abef');
 
-  // The calendar draws it (in the readable shade of it white text needs,
-  // see eventBannerBg), and the editor now offers it first.
+  // The calendar draws it, and the editor now offers it first.
   await openEditor(page, klass);
   const banner = page.locator('.event-banner-label', { hasText: klass.title }).first();
-  await expect(banner).toHaveCSS('background-color', hexToRgb(eventBannerBg('#12abef')));
+  await expect(banner).toHaveCSS('background-color', 'rgb(18, 171, 239)');
   await expect(page.locator('#event-recent-colors .event-color-btn').first()).toHaveAttribute('data-color', '#12abef');
   await expect(page.locator('#event-recent-colors .event-color-btn').first()).toHaveAttribute('aria-pressed', 'true');
   await page.locator('#event-modal > div').screenshot({ path: 'tests/e2e/.output/editor-colors.png' });

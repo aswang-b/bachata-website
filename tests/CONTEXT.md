@@ -25,7 +25,7 @@ Pure logic plus server modules with Supabase replaced by `fakeSupabase.ts` (an i
 | `capacity.test.ts` | Spot math, per-role caps, series = tightest class, labels, hidden-count labels, editor → row columns, server-side capacity check (fails closed), admin calendar counts spots on upcoming classes only |
 | `registration.test.ts` | Class-selection parsing/labels, closed classes by key, free vs paid events, itemized receipt (deal discounts as their own line), deals applied per dancer on saved rows, admin edits keeping unchanged classes' saved prices and deals, confirmation email (FAQs vs guidelines), check-in tokens |
 | `scheduling.test.ts` | Midnight end times (`src/lib/eventTimes.ts`), tiered pricing, recurrence rules, color mapping |
-| `eventColors.test.ts` | Color names/hex, Google color matching, quick picks, banner and pill text meeting WCAG AA on any picked color |
+| `eventColors.test.ts` | Color names/hex, Google color matching, quick picks, readable text on light picks |
 | `deals.test.ts` | Bundle deals: bundle price / amount / percent off, all vs any-N (repeating), best price wins, drop-ins never count, one deal per class, cent-exact split, "add this class" suggestions |
 | `locationLink.test.ts` | Location links never break out of an `href` (quotes, angle brackets) and only link to http(s) |
 | `content.test.ts` | Guidelines → FAQ-style sections, rich-text sanitizing |
