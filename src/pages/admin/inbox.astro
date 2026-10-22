@@ -96,8 +96,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
               <p class="text-xs text-muted">${dateFormatter.format(new Date(m.created_at))}</p>
             </div>
             <p class="mt-1 text-sm text-ink/70">${contactParts.join(' · ')}</p>
-            ${m.preferred_contact_method ? `<p class="mt-1 text-xs text-muted">Preferred contact: ${escapeHtml(m.preferred_contact_method)}</p>` : ''}
-            ${m.comments ? `<p class="mt-3 text-sm text-ink">${escapeHtml(m.comments)}</p>` : ''}
+            ${m.message ? `<p class="mt-3 text-sm text-ink">${escapeHtml(m.message)}</p>` : ''}
           </div>`;
       })
       .join('');

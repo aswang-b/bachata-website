@@ -11,9 +11,9 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   const { count, error } = await supabase
-    .from('intake_submissions')
+    .from('contact_messages')
     .select('id', { count: 'exact', head: true })
-    .eq('registration_type', 'private')
+    .is('deleted_at', null)
     .eq('seen', false);
 
   if (error) {

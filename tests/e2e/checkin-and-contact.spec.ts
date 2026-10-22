@@ -2,6 +2,7 @@ import { test, expect, postForm } from './support/fixtures';
 import { db, seedEvent, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { emailsAbout, recipients } from './support/emails';
+import { bearer } from './support/admin';
 
 let klass: Seeded;
 
@@ -38,7 +39,8 @@ test('a check-in needs a name, phone and class', async ({ request }) => {
   expect(res.status()).toBe(400);
 });
 
-test('the contact form saves the message and notifies the admins', async ({ page }) => {
+test('the contact form saves the message (apart from sign-ups) and notifies the admins once', async ({ page, request, adminPage, admin }) => {
+  void adminPage;
   await page.goto('/contact');
   await page.locator('input[name="first_name"]').fill('ZZZContact');
   await page.locator('input[name="last_name"]').fill(RUN_ID);
@@ -48,11 +50,35 @@ test('the contact form saves the message and notifies the admins', async ({ page
   if (await phone.isVisible()) await phone.fill('6085550199');
   const comments = page.locator('textarea[name="comments"]');
   if (await comments.isVisible()) await comments.fill(`ZZZ test message ${RUN_ID}`);
+  // What was sent, for the resubmission below (read before the page moves on).
+  const sentPhone = await phone.inputValue();
+  const sentMessage = await comments.inputValue();
   await page.locator('form button[type="submit"]').click();
   await page.waitForURL(/\/contact\/confirmation/);
 
-  const { data } = await db.from('intake_submissions').select('registration_type').ilike('first_name', 'ZZZContact').eq('last_name', RUN_ID);
-  expect(data).toEqual([{ registration_type: 'private' }]);
+  // Saved as a contact message, not as a sign-up with no class (it used to
+  // show up on the dashboard like that).
+  const { data } = await db.from('contact_messages').select('id, email, message').ilike('first_name', 'ZZZContact').eq('last_name', RUN_ID);
+  expect(data).toEqual([expect.objectContaining({ email: `zzz-e2e-${RUN_ID.toLowerCase()}-contact@example.com` })]);
+  const { count: asSignup } = await db.from('intake_submissions').select('id', { count: 'exact', head: true }).ilike('first_name', 'ZZZContact').eq('last_name', RUN_ID);
+  expect(asSignup).toBe(0);
+  await expect(page.locator('body')).toContainText(`ZZZContact ${RUN_ID}`);
+
+  // Sent again (double-click, back and resubmit): saved once, same confirmation.
+  const again = await postForm(request, '/api/submit-intake', {
+    registration_type: 'private',
+    first_name: 'ZZZContact',
+    last_name: RUN_ID,
+    email: `zzz-e2e-${RUN_ID.toLowerCase()}-contact@example.com`,
+    phone: sentPhone,
+    comments: sentMessage,
+  });
+  expect(again.status()).toBe(303);
+  expect(again.headers().location).toContain(`/contact/confirmation?id=${data![0].id}`);
+
+  // The admin inbox lists it.
+  const inbox = await (await request.get('/api/admin/inbox-data', { headers: bearer(admin) })).json();
+  expect(inbox.messages.some((m: { id: string }) => m.id === data![0].id)).toBe(true);
 
   const { data: settings } = await db.from('notification_settings').select('recipient_emails').eq('id', true).maybeSingle();
   const admins = String(settings?.recipient_emails ?? '').split(',').map((e) => e.trim()).filter(Boolean);

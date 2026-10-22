@@ -14,6 +14,7 @@ import { listFaqs } from '../../lib/faqs';
 import { getConfirmationBccEmails, getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
 import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
+import { saveContactMessage } from '../../lib/contactMessages';
 import { capacityErrorMessage } from '../../lib/capacity';
 import { buildReceiptLines, paymentAgreementText, receiptSubtotal } from '../../lib/registrationReceipt';
 import { getCommunityGuidelines, guidelineSections, hasGuidelines } from '../../lib/communityGuidelines';
@@ -225,46 +226,67 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     return new Response("Please confirm you've read the community guidelines.", { status: 400 });
   }
 
-  // The sign-up and its class registrations are saved together, with
-  // capacity enforced on them in the same transaction (migration 0046).
-  const { data: submissionId, error } = await supabase.rpc('register_submission', {
-    p_submission: {
-      registration_type: registrationType,
-      first_name: firstName,
-      last_name: lastName,
+  const confirmationBase = registrationType === 'private' ? '/contact/confirmation' : '/register/confirmation';
+  let submissionId: string;
+  if (registrationType === 'private') {
+    // A Contact form message isn't a sign-up: it has its own table
+    // (migration 0049). The same message sent twice is saved once, sends no
+    // second email, and shows the original's confirmation.
+    const saved = await saveContactMessage({
+      firstName,
+      lastName,
       email: email || null,
       phone: phone || null,
       instagram: instagram || null,
       whatsapp: whatsapp || null,
-      class: className || null,
-      comments: comments || null,
-      dancers: dancers ?? null,
-      payment_method: paymentMethod || null,
-      guidelines_agreed_at: isEvent && agreedToGuidelines ? new Date().toISOString() : null,
-    },
-    p_rows: registrationRows,
-  });
-
-  if (error?.message === 'capacity_exceeded') {
-    return new Response(capacityErrorMessage(error.details), { status: 400 });
-  }
-  if (error || typeof submissionId !== 'string') {
-    console.error('Failed to insert intake submission:', error);
-    return new Response('Something went wrong submitting your form. Please try again.', {
-      status: 500,
+      message: comments || null,
     });
-  }
+    if (!saved) {
+      return new Response('Something went wrong submitting your form. Please try again.', { status: 500 });
+    }
+    if (saved.duplicateOf) return redirect(`${confirmationBase}?id=${saved.duplicateOf}`, 303);
+    submissionId = saved.id;
+  } else {
+    // The sign-up and its class registrations are saved together, with
+    // capacity enforced on them in the same transaction (migration 0046).
+    const { data, error } = await supabase.rpc('register_submission', {
+      p_submission: {
+        registration_type: registrationType,
+        first_name: firstName,
+        last_name: lastName,
+        email: email || null,
+        phone: phone || null,
+        instagram: instagram || null,
+        whatsapp: whatsapp || null,
+        class: className || null,
+        comments: comments || null,
+        dancers: dancers ?? null,
+        payment_method: paymentMethod || null,
+        guidelines_agreed_at: isEvent && agreedToGuidelines ? new Date().toISOString() : null,
+      },
+      p_rows: registrationRows,
+    });
 
-  const confirmationBase = registrationType === 'private' ? '/contact/confirmation' : '/register/confirmation';
+    if (error?.message === 'capacity_exceeded') {
+      return new Response(capacityErrorMessage(error.details), { status: 400 });
+    }
+    if (error || typeof data !== 'string') {
+      console.error('Failed to insert intake submission:', error);
+      return new Response('Something went wrong submitting your form. Please try again.', {
+        status: 500,
+      });
+    }
+    submissionId = data;
+
+    // The same form submitted twice (double-click, back-and-resubmit): the
+    // repeat goes to the Recycling Bin, sends no second email, and shows the
+    // original's confirmation.
+    const originalId = await flagDuplicateSubmission(submissionId);
+    if (originalId) {
+      return redirect(`${confirmationBase}?id=${originalId}`, 303);
+    }
+  }
   const confirmationUrl = `${confirmationBase}?id=${submissionId}`;
-
-  // The same form submitted twice (double-click, back-and-resubmit): the
-  // repeat goes to the Recycling Bin, sends no second email, and shows the
-  // original's confirmation.
-  const originalId = await flagDuplicateSubmission(submissionId);
-  if (originalId) {
-    return redirect(`${confirmationBase}?id=${originalId}`, 303);
-  }
 
   // Admin notification emails are only sent for the Contact Me form — group
   // and events registrations show up in /admin/analytics and /admin/inbox

@@ -12,16 +12,16 @@ let submission: {
   email: string | null;
   phone: string | null;
   instagram: string | null;
-  preferred_contact_method: string | null;
-  comments: string | null;
+  whatsapp: string | null;
+  message: string | null;
 } | null = null;
 
 if (id) {
   const { data } = await supabase
-    .from('intake_submissions')
-    .select('created_at, first_name, last_name, email, phone, instagram, preferred_contact_method, comments')
+    .from('contact_messages')
+    .select('created_at, first_name, last_name, email, phone, instagram, whatsapp, message')
     .eq('id', id)
-    .eq('registration_type', 'private')
+    .is('deleted_at', null)
     .maybeSingle();
   submission = data;
 }
@@ -47,19 +47,14 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'nu
           <div class="flex flex-col">
             <span class="font-semibold">{submission.first_name} {submission.last_name}</span>
             <span class="text-ink/70">
-              {submission.email ?? ''}
-              {submission.phone ? ` · ${submission.phone}` : ''}
-              {submission.instagram ? ` · ${submission.instagram}` : ''}
+              {[submission.email, submission.phone, submission.instagram, submission.whatsapp && `WhatsApp: ${submission.whatsapp}`].filter(Boolean).join(' · ')}
             </span>
-            {submission.preferred_contact_method && (
-              <span class="text-xs text-muted">Preferred contact: {submission.preferred_contact_method}</span>
-            )}
           </div>
 
-          {submission.comments && (
+          {submission.message && (
             <div class="flex flex-col">
               <span class="text-xs font-semibold uppercase tracking-wider text-muted">Message</span>
-              <span>{submission.comments}</span>
+              <span>{submission.message}</span>
             </div>
           )}
         </div>

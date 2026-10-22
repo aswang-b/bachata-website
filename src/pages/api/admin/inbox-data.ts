@@ -10,10 +10,11 @@ export const GET: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: authError }), { status: 403 });
   }
 
+  // Contact form messages (migration 0049).
   const { data, error } = await supabase
-    .from('intake_submissions')
-    .select('id, created_at, first_name, last_name, email, phone, instagram, whatsapp, preferred_contact_method, comments, seen')
-    .eq('registration_type', 'private')
+    .from('contact_messages')
+    .select('id, created_at, first_name, last_name, email, phone, instagram, whatsapp, message, seen')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -23,7 +24,7 @@ export const GET: APIRoute = async ({ request }) => {
   // Opening the inbox is what marks messages as seen.
   const unseenIds = (data ?? []).filter((m) => !m.seen).map((m) => m.id);
   if (unseenIds.length > 0) {
-    await supabase.from('intake_submissions').update({ seen: true }).in('id', unseenIds);
+    await supabase.from('contact_messages').update({ seen: true }).in('id', unseenIds);
   }
 
   return new Response(JSON.stringify({ messages: data ?? [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });

@@ -50,7 +50,7 @@ Test data rules (`support/db.ts`):
 | `capacity` | Full classes; a namesake can't take a full class's spot, and same-name different people each count; Leader/Follower caps (badge, form block, server refusal, role-edit recount); hidden counts |
 | `event-registration` | Guidelines shown and required, confirmation/email list them FAQ-style; blank guidelines; free vs paid events |
 | `deals` | Admin creates a deal in the Deals tab; the form offers the missing class and adding it takes the bundle price (two dancers); saved prices, confirmation page and email; server pricing from a raw POST; a paused deal stops applying; classes and events can't share a deal; Deals list status labels and order; an end date survives repeated edits |
-| `checkin-and-contact` | QR check-in, duplicate check-in, contact form → admin notification |
+| `checkin-and-contact` | QR check-in, duplicate check-in, contact form saved as a contact message (not a sign-up), sent twice → saved once, listed in the inbox, admin notification |
 | `admin-access` | Every admin API route rejects missing/bogus sessions; sign-in gate; stale-session recovery; sign-out is local only |
 | `admin-editor` | Capacity toggle round trip; events have no role caps; midnight end times; editing before admin data loads; the section menu (desktop list, phone chip row that opens and scrolls to a section); Guidelines tab |
 | `admin-dashboard` | Dashboard data (roles, events kept separate), dashboard page, check-in QR |

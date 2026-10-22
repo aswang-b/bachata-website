@@ -133,6 +133,7 @@ export async function sweepTestData(): Promise<void> {
     db.from('intake_submissions').delete().ilike('first_name', like),
     db.from('class_checkins').delete().ilike('first_name', like),
     db.from('deals').delete().ilike('name', like),
+    db.from('contact_messages').delete().ilike('first_name', like),
   ]);
   // Sign-ups first: class registrations point at the events' occurrences.
   const events = await db.from('events').delete().ilike('title', like);
