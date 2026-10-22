@@ -1,6 +1,8 @@
 import { supabase } from './supabase';
 import { getActivePrice, type PriceTier } from './pricing';
 import { buildClassSeriesList } from './classSeries';
+import { applyDeals, type Deal } from './deals';
+import { listActiveDeals } from './dealsStore';
 
 export interface ParsedClassSelection {
   label: string;
@@ -101,6 +103,11 @@ export interface ClassRegistrationRow {
   price_tier: PriceTier | null;
   occurrence_event_id: string | null;
   is_drop_in: boolean;
+  // The bundle deal this class got (migration 0047): its name, and its share
+  // of the discount (already taken off `price`).
+  deal_id?: string | null;
+  deal_name?: string | null;
+  deal_discount?: number | null;
   created_at: string;
 }
 
@@ -299,11 +306,39 @@ function buildRegistrationRows(
       price_tier: info ? priceResult.tag : null,
       occurrence_event_id: isDropIn ? sel.occurrenceEventId ?? null : null,
       is_drop_in: isDropIn,
+      deal_id: null as string | null,
+      deal_name: null as string | null,
+      deal_discount: null as number | null,
     };
   });
 }
 
 export type RegistrationRow = Omit<ReturnType<typeof buildRegistrationRows>[number], 'submission_id'>;
+
+type DealPricedRow = Pick<RegistrationRow, 'dancer_index' | 'series_key' | 'price' | 'is_drop_in' | 'deal_id' | 'deal_name' | 'deal_discount'>;
+
+// Takes each dancer's bundle deals off their rows' prices (see deals.ts),
+// recording the deal on each discounted row. Mutates and returns the rows.
+export function applyDealsToRows<T extends DealPricedRow>(rows: T[], deals: Deal[]): T[] {
+  if (deals.length === 0) return rows;
+  const byDancer = new Map<number | null, T[]>();
+  for (const row of rows) byDancer.set(row.dancer_index, [...(byDancer.get(row.dancer_index) ?? []), row]);
+  for (const dancerRows of byDancer.values()) {
+    const { discounts } = applyDeals(
+      dancerRows.map((r) => ({ key: r.series_key ?? '', price: r.price, eligible: !r.is_drop_in && Boolean(r.series_key) })),
+      deals
+    );
+    dancerRows.forEach((row, i) => {
+      const d = discounts[i];
+      if (!d || row.price == null) return;
+      row.price = Math.round((row.price - d.amount) * 100) / 100;
+      row.deal_id = d.dealId;
+      row.deal_name = d.dealName;
+      row.deal_discount = d.amount;
+    });
+  }
+  return rows;
+}
 
 // A public sign-up can only book what the form offers: a public class (or
 // event) with a date still to come, and for a Drop-In, a date still to come.
@@ -372,8 +407,11 @@ export async function prepareRegistrationRows(
   const unbookable = await findUnbookable(perDancer);
   if (unbookable) return { error: unbookable };
 
-  const rows = dancers.flatMap((d, i) => buildRegistrationRows('', i, d, sanitized, priceMap).map(({ submission_id: _, ...row }) => row));
-  return { rows, hasCost: perDancer.some((r) => (r.price ?? 0) > 0) };
+  const rows = applyDealsToRows(
+    dancers.flatMap((d, i) => buildRegistrationRows('', i, d, sanitized, priceMap).map(({ submission_id: _, ...row }) => row)),
+    await listActiveDeals()
+  );
+  return { rows, hasCost: rows.some((r) => (r.price ?? 0) > 0) };
 }
 
 export function resolveClassSelections(classRaw: string | null | undefined, classSelectionsRaw: string | null | undefined): ParsedClassSelection[] {
@@ -405,7 +443,10 @@ export async function insertClassRegistrations(params: {
       ? params.dancers
       : [{ firstName: params.fallbackFirstName, lastName: params.fallbackLastName, email: params.fallbackEmail ?? undefined, phone: params.fallbackPhone ?? undefined }];
 
-  const rows = recipients.flatMap((d, dancerIndex) => buildRegistrationRows(params.submissionId, params.dancers ? dancerIndex : null, d, selections, priceMap));
+  const rows = applyDealsToRows(
+    recipients.flatMap((d, dancerIndex) => buildRegistrationRows(params.submissionId, params.dancers ? dancerIndex : null, d, selections, priceMap)),
+    await listActiveDeals()
+  );
   if (rows.length === 0) return;
 
   const { error } = await supabase.from('class_registrations').insert(rows);
@@ -436,7 +477,7 @@ export async function replaceClassRegistrations(params: {
 
   const selections = await sanitizeOccurrenceIds(parsed);
   const priceMap = await lookupClassPrices(selections, params.eventType);
-  const rows = buildRegistrationRows(params.submissionId, params.dancerIndex, params.dancer, selections, priceMap);
+  const rows = applyDealsToRows(buildRegistrationRows(params.submissionId, params.dancerIndex, params.dancer, selections, priceMap), await listActiveDeals());
 
   const { error } = await supabase.from('class_registrations').insert(rows);
   if (error) throw new Error(`Failed to insert class registrations: ${error.message}`);

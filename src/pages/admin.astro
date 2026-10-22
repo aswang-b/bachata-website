@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import DealsAdmin from '../components/DealsAdmin.astro';
 ---
 
 <BaseLayout title="Admin">
@@ -48,7 +49,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </button>
       </div>
 
-      <div class="flex w-full gap-1 border-b border-border" role="tablist">
+      <div class="themed-scrollbar flex w-full gap-1 overflow-x-auto border-b border-border" role="tablist">
         <button type="button" data-tab="general" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           General
         </button>
@@ -57,6 +58,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </button>
         <button type="button" data-tab="guidelines" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Guidelines
+        </button>
+        <button type="button" data-tab="deals" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+          Deals
         </button>
         <button type="button" data-tab="admin" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Admin
@@ -287,6 +291,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </div>
       </section>
 
+      <!-- ==================== DEALS TAB ==================== -->
+      <DealsAdmin />
+
       <!-- ==================== ADMIN TAB ==================== -->
       <section id="admin-tab-panel-admin" class="admin-tab-panel hidden w-full flex-col items-center gap-6">
         <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
@@ -463,6 +470,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     general: document.getElementById('admin-tab-panel-general')!,
     homepage: document.getElementById('admin-tab-panel-homepage')!,
     guidelines: document.getElementById('admin-tab-panel-guidelines')!,
+    deals: document.getElementById('admin-tab-panel-deals')!,
     admin: document.getElementById('admin-tab-panel-admin')!,
     debug: document.getElementById('admin-tab-panel-debug')!,
   };

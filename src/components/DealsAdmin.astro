@@ -1,0 +1,350 @@
+---
+// Admin → Deals tab: bundle discounts applied automatically at registration
+// (see src/lib/deals.ts). Loads when the tab is first opened.
+const inputClass = 'w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none';
+const buttonClass =
+  'rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white';
+---
+
+<section id="admin-tab-panel-deals" class="admin-tab-panel hidden w-full flex-col items-center gap-6">
+  <div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
+    <div class="flex items-center justify-between gap-3">
+      <p class="text-xs font-bold uppercase tracking-wider text-muted">Bundle Deals</p>
+      <button type="button" id="deal-new" class={buttonClass}>New Deal</button>
+    </div>
+    <p class="text-xs text-muted">
+      A deal takes money off when a dancer signs up for several classes or events together. It applies on its own at registration, only when it beats
+      their current prices (early bird and flash sales included), and only to Whole Series sign-ups, workshops and event tickets, not single drop-ins.
+      When a dancer is one class short of a deal, the form offers to add it.
+    </p>
+    <ul id="deals-list" class="flex flex-col gap-2"></ul>
+    <p id="deals-status" class="min-h-4 text-xs text-muted"></p>
+  </div>
+
+  <form id="deal-form" class="hidden w-full flex-col gap-4 rounded-2xl border border-accent bg-surface p-4 text-left" novalidate>
+    <p id="deal-form-title" class="text-xs font-bold uppercase tracking-wider text-muted">New Deal</p>
+
+    <label class="flex flex-col gap-1.5">
+      <span class="text-sm font-medium text-ink/80">Name <span class="text-xs text-muted">(shown to dancers, e.g. "Zouk Pop-Up Bundle")</span></span>
+      <input id="deal-name" type="text" maxlength="100" class={inputClass} />
+    </label>
+
+    <div class="grid gap-3 sm:grid-cols-2">
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-ink/80">Discount</span>
+        <select id="deal-kind" class={inputClass}>
+          <option value="bundle_price">Bundle price</option>
+          <option value="amount_off">Amount off</option>
+          <option value="percent_off">Percent off</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1.5">
+        <span id="deal-amount-label" class="text-sm font-medium text-ink/80">Price for the bundle ($)</span>
+        <input id="deal-amount" type="number" min="0" step="0.01" inputmode="decimal" class={inputClass} />
+      </label>
+    </div>
+
+    <fieldset class="flex flex-col gap-2">
+      <legend class="text-sm font-medium text-ink/80">Applies when a dancer picks</legend>
+      <label class="flex items-center gap-2 text-sm text-ink">
+        <input type="radio" name="deal-rule" value="all" checked class="h-4 w-4" />
+        All of the classes below
+      </label>
+      <label class="flex flex-wrap items-center gap-2 text-sm text-ink">
+        <input type="radio" name="deal-rule" value="any" class="h-4 w-4" />
+        Any
+        <input id="deal-required" type="number" min="2" step="1" value="2" class="w-16 rounded-lg border border-border bg-bg px-2 py-1 text-sm text-ink" aria-label="How many" />
+        of them (applies again for every further set)
+      </label>
+    </fieldset>
+
+    <div class="flex flex-col gap-1.5">
+      <span class="text-sm font-medium text-ink/80">Classes and events in the deal</span>
+      <div id="deal-options" class="themed-scrollbar flex max-h-80 flex-col gap-1 overflow-y-auto rounded-xl border border-border bg-bg p-2"></div>
+    </div>
+
+    <div class="grid gap-3 sm:grid-cols-2">
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-ink/80">Starts <span class="text-xs text-muted">(optional)</span></span>
+        <input id="deal-starts" type="date" class={inputClass} />
+      </label>
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-ink/80">Ends <span class="text-xs text-muted">(optional, through this day)</span></span>
+        <input id="deal-ends" type="date" class={inputClass} />
+      </label>
+    </div>
+
+    <label class="flex items-center gap-2 text-sm text-ink">
+      <input id="deal-active" type="checkbox" checked class="h-4 w-4" />
+      On (uncheck to pause the deal without deleting it)
+    </label>
+
+    <p id="deal-preview" class="text-sm font-semibold text-accent"></p>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="submit" id="deal-save" class="gradient-accent rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white">Save Deal</button>
+      <button type="button" id="deal-cancel" class={buttonClass}>Cancel</button>
+      <p id="deal-form-status" class="text-xs font-semibold text-red-600" role="alert"></p>
+    </div>
+  </form>
+</section>
+
+<script>
+  import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { dealSummary, type DealKind } from '../lib/deals';
+  import type { DealRecord } from '../lib/dealsStore';
+
+  interface DealOption {
+    key: string;
+    title: string;
+    type: 'class' | 'event';
+    count: number;
+    first: string;
+    last: string;
+    price: number | null;
+    upcoming: boolean;
+  }
+
+  const list = document.getElementById('deals-list')!;
+  const status = document.getElementById('deals-status')!;
+  const form = document.getElementById('deal-form') as HTMLFormElement;
+  const formTitle = document.getElementById('deal-form-title')!;
+  const formStatus = document.getElementById('deal-form-status')!;
+  const nameInput = document.getElementById('deal-name') as HTMLInputElement;
+  const kindSelect = document.getElementById('deal-kind') as HTMLSelectElement;
+  const amountInput = document.getElementById('deal-amount') as HTMLInputElement;
+  const amountLabel = document.getElementById('deal-amount-label')!;
+  const requiredInput = document.getElementById('deal-required') as HTMLInputElement;
+  const optionsBox = document.getElementById('deal-options')!;
+  const startsInput = document.getElementById('deal-starts') as HTMLInputElement;
+  const endsInput = document.getElementById('deal-ends') as HTMLInputElement;
+  const activeInput = document.getElementById('deal-active') as HTMLInputElement;
+  const preview = document.getElementById('deal-preview')!;
+
+  let deals: DealRecord[] = [];
+  let options: DealOption[] = [];
+  let editingId: string | null = null;
+  let loaded = false;
+
+  const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' });
+  const money = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
+
+  async function authHeaders(): Promise<Record<string, string>> {
+    const { data } = await supabaseBrowser.auth.getSession();
+    return { Authorization: `Bearer ${data.session?.access_token ?? ''}`, 'Content-Type': 'application/json' };
+  }
+
+  function optionLabel(o: DealOption): string {
+    const when = o.count > 1 ? `${o.count} classes · ${dateFormatter.format(new Date(o.first))}–${dateFormatter.format(new Date(o.last))}` : dateFormatter.format(new Date(o.first));
+    const kind = o.type === 'event' ? 'Event' : o.count > 1 ? 'Series' : 'Workshop';
+    return [kind, when, o.price != null ? money(o.price) : null, o.upcoming ? null : 'past'].filter(Boolean).join(' · ');
+  }
+
+  function titleFor(key: string): string {
+    return options.find((o) => o.key === key)?.title ?? 'A class that no longer exists';
+  }
+
+  function renderList() {
+    list.replaceChildren();
+    if (deals.length === 0) {
+      const empty = document.createElement('li');
+      empty.className = 'text-sm text-muted';
+      empty.textContent = 'No deals yet.';
+      list.append(empty);
+      return;
+    }
+    for (const deal of deals) {
+      const li = document.createElement('li');
+      li.className = 'flex flex-col gap-2 rounded-xl border border-border bg-bg p-3 sm:flex-row sm:items-start sm:justify-between';
+      const info = document.createElement('div');
+      info.className = 'flex min-w-0 flex-col gap-0.5';
+      const name = document.createElement('p');
+      name.className = 'font-semibold text-ink';
+      name.textContent = deal.name;
+      const summary = document.createElement('p');
+      summary.className = 'text-sm text-accent';
+      const dates = [deal.startsAt && `from ${dateFormatter.format(new Date(deal.startsAt))}`, deal.endsAt && `until ${dateFormatter.format(new Date(deal.endsAt))}`].filter(Boolean).join(' ');
+      summary.textContent = [dealSummary(deal, deal.seriesKeys.length), dates, deal.active ? null : 'paused'].filter(Boolean).join(' · ');
+      const classes = document.createElement('p');
+      classes.className = 'text-xs text-muted';
+      classes.textContent = deal.seriesKeys.map(titleFor).join(', ');
+      info.append(name, summary, classes);
+
+      const actions = document.createElement('div');
+      actions.className = 'flex shrink-0 gap-2';
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'deal-edit rounded-full border border-border px-3 py-1 text-xs font-bold uppercase tracking-wider text-ink/70 hover:border-accent hover:text-accent';
+      edit.textContent = 'Edit';
+      edit.addEventListener('click', () => openForm(deal));
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'deal-delete rounded-full border border-border px-3 py-1 text-xs font-bold uppercase tracking-wider text-red-500 hover:border-red-500';
+      del.textContent = 'Delete';
+      del.addEventListener('click', () => removeDeal(deal));
+      actions.append(edit, del);
+      li.append(info, actions);
+      list.append(li);
+    }
+  }
+
+  function renderOptions(selected: string[]) {
+    optionsBox.replaceChildren();
+    // Upcoming ones, plus any past ones this deal already names.
+    const shown = options.filter((o) => o.upcoming || selected.includes(o.key));
+    if (shown.length === 0) {
+      optionsBox.textContent = 'No upcoming public classes or events.';
+      return;
+    }
+    for (const o of shown) {
+      const label = document.createElement('label');
+      label.className = 'flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-surface';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.value = o.key;
+      box.checked = selected.includes(o.key);
+      box.className = 'deal-option mt-0.5 h-4 w-4 shrink-0';
+      box.addEventListener('change', updatePreview);
+      const text = document.createElement('span');
+      text.className = 'flex flex-col';
+      const title = document.createElement('span');
+      title.className = 'text-sm font-medium text-ink';
+      title.textContent = o.title;
+      const sub = document.createElement('span');
+      sub.className = 'text-xs text-muted';
+      sub.textContent = optionLabel(o);
+      text.append(title, sub);
+      label.append(box, text);
+      optionsBox.append(label);
+    }
+  }
+
+  const ruleValue = () => (form.querySelector<HTMLInputElement>('input[name="deal-rule"]:checked')?.value ?? 'all') as 'all' | 'any';
+  const selectedKeys = () => Array.from(optionsBox.querySelectorAll<HTMLInputElement>('.deal-option:checked')).map((b) => b.value);
+
+  function updatePreview() {
+    const kind = kindSelect.value as DealKind;
+    amountLabel.textContent = kind === 'bundle_price' ? 'Price for the bundle ($)' : kind === 'amount_off' ? 'Amount off ($)' : 'Percent off (%)';
+    const amount = Number(amountInput.value);
+    const keys = selectedKeys();
+    const requiredCount = ruleValue() === 'any' ? Number(requiredInput.value) || 2 : null;
+    if (!amount || keys.length < 2) {
+      preview.textContent = '';
+      return;
+    }
+    let text = dealSummary({ kind, amount, requiredCount }, keys.length);
+    // For "all", what the classes cost together today, for comparison.
+    if (requiredCount == null) {
+      const prices = keys.map((k) => options.find((o) => o.key === k)?.price);
+      if (prices.every((p): p is number => p != null)) text += ` (they're ${money(prices.reduce((s, p) => s + p, 0))} today)`;
+    }
+    preview.textContent = text;
+  }
+
+  const toDateInput = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) : '');
+
+  function openForm(deal: DealRecord | null) {
+    editingId = deal?.id ?? null;
+    formTitle.textContent = deal ? `Edit "${deal.name}"` : 'New Deal';
+    nameInput.value = deal?.name ?? '';
+    kindSelect.value = deal?.kind ?? 'bundle_price';
+    amountInput.value = deal ? String(deal.amount) : '';
+    form.querySelectorAll<HTMLInputElement>('input[name="deal-rule"]').forEach((r) => (r.checked = r.value === (deal?.requiredCount ? 'any' : 'all')));
+    requiredInput.value = String(deal?.requiredCount ?? 2);
+    startsInput.value = toDateInput(deal?.startsAt ?? null);
+    endsInput.value = toDateInput(deal?.endsAt ?? null);
+    activeInput.checked = deal?.active ?? true;
+    formStatus.textContent = '';
+    renderOptions(deal?.seriesKeys ?? []);
+    updatePreview();
+    form.classList.remove('hidden');
+    form.classList.add('flex');
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    nameInput.focus({ preventScroll: true });
+  }
+
+  function closeForm() {
+    form.classList.add('hidden');
+    form.classList.remove('flex');
+    editingId = null;
+  }
+
+  async function load() {
+    status.textContent = 'Loading…';
+    const res = await fetch('/api/admin/deals', { headers: await authHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      status.textContent = body.error ?? 'Failed to load deals.';
+      return;
+    }
+    deals = body.deals;
+    options = body.options;
+    status.textContent = '';
+    loaded = true;
+    renderList();
+  }
+
+  // A date picked in the form is a whole day in Chicago time: Starts from its
+  // first moment, Ends through its last.
+  function dayBoundary(value: string, end: boolean): string | null {
+    if (!value) return null;
+    const [y, m, d] = value.split('-').map(Number);
+    // Chicago's offset from UTC that day (read at noon UTC), to find its midnight.
+    const noon = new Date(Date.UTC(y, m - 1, d, 12));
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
+        .formatToParts(noon)
+        .map((p) => [p.type, Number(p.value)])
+    );
+    const chicagoWall = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute);
+    const midnight = Date.UTC(y, m - 1, d) + (noon.getTime() - chicagoWall);
+    return new Date(end ? midnight + 86400000 : midnight).toISOString();
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    formStatus.textContent = '';
+    const payload = {
+      id: editingId,
+      name: nameInput.value,
+      kind: kindSelect.value,
+      amount: amountInput.value,
+      requiredCount: ruleValue() === 'any' ? requiredInput.value : null,
+      seriesKeys: selectedKeys(),
+      startsAt: dayBoundary(startsInput.value, false),
+      endsAt: dayBoundary(endsInput.value, true),
+      active: activeInput.checked,
+    };
+    const res = await fetch('/api/admin/deals', { method: 'POST', headers: await authHeaders(), body: JSON.stringify(payload) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      formStatus.textContent = body.error ?? 'Failed to save the deal.';
+      return;
+    }
+    closeForm();
+    await load();
+    status.textContent = 'Saved.';
+  });
+
+  async function removeDeal(deal: DealRecord) {
+    if (!confirm(`Delete "${deal.name}"? Past sign-ups keep the discount they got.`)) return;
+    const res = await fetch(`/api/admin/deals?id=${encodeURIComponent(deal.id)}`, { method: 'DELETE', headers: await authHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      status.textContent = body.error ?? 'Failed to delete the deal.';
+      return;
+    }
+    if (editingId === deal.id) closeForm();
+    await load();
+    status.textContent = 'Deleted.';
+  }
+
+  document.getElementById('deal-new')!.addEventListener('click', () => openForm(null));
+  document.getElementById('deal-cancel')!.addEventListener('click', closeForm);
+  [kindSelect, amountInput, requiredInput].forEach((el) => el.addEventListener('input', updatePreview));
+  form.querySelectorAll('input[name="deal-rule"]').forEach((r) => r.addEventListener('change', updatePreview));
+  // Loads the first time the tab is opened.
+  document.querySelector('.admin-tab-btn[data-tab="deals"]')?.addEventListener('click', () => {
+    if (!loaded) void load();
+  });
+</script>

@@ -7,6 +7,8 @@ import type { ClassRegistrationRow } from './classRegistrations';
 // /register shows live above its subtotal. Built from the saved
 // class_registrations rows (prices as snapshotted at registration time), with
 // identical classes across a group's dancers folded into one "× N" line.
+// A bundle deal shows as its own negative line after the classes, which are
+// listed at their full price, so the lines still add up to the subtotal.
 
 export interface ReceiptLine {
   title: string;
@@ -15,6 +17,8 @@ export interface ReceiptLine {
   unitPrice: number | null;
   quantity: number;
   lineTotal: number | null;
+  // A bundle deal's discount line (negative amounts).
+  discount?: boolean;
 }
 
 const occurrenceFormatter = new Intl.DateTimeFormat('en-US', {
@@ -26,7 +30,8 @@ const occurrenceFormatter = new Intl.DateTimeFormat('en-US', {
 });
 
 export function formatPrice(value: number): string {
-  return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
+  const abs = Math.abs(value);
+  return `${value < 0 ? '−' : ''}${Number.isInteger(abs) ? `$${abs}` : `$${abs.toFixed(2)}`}`;
 }
 
 // class_label is "<title> — <schedule>"; the schedule part alone.
@@ -60,16 +65,34 @@ export async function buildReceiptLines(registrations: ClassRegistrationRow[]): 
       detail = schedule;
     }
 
-    const key = [r.class_title, detail, r.price ?? ''].join('|');
+    // The full price; a deal's discount gets its own line below.
+    const price = r.price != null ? Math.round((r.price + (r.deal_discount ?? 0)) * 100) / 100 : null;
+    const key = [r.class_title, detail, price ?? ''].join('|');
     const existing = lines.get(key);
     if (existing) {
       existing.quantity += 1;
       existing.lineTotal = existing.unitPrice != null ? existing.unitPrice * existing.quantity : null;
     } else {
-      lines.set(key, { title: r.class_title, detail, unitPrice: r.price, quantity: 1, lineTotal: r.price });
+      lines.set(key, { title: r.class_title, detail, unitPrice: price, quantity: 1, lineTotal: price });
     }
   }
-  return [...lines.values()];
+  return [...lines.values(), ...dealLines(live)];
+}
+
+// One line per bundle deal: its total discount, "× N dancers" when several got it.
+function dealLines(rows: ClassRegistrationRow[]): ReceiptLine[] {
+  const byDeal = new Map<string, { total: number; dancers: Set<number | null> }>();
+  for (const r of rows) {
+    if (!r.deal_name || !r.deal_discount) continue;
+    const entry = byDeal.get(r.deal_name) ?? { total: 0, dancers: new Set() };
+    entry.total += r.deal_discount;
+    entry.dancers.add(r.dancer_index);
+    byDeal.set(r.deal_name, entry);
+  }
+  return [...byDeal.entries()].map(([name, { total, dancers }]) => {
+    const lineTotal = -Math.round(total * 100) / 100;
+    return { title: name, detail: 'Bundle deal', unitPrice: Math.round((lineTotal / dancers.size) * 100) / 100, quantity: dancers.size, lineTotal, discount: true };
+  });
 }
 
 export function receiptSubtotal(lines: ReceiptLine[]): number | null {

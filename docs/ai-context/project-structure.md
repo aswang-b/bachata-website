@@ -32,7 +32,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0045); a new table must be granted to service_role in its migration (see 0045)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0047); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker)
@@ -58,6 +58,7 @@
 │   │   ├── errorDialog.ts               # Browser-only copyable error modal (sync/save failures)
 │   │   ├── env.ts                       # Env var access/validation
 │   │   ├── communityGuidelines.ts       # Community guidelines event registrants agree to; split into FAQ-style items for confirmations
+│   │   ├── deals.ts, dealsStore.ts      # Bundle deals: shared pricing (form + server) and the deals table
 │   │   ├── faqs.ts                      # FAQ list persistence
 │   │   ├── googleCalendar.ts            # Google Calendar API client
 │   │   ├── homepageContent.ts           # Editable homepage copy (lesson overview) persistence
@@ -86,7 +87,7 @@
 
 ## Domain Overview
 
-The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, attendance matching/reconciliation, Google Calendar sync, site settings/banner, an editable FAQ list, community guidelines, editable homepage copy (including admin-reorderable offering cards and per-class overrides of the lesson-overview section), and an inbox.
+The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, attendance matching/reconciliation, Google Calendar sync, site settings/banner, an editable FAQ list, community guidelines, bundle deals, editable homepage copy (including admin-reorderable offering cards and per-class overrides of the lesson-overview section), and an inbox.
 
 - **Event editor**: classes and events are edited in a sectioned editor on `/calendar`. Its section menu is a list on desktop and a sideways-scrolling chip row on phones. It offers any color (a picker plus the five most recently used colors), a single capacity cap or separate Leader/Follower caps for classes, and tiered pricing. Calendar banner text shrinks to fit, and all banners share one size.
 - **Registration**: shows an itemized subtotal (also on the confirmation page and email, optionally BCC'd to admins) and enforces capacity, per role where capped. Event registrants agree to the community guidelines, which event confirmations list FAQ-style. Double-submitted sign-ups and check-ins are moved to the Recycling Bin automatically.

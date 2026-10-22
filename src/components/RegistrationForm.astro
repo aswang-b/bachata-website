@@ -8,6 +8,7 @@ import { countOccurrencesByKey } from '../lib/classSeries';
 import { getActivePrice, priceTierLabel, type ActivePriceResult } from '../lib/pricing';
 import { getSpotsByOccurrence, publicSpotsLabel, remainingFor, seriesSpots } from '../lib/capacity';
 import { getCommunityGuidelines, hasGuidelines } from '../lib/communityGuidelines';
+import { listActiveDeals } from '../lib/dealsStore';
 
 interface Props {
   kind?: 'class' | 'event';
@@ -160,6 +161,11 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     priceStudent: getActivePrice(now, { ...tieredInput, base: first.price_student, earlyBird: first.price_student_early_bird, flashSale: first.price_student_flash_sale }),
   };
 });
+
+// Bundle deals that cover something on this page, for the live subtotal and
+// its "add this to get the deal" suggestions (the server prices the same way).
+const pageKeys = new Set(seriesList.map((s) => s.key));
+const pageDeals = (await listActiveDeals()).filter((d) => d.seriesKeys.some((k) => pageKeys.has(k)));
 
 function locationHref(location: string): string {
   if (/^https?:\/\//i.test(location)) return location;
@@ -470,7 +476,9 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         </span>
         <span id="subtotal-value" class="text-lg font-bold text-ink">$0</span>
         </div>
+        <ul id="deal-suggestions" class="hidden flex-col gap-2 border-t border-border pt-3 text-sm" aria-label="Bundle deals you can add"></ul>
       </div>
+      <script type="application/json" id="deals-data" set:html={JSON.stringify(pageDeals).replace(/</g, '\\u003c')} />
 
       <div id="payment-section" class={`${isEvent ? 'hidden' : 'flex'} flex-col gap-1.5`}>
         <span class="text-sm font-medium text-ink/80">How will you pay?<span class="text-accent"> *</span></span>
@@ -543,6 +551,8 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 </BaseLayout>
 
 <script>
+  import { applyDeals, suggestDeals, type Deal, type DealItem } from '../lib/deals';
+
   interface Dancer {
     firstName: string;
     lastName: string;
@@ -690,6 +700,51 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   }
 
   const subtotalItems = document.getElementById('subtotal-items')!;
+  const dealSuggestions = document.getElementById('deal-suggestions')!;
+  const deals: Deal[] = JSON.parse(document.getElementById('deals-data')?.textContent || '[]');
+
+  // What one dancer's picks cost before deals. A single Drop-In date never
+  // counts toward a deal; an event ticket and a one-off class do.
+  const selectionPrice = (sel: ClassSelection) => (sel.mode === 'dropin' ? sel.priceDropIn : sel.priceWhole);
+  function dealItems(): DealItem[] {
+    return Array.from(selections.values()).map((sel) => ({ key: sel.key, price: selectionPrice(sel), eligible: isEvent || sel.mode !== 'dropin' }));
+  }
+
+  // Classes on the page that can be added as a Whole Series / workshop / ticket.
+  function addableClasses(): { key: string; price: number }[] {
+    return Array.from(document.querySelectorAll<HTMLElement>('.series-item')).flatMap((item) => {
+      const price = item.dataset.priceWhole ? Number(item.dataset.priceWhole) : null;
+      const unavailable = item.dataset.registrationClosed === 'true' || item.dataset.wholeFull === 'true' || item.dataset.dropInOnly === 'true';
+      return price == null || unavailable ? [] : [{ key: item.dataset.key ?? '', price }];
+    });
+  }
+
+  // Under the subtotal: for each class that would complete a deal the dancer
+  // is one class short of, what it saves and a button that adds it.
+  function renderDealSuggestions(dancerCount: number) {
+    dealSuggestions.replaceChildren();
+    const suggestions = deals.length > 0 && selections.size > 0 ? suggestDeals(dealItems(), deals, addableClasses()).slice(0, 3) : [];
+    for (const s of suggestions) {
+      const item = document.querySelector<HTMLElement>(`.series-item[data-key="${CSS.escape(s.key)}"]`);
+      const li = document.createElement('li');
+      li.className = 'deal-suggestion flex items-center justify-between gap-3 rounded-lg bg-accent/10 px-3 py-2';
+      const text = document.createElement('span');
+      text.className = 'text-ink';
+      const title = document.createElement('strong');
+      title.textContent = item?.dataset.title ?? 'this class';
+      text.append('Add ', title, ` to get the ${s.dealName} and save ${formatPrice(s.saving * dancerCount)}.`);
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'deal-add-btn shrink-0 rounded-full border border-accent px-3 py-1 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white';
+      add.textContent = 'Add';
+      add.setAttribute('aria-label', `Add ${title.textContent}`);
+      add.addEventListener('click', () => item?.querySelector<HTMLElement>('.series-toggle-btn')?.click());
+      li.append(text, add);
+      dealSuggestions.append(li);
+    }
+    dealSuggestions.classList.toggle('hidden', suggestions.length === 0);
+    dealSuggestions.classList.toggle('flex', suggestions.length > 0);
+  }
 
   // The date a Drop-In is for, from the class card's occurrence list.
   function occurrenceLabel(key: string, occurrenceId: string | null): string | null {
@@ -701,10 +756,10 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
   // One receipt line per picked class: what it is, which option (and, for a
   // Drop-In, which date), and its price per dancer times the dancer count.
-  function renderSubtotalItems(dancerCount: number) {
+  function renderSubtotalItems(dancerCount: number, applied: { dealName: string; amount: number }[]) {
     subtotalItems.replaceChildren();
     for (const sel of selections.values()) {
-      const price = sel.mode === 'dropin' ? sel.priceDropIn : sel.priceWhole;
+      const price = selectionPrice(sel);
       let detail = '';
       if (isEvent || !(sel.isSeries || sel.dropInOnly)) {
         detail = sel.subLabel;
@@ -741,17 +796,42 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       line.append(what, amount);
       subtotalItems.append(line);
     }
+    // A deal that applied twice (an "any N" deal) shows once, with its total.
+    const byDeal = new Map<string, number>();
+    for (const a of applied) byDeal.set(a.dealName, (byDeal.get(a.dealName) ?? 0) + a.amount);
+    for (const [name, amount] of byDeal) {
+      const line = document.createElement('li');
+      line.className = 'deal-line flex items-start justify-between gap-3';
+      const what = document.createElement('div');
+      what.className = 'flex min-w-0 flex-col';
+      const title = document.createElement('span');
+      title.className = 'font-medium text-accent';
+      title.textContent = name;
+      const sub = document.createElement('span');
+      sub.className = 'text-xs text-muted';
+      sub.textContent = 'Bundle deal';
+      what.append(title, sub);
+      const value = document.createElement('span');
+      value.className = 'shrink-0 text-right text-accent';
+      value.textContent = `−${formatPrice(amount * dancerCount)}`;
+      if (dancerCount > 1) {
+        const note = document.createElement('div');
+        note.className = 'text-xs text-muted';
+        note.textContent = `−${formatPrice(amount)} × ${dancerCount} ${isEvent ? 'attendees' : 'dancers'}`;
+        value.append(note);
+      }
+      line.append(what, value);
+      subtotalItems.append(line);
+    }
     subtotalItems.classList.toggle('hidden', selections.size === 0);
     subtotalItems.classList.toggle('flex', selections.size > 0);
   }
 
   function updateSubtotal() {
     const dancerCountNow = dancersContainer.children.length;
-    const perDancerTotal = Array.from(selections.values()).reduce((sum, sel) => {
-      const price = sel.mode === 'dropin' ? sel.priceDropIn : sel.priceWhole;
-      return sum + (price ?? 0);
-    }, 0);
-    const total = perDancerTotal * dancerCountNow;
+    const dealResult = applyDeals(dealItems(), deals);
+    const perDancerTotal = Array.from(selections.values()).reduce((sum, sel) => sum + (selectionPrice(sel) ?? 0), 0) - dealResult.totalDiscount;
+    const total = Math.round(perDancerTotal * dancerCountNow * 100) / 100;
     subtotalValue.textContent = formatPrice(total);
     if (isEvent) {
       // Free events skip the subtotal and payment step entirely.
@@ -772,7 +852,8 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       }
     }
     document.querySelectorAll('.payment-amount').forEach((el) => (el.textContent = formatPrice(total)));
-    renderSubtotalItems(dancerCountNow);
+    renderSubtotalItems(dancerCountNow, dealResult.applied);
+    renderDealSuggestions(dancerCountNow);
   }
 
   function updateClassValue() {

@@ -15,6 +15,7 @@ import {
   insertClassRegistrations,
   prepareRegistrationRows,
   validateClassSelections,
+  applyDealsToRows,
   type ClassRegistrationRow,
 } from '../../src/lib/classRegistrations';
 import { buildReceiptLines, paymentAgreementText, quantityNote, receiptSubtotal } from '../../src/lib/registrationReceipt';
@@ -266,5 +267,54 @@ describe('check-in register tokens', () => {
     expect(verifyCheckinRegisterToken('event-2', token)).toBe(false);
     expect(verifyCheckinRegisterToken('event-1', token.slice(0, -1) + (token.endsWith('a') ? 'b' : 'a'))).toBe(false);
     expect(verifyCheckinRegisterToken('event-1', null)).toBe(false);
+  });
+});
+
+describe('bundle deals on saved registrations', () => {
+  const deal = { id: 'd', name: 'Zouk Bundle', kind: 'bundle_price' as const, amount: 40, seriesKeys: ['a', 'b'], requiredCount: null };
+  const row = (dancer: number, key: string, price: number, dropIn = false) => ({
+    dancer_index: dancer,
+    series_key: key,
+    price,
+    is_drop_in: dropIn,
+    deal_id: null as string | null,
+    deal_name: null as string | null,
+    deal_discount: null as number | null,
+  });
+
+  it('applies per dancer, recording the deal and each row\'s share', () => {
+    const rows = applyDealsToRows([row(0, 'a', 25), row(0, 'b', 25), row(1, 'a', 25), row(1, 'b', 25, true)], [deal]);
+    expect(rows.map((r) => [r.price, r.deal_name, r.deal_discount])).toEqual([
+      [20, 'Zouk Bundle', 5],
+      [20, 'Zouk Bundle', 5],
+      // The second dancer's "b" is a single Drop-In date, so no deal for them.
+      [25, null, null],
+      [25, null, null],
+    ]);
+  });
+
+  it('the receipt lists classes at full price, then the deal, adding up to what is owed', async () => {
+    const saved = applyDealsToRows([row(0, 'a', 25), row(0, 'b', 25)], [deal]).map((r, i) => ({
+      ...r,
+      id: `r${i}`,
+      submission_id: 's',
+      first_name: 'A',
+      last_name: 'B',
+      email: null,
+      phone: null,
+      class_title: r.series_key === 'a' ? 'Intro' : 'Open',
+      class_label: r.series_key === 'a' ? 'Intro' : 'Open',
+      series_mode: null,
+      price_tier: null,
+      occurrence_event_id: null,
+      created_at: '',
+    })) as ClassRegistrationRow[];
+    const lines = await buildReceiptLines(saved);
+    expect(lines.map((l) => [l.title, l.lineTotal])).toEqual([
+      ['Intro', 25],
+      ['Open', 25],
+      ['Zouk Bundle', -10],
+    ]);
+    expect(receiptSubtotal(lines)).toBe(40);
   });
 });

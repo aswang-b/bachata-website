@@ -23,8 +23,9 @@ Pure logic plus server modules with Supabase replaced by `fakeSupabase.ts` (an i
 | `googleAuth.test.ts` | Tokens without the Calendar scope rejected; dead tokens skipped freshest-first; rate-limit retries (only for real rate limits); 410 on delete is fine; pagination |
 | `sessionAndDuplicates.test.ts` | Stale admin sessions refreshed, unrecoverable ones signed out with `scope: 'local'`; duplicate sign-up/check-in fingerprints |
 | `capacity.test.ts` | Spot math, per-role caps, series = tightest class, labels, hidden-count labels, editor → row columns, server-side capacity check (fails closed) |
-| `registration.test.ts` | Class-selection parsing/labels, closed classes by key, free vs paid events, itemized receipt, confirmation email (FAQs vs guidelines), check-in tokens |
+| `registration.test.ts` | Class-selection parsing/labels, closed classes by key, free vs paid events, itemized receipt (deal discounts as their own line), deals applied per dancer on saved rows, confirmation email (FAQs vs guidelines), check-in tokens |
 | `scheduling.test.ts` | Midnight end times (`src/lib/eventTimes.ts`), tiered pricing, recurrence rules, color mapping |
+| `deals.test.ts` | Bundle deals: bundle price / amount / percent off, all vs any-N (repeating), best price wins, drop-ins never count, one deal per class, cent-exact split, "add this class" suggestions |
 | `content.test.ts` | Guidelines → FAQ-style sections, rich-text sanitizing |
 | `codebaseRules.test.ts` | Source-level rules: every admin route calls `requireAdmin`, every `signOut` is local, no events upsert in the sync, forms don't lock their submit button, migrations numbered without gaps, every new table granted to `service_role` (Supabase stopped doing it automatically) |
 
@@ -46,6 +47,7 @@ Test data rules (`support/db.ts`):
 | `class-registration` | Full sign-up → itemized confirmation page and email (+ one BCC copy per the admin setting); drop-in date; whole-series-only and drop-in-only radios; closed classes; server validation; double submit → Recycling Bin → admin restore; blocked-submit focus and screen-reader announcement; drop-in policy note on a phone |
 | `capacity` | Full classes; Leader/Follower caps (badge, form block, server refusal, role-edit recount); hidden counts |
 | `event-registration` | Guidelines shown and required, confirmation/email list them FAQ-style; blank guidelines; free vs paid events |
+| `deals` | Admin creates a deal in the Deals tab; the form offers the missing class and adding it takes the bundle price (two dancers); saved prices, confirmation page and email; server pricing from a raw POST; a paused deal stops applying |
 | `checkin-and-contact` | QR check-in, duplicate check-in, contact form → admin notification |
 | `admin-access` | Every admin API route rejects missing/bogus sessions; sign-in gate; stale-session recovery; sign-out is local only |
 | `admin-editor` | Capacity toggle round trip; events have no role caps; midnight end times; editing before admin data loads; the section menu (desktop list, phone chip row that opens and scrolls to a section); Guidelines tab |

@@ -1,0 +1,116 @@
+import { test, expect, postForm } from './support/fixtures';
+import { db, seedEvent, testTitle, type Seeded } from './support/db';
+import { RUN_ID } from './support/env';
+import { emailsAbout } from './support/emails';
+import { confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
+
+// Bundle deals: made in admin → Deals, applied at registration (form and
+// server alike), offered as an "Add" when a dancer is one class short, and
+// shown on the receipt as their own line.
+let intro: Seeded;
+let open: Seeded;
+const dealName = testTitle('Pop-Up Bundle');
+
+test.beforeAll(async () => {
+  intro = await seedEvent({ name: 'Deal Intro', priceWhole: 25, priceDropIn: 25, dayOffset: 40 });
+  open = await seedEvent({ name: 'Deal Open Level', priceWhole: 25, priceDropIn: 25, dayOffset: 40 });
+});
+
+test.afterAll(async () => {
+  await db.from('deals').delete().eq('name', dealName);
+});
+
+const dealRows = async (submissionId: string) =>
+  (await db.from('class_registrations').select('class_title, price, deal_name, deal_discount').eq('submission_id', submissionId).order('class_title')).data ?? [];
+
+test.describe.serial('a bundle price for two workshops', () => {
+  test('an admin creates the deal in the Deals tab', async ({ page, adminPage }) => {
+    void adminPage;
+    await page.goto('/admin');
+    await page.locator('.admin-tab-btn[data-tab="deals"]').click();
+    await expect(page.locator('#deals-status')).toHaveText('');
+    await page.locator('#deal-new').click();
+    await page.locator('#deal-name').fill(dealName);
+    await page.locator('#deal-kind').selectOption('bundle_price');
+    await page.locator('#deal-amount').fill('40');
+    for (const s of [intro, open]) await page.locator(`#deal-options input[value="${s.key}"]`).check();
+    await expect(page.locator('#deal-preview')).toHaveText("Both for $40 (they're $50 today)");
+    await page.locator('#deal-save').click();
+    await expect(page.locator('#deals-status')).toHaveText('Saved.');
+    await expect(page.locator('#deals-list')).toContainText(dealName);
+    await page.locator('#admin-tab-panel-deals').screenshot({ path: 'tests/e2e/.output/deals-admin.png' });
+
+    const { data } = await db.from('deals').select('kind, amount, series_keys, required_count, active').eq('name', dealName).single();
+    expect(data).toMatchObject({ kind: 'bundle_price', amount: 40, required_count: null, active: true });
+    expect([...data!.series_keys].sort()).toEqual([intro.key, open.key].sort());
+  });
+
+  test('the form offers the other class, and adding it takes the bundle price', async ({ page }) => {
+    await page.goto('/register');
+    await selectSeries(page, intro.key);
+    const suggestion = page.locator('#deal-suggestions .deal-suggestion');
+    await expect(suggestion).toHaveCount(1);
+    await expect(suggestion).toContainText(`Add ${open.title} to get the ${dealName} and save $10.`);
+    await expect(page.locator('#subtotal-value')).toHaveText('$25');
+    await page.locator('#subtotal-row').screenshot({ path: 'tests/e2e/.output/deals-suggestion.png' });
+
+    await suggestion.locator('.deal-add-btn').click();
+    await expect(page.locator(`.series-item[data-key="${open.key}"]`)).toHaveAttribute('data-selected', 'true');
+    await expect(page.locator('#deal-suggestions')).toBeHidden();
+    await expect(page.locator('#subtotal-items .deal-line')).toContainText(dealName);
+    await expect(page.locator('#subtotal-items .deal-line')).toContainText('−$10');
+    await expect(page.locator('#subtotal-value')).toHaveText('$40');
+
+    // Two dancers: each gets the deal.
+    await fillDancer(page, 0, { first: 'DealOne', role: 'leader', email: `zzz-e2e-${RUN_ID.toLowerCase()}-deal@example.com` });
+    await fillDancer(page, 1, { first: 'DealTwo', role: 'follower' });
+    await expect(page.locator('#subtotal-value')).toHaveText('$80');
+    await page.locator('#subtotal-row').screenshot({ path: 'tests/e2e/.output/deals-subtotal.png' });
+    await payCash(page);
+    await submitRegistration(page);
+    await page.waitForURL(/\/register\/confirmation\?id=/);
+
+    const rows = await dealRows(confirmationId(page.url())!);
+    expect(rows).toHaveLength(4);
+    for (const r of rows) expect(r).toMatchObject({ price: 20, deal_name: dealName, deal_discount: 5 });
+
+    // The receipt: full prices, then the deal, adding up to the subtotal.
+    const body = page.locator('body');
+    await expect(body).toContainText(dealName);
+    await expect(body).toContainText('−$20');
+    await expect(body).toContainText('−$10 × 2 dancers');
+    await expect(page.locator('li', { hasText: open.title })).toContainText('$50');
+    await expect(body).toContainText(/Subtotal\s*\$80/);
+
+    // The confirmation email itemizes it the same way.
+    const sent = emailsAbout('ZZZDealOne');
+    expect(sent.length).toBeGreaterThan(0);
+    for (const e of sent) {
+      expect(e.html).toContain(dealName);
+      expect(e.html).toContain('−$20');
+    }
+  });
+
+  test("the server prices it the same way, whatever the browser sends, and one class alone doesn't qualify", async ({ request }) => {
+    const sel = (list: Seeded[]) => JSON.stringify(list.map((s) => ({ key: s.key, title: s.title, label: '', mode: null })));
+    const dancers = JSON.stringify([{ firstName: 'ZZZDealApi', lastName: RUN_ID, role: 'leader', phone: '6085550177', email: '' }]);
+    const both = await postForm(request, '/api/submit-intake', { registration_type: 'group', class: 'x', payment_method: 'cash', class_selections: sel([intro, open]), dancers });
+    expect(both.status()).toBe(303);
+    const bothRows = await dealRows(confirmationId(new URL(both.headers().location, 'http://x').toString())!);
+    expect(bothRows.map((r) => r.price)).toEqual([20, 20]);
+
+    const oneDancers = JSON.stringify([{ firstName: 'ZZZDealSolo', lastName: RUN_ID, role: 'leader', phone: '6085550178', email: '' }]);
+    const one = await postForm(request, '/api/submit-intake', { registration_type: 'group', class: 'x', payment_method: 'cash', class_selections: sel([intro]), dancers: oneDancers });
+    const oneRows = await dealRows(confirmationId(new URL(one.headers().location, 'http://x').toString())!);
+    expect(oneRows).toEqual([expect.objectContaining({ price: 25, deal_name: null })]);
+  });
+
+  test('a paused deal stops applying', async ({ page }) => {
+    await db.from('deals').update({ active: false }).eq('name', dealName);
+    await page.goto('/register');
+    await selectSeries(page, intro.key);
+    await selectSeries(page, open.key);
+    await expect(page.locator('#subtotal-value')).toHaveText('$50');
+    await expect(page.locator('#subtotal-items .deal-line')).toHaveCount(0);
+  });
+});
