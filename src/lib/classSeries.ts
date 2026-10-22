@@ -184,3 +184,11 @@ function localMidnightIso(year: number, month: number, day: number): string {
   const offsetStr = `${offsetHours <= 0 ? '-' : '+'}${pad(Math.abs(offsetHours))}:00`;
   return `${year}-${pad(month)}-${pad(day)}T00:00:00${offsetStr}`;
 }
+
+// The calendar's type tag. A class that doesn't repeat (no week number) is
+// shown as a Workshop, like the registration form does; it's still stored as
+// a class.
+export function eventTypeLabel(eventType: string | null | undefined, weekNumber: number | null | undefined): string {
+  if (eventType === 'event') return 'Event';
+  return weekNumber ? 'Class' : 'Workshop';
+}

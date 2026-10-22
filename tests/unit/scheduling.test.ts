@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { endAfterStart, seriesAnchorEndDate } from '../../src/lib/eventTimes';
 import { getActivePrice, priceTierLabel } from '../../src/lib/pricing';
 import { buildWeeklyRecurrenceRule, googleColorIdToSiteColor, siteColorToGoogleColorId } from '../../src/lib/googleCalendar';
+import { eventTypeLabel } from '../../src/lib/classSeries';
 
 describe('event end times (Google rejects an end at or before the start)', () => {
   it('rolls an end earlier than the start (e.g. ending at midnight) to the next day', () => {
@@ -55,5 +56,13 @@ describe('Google Calendar mapping', () => {
       expect(googleColorIdToSiteColor(siteColorToGoogleColorId(color))).toBe(color);
     }
     expect(googleColorIdToSiteColor(undefined)).toBe('accent');
+  });
+});
+
+describe("the calendar's type tag", () => {
+  it('shows a class that never repeats (no week number) as a Workshop, a series class as a Class', () => {
+    expect(eventTypeLabel('class', null)).toBe('Workshop');
+    expect(eventTypeLabel('class', 2)).toBe('Class');
+    expect(eventTypeLabel('event', null)).toBe('Event');
   });
 });

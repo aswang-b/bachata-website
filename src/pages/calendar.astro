@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { getActivePrice, priceTierLabel } from '../lib/pricing';
 import { getSpotsByOccurrence, publicSpotsLabel, type SpotsInfo } from '../lib/capacity';
 import { eventBannerStyle, eventDotStyle, eventTextStyle } from '../lib/eventColors';
+import { eventTypeLabel } from '../lib/classSeries';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -93,8 +94,9 @@ if (recurringIds.length > 0) {
     list.push(occ);
     bySeriesKey.set(key, list);
   }
+  // A lone class has no week number: it's shown as a Workshop, not "Wk 1".
   for (const occs of bySeriesKey.values()) {
-    occs.forEach((occ, idx) => weekNumberByEventId.set(occ.id, idx + 1));
+    if (occs.length > 1) occs.forEach((occ, idx) => weekNumberByEventId.set(occ.id, idx + 1));
   }
 }
 
@@ -272,7 +274,7 @@ const MAX_BANNERS_PER_DAY = 3;
                         <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
                           <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider" style={eventTextStyle(event.color)}>
                             <span class="h-2 w-2 rounded-full" style={eventDotStyle(event.color)}></span>
-                            {event.event_type === 'event' ? 'Event' : 'Class'}
+                            {eventTypeLabel(event.event_type, weekNumber)}
                             {weekNumber && <span class="font-bold text-ink">&middot; Week {weekNumber}</span>}
                           </p>
                           <p class="mt-1 font-display font-bold text-ink">{event.title}</p>
@@ -847,6 +849,7 @@ const MAX_BANNERS_PER_DAY = 3;
   import { openImageCropper } from '../lib/imageCropper';
   import { endAfterStart } from '../lib/eventTimes';
   import { DEFAULT_QUICK_COLORS, eventBannerStyle, eventColorHex, eventDotStyle, eventTextStyle, recentEventColors } from '../lib/eventColors';
+  import { eventTypeLabel } from '../lib/classSeries';
 
   // --- Calendar / List view toggle ---
   const viewToggleButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.view-toggle-btn'));
@@ -1289,7 +1292,7 @@ const MAX_BANNERS_PER_DAY = 3;
     const lock = event.visibility === 'private' ? '🔒 ' : '';
     detailType.className = 'flex items-center gap-2 text-xs font-bold uppercase tracking-wider';
     detailType.style.cssText = eventTextStyle(event.color);
-    detailType.innerHTML = `<span class="h-2 w-2 rounded-full" style="${eventDotStyle(event.color)}"></span>${event.event_type === 'event' ? 'Event' : 'Class'}${event.weekNumber ? `<span class="font-bold text-ink">&middot; Week ${event.weekNumber}</span>` : ''}`;
+    detailType.innerHTML = `<span class="h-2 w-2 rounded-full" style="${eventDotStyle(event.color)}"></span>${eventTypeLabel(event.event_type, event.weekNumber)}${event.weekNumber ? `<span class="font-bold text-ink">&middot; Week ${event.weekNumber}</span>` : ''}`;
     detailTitle.textContent = `${lock}${event.title}`;
     detailDatetime.textContent = `${dateFormatter.format(new Date(event.start_time))} · ${timeFormatter.format(new Date(event.start_time))}–${timeFormatter.format(new Date(event.end_time))}`;
     detailDescription.innerHTML = event.description ?? '';
@@ -1973,7 +1976,7 @@ const MAX_BANNERS_PER_DAY = 3;
         <div class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-96 -translate-x-1/2 rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
           <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider" style="${eventTextStyle(event.color)}">
             <span class="h-2 w-2 rounded-full" style="${eventDotStyle(event.color)}"></span>
-            ${event.event_type === 'event' ? 'Event' : 'Class'}
+            ${eventTypeLabel(event.event_type, event.weekNumber)}
             ${event.weekNumber ? `<span class="font-bold text-ink">&middot; Week ${event.weekNumber}</span>` : ''}
           </p>
           <p class="mt-1 font-display font-bold text-ink">${escapeHtml(event.title)}</p>
@@ -2061,6 +2064,7 @@ const MAX_BANNERS_PER_DAY = 3;
     }
     const weekNumberByEventId = new Map<string, number>();
     for (const occurrences of bySeriesKey.values()) {
+      if (occurrences.length < 2) continue;
       occurrences
         .slice()
         .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
