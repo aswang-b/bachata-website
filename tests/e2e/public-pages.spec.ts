@@ -48,3 +48,9 @@ test('both register buttons stay in the header on the register pages, each marke
     await expect(page.locator(`header a[href="${path}"]`)).toHaveAttribute('aria-current', 'page');
   }
 });
+
+test("the calendar's heading doesn't call a month \"Upcoming\" (past months can be browsed too)", async ({ page }) => {
+  await page.goto('/calendar?month=2020-01');
+  await expect(page.locator('main, body').first()).not.toContainText(/^Upcoming$/m);
+  await expect(page.getByText('Classes & Events', { exact: true })).toBeVisible();
+});
