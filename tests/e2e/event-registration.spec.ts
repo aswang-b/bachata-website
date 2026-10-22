@@ -121,8 +121,12 @@ test.describe.serial('without community guidelines', () => {
   });
 
   test('a free event skips the subtotal and payment step', async ({ page }) => {
-    await page.goto(`/register/events?series=${free.key}`);
+    await page.goto('/register/events');
+    // Shown before anything is picked, like on the classes form.
+    await expect(page.locator('#subtotal-row')).toBeVisible();
+    await expect(page.locator('#payment-section')).toBeVisible();
     await selectSeries(page, free.key);
+    await expect(page.locator('#subtotal-row')).toBeHidden();
     await expect(page.locator('#payment-section')).toBeHidden();
     await fillDancer(page, 0, { first: 'FreeGuest' });
     await submitRegistration(page);

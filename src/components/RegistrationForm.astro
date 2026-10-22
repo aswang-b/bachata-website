@@ -463,8 +463,8 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         </div>
       )}
 
-      {/* A free event has nothing to pay, so events only show these once a priced event is picked. */}
-      <div id="subtotal-row" class={`${isEvent ? 'hidden' : 'flex'} flex-col gap-3 rounded-xl border border-border bg-surface p-4`}>
+      {/* Shown from the start; the events form hides these only while every picked event is free (nothing to pay). */}
+      <div id="subtotal-row" class="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
         <ul id="subtotal-items" class="hidden flex-col gap-2 border-b border-border pb-3 text-sm" aria-label="What you're signing up for"></ul>
         <div class="flex items-center justify-between">
         <span class="flex items-center gap-2 text-sm font-medium text-ink/80">
@@ -479,7 +479,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       </div>
       <script type="application/json" id="deals-data" set:html={JSON.stringify(pageDeals).replace(/</g, '\\u003c')} />
 
-      <div id="payment-section" class={`${isEvent ? 'hidden' : 'flex'} flex-col gap-1.5`}>
+      <div id="payment-section" class="flex flex-col gap-1.5">
         <span class="text-sm font-medium text-ink/80">How will you pay?<span class="text-accent"> *</span></span>
         <input type="hidden" name="payment_method" id="payment-method-value" />
 
@@ -849,8 +849,8 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     const total = Math.round(perDancerTotal * dancerCountNow * 100) / 100;
     subtotalValue.textContent = formatPrice(total);
     if (isEvent) {
-      // Free events skip the subtotal and payment step entirely.
-      const paid = total > 0;
+      // Picking only free events skips the subtotal and payment step.
+      const paid = total > 0 || selections.size === 0;
       for (const id of ['subtotal-row', 'payment-section']) {
         const el = document.getElementById(id);
         el?.classList.toggle('hidden', !paid);
