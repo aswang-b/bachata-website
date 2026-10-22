@@ -136,3 +136,61 @@ test('a deal covers classes or events, never both', async ({ page, adminPage, re
   await page.locator(`#deal-options input[value="${event.key}"]`).check();
   await expect(page.locator(`#deal-options input[value="${open.key}"]`)).toBeDisabled();
 });
+
+test('the Deals list labels each deal, live ones first, and keeps an end date through an edit', async ({ page, adminPage }) => {
+  void adminPage;
+  const { data: past } = await db
+    .from('events')
+    .insert({ title: testTitle('Past Workshop'), event_type: 'class', visibility: 'public', color: 'green', start_time: '2020-01-05T01:00:00Z', end_time: '2020-01-05T02:00:00Z', price_whole_series: 25 })
+    .select('id')
+    .single();
+  const day = 86400000;
+  const mixedEvent = await seedEvent({ name: 'Mixed Social', type: 'event', priceWhole: 10, dayOffset: 42 });
+  const base = { kind: 'bundle_price', amount: 40, series_keys: [intro.key, open.key] };
+  const endsAt = new Date(Date.now() - 2 * day).toISOString();
+  const { error: seedError } = await db.from('deals').insert(
+    [
+      { ...base, name: testTitle('Status Over'), series_keys: [intro.key, past!.id] },
+      { ...base, name: testTitle('Status Ended'), ends_at: endsAt },
+      { ...base, name: testTitle('Status Paused'), active: false },
+      { ...base, name: testTitle('Status Scheduled'), starts_at: new Date(Date.now() + 5 * day).toISOString() },
+      { ...base, name: testTitle('Status Live') },
+      { ...base, name: testTitle('Status Mixed'), series_keys: [intro.key, mixedEvent.key] },
+    ],
+    // Rows that leave a column out get its default, not null.
+    { defaultToNull: false }
+  );
+  expect(seedError).toBeNull();
+
+  await page.goto('/admin');
+  await page.locator('.admin-tab-btn[data-tab="deals"]').click();
+  const item = (name: string) => page.locator('#deals-list .deal-item', { hasText: testTitle(name) });
+  await expect(item('Status Live').locator('.deal-status')).toHaveText('Live');
+  await expect(item('Status Paused').locator('.deal-status')).toHaveText('Paused');
+  await expect(item('Status Scheduled').locator('.deal-status')).toHaveText('Scheduled');
+  await expect(item('Status Ended').locator('.deal-status')).toHaveText('Ended');
+  await expect(item('Status Over').locator('.deal-status')).toHaveText("Can't apply anymore");
+  await expect(item('Status Over')).toContainText(`${testTitle('Past Workshop')} has passed.`);
+  await expect(item('Status Mixed').locator('.deal-status')).toHaveText("Can't apply");
+  await expect(item('Status Mixed')).toContainText('mixes classes and events');
+
+  const order = await page.locator('#deals-list .deal-item').evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.status));
+  const rank = (s: string | undefined) => (s === 'Live' ? 0 : s === 'Paused' || s === 'Scheduled' ? 1 : 2);
+  expect(order.map(rank)).toEqual([...order.map(rank)].sort());
+  await page.locator('#admin-tab-panel-deals').screenshot({ path: 'tests/e2e/.output/deals-statuses.png' });
+
+  // Editing and saving keeps the same last day, and saving again doesn't move it.
+  const endOf = async () => (await db.from('deals').select('ends_at').eq('name', testTitle('Status Ended')).single()).data!.ends_at as string;
+  const lastDay = (iso: string) => new Date(Date.parse(iso) - 1).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  for (let i = 0; i < 2; i++) {
+    await item('Status Ended').locator('.deal-edit').click();
+    await page.locator('#deal-save').click();
+    await expect(page.locator('#deals-status')).toHaveText('Saved.');
+  }
+  const first = await endOf();
+  expect(lastDay(first)).toBe(lastDay(endsAt));
+  await item('Status Ended').locator('.deal-edit').click();
+  await page.locator('#deal-save').click();
+  await expect(page.locator('#deals-status')).toHaveText('Saved.');
+  expect(await endOf()).toBe(first);
+});

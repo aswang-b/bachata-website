@@ -148,6 +148,32 @@ const buttonClass =
     return options.find((o) => o.key === key)?.title ?? 'A class that no longer exists';
   }
 
+  type DealStatus = { label: string; tone: 'live' | 'waiting' | 'over'; note?: string };
+
+  // Where a deal stands now. "Can't apply anymore": fewer of its classes are
+  // still taking sign-ups than it needs, so nobody can get it.
+  function dealStatus(deal: DealRecord): DealStatus {
+    const now = Date.now();
+    if (deal.endsAt && Date.parse(deal.endsAt) <= now) return { label: 'Ended', tone: 'over' };
+    // Made before deals were limited to one kind: the two are registered on separate forms.
+    const types = new Set(deal.seriesKeys.map((k) => options.find((o) => o.key === k)?.type).filter(Boolean));
+    if (types.size > 1) return { label: "Can't apply", tone: 'over', note: 'It mixes classes and events, which are signed up for separately. Edit it to keep just one kind.' };
+    const passed = deal.seriesKeys.filter((k) => !options.find((o) => o.key === k)?.upcoming);
+    const needed = deal.requiredCount ?? deal.seriesKeys.length;
+    if (deal.seriesKeys.length - passed.length < needed) {
+      return { label: "Can't apply anymore", tone: 'over', note: `${passed.map(titleFor).join(', ')} ${passed.length === 1 ? 'has' : 'have'} passed.` };
+    }
+    if (!deal.active) return { label: 'Paused', tone: 'waiting' };
+    if (deal.startsAt && Date.parse(deal.startsAt) > now) return { label: 'Scheduled', tone: 'waiting' };
+    return { label: 'Live', tone: 'live' };
+  }
+  const TONE_ORDER = { live: 0, waiting: 1, over: 2 } as const;
+  const BADGE_CLASS = {
+    live: 'bg-green-500/15 text-green-400',
+    waiting: 'bg-amber-500/15 text-amber-300',
+    over: 'bg-border text-ink/70',
+  } as const;
+
   function renderList() {
     list.replaceChildren();
     if (deals.length === 0) {
@@ -157,22 +183,41 @@ const buttonClass =
       list.append(empty);
       return;
     }
-    for (const deal of deals) {
+    // Live deals first, then paused or scheduled ones, then ones that are over.
+    const sorted = deals.map((deal) => ({ deal, status: dealStatus(deal) })).sort((a, b) => TONE_ORDER[a.status.tone] - TONE_ORDER[b.status.tone]);
+    for (const { deal, status: dealState } of sorted) {
       const li = document.createElement('li');
-      li.className = 'flex flex-col gap-2 rounded-xl border border-border bg-bg p-3 sm:flex-row sm:items-start sm:justify-between';
+      li.dataset.status = dealState.label;
+      li.className = `deal-item flex flex-col gap-2 rounded-xl border border-border bg-bg p-3 sm:flex-row sm:items-start sm:justify-between ${dealState.tone === 'over' ? 'opacity-60' : ''}`;
       const info = document.createElement('div');
       info.className = 'flex min-w-0 flex-col gap-0.5';
       const name = document.createElement('p');
-      name.className = 'font-semibold text-ink';
+      name.className = 'flex flex-wrap items-center gap-2 font-semibold text-ink';
       name.textContent = deal.name;
+      const badge = document.createElement('span');
+      badge.className = `deal-status rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${BADGE_CLASS[dealState.tone]}`;
+      badge.textContent = dealState.label;
+      name.append(badge);
       const summary = document.createElement('p');
       summary.className = 'text-sm text-accent';
-      const dates = [deal.startsAt && `from ${dateFormatter.format(new Date(deal.startsAt))}`, deal.endsAt && `until ${dateFormatter.format(new Date(deal.endsAt))}`].filter(Boolean).join(' ');
-      summary.textContent = [dealSummary(deal, deal.seriesKeys.length), dates, deal.active ? null : 'paused'].filter(Boolean).join(' · ');
+      // Ends are stored as the moment after the last day, so show that day.
+      const dates = [
+        deal.startsAt && `from ${dateFormatter.format(new Date(deal.startsAt))}`,
+        deal.endsAt && `through ${dateFormatter.format(new Date(Date.parse(deal.endsAt) - 1))}`,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      summary.textContent = [dealSummary(deal, deal.seriesKeys.length), dates].filter(Boolean).join(' · ');
       const classes = document.createElement('p');
       classes.className = 'text-xs text-muted';
       classes.textContent = deal.seriesKeys.map(titleFor).join(', ');
       info.append(name, summary, classes);
+      if (dealState.note) {
+        const note = document.createElement('p');
+        note.className = 'text-xs text-muted';
+        note.textContent = dealState.note;
+        info.append(note);
+      }
 
       const actions = document.createElement('div');
       actions.className = 'flex shrink-0 gap-2';
@@ -284,7 +329,8 @@ const buttonClass =
     form.querySelectorAll<HTMLInputElement>('input[name="deal-rule"]').forEach((r) => (r.checked = r.value === (deal?.requiredCount ? 'any' : 'all')));
     requiredInput.value = String(deal?.requiredCount ?? 2);
     startsInput.value = toDateInput(deal?.startsAt ?? null);
-    endsInput.value = toDateInput(deal?.endsAt ?? null);
+    // The stored end is the moment after the last day; the field shows that day.
+    endsInput.value = toDateInput(deal?.endsAt ? new Date(Date.parse(deal.endsAt) - 1).toISOString() : null);
     activeInput.checked = deal?.active ?? true;
     formStatus.textContent = '';
     renderOptions(deal?.seriesKeys ?? []);
@@ -337,6 +383,8 @@ const buttonClass =
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     formStatus.textContent = '';
+    // Replaces the last "Saved.", so it only shows once this save is done.
+    status.textContent = 'Saving…';
     const payload = {
       id: editingId,
       name: nameInput.value,
@@ -351,6 +399,7 @@ const buttonClass =
     const res = await fetch('/api/admin/deals', { method: 'POST', headers: await authHeaders(), body: JSON.stringify(payload) });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
+      status.textContent = '';
       formStatus.textContent = body.error ?? 'Failed to save the deal.';
       return;
     }
