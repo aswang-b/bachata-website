@@ -1,4 +1,5 @@
 import { test, expect } from './support/fixtures';
+import { db } from './support/db';
 
 // Every public page renders without a server error or a script crash.
 const PAGES = ['/', '/calendar', '/calendar?view=list', '/register', '/register/events', '/contact', '/check-in', '/about', '/privacy-policy'];
@@ -34,4 +35,16 @@ test('on a phone, Register for Events appears once (the header button), not agai
   await expect(page.locator('#mobile-nav')).toBeVisible();
   await expect(page.locator('#mobile-nav a[href="/register/events"]')).toHaveCount(0);
   await expect(page.locator('#mobile-nav a[href="/register"]')).toHaveCount(0);
+});
+
+test('both register buttons stay in the header on the register pages, each marked when it is the current page', async ({ page }) => {
+  // The events button follows its Site Visibility setting (off unless an admin turned it on).
+  const { data } = await db.from('site_settings').select('enabled').eq('key', 'show_register_events_nav').maybeSingle();
+  const eventsShown = data?.enabled ?? false;
+  for (const path of ['/register', '/register/events']) {
+    await page.goto(path);
+    await expect(page.locator('header a[href="/register"]')).toBeVisible();
+    await expect(page.locator('header a[href="/register/events"]')).toBeVisible({ visible: eventsShown });
+    await expect(page.locator(`header a[href="${path}"]`)).toHaveAttribute('aria-current', 'page');
+  }
 });

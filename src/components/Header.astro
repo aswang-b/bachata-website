@@ -9,7 +9,6 @@ const navItems = [
 
 const currentPath = Astro.url.pathname;
 const isAdminPage = currentPath === '/admin';
-const isRegisterPage = currentPath === '/register' || currentPath === '/register/events';
 // Lavender, to set it apart from the accent-colored Register for Classes button.
 const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-violet-300 hover:border-violet-300/70 hover:bg-violet-300/20';
 ---
@@ -55,32 +54,26 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
 
     <div id="header-actions" class="flex items-center justify-end gap-2 md:gap-4">
       {/* Off until an admin turns it on (Admin → Site Visibility); the `hidden` attribute is removed by the script below. */}
-      {/* Both register buttons show at every width; the script below swaps in the short label when the full one doesn't fit. */}
-      {
-        currentPath !== '/register/events' && (
-          <a
-            href="/register/events"
-            hidden
-            data-show-settings-key="show_register_events_nav"
-            class={`register-btn flex whitespace-nowrap rounded-md px-2 py-1.5 sm:px-2.5 text-[10px] font-semibold uppercase tracking-wide transition-colors md:px-4 md:text-xs md:tracking-wider ${eventsButtonClass}`}
-          >
-            <span class="register-label-full">Register for Events</span>
-            <span class="register-label-short hidden">Events</span>
-          </a>
-        )
-      }
+      {/* Both register buttons show on every page (the register pages too) and at every width; the script below swaps in the short label when the full one doesn't fit. */}
+      <a
+        href="/register/events"
+        aria-current={currentPath === '/register/events' ? 'page' : undefined}
+        hidden
+        data-show-settings-key="show_register_events_nav"
+        class={`register-btn flex whitespace-nowrap rounded-md px-2 py-1.5 sm:px-2.5 text-[10px] font-semibold uppercase tracking-wide transition-colors md:px-4 md:text-xs md:tracking-wider ${eventsButtonClass}`}
+      >
+        <span class="register-label-full">Register for Events</span>
+        <span class="register-label-short hidden">Events</span>
+      </a>
 
-      {
-        !isRegisterPage && (
-          <a
-            href="/register"
-            class="register-btn flex whitespace-nowrap rounded-md border border-accent/40 bg-accent/10 px-2 py-1.5 sm:px-2.5 text-[10px] font-semibold uppercase tracking-wide text-accent transition-colors hover:border-accent/70 hover:bg-accent/20 md:px-4 md:text-xs md:tracking-wider"
-          >
-            <span class="register-label-full">Register for Classes</span>
-            <span class="register-label-short hidden">Classes</span>
-          </a>
-        )
-      }
+      <a
+        href="/register"
+        aria-current={currentPath === '/register' ? 'page' : undefined}
+        class="register-btn flex whitespace-nowrap rounded-md border border-accent/40 bg-accent/10 px-2 py-1.5 sm:px-2.5 text-[10px] font-semibold uppercase tracking-wide text-accent transition-colors hover:border-accent/70 hover:bg-accent/20 md:px-4 md:text-xs md:tracking-wider"
+      >
+        <span class="register-label-full">Register for Classes</span>
+        <span class="register-label-short hidden">Classes</span>
+      </a>
 
       <a
         href="/admin/inbox"
