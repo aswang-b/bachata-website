@@ -146,3 +146,19 @@ describe('getSpotsByOccurrence with many classes', () => {
     await expect(getSpotsByOccurrence(events)).rejects.toThrow('Failed to load spot counts.');
   });
 });
+
+describe('admin calendar events', () => {
+  it("counts spots only on classes that haven't ended (it used to look up every past class too)", async () => {
+    vi.doMock('../../src/lib/admin', () => ({ requireAdmin: async () => ({ user: { email: 'a@x' } }) }));
+    const { GET } = await import('../../src/pages/api/admin/all-events');
+    const past = Array.from({ length: 400 }, (_, i) => ({ id: `p${i}`, google_recurring_event_id: null, capacity: 5, start_time: '2020-01-01T00:00:00Z', end_time: '2020-01-01T01:00:00Z' }));
+    db.current.seed('events', [...past, { id: 'u1', google_recurring_event_id: null, capacity: 5, start_time: '2999-01-01T00:00:00Z', end_time: '2999-01-01T01:00:00Z' }]);
+    db.current.seed('event_spot_counts', [{ event_id: 'u1', taken: 2, leaders_taken: 0, followers_taken: 0 }]);
+    const res = await GET({ request: new Request('http://x/api/admin/all-events') } as never);
+    const { events } = await res.json();
+    expect(events).toHaveLength(401);
+    expect(events.find((e: { id: string }) => e.id === 'u1').spots_label).toBeTruthy();
+    expect(events.find((e: { id: string }) => e.id === 'p0').spots_label).toBeNull();
+    expect(db.current.callsTo('event_spot_counts', 'select')).toHaveLength(1);
+  });
+});

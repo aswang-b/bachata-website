@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  contrastRatio,
   DEFAULT_QUICK_COLORS,
+  eventBannerBg,
+  eventBannerStyle,
   eventColorHex,
   eventColorOnDark,
+  eventPillStyle,
   eventTextOn,
   GOOGLE_EVENT_COLORS,
   isValidEventColor,
   luminance,
+  NAMED_EVENT_COLORS,
   nearestGoogleColorId,
   recentEventColors,
 } from '../../src/lib/eventColors';
@@ -36,6 +41,20 @@ describe('event colors', () => {
     for (const name of ['green', 'blue', 'red', 'orange', 'purple', 'accent', 'yellow']) expect(eventTextOn(name)).toBe('#ffffff');
     expect(eventTextOn('#ffe4ec')).toBe('#1c1210');
     expect(eventTextOn('#fef08a')).toBe('#1c1210');
+  });
+
+  it('draws every banner and pill with text that meets WCAG AA contrast (4.5:1), whatever color is picked', () => {
+    // The stock green, and a mid-tone pick, used to get white text at about 2:1.
+    const picks = [...Object.keys(NAMED_EVENT_COLORS), '#9aa7ff', '#7fd1c8', '#ffe4ec', '#101030', '#ffffff', '#000000', '#808080'];
+    for (const color of picks) {
+      expect(contrastRatio(eventBannerBg(color), eventTextOn(color)), color).toBeGreaterThanOrEqual(4.5);
+      const [, bg, text] = eventPillStyle(color).match(/background-color: (#[0-9a-f]{6}); color: (#[0-9a-f]{6})/)!;
+      expect(contrastRatio(bg, text), `pill ${color}`).toBeGreaterThanOrEqual(4.5);
+    }
+    // A color that already passes is drawn as picked.
+    expect(eventBannerBg('#1d4ed8')).toBe('#1d4ed8');
+    expect(eventBannerBg('#ffe4ec')).toBe('#ffe4ec');
+    expect(eventBannerStyle('green')).not.toContain('#22c55e');
   });
 
   it('lifts very dark picks so they still read as text on the dark site', () => {

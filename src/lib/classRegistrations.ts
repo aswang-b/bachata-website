@@ -390,8 +390,13 @@ export async function prepareRegistrationRows(
   eventType: EventType,
   dancers: DancerLike[]
 ): Promise<{ rows: RegistrationRow[]; hasCost: boolean } | { error: ClassSelectionError }> {
-  const sanitized = await sanitizeOccurrenceIds(selections);
-  const priceMap = await lookupClassPrices(sanitized, eventType);
+  // Independent reads, loaded together (sanitizing only touches the Drop-In
+  // dates, never the keys and titles prices are looked up by).
+  const [sanitized, priceMap, deals] = await Promise.all([
+    sanitizeOccurrenceIds(selections),
+    lookupClassPrices(selections, eventType),
+    listActiveDeals(),
+  ]);
 
   for (const sel of sanitized) {
     const info = priceMap.get(sel.key ?? sel.title);
@@ -410,7 +415,7 @@ export async function prepareRegistrationRows(
 
   const rows = applyDealsToRows(
     dancers.flatMap((d, i) => buildRegistrationRows('', i, d, sanitized, priceMap).map(({ submission_id: _, ...row }) => row)),
-    await listActiveDeals()
+    deals
   );
   return { rows, hasCost: rows.some((r) => (r.price ?? 0) > 0) };
 }

@@ -12,38 +12,37 @@ import { eventPillStyle } from '../lib/eventColors';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
 import classPlaceholder2 from '../assets/stock/class-placeholder-2.jpg';
 import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
+import { locationHref } from '../lib/locationLink';
 
 const classPlaceholders = [classPlaceholder, classPlaceholder2];
 
-const { lessonOverview } = await getHomepageContent();
-const faqs = await listFaqs();
-
-const { data: events, error } = await supabase
-  .from('events')
-  .select(
-    'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
-  )
-  .eq('visibility', 'public')
-  .in('event_type', ['class', 'event'])
-  .gte('start_time', new Date().toISOString())
-  .order('start_time', { ascending: true });
+// Every read the page needs up front is independent, so they load together.
+// The series totals are unfiltered by date, so a series' whole-series
+// occurrence count doesn't shrink as classes pass (see buildClassSeriesList's
+// `allEventsForTotals`). An admin-saved card order (set with the arrows shown
+// to admins on this page, reset from Admin Tools → Homepage) overrides the
+// default soonest-first order.
+const [{ lessonOverview }, faqs, { data: events, error }, { data: allEventsForTotals, error: totalsError }, cardOrder, sectionOrder] = await Promise.all([
+  getHomepageContent(),
+  listFaqs(),
+  supabase
+    .from('events')
+    .select(
+      'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
+    )
+    .eq('visibility', 'public')
+    .in('event_type', ['class', 'event'])
+    .gte('start_time', new Date().toISOString())
+    .order('start_time', { ascending: true }),
+  supabase.from('events').select('id, google_recurring_event_id').eq('visibility', 'public').in('event_type', ['class', 'event']),
+  getHomepageCardOrder(),
+  getHomepageSectionOrder(),
+]);
 
 if (error) console.error('Failed to load current offerings:', error);
-
-// Unfiltered by date, so a series' whole-series occurrence count doesn't
-// shrink as classes pass (see buildClassSeriesList's `allEventsForTotals`).
-const { data: allEventsForTotals, error: totalsError } = await supabase
-  .from('events')
-  .select('id, google_recurring_event_id')
-  .eq('visibility', 'public')
-  .in('event_type', ['class', 'event']);
-
 if (totalsError) console.error('Failed to load series totals:', totalsError);
 
-// Soonest first by default; an admin-saved order (set with the arrows shown to
-// admins on this page, reset from Admin Tools → Homepage) overrides it. Only
-// upcoming classes are loaded above, so a past class drops off regardless.
-const [cardOrder, sectionOrder] = await Promise.all([getHomepageCardOrder(), getHomepageSectionOrder()]);
+// Only upcoming classes are loaded above, so a past class drops off regardless of the saved order.
 const offerings = applyCardOrder(
   buildClassSeriesList(events ?? [], allEventsForTotals ?? []).sort((a, b) => a.nextStartTime.localeCompare(b.nextStartTime)),
   cardOrder
@@ -125,11 +124,6 @@ function seriesTypeLabel(offering: (typeof offerings)[number]): string {
 // Pills use a solid, slightly darkened fill of the class's color (see
 // eventPillStyle) rather than colored text on a translucent chip, so their
 // text stays readable over the card photo.
-
-function locationHref(location: string): string {
-  if (/^https?:\/\//i.test(location)) return location;
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
-}
 
 const registerBase = (offering: (typeof offerings)[number]) => (offering.eventType === 'event' ? '/register/events' : '/register');
 ---

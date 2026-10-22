@@ -250,3 +250,50 @@ test('the drop-in policy note stays on a phone screen, and Escape closes it', as
   await page.keyboard.press('Escape');
   await expect(tip).toBeHidden();
 });
+
+// The location link sat inside the class row's role=button, whose Enter key
+// handler swallowed the link's Enter (picking the class instead), and a
+// button's contents aren't announced as controls of their own.
+test("a class's location link is its own control: Enter on it opens the map, not the class", async ({ page }) => {
+  await page.goto('/register');
+  const item = page.locator(`.series-item[data-key="${series.key}"]`);
+  const link = item.locator('a', { hasText: 'ZZZ Test Studio' });
+  expect(await link.evaluate((el) => el.closest('[role="button"]'))).toBeNull();
+  // Clicking the rest of the header (outside the button) still picks the class.
+  await item.locator(`#series-sub-${series.key}`).click();
+  await expect(item).toHaveAttribute('data-selected', 'true');
+  await item.locator('.series-toggle-btn').click();
+  await expect(item).not.toHaveAttribute('data-selected', 'true');
+
+  await link.focus();
+  const popup = page.waitForEvent('popup');
+  await page.keyboard.press('Enter');
+  await (await popup).close();
+  await expect(item).not.toHaveAttribute('data-selected', 'true');
+});
+
+test("the first dancer's fields say what they're for, and missing ones are marked invalid after a blocked submit", async ({ page }) => {
+  await page.goto('/register');
+  const first = page.locator('.dancer-block').first();
+  await expect(first.locator('.dancer-first-name')).toHaveAttribute('autocomplete', 'given-name');
+  await expect(first.locator('.dancer-last-name')).toHaveAttribute('autocomplete', 'family-name');
+  await expect(first.locator('.dancer-phone')).toHaveAttribute('autocomplete', 'tel');
+  await expect(first.locator('.dancer-email')).toHaveAttribute('autocomplete', 'email');
+  // A second dancer is someone else: no autofill with the first one's details.
+  await page.locator('#add-dancer-btn').click();
+  await expect(page.locator('.dancer-block').nth(1).locator('.dancer-first-name')).toHaveAttribute('autocomplete', 'off');
+  await page.locator('.dancer-block').nth(1).locator('.remove-dancer-btn').click();
+
+  await selectSeries(page, series.key);
+  await first.locator('.dancer-last-name').fill(RUN_ID);
+  await submitRegistration(page);
+  const firstName = first.locator('.dancer-first-name');
+  await expect(firstName).toHaveAttribute('aria-invalid', 'true');
+  await expect(firstName).toHaveAttribute('aria-describedby', 'dancers-error');
+  await expect(first.locator('.dancer-last-name')).not.toHaveAttribute('aria-invalid', /.*/);
+  await expect(first.locator('.dancer-phone')).toHaveAttribute('aria-invalid', 'true');
+  await firstName.fill('ZZZFixed');
+  await expect(firstName).not.toHaveAttribute('aria-invalid', /.*/);
+  await first.locator('.dancer-email').fill('zzz@example.com');
+  await expect(first.locator('.dancer-phone')).not.toHaveAttribute('aria-invalid', /.*/);
+});

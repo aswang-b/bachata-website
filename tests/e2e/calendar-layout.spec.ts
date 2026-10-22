@@ -108,3 +108,20 @@ test.describe('a long description', () => {
     await expect(toggle).toHaveText('Read more');
   });
 });
+
+// Banners opened only on click or hover, so keyboard and screen-reader users
+// couldn't reach any event on the calendar.
+test('a calendar event can be reached with Tab and opened with Enter', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const { data } = await db.from('events').select('start_time').eq('id', series.ids[0]).single();
+  const d = new Date(data!.start_time);
+  await page.goto(`/calendar?month=${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  const banner = page.locator('.event-banner', { hasText: series.title }).first();
+  await expect(banner).toHaveAttribute('role', 'button');
+  await banner.focus();
+  // Its tooltip links stay out of the tab order (the tooltip hides once focus leaves the banner).
+  expect(await banner.locator('.event-tooltip a').evaluateAll((els) => els.every((a) => (a as HTMLElement).tabIndex === -1))).toBe(true);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#detail-title')).toHaveText(series.title);
+  await expect(page.locator('#detail-title')).toBeFocused();
+});

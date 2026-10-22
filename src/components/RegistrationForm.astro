@@ -9,6 +9,7 @@ import { getActivePrice, priceTierLabel, type ActivePriceResult } from '../lib/p
 import { getSpotsByOccurrence, publicSpotsLabel, remainingFor, seriesSpots } from '../lib/capacity';
 import { getCommunityGuidelines, hasGuidelines } from '../lib/communityGuidelines';
 import { listActiveDeals } from '../lib/dealsStore';
+import { locationHref } from '../lib/locationLink';
 
 interface Props {
   kind?: 'class' | 'event';
@@ -53,7 +54,7 @@ interface ClassOccurrence {
 // they're blank. The series totals are unfiltered by date, so a series'
 // whole-series occurrence count doesn't shrink as classes pass (see
 // classSeries.ts's countOccurrencesByKey).
-const [guidelines, { data: classEvents, error }, { data: allClassEventsForTotals, error: totalsError }] = await Promise.all([
+const [guidelines, { data: classEvents, error }, { data: allClassEventsForTotals, error: totalsError }, activeDeals] = await Promise.all([
   isEvent ? getCommunityGuidelines() : Promise.resolve(''),
   supabase
     .from('events')
@@ -65,6 +66,7 @@ const [guidelines, { data: classEvents, error }, { data: allClassEventsForTotals
     .gte('start_time', new Date().toISOString())
     .order('start_time', { ascending: true }),
   supabase.from('events').select('id, google_recurring_event_id').eq('visibility', 'public').eq('event_type', eventType),
+  listActiveDeals(),
 ]);
 const showGuidelines = hasGuidelines(guidelines);
 
@@ -165,12 +167,7 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
 // Bundle deals that cover something on this page, for the live subtotal and
 // its "add this to get the deal" suggestions (the server prices the same way).
 const pageKeys = new Set(seriesList.map((s) => s.key));
-const pageDeals = (await listActiveDeals()).filter((d) => d.seriesKeys.some((k) => pageKeys.has(k)));
-
-function locationHref(location: string): string {
-  if (/^https?:\/\//i.test(location)) return location;
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
-}
+const pageDeals = activeDeals.filter((d) => d.seriesKeys.some((k) => pageKeys.has(k)));
 
 function formatPrice(value: number): string {
   return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
@@ -238,15 +235,17 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                 data-full-roles={s.fullRoles.join(',')}
                 data-whole-full={String(s.wholeFull)}
               >
-                {/* A closed class can't be picked, only expanded to read its description (its badge says why), so it is announced as expandable rather than as a disabled button; with no description it isn't a control at all. */}
-                <div
-                  role={s.registrationClosed && !s.description ? undefined : 'button'}
-                  tabindex={s.registrationClosed && !s.description ? undefined : '0'}
-                  aria-pressed={s.registrationClosed ? undefined : 'false'}
-                  aria-expanded={s.registrationClosed && s.description ? 'false' : undefined}
-                  class="series-toggle-btn flex w-full cursor-pointer flex-col items-start gap-1 rounded-t-xl px-4 py-3 text-left transition-colors last:rounded-b-xl hover:bg-bg"
-                >
-                  <div class="flex w-full flex-wrap items-center gap-1.5">
+                {/* The whole header picks the class when clicked, but only its title row is the button: the location link sits beside it rather than inside, since a button's contents aren't announced as controls of their own. */}
+                <div class="series-header flex w-full cursor-pointer flex-col items-start gap-1 rounded-t-xl px-4 py-3 text-left transition-colors last:rounded-b-xl hover:bg-bg">
+                  {/* A closed class can't be picked, only expanded to read its description (its badge says why), so it is announced as expandable rather than as a disabled button; with no description it isn't a control at all. */}
+                  <div
+                    role={s.registrationClosed && !s.description ? undefined : 'button'}
+                    tabindex={s.registrationClosed && !s.description ? undefined : '0'}
+                    aria-pressed={s.registrationClosed ? undefined : 'false'}
+                    aria-expanded={s.registrationClosed && s.description ? 'false' : undefined}
+                    aria-describedby={`series-sub-${s.key}`}
+                    class="series-toggle-btn flex w-full flex-wrap items-center gap-1.5 rounded"
+                  >
                     <span class="font-semibold text-ink">{s.title}</span>
                     {seriesTypeLabel(s) && (
                       <>
@@ -266,7 +265,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                     )}
                   </div>
                   <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span class="text-xs text-muted">{s.subLabel}</span>
+                    <span id={`series-sub-${s.key}`} class="text-xs text-muted">{s.subLabel}</span>
                     {/* No "·" before the location: it would dangle at the line's end when the location wraps, and the pin already sets it apart. */}
                     {s.location && (
                       <>
@@ -610,6 +609,10 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     const block = document.createElement('div');
     block.className = 'dancer-block flex flex-col gap-3 rounded-xl border border-border bg-bg p-4';
     block.dataset.index = String(index);
+    // The first dancer is usually the person filling in the form, so their
+    // fields say what they are for autofill; later dancers are someone else,
+    // and autofill would put the wrong person's details in them.
+    const autocomplete = (token: string) => `autocomplete="${index === 1 ? token : 'off'}"`;
     block.innerHTML = `
       <div class="flex items-center justify-between">
         <p class="dancer-number-label text-sm font-semibold text-ink">${personLabel} ${index}</p>
@@ -618,22 +621,22 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       <div class="grid gap-3 sm:grid-cols-2">
         <label class="flex flex-col gap-1.5">
           <span class="text-sm font-medium text-ink/80">First Name<span class="text-accent"> *</span></span>
-          <input type="text" class="dancer-first-name ${inputClass}" />
+          <input type="text" class="dancer-first-name ${inputClass}" ${autocomplete('given-name')} />
         </label>
         <label class="flex flex-col gap-1.5">
           <span class="text-sm font-medium text-ink/80">Last Name<span class="text-accent"> *</span></span>
-          <input type="text" class="dancer-last-name ${inputClass}" />
+          <input type="text" class="dancer-last-name ${inputClass}" ${autocomplete('family-name')} />
         </label>
       </div>
       ${isEvent ? '' : ROLE_PICKER_HTML}
       <div class="grid gap-3 sm:grid-cols-2">
         <label class="flex flex-col gap-1.5">
           <span class="text-sm font-medium text-ink/80">Phone<span class="text-accent"> *</span></span>
-          <input type="tel" class="dancer-phone ${inputClass}" />
+          <input type="tel" class="dancer-phone ${inputClass}" ${autocomplete('tel')} />
         </label>
         <label class="flex flex-col gap-1.5">
           <span class="text-sm font-medium text-ink/80">Email<span class="text-accent"> *</span></span>
-          <input type="email" class="dancer-email ${inputClass}" />
+          <input type="email" class="dancer-email ${inputClass}" ${autocomplete('email')} />
         </label>
       </div>
       <p class="text-xs text-muted">* Phone or email is required — we'll use it to reach you about ${isEvent ? '' : 'class '}changes or cancellations.</p>
@@ -660,6 +663,18 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         renderRoleButtons();
       })
     );
+
+    // A field marked missing by a blocked submit stops being invalid once
+    // filled in (either of phone and email clears both).
+    block.addEventListener('input', (e) => {
+      const input = e.target as HTMLInputElement;
+      if (!input.value.trim()) return;
+      const fields = input.matches('.dancer-phone, .dancer-email') ? block.querySelectorAll('.dancer-phone, .dancer-email') : [input];
+      fields.forEach((f) => {
+        f.removeAttribute('aria-invalid');
+        f.removeAttribute('aria-describedby');
+      });
+    });
 
     block.querySelector('.remove-dancer-btn')?.addEventListener('click', () => {
       block.remove();
@@ -891,6 +906,12 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     const priceWhole = item.dataset.priceWhole ? Number(item.dataset.priceWhole) : null;
     const priceDropIn = item.dataset.priceDropIn ? Number(item.dataset.priceDropIn) : null;
     const toggleBtn = item.querySelector('.series-toggle-btn') as HTMLElement;
+    const header = item.querySelector('.series-header') as HTMLElement;
+    // A click anywhere on the header but the location link (which stops its
+    // own clicks) acts on the title row, which is the actual button.
+    header.addEventListener('click', (e) => {
+      if (!toggleBtn.contains(e.target as Node)) toggleBtn.click();
+    });
     const subchoice = item.querySelector<HTMLElement>('.series-subchoice');
     const details = item.querySelector<HTMLElement>('.series-details');
     const dropinNote = item.querySelector<HTMLElement>('.dropin-note');
@@ -909,6 +930,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         toggleBtn.setAttribute('aria-expanded', String(open));
       });
       toggleBtn.addEventListener('keydown', (e) => {
+        if (e.target !== toggleBtn) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           toggleBtn.click();
@@ -938,7 +960,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     function deselectSeries() {
       selections.delete(key);
       toggleBtn.setAttribute('aria-pressed', 'false');
-      toggleBtn.classList.remove('bg-bg');
+      header.classList.remove('bg-bg');
       item.dataset.selected = 'false';
       subchoice?.classList.add('hidden');
       subchoice?.classList.remove('flex');
@@ -968,7 +990,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
           occurrenceEventId: dropInOnly ? singleOccurrenceId : null,
         });
         toggleBtn.setAttribute('aria-pressed', 'true');
-        toggleBtn.classList.add('bg-bg');
+        header.classList.add('bg-bg');
         item.dataset.selected = 'true';
         subchoice?.classList.remove('hidden');
         subchoice?.classList.add('flex');
@@ -981,10 +1003,11 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       }
     });
 
-    // toggleBtn is a div[role=button] (a real <button> can't contain the
-    // location <a> nested inside it), so Enter/Space activation needs to be
-    // wired up manually to keep it keyboard-accessible.
+    // toggleBtn is a div[role=button] (it wraps the title row's badges in a
+    // flex layout), so Enter/Space activation needs to be wired up manually to
+    // keep it keyboard-accessible — for key presses on the row itself only.
     toggleBtn.addEventListener('keydown', (e) => {
+      if (e.target !== toggleBtn) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         toggleBtn.click();
@@ -1055,6 +1078,32 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       details?.classList.add('flex');
     });
   });
+
+  // Marks each missing dancer field invalid and points it at the message under
+  // the dancer list, so a screen reader says what's wrong when it's focused.
+  // Phone and email are only missing when both are empty.
+  function markDancerFields(dancerBlocks: HTMLElement[], dancers: Dancer[]) {
+    dancerBlocks.forEach((block, i) => {
+      const d = dancers[i];
+      const missing: [string, boolean][] = [
+        ['.dancer-first-name', !d.firstName],
+        ['.dancer-last-name', !d.lastName],
+        ['.dancer-phone', !d.phone && !d.email],
+        ['.dancer-email', !d.phone && !d.email],
+      ];
+      for (const [sel, invalid] of missing) {
+        const input = block.querySelector<HTMLInputElement>(sel);
+        if (!input) continue;
+        if (invalid) {
+          input.setAttribute('aria-invalid', 'true');
+          input.setAttribute('aria-describedby', 'dancers-error');
+        } else {
+          input.removeAttribute('aria-invalid');
+          input.removeAttribute('aria-describedby');
+        }
+      }
+    });
+  }
 
   // After a blocked submit, scrolls to the first problem on the page (in page
   // order). A missing dancer detail jumps to that dancer, with the cursor in
@@ -1158,6 +1207,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
     const dancersError = document.getElementById('dancers-error')!;
     const dancersValid = dancers.every((d) => d.firstName && d.lastName && (isEvent || d.role) && (d.phone || d.email));
+    markDancerFields(dancerBlocks, dancers);
     if (!dancersValid) {
       dancersError.classList.remove('hidden');
       hasError = true;

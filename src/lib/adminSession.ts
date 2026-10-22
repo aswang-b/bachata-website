@@ -30,7 +30,20 @@ async function checkToken(accessToken: string): Promise<TokenCheck> {
   }
 }
 
-export async function checkAdminSession(): Promise<AdminGate> {
+// The header and the page itself both ask as a page loads; while one check
+// is in flight the others share it, so a page load makes one round trip to
+// Supabase Auth (and one refresh/sign-out, not two racing each other). A
+// check made after it has settled asks again.
+let inFlight: Promise<AdminGate> | null = null;
+
+export function checkAdminSession(): Promise<AdminGate> {
+  inFlight ??= runCheck().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+async function runCheck(): Promise<AdminGate> {
   const {
     data: { session },
   } = await supabaseBrowser.auth.getSession();

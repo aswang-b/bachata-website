@@ -163,7 +163,13 @@ const {
           'flex items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-left text-sm text-ink transition-colors hover:border-accent aria-pressed:border-accent aria-pressed:bg-surface';
         btn.dataset.eventId = event.id;
         btn.setAttribute('aria-pressed', 'false');
-        btn.innerHTML = `<span class="h-2 w-2 rounded-full" style="${eventDotStyle(event.color)}" aria-hidden="true"></span>${event.title} — ${timeFormatter.format(new Date(event.start_time))}`;
+        // The title comes from the calendar sync and the editor, so it goes in
+        // as text rather than HTML.
+        const dot = document.createElement('span');
+        dot.className = 'h-2 w-2 rounded-full';
+        dot.setAttribute('style', eventDotStyle(event.color));
+        dot.setAttribute('aria-hidden', 'true');
+        btn.append(dot, `${event.title} — ${timeFormatter.format(new Date(event.start_time))}`);
         btn.addEventListener('click', () => {
           optionsEl.querySelectorAll('button').forEach((b) => {
             b.setAttribute('aria-pressed', 'false');

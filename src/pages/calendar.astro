@@ -7,6 +7,7 @@ import { getActivePrice, priceTierLabel } from '../lib/pricing';
 import { getSpotsByOccurrence, publicSpotsLabel, type SpotsInfo } from '../lib/capacity';
 import { eventBannerStyle, eventDotStyle, eventTextStyle } from '../lib/eventColors';
 import { eventTypeLabel } from '../lib/classSeries';
+import { locationHref } from '../lib/locationLink';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -100,11 +101,6 @@ if (recurringIds.length > 0) {
   }
 }
 
-
-function locationHref(location: string): string {
-  if (/^https?:\/\//i.test(location)) return location;
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
-}
 
 function formatPrice(value: number): string {
   return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
@@ -264,7 +260,7 @@ const MAX_BANNERS_PER_DAY = 3;
                     {dayEvents.slice(0, MAX_BANNERS_PER_DAY).map((event) => {
                       const weekNumber = weekNumberByEventId.get(event.id) ?? null;
                       return (
-                      <div class="event-banner group relative cursor-pointer" data-event={JSON.stringify({ ...event, weekNumber })}>
+                      <div class="event-banner group relative cursor-pointer rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" role="button" tabindex="0" data-event={JSON.stringify({ ...event, weekNumber })}>
                         <div
                           class={
                             isCompact
@@ -277,7 +273,7 @@ const MAX_BANNERS_PER_DAY = 3;
                           {weekNumber && <><span class="whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk {weekNumber}</span>{' '}</>}
                           {event.title}
                         </div>
-                        <div class="event-tooltip pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden max-h-[calc(100vh-1rem)] w-96 -translate-x-1/2 overflow-hidden rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
+                        <div aria-hidden="true" class="event-tooltip pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden max-h-[calc(100vh-1rem)] w-96 -translate-x-1/2 overflow-hidden rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block group-focus-visible:block">
                           <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider" style={eventTextStyle(event.color)}>
                             <span class="h-2 w-2 rounded-full" style={eventDotStyle(event.color)}></span>
                             {eventTypeLabel(event.event_type, weekNumber)}
@@ -335,7 +331,7 @@ const MAX_BANNERS_PER_DAY = 3;
           <p id="detail-placeholder" class="text-sm text-muted">Click an event to see details here.</p>
           <div id="detail-content" class="hidden flex-col gap-2">
             <p id="detail-type" class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider"></p>
-            <p id="detail-title" class="font-display text-lg font-bold text-ink"></p>
+            <p id="detail-title" tabindex="-1" class="font-display text-lg font-bold text-ink focus:outline-none"></p>
             <p id="detail-datetime" class="text-sm text-muted"></p>
             <div id="detail-description" class="text-sm text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"></div>
             <p id="detail-price" class="hidden text-sm font-semibold text-ink"></p>
@@ -865,6 +861,7 @@ const MAX_BANNERS_PER_DAY = 3;
   import { endAfterStart } from '../lib/eventTimes';
   import { DEFAULT_QUICK_COLORS, eventBannerStyle, eventColorHex, eventDotStyle, eventTextStyle, recentEventColors } from '../lib/eventColors';
   import { eventTypeLabel } from '../lib/classSeries';
+  import { escapeAttr, locationHref } from '../lib/locationLink';
 
   // --- Calendar / List view toggle ---
   const viewToggleButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.view-toggle-btn'));
@@ -933,6 +930,18 @@ const MAX_BANNERS_PER_DAY = 3;
     const banner = (e.target as HTMLElement).closest<HTMLElement>('.event-banner');
     if (banner && !banner.contains(e.relatedTarget as Node | null)) placeTooltip(banner);
   });
+  // A banner reached with Tab shows its tooltip too (group-focus-visible).
+  document.addEventListener('focusin', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.classList?.contains('event-banner')) placeTooltip(target);
+  });
+  // The tooltip only repeats the details panel, so it stays out of the tab
+  // order and the accessibility tree: tabbing into its links would hide it
+  // (focus leaves the banner) with the focus still inside.
+  function keepTooltipsOutOfTabOrder() {
+    document.querySelectorAll<HTMLElement>('.event-tooltip a').forEach((a) => (a.tabIndex = -1));
+  }
+  keepTooltipsOutOfTabOrder();
 
   const VIEW_STORAGE_KEY = 'bwb-calendar-view';
 
@@ -1014,11 +1023,6 @@ const MAX_BANNERS_PER_DAY = 3;
   let editingRecurringId: string | null = null;
   let originalPattern: { byDay: string[]; count: number; interval: number } | null = null;
 
-
-  function locationHref(location: string): string {
-    if (/^https?:\/\//i.test(location)) return location;
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
-  }
 
   declare const google: any;
   let mapsBootstrapped = false;
@@ -1904,6 +1908,17 @@ const MAX_BANNERS_PER_DAY = 3;
     }
   });
 
+  // Banners are div[role=button]s (the tooltip inside them can't live in a
+  // real <button>), so Enter and Space open them by hand, then move focus to
+  // the details so keyboard and screen-reader users land on what opened.
+  document.addEventListener('keydown', (e) => {
+    const target = e.target as HTMLElement;
+    if ((e.key !== 'Enter' && e.key !== ' ') || !target.classList?.contains('event-banner')) return;
+    e.preventDefault();
+    showEventDetail(JSON.parse(target.dataset.event ?? '{}'));
+    document.getElementById('detail-title')?.focus();
+  });
+
   document.getElementById('event-save')?.addEventListener('click', async () => {
     const headers = await withAuthHeader();
     if (!headers) return;
@@ -2043,9 +2058,9 @@ const MAX_BANNERS_PER_DAY = 3;
       ? `<span class="whitespace-nowrap rounded bg-white/25 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">Wk ${event.weekNumber}</span> `
       : '';
     return `
-      <div class="event-banner group relative cursor-pointer" data-event='${JSON.stringify(event).replace(/'/g, '&#39;')}'>
+      <div class="event-banner group relative cursor-pointer rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" role="button" tabindex="0" data-event="${escapeAttr(JSON.stringify(event))}">
         <div class="${bannerClass}" style="${eventBannerStyle(event.color)}">${weekTag}${event.visibility === 'private' ? '🔒 ' : ''}${escapeHtml(event.title)}</div>
-        <div class="event-tooltip pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden max-h-[calc(100vh-1rem)] w-96 -translate-x-1/2 overflow-hidden rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block">
+        <div aria-hidden="true" class="event-tooltip pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden max-h-[calc(100vh-1rem)] w-96 -translate-x-1/2 overflow-hidden rounded-2xl border-2 border-ink bg-bg p-4 text-left shadow-xl group-hover:block group-focus-visible:block">
           <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider" style="${eventTextStyle(event.color)}">
             <span class="h-2 w-2 rounded-full" style="${eventDotStyle(event.color)}"></span>
             ${eventTypeLabel(event.event_type, event.weekNumber)}
@@ -2059,7 +2074,7 @@ const MAX_BANNERS_PER_DAY = 3;
           ${spotsText(event) ? `<p class="mt-1 text-xs font-bold text-accent">${spotsText(event)}</p>` : ''}
           ${
             event.location
-              ? `<a href="${locationHref(event.location)}" target="_blank" rel="noopener noreferrer" class="pointer-events-auto mt-1 block text-xs font-semibold text-accent" onclick="event.stopPropagation()"><span aria-hidden="true">📍</span> <span class="underline">${escapeHtml(event.location)}</span></a>`
+              ? `<a href="${escapeAttr(locationHref(event.location))}" target="_blank" rel="noopener noreferrer" class="pointer-events-auto mt-1 block text-xs font-semibold text-accent" onclick="event.stopPropagation()"><span aria-hidden="true">📍</span> <span class="underline">${escapeHtml(event.location)}</span></a>`
               : ''
           }
         </div>
@@ -2185,6 +2200,7 @@ const MAX_BANNERS_PER_DAY = 3;
       }
     });
 
+    keepTooltipsOutOfTabOrder();
     fitBannerLabels();
   }
 

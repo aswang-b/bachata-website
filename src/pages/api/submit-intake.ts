@@ -195,6 +195,9 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     return new Response('One of the fields is too long.', { status: 400 });
   }
 
+  // Loaded while the classes are checked (it never fails: blank on error).
+  const guidelinesLoad = isEvent ? getCommunityGuidelines() : Promise.resolve('');
+
   let registrationRows: RegistrationRow[] = [];
   if (isRegistration) {
     const selections = resolveClassSelections(className || null, classSelectionsRaw || null);
@@ -216,7 +219,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   }
 
   // Event registrants agree to the community guidelines (when there are any).
-  const guidelines = isEvent ? await getCommunityGuidelines() : '';
+  const guidelines = await guidelinesLoad;
   const agreedToGuidelines = formData.get('agree_guidelines') === 'on';
   if (hasGuidelines(guidelines) && !agreedToGuidelines) {
     return new Response("Please confirm you've read the community guidelines.", { status: 400 });

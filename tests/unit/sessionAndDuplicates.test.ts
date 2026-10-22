@@ -54,6 +54,21 @@ describe('admin session gate', () => {
     expect(auth.signOut).not.toHaveBeenCalled();
   });
 
+  it('makes one check when the header and the page ask at the same time (each used to make its own)', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: session('stale') } });
+    answers.set('stale', { isAdmin: false, sessionInvalid: true });
+    auth.refreshSession.mockResolvedValue({ data: { session: session('fresh') }, error: null });
+    answers.set('fresh', { isAdmin: true });
+    const [header, page] = await Promise.all([checkAdminSession(), checkAdminSession()]);
+    expect(header.status).toBe('admin');
+    expect(page.status).toBe('admin');
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(auth.refreshSession).toHaveBeenCalledTimes(1);
+    // Once settled, the next check asks again.
+    await checkAdminSession();
+    expect(auth.getSession).toHaveBeenCalledTimes(2);
+  });
+
   it('refreshes a session the server rejected instead of reporting "not an admin"', async () => {
     auth.getSession.mockResolvedValue({ data: { session: session('stale') } });
     answers.set('stale', { isAdmin: false, sessionInvalid: true });

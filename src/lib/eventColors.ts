@@ -51,6 +51,28 @@ export function eventTextOn(color: string | null | undefined): string {
   return luminance(eventColorHex(color)) > 0.55 ? '#1c1210' : '#ffffff';
 }
 
+// WCAG contrast ratio between two colors, 1 to 21.
+export function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+function scale(hex: string, factor: number): string {
+  const [r, g, b] = rgb(hex).map((c) => Math.round(c * factor));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+// The background a banner actually uses behind eventTextOn's text: the color
+// itself when the two meet WCAG AA (4.5:1), otherwise the color darkened step
+// by step until white text does, like the -600/-700 shades the named colors
+// used to be drawn in. Light colors get dark text, which always passes.
+export function eventBannerBg(color: string | null | undefined): string {
+  let hex = eventColorHex(color);
+  const text = eventTextOn(hex);
+  while (contrastRatio(hex, text) < 4.5) hex = scale(hex, 0.92);
+  return hex;
+}
+
 // The color used as text on the site's dark background: very dark picks are
 // lifted toward white so labels like "Class" stay readable.
 export function eventColorOnDark(color: string | null | undefined): string {
@@ -62,13 +84,12 @@ export function eventColorOnDark(color: string | null | undefined): string {
 
 // Inline styles, for markup that used to use a class per named color.
 export const eventDotStyle = (color: string | null | undefined) => `background-color: ${eventColorHex(color)}`;
-export const eventBannerStyle = (color: string | null | undefined) => `background-color: ${eventColorHex(color)}; color: ${eventTextOn(color)}`;
-// A badge over a photo (homepage card pills): the color darkened a step, like
-// the -600 shades the named colors used to use, so its text stays readable.
+export const eventBannerStyle = (color: string | null | undefined) => `background-color: ${eventBannerBg(color)}; color: ${eventTextOn(color)}`;
+// A badge over a photo (homepage card pills): the color darkened a step first
+// so it stands out from the photo, then made readable like a banner.
 export function eventPillStyle(color: string | null | undefined): string {
-  const [r, g, b] = rgb(eventColorHex(color)).map((c) => Math.round(c * 0.82));
-  const hex = `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
-  return `background-color: ${hex}; color: ${eventTextOn(hex)}`;
+  const hex = scale(eventColorHex(color), 0.82);
+  return `background-color: ${eventBannerBg(hex)}; color: ${eventTextOn(hex)}`;
 }
 export const eventTextStyle = (color: string | null | undefined) => `color: ${eventColorOnDark(color)}`;
 

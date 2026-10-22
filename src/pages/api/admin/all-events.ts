@@ -33,10 +33,13 @@ export const GET: APIRoute = async ({ request }) => {
     if ((data?.length ?? 0) < PAGE_SIZE) break;
   }
 
-  // Admins see spots remaining even when it's hidden from the public.
+  // Admins see spots remaining even when it's hidden from the public — on
+  // classes that haven't ended, since no one can sign up for the rest (and
+  // counting the whole history took a query per 150 past events).
+  const now = Date.now();
   let spots = new Map<string, SpotsInfo>();
   try {
-    spots = await getSpotsByOccurrence(events);
+    spots = await getSpotsByOccurrence(events.filter((e) => Date.parse(String(e.end_time)) >= now));
   } catch {
     // Leave spots out rather than failing the whole calendar.
   }

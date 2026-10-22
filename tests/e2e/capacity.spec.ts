@@ -38,6 +38,25 @@ test('a full class shows "Full", cannot be picked, and the server refuses more s
   expect(await res.text()).toContain('is full');
 });
 
+// Spots used to be counted per name alone, so signing up under the name of
+// someone already in a full class took no new spot and got through.
+test("a full class refuses someone using a registered dancer's name with their own contact details", async ({ request }) => {
+  const namesake = JSON.stringify([{ firstName: 'ZZZTaken', lastName: RUN_ID, role: 'leader', phone: '6085550333', email: '' }]);
+  const res = await postForm(request, '/api/submit-intake', { registration_type: 'group', class: full.title, payment_method: 'cash', class_selections: selection(full), dancers: namesake });
+  expect(res.status()).toBe(400);
+  expect(await res.text()).toContain('is full');
+  expect(await spotCounts(full.ids[0])).toMatchObject({ taken: 1 });
+});
+
+test('two different people with the same name each take a spot', async () => {
+  const twins = await seedEvent({ name: 'Namesakes', capacity: 5, dayOffset: 3 });
+  await seedSignup(twins, [{ first: 'Same', phone: '6085550401' }]);
+  await seedSignup(twins, [{ first: 'Same', phone: '6085550402' }]);
+  // The same person signing up again (same details) still counts once.
+  await seedSignup(twins, [{ first: 'Same', phone: '(608) 555-0401' }]);
+  expect(await spotCounts(twins.ids[0])).toMatchObject({ taken: 2 });
+});
+
 test('separate Leader/Follower caps: counted per role, shown per role, enforced per role', async ({ page, request }) => {
   // One Whole Series leader counts in every class of the series.
   for (const occ of roles.ids) expect(await spotCounts(occ)).toMatchObject({ leaders_taken: 1, followers_taken: 0 });
