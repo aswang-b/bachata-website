@@ -32,7 +32,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0049); a new table must be granted to service_role in its migration (see 0045)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0050); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker)
@@ -60,6 +60,9 @@
 │   │   ├── communityGuidelines.ts       # Community guidelines event registrants agree to; split into FAQ-style items for confirmations
 │   │   ├── deals.ts, dealsStore.ts      # Bundle deals: shared pricing (form + server) and the deals table
 │   │   ├── contactMessages.ts           # Contact form messages (own table, not sign-ups), with double-submit check
+│   │   ├── emailTypos.ts, emailHints.ts, emailDomain.ts  # Mistyped-email suggestions and domain checks on the forms
+│   │   ├── resendWebhook.ts             # Resend bounce webhook signature check; bounces flagged on the dashboard
+│   │   ├── registrationConfirmation.ts  # Builds the sign-up confirmation email (sent on sign-up, resent by admins)
 │   │   ├── faqs.ts                      # FAQ list persistence
 │   │   ├── googleCalendar.ts            # Google Calendar API client
 │   │   ├── homepageContent.ts           # Editable homepage copy (lesson overview) persistence

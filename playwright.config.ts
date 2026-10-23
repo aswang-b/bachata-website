@@ -1,5 +1,5 @@
 import { defineConfig } from '@playwright/test';
-import { BASE_URL, EMAIL_SINK, PORT } from './tests/e2e/support/env';
+import { BASE_URL, EMAIL_SINK, PORT, WEBHOOK_SECRET } from './tests/e2e/support/env';
 
 // End-to-end tests (tests/e2e) against a dev server of their own, started on
 // port 4322 with the test-mode switches on (see src/lib/testMode.ts): emails go
@@ -38,6 +38,7 @@ export default defineConfig({
       E2E_DISABLE_GOOGLE: '1',
       E2E_SKIP_USAGE_COUNTERS: '1',
       E2E_PORT: String(PORT),
+      RESEND_WEBHOOK_SECRET: WEBHOOK_SECRET,
     },
   },
 });

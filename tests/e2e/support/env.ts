@@ -31,6 +31,8 @@ export const env = (key: string): string => {
 export const PORT = 4322;
 export const BASE_URL = `http://localhost:${PORT}`;
 export const EMAIL_SINK = join(ROOT, 'tests', 'e2e', '.output', 'emails.jsonl');
+// The test server's Resend webhook signing secret (a made-up one), so tests can sign bounce events.
+export const WEBHOOK_SECRET = `whsec_${Buffer.from('e2e-only-webhook-secret').toString('base64')}`;
 
 // Every row the suite creates starts with this, so a sweep can always find
 // (and delete) leftovers — including ones from a run that crashed midway.

@@ -137,6 +137,8 @@ const CONTACT_METHODS = [
 </div>
 
 <script>
+  import { attachEmailHint, emailsReadyToSubmit } from '../lib/emailHints';
+
   const contactMethodButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.contact-method-btn'));
 
   if (contactMethodButtons.length) {
@@ -183,6 +185,25 @@ const CONTACT_METHODS = [
         errorEl?.classList.remove('hidden');
         errorEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
+    });
+  }
+
+  // A likely email typo stops the first submit (see emailHints.ts); runs
+  // after the check above, so only once everything else is filled in.
+  const emailInput = document.querySelector<HTMLInputElement>('form input[name="email"]');
+  if (emailInput) {
+    attachEmailHint(emailInput);
+    let emailChecked = false;
+    document.querySelector('form')?.addEventListener('submit', (e) => {
+      if (e.defaultPrevented || emailChecked) return;
+      e.preventDefault();
+      const form = e.currentTarget as HTMLFormElement;
+      void emailsReadyToSubmit([emailInput]).then((ready) => {
+        if (!ready) return;
+        emailChecked = true;
+        // A tick later: the browser ignores a submit started while it's still handling the one just stopped.
+        setTimeout(() => form.requestSubmit());
+      });
     });
   }
 </script>

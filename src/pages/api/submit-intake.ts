@@ -4,20 +4,17 @@ import { sendAdminNotification, sendEmail } from '../../lib/email';
 import { checkAndIncrementUsage } from '../../lib/apiUsage';
 import { env } from '../../lib/env';
 import {
-  getClassRegistrationsForSubmission,
   prepareRegistrationRows,
   resolveClassSelections,
   validateClassSelections,
   type RegistrationRow,
 } from '../../lib/classRegistrations';
-import { listFaqs } from '../../lib/faqs';
 import { getConfirmationBccEmails, getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
-import { buildRegistrationConfirmationEmailHtml } from '../../lib/registrationEmail';
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
+import { buildRegistrationConfirmation, CONFIRMATION_EMAIL_DAILY_CAP } from '../../lib/registrationConfirmation';
 import { saveContactMessage } from '../../lib/contactMessages';
 import { capacityErrorMessage } from '../../lib/capacity';
-import { buildReceiptLines, paymentAgreementText, receiptSubtotal } from '../../lib/registrationReceipt';
-import { getCommunityGuidelines, guidelineSections, hasGuidelines } from '../../lib/communityGuidelines';
+import { getCommunityGuidelines, hasGuidelines } from '../../lib/communityGuidelines';
 
 export const prerender = false;
 
@@ -44,9 +41,6 @@ const MAX_CLASS_SELECTIONS_LENGTH = 10000;
 const MAX_DANCERS_LENGTH = 10000;
 const EMAIL_RE = /^[^\s@,;<>()]+@[^\s@,;<>()]+\.[^\s@,;<>()]+$/;
 
-// Dancer confirmation emails get their own daily counter so a bot posting
-// registrations can't use up the cap that admin (Contact Me) notifications rely on.
-const CONFIRMATION_EMAIL_DAILY_CAP = Number(env('RESEND_CONFIRMATION_DAILY_CAP')) || 100;
 
 interface Dancer {
   firstName: string;
@@ -302,58 +296,16 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
 
   if (registrationType !== 'private') {
     try {
-      const emailRecipients = Array.from(
-        new Set((dancers && dancers.length > 0 ? dancers.map((d) => d.email) : [email]).filter((e): e is string => Boolean(e)))
-      );
+      // Built from what was just saved, the same email an admin can resend later.
+      const confirmation = await buildRegistrationConfirmation(submissionId, { guidelines });
+      const emailRecipients = confirmation?.recipients ?? [];
       // Admins who want a copy of every confirmation (Settings → Registration
       // Confirmation BCC), minus anyone already getting it as a dancer.
       const dancerAddresses = new Set(emailRecipients.map((e) => e.toLowerCase()));
       const bcc = (await getConfirmationBccEmails()).filter((e) => !dancerAddresses.has(e.toLowerCase()));
 
-      if (emailRecipients.length > 0 || bcc.length > 0) {
-        const rows: [string, string][] = [];
-        if (dancers) {
-          dancers.forEach((d) => {
-            const contactParts = [d.role, d.phone, d.email].filter(Boolean);
-            rows.push([`${d.firstName} ${d.lastName}`, contactParts.join(' · ')]);
-          });
-        } else {
-          rows.push(['Name', `${firstName} ${lastName}`]);
-          if (email) rows.push(['Email', email]);
-          if (phone) rows.push(['Phone', phone]);
-          if (instagram) rows.push(['Instagram', instagram]);
-          if (whatsapp) rows.push(['WhatsApp', whatsapp]);
-        }
-        // Itemized classes + subtotal, same as /register/confirmation shows.
-        const receiptLines = await buildReceiptLines(await getClassRegistrationsForSubmission(submissionId));
-        const subtotal = receiptSubtotal(receiptLines);
-        if (receiptLines.length === 0) {
-          // No saved registration rows to itemize: fall back to the class text,
-          // one class per paragraph (it's joined with "; " for storage).
-          const classesForEmail = className
-            .split(';')
-            .map((c) => c.trim())
-            .filter(Boolean)
-            .join('\n\n');
-          if (classesForEmail) rows.push([isEvent ? 'Event' : 'Class', classesForEmail]);
-        }
-        if (comments) rows.push(['Notes', comments]);
-
-        // Events list their community guidelines where classes list the FAQ reminders.
-        const reminders = isEvent
-          ? guidelineSections(guidelines).map((s) => ({ question: s.title ?? '', answer: s.body }))
-          : (await listFaqs()).filter((f) => f.includeInConfirmation).map((f) => ({ question: f.question, answer: f.answer }));
-        const html = buildRegistrationConfirmationEmailHtml({
-          registrationTypeLabel: REGISTRATION_TYPE_LABELS[registrationType] ?? registrationType,
-          createdAt: new Date(),
-          summaryRows: rows,
-          receiptLines,
-          subtotal,
-          isEvent,
-          paymentNote: paymentAgreementText(paymentMethod),
-          faqs: reminders,
-          faqsHeading: isEvent ? 'Our Community Guidelines' : undefined,
-        });
+      if (confirmation && (emailRecipients.length > 0 || bcc.length > 0)) {
+        const { subject, html } = confirmation;
 
         // Per-IP throttle on confirmation emails only — the registration itself is
         // already saved, so a capped network (e.g. a room full of dancers on one
@@ -383,7 +335,6 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
         // dancers' emails, so it never uses up their quota) so a failed dancer
         // send can't lose it. The admins after the first are BCC'd, so they
         // don't see each other's addresses.
-        const subject = `Your ${isEvent ? 'Event' : 'Class'} Registration is Confirmed — Dance with B`;
         const sends = toSend.map((recipient) => sendEmail(recipient, subject, html));
         if (bcc.length > 0 && (await reserveEmail())) {
           sends.push(sendEmail(bcc[0], subject, html, { bcc: bcc.slice(1) }));

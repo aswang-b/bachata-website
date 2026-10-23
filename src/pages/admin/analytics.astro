@@ -582,6 +582,18 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   let eventSeries: ClassSeriesEntry[] = [];
   let attendanceEntries: AttendanceEntry[] = [];
   let attendanceOrphanedCheckins: OrphanedCheckin[] = [];
+  // Addresses a site email bounced from (lowercased), with Resend's reason.
+  let bouncedEmails = new Map<string, { bouncedAt: string; reason: string | null }>();
+
+  // A sign-up's email and phone, the email flagged when mail to it bounced
+  // (often a typo), so the admin knows to reach them another way.
+  function contactCell(email: string, phone: string): string {
+    const bounce = email ? bouncedEmails.get(email.trim().toLowerCase()) : undefined;
+    const flag = bounce
+      ? `<div class="email-bounced mt-0.5 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-400" title="${escapeHtml(`Bounced ${dateFormatter.format(new Date(bounce.bouncedAt))}${bounce.reason ? `: ${bounce.reason}` : ''}`)}">Email bounced</div>`
+      : '';
+    return `<div>${escapeHtml(email)}</div>${flag}<div>${escapeHtml(phone)}</div>`;
+  }
 
   function findSeriesForEventId(eventId: string | null): { series: ClassSeriesEntry; occurrenceId: string } | null {
     if (!eventId) return null;
@@ -953,6 +965,36 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   }
 
   const EDIT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.5-9.5a2.121 2.121 0 0 1 3 3L12 16l-4 1 1-4 9.5-9.5Z" /></svg>`;
+  const MAIL_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 0 0 2.22 0L21 8M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z" /></svg>`;
+
+  // Resends a sign-up's confirmation email to each dancer's current address,
+  // e.g. after fixing one that bounced (Sign-Ups and Event Registration tabs).
+  document.addEventListener('click', async (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.resend-confirmation-btn');
+    if (!btn || btn.disabled) return;
+    const submissionId = btn.dataset.submissionId ?? '';
+    const people = [...allSignups, ...allEventRegistrations].filter((s) => s.submissionId === submissionId);
+    const addresses = [...new Set(people.map((p) => p.email).filter(Boolean))];
+    if (addresses.length === 0) {
+      alert('No one on this sign-up has an email address. Add one with Edit first.');
+      return;
+    }
+    if (!confirm(`Resend the confirmation email to ${addresses.join(', ')}?`)) return;
+    const headers = await withAuthHeader();
+    if (!headers) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/admin/resend-confirmation', { method: 'POST', headers, body: JSON.stringify({ submissionId }) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(body.error ?? 'Failed to resend the email.');
+        return;
+      }
+      alert(`Sent to ${body.sent.join(', ')}.${body.failed?.length ? ` Couldn't send to ${body.failed.join(', ')}.` : ''}`);
+    } finally {
+      btn.disabled = false;
+    }
+  });
   const TRASH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 .867 12.142A2 2 0 0 0 9.862 21h4.276a2 2 0 0 0 1.995-1.858L17 7M10 11v6m4-6v6" /></svg>`;
 
   function paymentSelectHtml(current: string | null): string {
@@ -1180,7 +1222,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           <tr class="${isFirst ? 'border-t border-border' : 'border-t-0'}">
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.firstName) : ''}</td>
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.lastName) : ''}</td>
-            <td class="px-4 py-2.5 text-ink/70">${isFirst ? `<div>${escapeHtml(s.email)}</div><div>${escapeHtml(s.phone)}</div>` : ''}</td>
+            <td class="px-4 py-2.5 text-ink/70">${isFirst ? contactCell(s.email, s.phone) : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.classLabel ? `${entry.classLabel}${roleLabel ? ` - ${roleLabel}` : ''}` : '—')}</td>
             <td class="px-4 py-2.5 text-ink/70">${modeLabel}${
               entry.seriesMode === 'dropin'
@@ -1195,6 +1237,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
                 ? isFirst
                   ? `<td class="px-4 py-2.5"><div class="flex gap-3">
                       <button class="edit-signup-btn text-ink/60 transition-colors hover:text-accent" aria-label="Edit" data-key="${key}">${EDIT_ICON_SVG}</button>
+                      <button class="resend-confirmation-btn text-ink/60 transition-colors hover:text-accent" aria-label="Resend confirmation email" title="Resend the confirmation email to everyone on this sign-up" data-submission-id="${s.submissionId}">${MAIL_ICON_SVG}</button>
                       <button class="delete-signup-btn text-ink/60 transition-colors hover:text-red-600" aria-label="Delete" data-submission-id="${s.submissionId}" data-dancer-index="${s.dancerIndex ?? ''}" data-dancer-count="${s.dancerCount}">${TRASH_ICON_SVG}</button>
                     </div></td>`
                   : '<td class="px-4 py-2.5"></td>'
@@ -1480,7 +1523,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           <tr class="${isFirst ? 'border-t border-border' : 'border-t-0'}">
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.firstName) : ''}</td>
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.lastName) : ''}</td>
-            <td class="px-4 py-2.5 text-ink/70">${isFirst ? `<div>${escapeHtml(s.email)}</div><div>${escapeHtml(s.phone)}</div>` : ''}</td>
+            <td class="px-4 py-2.5 text-ink/70">${isFirst ? contactCell(s.email, s.phone) : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.classTitle || '—')}</td>
             <td class="px-4 py-2.5 text-ink/70">${paymentSubtotalLabel}</td>
             <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" class="event-paid-checkbox h-4 w-4" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
@@ -1490,6 +1533,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
                 ? isFirst
                   ? `<td class="px-4 py-2.5"><div class="flex gap-3">
                       <button class="edit-event-registration-btn text-ink/60 transition-colors hover:text-accent" aria-label="Edit" data-key="${key}">${EDIT_ICON_SVG}</button>
+                      <button class="resend-confirmation-btn text-ink/60 transition-colors hover:text-accent" aria-label="Resend confirmation email" title="Resend the confirmation email to everyone on this sign-up" data-submission-id="${s.submissionId}">${MAIL_ICON_SVG}</button>
                       <button class="delete-event-registration-btn text-ink/60 transition-colors hover:text-red-600" aria-label="Delete" data-submission-id="${s.submissionId}" data-dancer-index="${s.dancerIndex ?? ''}" data-dancer-count="${s.dancerCount}">${TRASH_ICON_SVG}</button>
                     </div></td>`
                   : '<td class="px-4 py-2.5"></td>'
@@ -2347,7 +2391,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     });
     if (!dataRes.ok) return false;
 
-    const { signups, eventRegistrations, checkins, classTitles, classSeries: series, eventSeries: events } = await dataRes.json();
+    const { signups, eventRegistrations, checkins, classTitles, classSeries: series, eventSeries: events, bouncedEmails: bounces } = await dataRes.json();
+    bouncedEmails = new Map(((bounces ?? []) as { email: string; bouncedAt: string; reason: string | null }[]).map((b) => [b.email, b]));
     eventSeries = events ?? [];
     allSignups = (signups as Signup[]).map((s) => ({
       ...s,

@@ -551,6 +551,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
 <script>
   import { applyDeals, suggestDeals, type Deal, type DealItem } from '../lib/deals';
+  import { attachEmailHint, emailsReadyToSubmit } from '../lib/emailHints';
 
   interface Dancer {
     firstName: string;
@@ -683,6 +684,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       updateSubtotal();
     });
 
+    attachEmailHint(block.querySelector<HTMLInputElement>('.dancer-email')!);
     dancersContainer.appendChild(block);
     renumberDancers();
     updateAddDancerButton();
@@ -1174,6 +1176,10 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     return null;
   }
 
+  // Set once the email notes (a likely typo, or a domain that can't receive
+  // mail) have had their one chance to stop the submit.
+  let emailsChecked = false;
+
   document.querySelector('form')?.addEventListener('submit', (e) => {
     let hasError = false;
 
@@ -1240,6 +1246,19 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     }
 
     (document.getElementById('dancers-value') as HTMLInputElement).value = JSON.stringify(dancers);
+
+    // Last: a likely email typo stops the first submit (see emailHints.ts).
+    if (!emailsChecked) {
+      e.preventDefault();
+      const form = e.currentTarget as HTMLFormElement;
+      const emails = dancerBlocks.map((b) => b.querySelector<HTMLInputElement>('.dancer-email')!);
+      void emailsReadyToSubmit(emails).then((ready) => {
+        if (!ready) return;
+        emailsChecked = true;
+        // A tick later: the browser ignores a submit started while it's still handling the one just stopped.
+        setTimeout(() => form.requestSubmit());
+      });
+    }
   });
 
   document.getElementById('agree-guidelines')?.addEventListener('change', (e) => {

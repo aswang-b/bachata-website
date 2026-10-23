@@ -83,6 +83,7 @@ export const GET: APIRoute = async ({ request }) => {
     { data: allClassEvents, error: allClassEventsError },
     { data: classRegistrationRows, error: classRegistrationsError },
     { data: allEventEvents, error: allEventEventsError },
+    { data: bounceRows, error: bounceError },
   ] = await Promise.all([
     supabase
       .from('intake_submissions')
@@ -116,7 +117,12 @@ export const GET: APIRoute = async ({ request }) => {
       .select('id, title, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in')
       .eq('event_type', 'event')
       .order('start_time', { ascending: true }),
+    // Addresses Resend reported bouncing (migration 0050), flagged next to the sign-up.
+    supabase.from('email_bounces').select('email, bounced_at, reason'),
   ]);
+  // Only a flag: a failure here shouldn't keep the dashboard from loading.
+  if (bounceError) console.error('Failed to load email bounces:', bounceError.message);
+  const bouncedEmails = (bounceRows ?? []).map((b) => ({ email: b.email, bouncedAt: b.bounced_at, reason: b.reason }));
 
   if (intakeError || checkinError || allClassEventsError || classRegistrationsError || allEventEventsError) {
     return new Response(JSON.stringify({ error: 'Failed to load analytics data.' }), { status: 500 });
@@ -239,7 +245,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   const classTitles = [...new Set((allClassEvents ?? []).map((e) => e.title))].sort((a, b) => a.localeCompare(b));
 
-  return new Response(JSON.stringify({ signups, eventRegistrations, checkins, classTitles, classSeries, eventSeries }), {
+  return new Response(JSON.stringify({ signups, eventRegistrations, checkins, classTitles, classSeries, eventSeries, bouncedEmails }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
