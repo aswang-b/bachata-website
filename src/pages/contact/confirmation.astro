@@ -3,6 +3,7 @@ export const prerender = false;
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
+import { siteTimeZone } from '../../lib/siteTime';
 
 const id = Astro.url.searchParams.get('id');
 let submission: {
@@ -26,7 +27,7 @@ if (id) {
   submission = data;
 }
 
-const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: siteTimeZone() });
 ---
 
 <BaseLayout title="Message Received">

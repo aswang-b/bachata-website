@@ -4,7 +4,7 @@ import { checkAndIncrementUsage } from '../../lib/apiUsage';
 import { createCheckinDropInRegistration } from '../../lib/classRegistrations';
 import { getCheckinPerIpCap } from '../../lib/notificationSettings';
 import { getSiteSettings } from '../../lib/siteSettings';
-import { chicagoDayBoundsUtcIso } from '../../lib/classSeries';
+import { siteDayBoundsUtcIso } from '../../lib/classSeries';
 import { verifyCheckinRegisterToken } from '../../lib/checkinToken';
 import { flagDuplicateCheckins } from '../../lib/duplicateSubmissions';
 
@@ -91,7 +91,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   }
 
   if (seriesKeys.length > 0) {
-    const { startIso, endIso } = chicagoDayBoundsUtcIso();
+    const { startIso, endIso } = siteDayBoundsUtcIso();
 
     for (const key of seriesKeys) {
       // Keys are interpolated into a PostgREST .or() string, so reject anything that could add conditions.

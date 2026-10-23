@@ -143,7 +143,10 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const targetDancerIndex = hasDancerIndex ? dancerIndex : null;
-    const dancer = { firstName, lastName, email, phone };
+    // A class dancer's Leader/Follower role (saved on the dancer, so the spot
+    // counts follow it); events and single-person sign-ups have none.
+    const role = body.role === 'leader' || body.role === 'follower' ? body.role : undefined;
+    const dancer = { firstName, lastName, email, phone, ...(role && targetDancerIndex != null && row.registration_type !== 'events' ? { role } : {}) };
 
     try {
       if (body.keepClasses === true) {

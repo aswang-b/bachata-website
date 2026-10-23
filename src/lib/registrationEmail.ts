@@ -12,6 +12,7 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
+import { siteFormatter } from './siteTime';
 import { formatPrice, quantityNote, receiptHeading, type ReceiptLine } from './registrationReceipt';
 
 export interface RegistrationEmailParams {
@@ -58,13 +59,8 @@ function receiptHtml(lines: ReceiptLine[], subtotal: number | null, isEvent: boo
 }
 
 export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmailParams): string {
-  const dateLabel = new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(params.createdAt);
+  // In the site's time zone (the server's own is UTC).
+  const dateLabel = siteFormatter({ month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(params.createdAt);
 
   const rowsHtml = params.summaryRows
     .map(

@@ -92,6 +92,7 @@ const buttonClass =
 
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { siteTimeZone } from '../lib/siteTime';
   import { dealSummary, type DealKind } from '../lib/deals';
   import type { DealRecord } from '../lib/dealsStore';
 
@@ -130,7 +131,7 @@ const buttonClass =
   let firstLoad: Promise<void> | null = null;
   const ensureLoaded = () => (firstLoad ??= load());
 
-  const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' });
+  const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: siteTimeZone() });
   const money = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
 
   async function authHeaders(): Promise<Record<string, string>> {
@@ -318,7 +319,7 @@ const buttonClass =
     preview.textContent = text;
   }
 
-  const toDateInput = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) : '');
+  const toDateInput = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: siteTimeZone() }) : '');
 
   function openForm(deal: DealRecord | null) {
     editingId = deal?.id ?? null;
@@ -371,7 +372,7 @@ const buttonClass =
     // Chicago's offset from UTC that day (read at noon UTC), to find its midnight.
     const noon = new Date(Date.UTC(y, m - 1, d, 12));
     const parts = Object.fromEntries(
-      new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
+      new Intl.DateTimeFormat('en-US', { timeZone: siteTimeZone(), hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
         .formatToParts(noon)
         .map((p) => [p.type, Number(p.value)])
     );

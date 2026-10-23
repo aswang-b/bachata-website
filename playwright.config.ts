@@ -39,6 +39,8 @@ export default defineConfig({
       E2E_SKIP_USAGE_COUNTERS: '1',
       E2E_PORT: String(PORT),
       RESEND_WEBHOOK_SECRET: WEBHOOK_SECRET,
+      // Like Netlify, whose servers run in UTC: dates must come out in the site's time zone anyway.
+      TZ: 'UTC',
     },
   },
 });

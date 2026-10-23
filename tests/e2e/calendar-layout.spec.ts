@@ -125,3 +125,17 @@ test('a calendar event can be reached with Tab and opened with Enter', async ({ 
   await expect(page.locator('#detail-title')).toHaveText(series.title);
   await expect(page.locator('#detail-title')).toBeFocused();
 });
+
+test("an evening class shows on its own day in the site's time zone, though the server runs in UTC", async ({ page }) => {
+  // Seeded classes start at 1:00 AM UTC: the evening before, in Central time.
+  const { data } = await db.from('events').select('start_time').eq('id', series.ids[0]).single();
+  const start = new Date(data!.start_time);
+  const central = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(start);
+  const [y, m] = central.split('-');
+  await page.goto(`/calendar?month=${y}-${m}`);
+  await expect(page.locator('meta[name="site-time-zone"]')).toHaveAttribute('content', 'America/Chicago');
+  const cell = page.locator('.calendar-cell', { has: page.locator('.event-banner', { hasText: series.title }) }).first();
+  await expect(cell).toHaveAttribute('data-date', central);
+  const time = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' }).format(start);
+  await expect(cell.locator('.event-banner', { hasText: series.title }).first()).toContainText(time);
+});

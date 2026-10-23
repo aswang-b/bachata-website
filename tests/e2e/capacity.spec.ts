@@ -103,3 +103,22 @@ test('with spots hidden, the public only learns that a role is full; admins see 
   const occ = all.events.find((e: { id: string }) => e.id === hidden.ids[0]);
   expect(occ).toMatchObject({ spots_label: 'Leaders full · 5 follower spots left', spots_admin_only: true });
 });
+
+test("an admin can change a dancer's Leader/Follower role from the dashboard's edit row", async ({ request, admin }) => {
+  const klass = await seedEvent({ name: 'Role Edit', occurrences: 2, capacityByRole: true, leaderCapacity: 3, followerCapacity: 3, capacity: 10, dayOffset: 47 });
+  const submissionId = await seedSignup(klass, [{ first: 'RoleSwap', role: 'leader' }]);
+  const holderId = `e2e-role-${RUN_ID}`;
+  expect((await request.post('/api/admin/acquire-lock', { headers: bearer(admin), data: { resource: 'signups', holderId } })).ok()).toBe(true);
+  try {
+    const res = await request.post('/api/admin/edit-signup', {
+      headers: bearer(admin),
+      data: { action: 'update', holderId, submissionId, dancerIndex: 0, firstName: `ZZZRoleSwap`, lastName: RUN_ID, email: '', phone: '5550100', role: 'follower', paymentMethod: 'cash', paid: false, keepClasses: true },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+  } finally {
+    await request.post('/api/admin/release-lock', { headers: bearer(admin), data: { resource: 'signups', holderId } });
+  }
+  const { data } = await db.from('intake_submissions').select('dancers').eq('id', submissionId).single();
+  expect((data!.dancers as { role: string }[])[0].role).toBe('follower');
+  for (const occ of klass.ids) expect(await spotCounts(occ)).toMatchObject({ leaders_taken: 0, followers_taken: 1 });
+});

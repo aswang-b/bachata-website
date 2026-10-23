@@ -3,9 +3,9 @@ export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
-import { buildClassSeriesList, chicagoDayBoundsUtcIso } from '../lib/classSeries';
+import { buildClassSeriesList, siteDayBoundsUtcIso } from '../lib/classSeries';
 import { getSiteSettings } from '../lib/siteSettings';
-import { TIME_ZONE } from '../lib/classSeries';
+import { siteFormatter } from '../lib/siteTime';
 import { verifyCheckinRegisterToken } from '../lib/checkinToken';
 
 const { disable_checkin_page: checkinDisabled } = await getSiteSettings();
@@ -35,8 +35,8 @@ interface PickerItem {
   registerPrice: number | null;
 }
 
-const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: TIME_ZONE });
-const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TIME_ZONE });
+const dateFormatter = { format: (d: Date) => siteFormatter({ weekday: 'short', month: 'short', day: 'numeric' }).format(d) };
+const timeFormatter = { format: (d: Date) => siteFormatter({ hour: 'numeric', minute: '2-digit' }).format(d) };
 
 async function loadLinkedItems(ids: string[]): Promise<PickerItem[]> {
   if (ids.length === 0) return [];
@@ -57,7 +57,7 @@ async function loadLinkedItems(ids: string[]): Promise<PickerItem[]> {
 }
 
 async function loadTodayItems(): Promise<PickerItem[]> {
-  const { startIso } = chicagoDayBoundsUtcIso();
+  const { startIso } = siteDayBoundsUtcIso();
   const { data: classEvents, error } = await supabase
     .from('events')
     .select('id, title, start_time, end_time, google_recurring_event_id')

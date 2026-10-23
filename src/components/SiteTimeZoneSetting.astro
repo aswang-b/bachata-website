@@ -1,0 +1,62 @@
+---
+// Admin → General → Site Time Zone (src/lib/siteTime.ts): the zone every date
+// and time on the site is shown, grouped into days and entered in.
+const commonZones = [
+  ['America/New_York', 'Eastern'],
+  ['America/Chicago', 'Central'],
+  ['America/Denver', 'Mountain'],
+  ['America/Phoenix', 'Arizona'],
+  ['America/Los_Angeles', 'Pacific'],
+  ['America/Anchorage', 'Alaska'],
+  ['Pacific/Honolulu', 'Hawaii'],
+];
+const otherZones = Intl.supportedValuesOf('timeZone').filter((z) => !commonZones.some(([c]) => c === z));
+---
+
+<div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+  <p class="text-xs font-bold uppercase tracking-wider text-muted">Site Time Zone</p>
+  <p class="text-xs text-muted">
+    Every date and time on the site is shown in this zone, wherever the visitor (or the server) is: the calendar, sign-up forms, confirmations
+    and emails, check-in, and the dashboard. The event editor's times are entered in it too. Changing it moves how existing events are shown,
+    not when they happen.
+  </p>
+  <select id="site-time-zone" class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none sm:w-80">
+    <optgroup label="United States">
+      {commonZones.map(([zone, label]) => <option value={zone}>{label} ({zone})</option>)}
+    </optgroup>
+    <optgroup label="All time zones">
+      {otherZones.map((zone) => <option value={zone}>{zone}</option>)}
+    </optgroup>
+  </select>
+  <button
+    id="site-time-zone-save"
+    type="button"
+    class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+  >
+    Save Time Zone
+  </button>
+  <p id="site-time-zone-status" class="min-h-4 text-xs text-muted" role="status"></p>
+</div>
+
+<script>
+  import { supabaseBrowser } from '../lib/supabaseBrowser';
+
+  const select = document.getElementById('site-time-zone') as HTMLSelectElement;
+  const status = document.getElementById('site-time-zone-status')!;
+
+  async function headers(): Promise<Record<string, string>> {
+    const { data } = await supabaseBrowser.auth.getSession();
+    return { Authorization: `Bearer ${data.session?.access_token ?? ''}`, 'Content-Type': 'application/json' };
+  }
+
+  // The page already carries the saved zone (BaseLayout's meta tag).
+  const current = document.querySelector<HTMLMetaElement>('meta[name="site-time-zone"]')?.content;
+  if (current) select.value = current;
+
+  document.getElementById('site-time-zone-save')!.addEventListener('click', async () => {
+    status.textContent = 'Saving…';
+    const res = await fetch('/api/admin/time-zone', { method: 'POST', headers: await headers(), body: JSON.stringify({ timeZone: select.value }) });
+    const body = await res.json().catch(() => ({}));
+    status.textContent = res.ok ? 'Saved. Reload any open pages to see times in the new zone.' : (body.error ?? 'Failed to save.');
+  });
+</script>

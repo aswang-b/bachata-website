@@ -2,13 +2,13 @@ import type { APIRoute } from 'astro';
 import QRCode from 'qrcode';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
-import { TIME_ZONE } from '../../../lib/classSeries';
+import { siteFormatter } from '../../../lib/siteTime';
 import { createCheckinRegisterToken } from '../../../lib/checkinToken';
 
 export const prerender = false;
 
-const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TIME_ZONE });
-const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TIME_ZONE });
+const dateFormatter = { format: (d: Date) => siteFormatter({ weekday: 'long', month: 'long', day: 'numeric' }).format(d) };
+const timeFormatter = { format: (d: Date) => siteFormatter({ hour: 'numeric', minute: '2-digit' }).format(d) };
 
 // A QR can cover several classes at once; a sanity cap well above any real schedule.
 const MAX_EVENTS_PER_QR = 12;

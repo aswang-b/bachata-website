@@ -1,3 +1,4 @@
+import { siteTimeZone } from './siteTime';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from './env';
 import { supabase } from './supabase';
@@ -8,7 +9,6 @@ import { nearestGoogleColorId } from './eventColors';
 // events (it won't infer one from a bare "Z" UTC offset the way it does for
 // one-off events) — omitting it fails with "Missing time zone definition for
 // start time." Every event on this site is scheduled in this timezone.
-const TIME_ZONE = 'America/Chicago';
 
 const GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID');
 const GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET');
@@ -285,8 +285,8 @@ export async function insertCalendarEvent(
       summary: event.summary,
       description: event.description ?? undefined,
       location: event.location ?? undefined,
-      start: { dateTime: event.startTime, timeZone: TIME_ZONE },
-      end: { dateTime: event.endTime, timeZone: TIME_ZONE },
+      start: { dateTime: event.startTime, timeZone: siteTimeZone() },
+      end: { dateTime: event.endTime, timeZone: siteTimeZone() },
       colorId: siteColorToGoogleColorId(event.color),
       recurrence: event.recurrence,
       extendedProperties: { private: { siteEventId: event.siteEventId } },
@@ -323,8 +323,8 @@ export async function updateCalendarEvent(
       summary: event.summary,
       description: event.description ?? undefined,
       location: event.location ?? undefined,
-      start: { dateTime: event.startTime, timeZone: TIME_ZONE },
-      end: { dateTime: event.endTime, timeZone: TIME_ZONE },
+      start: { dateTime: event.startTime, timeZone: siteTimeZone() },
+      end: { dateTime: event.endTime, timeZone: siteTimeZone() },
       colorId: siteColorToGoogleColorId(event.color),
     }),
   });

@@ -416,6 +416,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   import { supabaseBrowser } from '../../lib/supabaseBrowser';
   import { DUPLICATE_DELETED_BY } from '../../lib/duplicateFlag';
   import { checkAdminSession } from '../../lib/adminSession';
+  import { siteTimeZone } from '../../lib/siteTime';
   import { createClassFilterGroup } from '../../lib/classFilterGroup';
 
   // The index signatures below exist only so sortRows()'s generic
@@ -638,7 +639,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     }
   }
 
-  const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+  const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: siteTimeZone() });
 
   function makeLockController(
     resource: 'signups' | 'eventRegistrations' | 'checkins' | 'attendance' | 'recycling',
@@ -856,7 +857,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const addSignupBtn = document.getElementById('add-signup-btn') as HTMLButtonElement;
   const addCheckinBtn = document.getElementById('add-checkin-btn') as HTMLButtonElement;
 
-  const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: siteTimeZone() });
 
   function escapeHtml(str: string): string {
     const div = document.createElement('div');
@@ -1094,6 +1095,18 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     row.querySelectorAll<HTMLSelectElement>('.existing-dropin-occurrence').forEach((select) => (select.disabled = anyPicked));
   }
 
+  // The dancer's Leader/Follower role (counted toward a class's role caps).
+  function roleSelectHtml(role: string): string {
+    const opts = [
+      ['leader', 'Leader'],
+      ['follower', 'Follower'],
+    ];
+    // Shown in the Series column, which an edit row doesn't otherwise use.
+    return `<label class="flex flex-col gap-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">Role<select class="edit-input role w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs font-normal normal-case tracking-normal text-ink">${role ? '' : '<option value="" selected>No role</option>'}${opts
+      .map(([value, label]) => `<option value="${value}" ${role === value ? 'selected' : ''}>${label}</option>`)
+      .join('')}</select></label>`;
+  }
+
   function signupEditRowHtml(s: Partial<Signup>, mode: 'edit' | 'add'): string {
     const submissionId = s.submissionId ?? '';
     const dancerIndex = s.dancerIndex ?? '';
@@ -1104,7 +1117,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.lastName ?? '')}" placeholder="Last name" /></td>
         <td class="px-2 py-2"><div class="flex flex-col gap-1"><input class="edit-input email w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.email ?? '')}" placeholder="Email" /><input class="edit-input phone w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.phone ?? '')}" placeholder="Phone" /></div></td>
         <td class="px-2 py-2 signup-class-cell">${signupClassPickerHtml(originalClass)}${existingDropInDatesHtml(s.classRegistrations)}</td>
-        <td class="px-2 py-2 text-xs text-muted">—</td>
+        <td class="px-2 py-2">${s.dancerIndex != null ? roleSelectHtml(s.role ?? '') : '<span class="text-xs text-muted">—</span>'}</td>
         <td class="px-2 py-2 payment-select-cell">${paymentSelectHtml(s.paymentMethod ?? null)}</td>
         <td class="px-2 py-2"><input type="checkbox" class="edit-input paid h-4 w-4" ${s.paid ? 'checked' : ''} /></td>
         <td class="px-2 py-2 text-xs text-muted">—</td>
@@ -1395,6 +1408,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           lastName,
           email: get('email'),
           phone: get('phone'),
+          role: get('role'),
           className,
           paymentMethod,
           paid,
@@ -2267,8 +2281,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const recyclingCount = document.getElementById('recycling-count')!;
   const recyclingTabCount = document.getElementById('recycling-tab-count')!;
   const emptyBinBtn = document.getElementById('empty-recycling-btn') as HTMLButtonElement;
-  const binDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const binClassDateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const binDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: siteTimeZone() });
+  const binClassDateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: siteTimeZone() });
 
   const BIN_KIND_LABELS: Record<RecyclingBinItem['kind'], string> = {
     signup: 'Sign-up',

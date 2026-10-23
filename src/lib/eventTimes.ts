@@ -1,16 +1,15 @@
 // Pure — safe for both the event editor's browser script and server routes.
+import { addDaysToKey, zonedToInstant } from './siteTime';
 // An end time earlier than the start (e.g. 8:00 PM to 12:00 AM) means the
 // next day; Google rejects an event whose end isn't after its start.
 
-// The editor's date + start/end "HH:mm" (browser-local) → the end as an ISO
-// instant, rolled to the next day when it's before the start. Null when the
-// end equals the start (a zero-length event).
+// The editor's date + start/end "HH:mm" (in the site's time zone) → the end as
+// an ISO instant, rolled to the next day when it's before the start. Null when
+// the end equals the start (a zero-length event).
 export function endAfterStart(date: string, startTime: string, endTime: string): string | null {
-  const start = new Date(`${date}T${startTime}:00`);
-  const end = new Date(`${date}T${endTime}:00`);
-  if (end.getTime() === start.getTime()) return null;
-  if (end < start) end.setDate(end.getDate() + 1);
-  return end.toISOString();
+  if (endTime === startTime) return null;
+  const endDate = endTime < startTime ? addDaysToKey(date, 1) : date;
+  return zonedToInstant(endDate, endTime).toISOString();
 }
 
 // A recurring series' first-occurrence end date ("YYYY-MM-DD"): the anchor

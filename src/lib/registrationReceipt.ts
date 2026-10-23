@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { TIME_ZONE } from './classSeries';
+import { siteFormatter } from './siteTime';
 import type { ClassRegistrationRow } from './classRegistrations';
 
 // The itemized "receipt" a dancer sees after registering, on
@@ -21,13 +21,8 @@ export interface ReceiptLine {
   discount?: boolean;
 }
 
-const occurrenceFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-  timeZone: TIME_ZONE,
-});
+// In the site's time zone, looked up when used (an admin can change it).
+const occurrenceFormatter = { format: (d: Date) => siteFormatter({ month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(d) };
 
 export function formatPrice(value: number): string {
   const abs = Math.abs(value);

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { chicagoDayBoundsUtcIso } from './classSeries';
+import { siteDayBoundsUtcIso } from './classSeries';
 import { softDeleteCheckin, softDeleteDancer } from './recyclingBin';
 import { DUPLICATE_DELETED_BY } from './duplicateFlag';
 
@@ -71,7 +71,7 @@ export async function flagDuplicateCheckins(newIds: string[]): Promise<Map<strin
     if (row.event_id) {
       query = query.eq('event_id', row.event_id);
     } else {
-      const { startIso, endIso } = chicagoDayBoundsUtcIso(new Date(row.created_at));
+      const { startIso, endIso } = siteDayBoundsUtcIso(new Date(row.created_at));
       query = query.is('event_id', null).eq('class_title', row.class_title).gte('created_at', startIso).lt('created_at', endIso);
     }
 

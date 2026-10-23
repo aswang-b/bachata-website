@@ -83,8 +83,11 @@ test.describe.serial('with community guidelines', () => {
     await expect(page.locator('#cookie-consent')).toBeHidden();
     await page.emulateMedia({ media: 'screen' });
 
-    const { data } = await db.from('intake_submissions').select('guidelines_agreed_at').eq('id', confirmationId(page.url())!).single();
+    const { data } = await db.from('intake_submissions').select('guidelines_agreed_at, created_at').eq('id', confirmationId(page.url())!).single();
     expect(data!.guidelines_agreed_at).not.toBeNull();
+    // "Submitted …" is in the site's time zone, not the server's (UTC on Netlify, 5 hours ahead).
+    const submitted = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(data!.created_at));
+    await expect(body).toContainText(`Submitted ${submitted}`);
 
     const sent = emailsAbout('ZZZEventGuest').filter((e) => e.html.includes(RUN_ID));
     expect(sent.length).toBeGreaterThan(0);

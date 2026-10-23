@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import DealsAdmin from '../components/DealsAdmin.astro';
+import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
 ---
 
 <BaseLayout title="Admin">
@@ -197,6 +198,8 @@ import DealsAdmin from '../components/DealsAdmin.astro';
 
           <p id="settings-status" class="min-h-4 text-xs text-muted"></p>
         </div>
+
+        <SiteTimeZoneSetting />
       </section>
 
       <!-- ==================== HOMEPAGE TAB ==================== -->

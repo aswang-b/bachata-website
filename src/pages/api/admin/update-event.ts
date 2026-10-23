@@ -17,6 +17,7 @@ import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
 import { capacityColumns } from '../../../lib/capacity';
 import { isValidEventColor } from '../../../lib/eventColors';
 import { seriesAnchorEndDate } from '../../../lib/eventTimes';
+import { zonedDateKey, zonedTimeOfDay } from '../../../lib/siteTime';
 
 export const prerender = false;
 
@@ -184,11 +185,12 @@ const handlePost: APIRoute = async ({ request }) => {
     }
 
     const earliestStart = siblings.reduce((min, s) => (s.start_time < min ? s.start_time : min), siblings[0].start_time);
-    const anchorDate = earliestStart.slice(0, 10); // YYYY-MM-DD from the original series' first date
-    const newStartTime = new Date(startTime);
-    const timePart = `${String(newStartTime.getHours()).padStart(2, '0')}:${String(newStartTime.getMinutes()).padStart(2, '0')}`;
-    const newEndTime = new Date(endTime);
-    const endTimePart = `${String(newEndTime.getHours()).padStart(2, '0')}:${String(newEndTime.getMinutes()).padStart(2, '0')}`;
+    // The series' first date and the new times as the site's time zone sees
+    // them (the server's own zone is UTC, which shifted evening classes), sent
+    // to Google as wall-clock times in that zone.
+    const anchorDate = zonedDateKey(earliestStart);
+    const timePart = zonedTimeOfDay(startTime);
+    const endTimePart = zonedTimeOfDay(endTime);
     const anchorStart = `${anchorDate}T${timePart}:00`;
     // An end at or before the start time (e.g. ending at midnight) is on the next day.
     const anchorEndDate = seriesAnchorEndDate(anchorDate, timePart, endTimePart);

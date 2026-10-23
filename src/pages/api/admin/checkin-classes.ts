@@ -1,24 +1,13 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
-import { buildClassSeriesList, TIME_ZONE } from '../../../lib/classSeries';
+import { buildClassSeriesList, siteDayBoundsUtcIso } from '../../../lib/classSeries';
 
 export const prerender = false;
 
-function chicagoMidnightUtcIso(): string {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZoneName: 'shortOffset',
-  }).formatToParts(now);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-  const offsetName = get('timeZoneName');
-  const offsetHours = parseInt(offsetName.replace('GMT', ''), 10) || 0;
-  const offsetStr = `${offsetHours <= 0 ? '-' : '+'}${String(Math.abs(offsetHours)).padStart(2, '0')}:00`;
-  return `${get('year')}-${get('month')}-${get('day')}T00:00:00${offsetStr}`;
+// Today's midnight in the site's time zone.
+function siteMidnightUtcIso(): string {
+  return siteDayBoundsUtcIso().startIso;
 }
 
 export const GET: APIRoute = async ({ request }) => {
@@ -34,7 +23,7 @@ export const GET: APIRoute = async ({ request }) => {
     .from('events')
     .select('id, title, start_time, end_time, google_recurring_event_id, price_drop_in, registration_closed')
     .eq('event_type', 'class')
-    .gte('start_time', chicagoMidnightUtcIso())
+    .gte('start_time', siteMidnightUtcIso())
     .order('start_time', { ascending: true });
 
   if (error) {

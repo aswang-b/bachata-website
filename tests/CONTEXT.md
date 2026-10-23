@@ -26,6 +26,7 @@ Pure logic plus server modules with Supabase replaced by `fakeSupabase.ts` (an i
 | `registration.test.ts` | Class-selection parsing/labels, closed classes by key, free vs paid events, itemized receipt (deal discounts as their own line), deals applied per dancer on saved rows, admin edits keeping unchanged classes' saved prices and deals, confirmation email (FAQs vs guidelines), check-in tokens |
 | `scheduling.test.ts` | Midnight end times (`src/lib/eventTimes.ts`), tiered pricing, recurrence rules, color mapping |
 | `eventColors.test.ts` | Color names/hex, Google color matching, quick picks, readable text on light picks |
+| `siteTime.test.ts` | Instants on the site zone's day and time; wall-clock → instant across DST; a changed zone; today's bounds on a 25-hour day; midnight end times |
 | `emailTypos.test.ts` / `resendWebhook.test.ts` | Typo suggestions (and leaving real/country domains alone); webhook signatures (tampered, wrong secret, replayed) and bounce parsing |
 | `deals.test.ts` | Bundle deals: bundle price / amount / percent off, all vs any-N (repeating), best price wins, drop-ins never count, one deal per class, cent-exact split, "add this class" suggestions |
 | `locationLink.test.ts` | Location links never break out of an `href` (quotes, angle brackets) and only link to http(s) |
@@ -46,9 +47,9 @@ Test data rules (`support/db.ts`):
 | Spec | Covers |
 | --- | --- |
 | `public-pages` | Every public page renders without errors |
-| `calendar-layout` | Calendar banner text (with a "Wk N" pill) stays inside its box at narrow widths, e.g. 125% zoom, and every banner shares one font size; banners reachable with Tab and opened with Enter |
+| `calendar-layout` | An evening class on its own day in the site zone (server in UTC); Calendar banner text (with a "Wk N" pill) stays inside its box at narrow widths, e.g. 125% zoom, and every banner shares one font size; banners reachable with Tab and opened with Enter |
 | `class-registration` | Full sign-up → itemized confirmation page and email (+ one BCC copy per the admin setting); drop-in date; whole-series-only and drop-in-only radios; closed classes; server validation; double submit → Recycling Bin → admin restore; blocked-submit focus and screen-reader announcement; dancer autocomplete tokens and aria-invalid on missing fields; the location link is its own control (Enter opens it); drop-in policy note on a phone |
-| `capacity` | Full classes; a namesake can't take a full class's spot, and same-name different people each count; Leader/Follower caps (badge, form block, server refusal, role-edit recount); hidden counts |
+| `capacity` | Full classes; a namesake can't take a full class's spot, and same-name different people each count; Leader/Follower caps (badge, form block, server refusal, role-edit recount); an admin changes a dancer's role from the edit row; hidden counts |
 | `event-registration` | Guidelines shown and required, confirmation/email list them FAQ-style; blank guidelines; free vs paid events |
 | `email-checks` | Typo suggestion and fix on the contact and registration forms; a domain with no mail servers stops the first submit only; a signed bounce webhook is recorded (forged one refused) and flagged on the dashboard; an admin resends a confirmation after fixing the address |
 | `deals` | Admin creates a deal in the Deals tab; the form offers the missing class and adding it takes the bundle price (two dancers); saved prices, confirmation page and email; server pricing from a raw POST; a paused deal stops applying; classes and events can't share a deal; Deals list status labels and order; an end date survives repeated edits |

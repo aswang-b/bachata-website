@@ -3,6 +3,7 @@ export const prerender = false;
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
+import { siteTimeZone } from '../../lib/siteTime';
 import { listFaqs } from '../../lib/faqs';
 import { getCommunityGuidelines, guidelineSections } from '../../lib/communityGuidelines';
 import { getClassRegistrationsForSubmission } from '../../lib/classRegistrations';
@@ -81,7 +82,7 @@ const remindersHeading = isEvent ? 'Our Community Guidelines' : 'A Few Reminders
 const reminderBodyClass =
   'px-4 py-3 text-sm leading-relaxed text-ink/70 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5';
 
-const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: siteTimeZone() });
 ---
 
 <BaseLayout title="Registration Confirmed">

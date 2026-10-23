@@ -9,6 +9,7 @@ import { getActivePrice, priceTierLabel, type ActivePriceResult } from '../lib/p
 import { getSpotsByOccurrence, publicSpotsLabel, remainingFor, seriesSpots } from '../lib/capacity';
 import { getCommunityGuidelines, hasGuidelines } from '../lib/communityGuidelines';
 import { listActiveDeals } from '../lib/dealsStore';
+import { siteFormatter } from '../lib/siteTime';
 import { locationHref } from '../lib/locationLink';
 
 interface Props {
@@ -19,7 +20,6 @@ const { kind = 'class' } = Astro.props;
 const isEvent = kind === 'event';
 const eventType = isEvent ? 'event' : 'class';
 
-const TIME_ZONE = 'America/Chicago';
 
 interface ClassOccurrence {
   id: string;
@@ -75,9 +75,9 @@ if (totalsError) console.error('Failed to load series totals:', totalsError);
 
 const totalCountByKey = countOccurrencesByKey(allClassEventsForTotals ?? []);
 
-const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: TIME_ZONE });
-const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TIME_ZONE });
-const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: TIME_ZONE });
+const weekdayFormatter = { format: (d: Date) => siteFormatter({ weekday: 'long' }).format(d) };
+const timeFormatter = { format: (d: Date) => siteFormatter({ hour: 'numeric', minute: '2-digit' }).format(d) };
+const dateFormatter = { format: (d: Date) => siteFormatter({ month: 'short', day: 'numeric' }).format(d) };
 
 // Group occurrences into one button per series (or per standalone class).
 const seriesMap = new Map<string, ClassOccurrence[]>();
