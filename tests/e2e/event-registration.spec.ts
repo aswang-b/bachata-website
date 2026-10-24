@@ -1,5 +1,5 @@
 import { test, expect, postForm } from './support/fixtures';
-import { db, seedEvent, type Seeded } from './support/db';
+import { db, seedEvent, testTitle, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { emailsAbout } from './support/emails';
 import { confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
@@ -140,5 +140,77 @@ test.describe.serial('without community guidelines', () => {
   test('a paid event needs a payment method', async ({ request }) => {
     const res = await postForm(request, '/api/submit-intake', eventFields(paid, { payment_method: '' }));
     expect(res.status()).toBe(400);
+  });
+});
+
+test.describe('at the door', () => {
+  // Let go of the Event Registration tab's edit lock the dashboard test takes (even if it fails),
+  // so the real dashboard isn't locked out for 10 minutes.
+  let takenLock: string | null = null;
+  test.afterAll(async () => {
+    if (takenLock) await db.from('edit_locks').delete().eq('resource', 'analytics-event-registrations').eq('locked_by', takenLock);
+  });
+
+  // Events happening now (not far in the future like the others), with fake
+  // Google ids so no calendar sync pushes them anywhere.
+  const insertNowEvent = async (name: string, startMinutes: number, endMinutes: number) => {
+    const { data, error } = await db
+      .from('events')
+      .insert({
+        title: testTitle(name),
+        event_type: 'event',
+        visibility: 'public',
+        color: 'green',
+        start_time: new Date(Date.now() + startMinutes * 60000).toISOString(),
+        end_time: new Date(Date.now() + endMinutes * 60000).toISOString(),
+        google_event_id: `zzz-e2e-${RUN_ID}-${name.replace(/\W/g, '')}`,
+        price_whole_series: 10,
+      })
+      .select('id, title')
+      .single();
+    if (error || !data) throw new Error(error?.message);
+    return { title: data.title as string, key: data.id as string, ids: [data.id as string] };
+  };
+
+  test('an event takes registrations until 30 minutes after it ends, then stops', async ({ page, request }) => {
+    const justEnded = await insertNowEvent('Door Social', -180, -10);
+    const longOver = await insertNowEvent('Over Social', -240, -45);
+
+    await page.goto('/register/events');
+    await expect(page.locator(`.series-item[data-key="${justEnded.key}"]`)).toBeVisible();
+    await expect(page.locator(`.series-item[data-key="${longOver.key}"]`)).toHaveCount(0);
+
+    const fields = (s: Seeded, phone: string) =>
+      eventFields(s, { agree_guidelines: 'on', dancers: JSON.stringify([{ firstName: 'ZZZDoor', lastName: RUN_ID, role: '', phone, email: '' }]) });
+    expect((await postForm(request, '/api/submit-intake', fields(justEnded, '6085550401'))).status()).toBe(303);
+    const refused = await postForm(request, '/api/submit-intake', fields(longOver, '6085550402'));
+    expect(refused.status()).toBe(400);
+    expect(await refused.text()).toContain("isn't open for registration");
+  });
+
+  test('an admin adds an event registration from the dashboard', async ({ page, adminPage }) => {
+    void adminPage;
+    const door = await insertNowEvent('Dashboard Door', -60, 60);
+    await page.goto('/admin/analytics?tab=event-registration');
+    await page.locator('.tab-btn[data-tab="event-registration"]').click();
+    await page.locator('#event-registrations-lock-btn').click();
+    await expect(page.locator('#add-event-registration-btn')).toBeVisible();
+    const { data: lock } = await db.from('edit_locks').select('locked_by').eq('resource', 'analytics-event-registrations').maybeSingle();
+    takenLock = lock?.locked_by ?? null;
+    await page.locator('#add-event-registration-btn').click();
+    const row = page.locator('tr', { has: page.locator('.save-event-registration-btn[data-mode="add"]') });
+    await row.locator('.first-name').fill('ZZZWalkIn');
+    await row.locator('.last-name').fill(RUN_ID);
+    await row.locator('.phone').fill('6085550403');
+    await row.locator(`.event-registration-checkbox[data-key="${door.key}"]`).check();
+    await row.locator('.payment-select-cell select').selectOption('cash');
+    await row.locator('.paid').check();
+    await row.locator('.save-event-registration-btn').click();
+    await expect(page.locator('#event-registrations-body tr', { hasText: 'ZZZWalkIn' }).first()).toContainText(door.title);
+
+    const { data } = await db.from('intake_submissions').select('id, registration_type, paid, dancers').eq('first_name', 'ZZZWalkIn').eq('last_name', RUN_ID).single();
+    expect(data).toMatchObject({ registration_type: 'events', paid: true });
+    const { data: regs } = await db.from('class_registrations').select('class_title, price').eq('submission_id', data!.id);
+    expect(regs).toEqual([{ class_title: door.title, price: 10 }]);
   });
 });

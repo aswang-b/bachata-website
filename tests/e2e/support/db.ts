@@ -96,6 +96,8 @@ export async function seedSignup(event: Seeded, dancers: SeedDancer[], registrat
       first_name: people[0].firstName,
       last_name: people[0].lastName,
       phone: people[0].phone,
+      // Like a real sign-up: its own email is its first dancer's.
+      email: people[0].email || null,
       class: event.title,
       dancers: people,
       payment_method: 'cash',
@@ -110,6 +112,7 @@ export async function seedSignup(event: Seeded, dancers: SeedDancer[], registrat
       first_name: p.firstName,
       last_name: p.lastName,
       phone: p.phone,
+      email: p.email || null,
       class_title: event.title,
       class_label: event.title,
       series_mode: 'whole',
@@ -135,6 +138,7 @@ export async function sweepTestData(): Promise<void> {
     db.from('deals').delete().ilike('name', like),
     db.from('contact_messages').delete().ilike('first_name', like),
     db.from('email_bounces').delete().ilike('email', like),
+    db.from('site_errors').delete().ilike('message', `%${TEST_PREFIX}%`),
   ]);
   // Sign-ups first: class registrations point at the events' occurrences.
   const events = await db.from('events').delete().ilike('title', like);

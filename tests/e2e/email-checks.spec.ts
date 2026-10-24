@@ -96,3 +96,65 @@ test('an admin can resend a confirmation, e.g. after fixing an address that boun
   const missing = await request.post('/api/admin/resend-confirmation', { headers: bearer(admin), data: { submissionId: '00000000-0000-0000-0000-000000000000' } });
   expect(missing.status()).toBe(404);
 });
+
+test.describe('the Errors workqueue', () => {
+  test('a bounce shows with its sign-up: update the email, then resend to it with the admin copies', async ({ page, request, adminPage }) => {
+    void adminPage;
+    const bounced = `zzz-queue-${run}@gmial.com`;
+    const fixed = `zzz-queue-${run}@example.com`;
+    const klass = await seedEvent({ name: 'Queue Class', dayOffset: 48 });
+    const submissionId = await seedSignup(klass, [{ first: 'Queue', role: 'leader', email: bounced }]);
+
+    const body = JSON.stringify({ type: 'email.bounced', data: { to: [bounced], bounce: { type: 'Permanent', message: 'Domain not found' } } });
+    const id = `msg_q_${run}`;
+    const ts = String(Math.floor(Date.now() / 1000));
+    const key = Buffer.from(WEBHOOK_SECRET.replace(/^whsec_/, ''), 'base64');
+    const signature = `v1,${createHmac('sha256', key).update(`${id}.${ts}.${body}`).digest('base64')}`;
+    const res = await request.post('/api/resend-webhook', { headers: { 'Content-Type': 'application/json', 'svix-id': id, 'svix-timestamp': ts, 'svix-signature': signature }, data: body });
+    expect(res.status()).toBe(200);
+
+    await page.goto('/admin/analytics');
+    await page.locator('.tab-btn[data-tab="errors"]').click();
+    const item = page.locator('.site-error', { hasText: bounced });
+    await expect(item).toContainText(`Email to ${bounced} bounced: Domain not found`);
+    await expect(item.locator('.bounce-signup')).toContainText('ZZZQueue');
+    await page.locator('#tab-panel-errors').screenshot({ path: 'tests/e2e/.output/errors-queue.png' });
+
+    await item.locator('.bounce-email').fill(fixed);
+    await item.locator('.bounce-update-btn').click();
+    await expect(item).toContainText('Email updated on the registration.');
+    const { data: sub } = await db.from('intake_submissions').select('email, dancers').eq('id', submissionId).single();
+    expect((sub!.dancers as { email: string }[])[0].email).toBe(fixed);
+    expect(sub!.email).toBe(fixed);
+    const { data: regs } = await db.from('class_registrations').select('email').eq('submission_id', submissionId);
+    expect(regs!.every((r) => r.email === fixed)).toBe(true);
+
+    page.once('dialog', (d) => void d.accept());
+    await item.locator('.bounce-resend-btn').click();
+    await expect(page.locator('#errors-status')).toContainText(`Sent to ${fixed}. The error is resolved.`);
+    await expect(page.locator('.site-error', { hasText: bounced })).toHaveCount(0);
+
+    const sent = sunkEmails().filter((e) => recipients(e).includes(fixed));
+    expect(sent).toHaveLength(1);
+    const { data: settings } = await db.from('notification_settings').select('confirmation_bcc_emails').eq('id', true).maybeSingle();
+    const admins = String(settings?.confirmation_bcc_emails ?? '').split(',').map((e) => e.trim()).filter(Boolean);
+    expect([...(sent[0].bcc ?? [])].sort()).toEqual(admins.sort());
+    const { data: closed } = await db.from('site_errors').select('status').eq('dedupe_key', `bounce:${bounced}`).single();
+    expect(closed!.status).toBe('resolved');
+  });
+
+  test('any error can be dismissed, and a repeat of an open one adds to its count', async ({ page, adminPage }) => {
+    void adminPage;
+    const message = `ZZZ test error ${RUN_ID}`;
+    for (let i = 0; i < 2; i++) await db.rpc('log_site_error', { p_kind: 'google_api', p_message: message, p_details: {}, p_dedupe_key: `zzz-test:${RUN_ID}` });
+    await page.goto('/admin/analytics');
+    await expect(page.locator('#errors-tab-count')).not.toHaveText('');
+    await page.locator('.tab-btn[data-tab="errors"]').click();
+    const item = page.locator('.site-error', { hasText: message });
+    await expect(item).toContainText('2 times since');
+    await item.locator('.site-error-dismiss').click();
+    await expect(page.locator('.site-error', { hasText: message })).toHaveCount(0);
+    const { data } = await db.from('site_errors').select('status').eq('dedupe_key', `zzz-test:${RUN_ID}`).single();
+    expect(data!.status).toBe('dismissed');
+  });
+});

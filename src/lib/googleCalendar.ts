@@ -4,6 +4,7 @@ import { env } from './env';
 import { supabase } from './supabase';
 import { googleDisabled } from './testMode';
 import { nearestGoogleColorId } from './eventColors';
+import { logSiteError } from './siteErrors';
 
 // Google requires an explicit timeZone alongside dateTime for recurring
 // events (it won't infer one from a bare "Z" UTC offset the way it does for
@@ -64,12 +65,37 @@ async function isRateLimited(res: Response): Promise<boolean> {
 async function calendarFetch(url: string | URL, init?: RequestInit): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(url, init);
-    if (attempt >= RATE_LIMIT_RETRY_DELAYS_MS.length || !(await isRateLimited(res))) return res;
+    if (attempt >= RATE_LIMIT_RETRY_DELAYS_MS.length || !(await isRateLimited(res))) {
+      await logGoogleError(res, init?.method ?? 'GET');
+      return res;
+    }
     const delay = RATE_LIMIT_RETRY_DELAYS_MS[attempt] + Math.random() * 250;
     const deadline = requestDeadline.getStore();
     if (deadline !== undefined && Date.now() + delay > deadline) return res;
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
+}
+
+// A Google Calendar API error (e.g. a 403 when the calendar isn't shared
+// with the connected account, or rate limits that outlasted the retries) goes
+// to the dashboard's Errors workqueue, one line per status and method. A
+// missing event (404/410) is expected when it was deleted on Google.
+async function logGoogleError(res: Response, method: string) {
+  if (res.ok || res.status === 404 || res.status === 410) return;
+  const body = await res
+    .clone()
+    .text()
+    .catch(() => '');
+  let reason = body.slice(0, 300);
+  try {
+    reason = JSON.parse(body)?.error?.message ?? reason;
+  } catch {
+    // Not JSON: keep the text.
+  }
+  await logSiteError('google_api', `Google Calendar ${method} request failed (${res.status}): ${reason}`, {
+    details: { status: res.status, method },
+    dedupeKey: `google:${res.status}:${method}`,
+  });
 }
 
 export interface GoogleCalendarEvent {
@@ -227,6 +253,9 @@ export async function getGoogleAccessToken(): Promise<string> {
     }
   }
 
+  await logSiteError('google_auth', 'The Google Calendar connection expired or was revoked, so syncing has stopped. Sign out of Admin and sign back in with Google to reconnect it.', {
+    dedupeKey: 'google:auth-expired',
+  });
   throw new GoogleAuthExpiredError();
 }
 

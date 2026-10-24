@@ -3,6 +3,7 @@ import { getActivePrice, type PriceTier } from './pricing';
 import { buildClassSeriesList } from './classSeries';
 import { applyDeals, type Deal } from './deals';
 import { listActiveDeals } from './dealsStore';
+import { lateRegistrationCutoffIso, registrationOpen } from './eventTimes';
 
 export interface ParsedClassSelection {
   label: string;
@@ -348,9 +349,18 @@ export function applyDealsToRows<T extends DealPricedRow>(rows: T[], deals: Deal
 async function findUnbookable(rows: RegistrationRow[]): Promise<ClassSelectionError | null> {
   const seriesKeys = Array.from(new Set(rows.map((r) => r.series_key).filter((k): k is string => !!k)));
   const ids = seriesKeys.filter((k) => UUID_RE.test(k));
+  // Still open: anything that hasn't started, plus an event until 30 minutes
+  // after it ends (door sign-ups; registrationOpen has the rule).
   const now = new Date().toISOString();
-  const base = () => supabase.from('events').select('id, google_recurring_event_id').eq('visibility', 'public').gte('start_time', now);
-  const results = await Promise.all([ids.length > 0 ? base().in('id', ids) : null, base().in('google_recurring_event_id', seriesKeys)]);
+  const columns = 'id, google_recurring_event_id, event_type, start_time, end_time';
+  const upcoming = () => supabase.from('events').select(columns).eq('visibility', 'public').gte('start_time', now);
+  const atTheDoor = () => supabase.from('events').select(columns).eq('visibility', 'public').eq('event_type', 'event').lt('start_time', now).gte('end_time', lateRegistrationCutoffIso());
+  const results = await Promise.all([
+    ids.length > 0 ? upcoming().in('id', ids) : null,
+    upcoming().in('google_recurring_event_id', seriesKeys),
+    ids.length > 0 ? atTheDoor().in('id', ids) : null,
+    atTheDoor().in('google_recurring_event_id', seriesKeys),
+  ]);
 
   const upcomingSeries = new Set<string>();
   const upcomingIds = new Set<string>();
@@ -361,6 +371,7 @@ async function findUnbookable(rows: RegistrationRow[]): Promise<ClassSelectionEr
       return { message: "We couldn't confirm these classes are open for registration right now. Please try again in a minute.", status: 503 };
     }
     for (const e of r.data ?? []) {
+      if (!registrationOpen(e)) continue;
       upcomingSeries.add(e.google_recurring_event_id ?? e.id);
       upcomingIds.add(e.id);
     }

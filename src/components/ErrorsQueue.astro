@@ -1,0 +1,182 @@
+---
+// Dashboard → Errors: the site's own problems (src/lib/siteErrors.ts), one
+// line each with its time and actions. Every error can be dismissed; a
+// bounced email can have its address corrected on the registration and the
+// confirmation resent to it (with the admin BCC copies).
+---
+
+<section id="tab-panel-errors" class="tab-panel hidden flex-col gap-4">
+  <div class="flex flex-col gap-1 rounded-2xl border border-border bg-surface p-4">
+    <p class="text-xs font-bold uppercase tracking-wider text-muted">Errors</p>
+    <p class="text-xs text-muted">
+      Problems the site ran into on its own: bounced emails, Google Calendar errors, emails that failed to send, sign-ups that failed to save. A
+      repeat of an open error adds to its count instead of a new line.
+    </p>
+  </div>
+  <p id="errors-status" class="min-h-4 text-xs text-muted" role="status"></p>
+  <ul id="errors-list" class="flex flex-col gap-3"></ul>
+  <p id="errors-empty" class="hidden rounded-2xl border border-border bg-surface px-4 py-6 text-center text-sm text-muted">No errors. 🎉</p>
+</section>
+
+<script>
+  import { supabaseBrowser } from '../lib/supabaseBrowser';
+  import { siteTimeZone } from '../lib/siteTime';
+
+  interface Signup {
+    submissionId: string;
+    dancerIndex: number | null;
+    name: string;
+    email: string;
+    registrationType: string;
+    createdAt: string;
+  }
+  interface SiteError {
+    id: string;
+    kind: string;
+    message: string;
+    details: Record<string, unknown>;
+    count: number;
+    firstSeenAt: string;
+    lastSeenAt: string;
+    signups?: Signup[];
+  }
+
+  const list = document.getElementById('errors-list')!;
+  const empty = document.getElementById('errors-empty')!;
+  const status = document.getElementById('errors-status')!;
+  const tabCount = document.getElementById('errors-tab-count');
+  const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: siteTimeZone() });
+  const KIND_LABELS: Record<string, string> = {
+    email_bounce: 'Bounced email',
+    google_api: 'Google Calendar',
+    google_auth: 'Google connection',
+    email_send: 'Email failed',
+    signup_save: 'Sign-up failed',
+  };
+
+  async function authHeaders(): Promise<Record<string, string>> {
+    const { data } = await supabaseBrowser.auth.getSession();
+    return { Authorization: `Bearer ${data.session?.access_token ?? ''}`, 'Content-Type': 'application/json' };
+  }
+
+  async function act(payload: Record<string, unknown>): Promise<{ ok: boolean; body: Record<string, unknown> }> {
+    const res = await fetch('/api/admin/site-errors', { method: 'POST', headers: await authHeaders(), body: JSON.stringify(payload) });
+    return { ok: res.ok, body: await res.json().catch(() => ({})) };
+  }
+
+  function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
+    const node = document.createElement(tag);
+    node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  const smallButton = 'rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50';
+
+  // One sign-up using a bounced address: correct the email, then resend.
+  function bounceSignupRow(error: SiteError, s: Signup): HTMLElement {
+    const row = el('div', 'bounce-signup flex flex-col gap-2 rounded-xl border border-border bg-bg p-3');
+    row.dataset.submissionId = s.submissionId;
+    const type = s.registrationType === 'events' ? 'Event registration' : 'Class sign-up';
+    row.append(el('p', 'text-sm text-ink', `${s.name || 'Unnamed'} · ${type} · ${dateFormatter.format(new Date(s.createdAt))}`));
+    const controls = el('div', 'flex flex-wrap items-center gap-2');
+    const input = el('input', 'bounce-email w-64 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-ink');
+    input.type = 'email';
+    input.value = s.email;
+    input.setAttribute('aria-label', `Email for ${s.name}`);
+    const update = el('button', `bounce-update-btn ${smallButton} border-accent text-accent hover:bg-accent hover:text-white`, 'Update email');
+    update.type = 'button';
+    const resend = el('button', `bounce-resend-btn ${smallButton} border-accent text-accent hover:bg-accent hover:text-white`, 'Resend confirmation');
+    resend.type = 'button';
+    const note = el('span', 'text-xs text-muted');
+    note.setAttribute('role', 'status');
+    controls.append(input, update, resend, note);
+    row.append(controls);
+
+    update.addEventListener('click', async () => {
+      update.disabled = true;
+      const { ok, body } = await act({ action: 'update-email', id: error.id, submissionId: s.submissionId, dancerIndex: s.dancerIndex, email: input.value });
+      update.disabled = false;
+      note.textContent = ok ? 'Email updated on the registration.' : String(body.error ?? 'Failed to update.');
+    });
+    resend.addEventListener('click', async () => {
+      if (!confirm(`Resend the confirmation to the email saved on this registration (with the admin BCC copies)?`)) return;
+      resend.disabled = true;
+      const { ok, body } = await act({ action: 'resend', id: error.id, submissionId: s.submissionId, dancerIndex: s.dancerIndex });
+      resend.disabled = false;
+      if (!ok) {
+        note.textContent = String(body.error ?? 'Failed to resend.');
+        return;
+      }
+      status.textContent = `Sent to ${body.sent}. The error is resolved.`;
+      await load();
+    });
+    return row;
+  }
+
+  function render(errors: SiteError[]) {
+    list.replaceChildren();
+    empty.classList.toggle('hidden', errors.length > 0);
+    if (tabCount) {
+      tabCount.textContent = String(errors.length);
+      tabCount.classList.toggle('hidden', errors.length === 0);
+    }
+    for (const error of errors) {
+      const li = el('li', 'site-error flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4');
+      li.dataset.id = error.id;
+      li.dataset.kind = error.kind;
+      const head = el('div', 'flex flex-wrap items-start justify-between gap-3');
+      const info = el('div', 'flex min-w-0 flex-col gap-1');
+      const meta = el('p', 'text-xs text-muted');
+      meta.append(el('span', 'mr-2 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-400', KIND_LABELS[error.kind] ?? error.kind));
+      meta.append(`${dateFormatter.format(new Date(error.lastSeenAt))}${error.count > 1 ? ` · ${error.count} times since ${dateFormatter.format(new Date(error.firstSeenAt))}` : ''}`);
+      info.append(meta, el('p', 'site-error-message break-words text-sm text-ink', error.message));
+      const dismiss = el('button', `site-error-dismiss ${smallButton} border-border text-ink/70 hover:border-accent hover:text-accent`, 'Dismiss');
+      dismiss.type = 'button';
+      dismiss.addEventListener('click', async () => {
+        dismiss.disabled = true;
+        const { ok, body } = await act({ action: 'dismiss', id: error.id });
+        if (!ok) {
+          dismiss.disabled = false;
+          status.textContent = String(body.error ?? 'Failed to dismiss.');
+          return;
+        }
+        status.textContent = 'Dismissed.';
+        await load();
+      });
+      head.append(info, dismiss);
+      li.append(head);
+
+      if (error.kind === 'email_bounce') {
+        const signups = error.signups ?? [];
+        if (signups.length === 0) li.append(el('p', 'text-xs text-muted', 'No current sign-up uses this address.'));
+        for (const s of signups) li.append(bounceSignupRow(error, s));
+      }
+      list.append(li);
+    }
+  }
+
+  // One load at a time; opening the tab right after the page loaded reuses
+  // that load rather than redrawing the list under someone typing in it.
+  let inFlight: Promise<void> | null = null;
+  let loadedAt = 0;
+  function load(): Promise<void> {
+    inFlight ??= (async () => {
+      const res = await fetch('/api/admin/site-errors', { headers: await authHeaders() });
+      if (!res.ok) return;
+      const body = await res.json().catch(() => ({ errors: [] }));
+      render(body.errors ?? []);
+    })().finally(() => {
+      inFlight = null;
+      loadedAt = Date.now();
+    });
+    return inFlight;
+  }
+
+  // Loaded with the page (for the tab's count) and again whenever the tab is opened.
+  void load();
+  document.querySelector('.tab-btn[data-tab="errors"]')?.addEventListener('click', () => {
+    status.textContent = '';
+    if (!inFlight && Date.now() - loadedAt > 10_000) void load();
+  });
+</script>

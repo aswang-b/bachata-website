@@ -17,3 +17,18 @@ export function endAfterStart(date: string, startTime: string, endTime: string):
 export function seriesAnchorEndDate(anchorDate: string, startTime: string, endTime: string): string {
   return endTime <= startTime ? new Date(Date.parse(`${anchorDate}T00:00:00Z`) + 24 * 60 * 60 * 1000).toISOString().slice(0, 10) : anchorDate;
 }
+
+// Events take registrations until 30 minutes after they end, so people can
+// sign up at the door; classes stop when they start.
+export const EVENT_LATE_REGISTRATION_MS = 30 * 60 * 1000;
+
+export function registrationOpen(e: { event_type?: string | null; start_time: string; end_time?: string | null }, now = Date.now()): boolean {
+  if (e.event_type === 'event') return Date.parse(e.end_time ?? e.start_time) + EVENT_LATE_REGISTRATION_MS > now;
+  return Date.parse(e.start_time) >= now;
+}
+
+// The earliest end time an event can have and still take registrations (for a
+// database filter; registrationOpen then decides per class or event).
+export function lateRegistrationCutoffIso(now = Date.now()): string {
+  return new Date(now - EVENT_LATE_REGISTRATION_MS).toISOString();
+}

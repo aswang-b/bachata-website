@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
 import { env } from '../../lib/env';
 import { bouncesFrom, verifyResendSignature } from '../../lib/resendWebhook';
+import { logSiteError } from '../../lib/siteErrors';
 
 export const prerender = false;
 
@@ -40,6 +41,14 @@ export const POST: APIRoute = async ({ request }) => {
       console.error('Failed to record email bounce:', error.message);
       // A 500 makes Resend retry later.
       return new Response('Failed to record.', { status: 500 });
+    }
+    // Each one is also a line in the dashboard's Errors workqueue, with actions
+    // to correct the address and resend the confirmation.
+    for (const b of bounces) {
+      await logSiteError('email_bounce', `Email to ${b.email} bounced${b.reason ? `: ${b.reason}` : '.'}`, {
+        details: { email: b.email, bounceType: b.bounceType, reason: b.reason },
+        dedupeKey: `bounce:${b.email}`,
+      });
     }
   }
   return new Response(JSON.stringify({ ok: true }), { status: 200 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { endAfterStart, seriesAnchorEndDate } from '../../src/lib/eventTimes';
+import { endAfterStart, registrationOpen, seriesAnchorEndDate } from '../../src/lib/eventTimes';
 import { getActivePrice, priceTierLabel } from '../../src/lib/pricing';
 import { buildWeeklyRecurrenceRule, googleColorIdToSiteColor, siteColorToGoogleColorId } from '../../src/lib/googleCalendar';
 import { eventTypeLabel } from '../../src/lib/classSeries';
@@ -64,5 +64,16 @@ describe("the calendar's type tag", () => {
     expect(eventTypeLabel('class', null)).toBe('Workshop');
     expect(eventTypeLabel('class', 2)).toBe('Class');
     expect(eventTypeLabel('event', null)).toBe('Event');
+  });
+});
+
+describe('when registration closes', () => {
+  const now = Date.parse('2026-10-24T03:00:00Z');
+  const at = (minutesFromNow: number) => new Date(now + minutesFromNow * 60000).toISOString();
+  it('a class closes when it starts; an event stays open until 30 minutes after it ends (door sign-ups)', () => {
+    expect(registrationOpen({ event_type: 'class', start_time: at(1), end_time: at(60) }, now)).toBe(true);
+    expect(registrationOpen({ event_type: 'class', start_time: at(-1), end_time: at(60) }, now)).toBe(false);
+    expect(registrationOpen({ event_type: 'event', start_time: at(-120), end_time: at(-29) }, now)).toBe(true);
+    expect(registrationOpen({ event_type: 'event', start_time: at(-120), end_time: at(-31) }, now)).toBe(false);
   });
 });

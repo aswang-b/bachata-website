@@ -1,6 +1,7 @@
 import { env } from './env';
 import { getNotificationRecipients } from './notificationSettings';
 import { emailSinkPath, recordSunkEmail } from './testMode';
+import { logSiteError } from './siteErrors';
 
 const RESEND_API_KEY = env('RESEND_API_KEY');
 const NOTIFICATION_EMAILS_ENV = env('NOTIFICATION_EMAILS');
@@ -38,7 +39,13 @@ export async function sendEmail(
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to send email via Resend: ${res.status} ${await res.text()}`);
+    const reason = `${res.status} ${await res.text()}`;
+    // Shown in the dashboard's Errors workqueue, one line per status.
+    await logSiteError('email_send', `Couldn't send "${subject}" to ${[to].flat().join(', ')}: ${reason}`.slice(0, 1000), {
+      details: { to: [to].flat(), status: res.status },
+      dedupeKey: `resend:${res.status}`,
+    });
+    throw new Error(`Failed to send email via Resend: ${reason}`);
   }
 }
 

@@ -10,6 +10,7 @@ import { getSpotsByOccurrence, publicSpotsLabel, remainingFor, seriesSpots } fro
 import { getCommunityGuidelines, hasGuidelines } from '../lib/communityGuidelines';
 import { listActiveDeals } from '../lib/dealsStore';
 import { siteFormatter } from '../lib/siteTime';
+import { lateRegistrationCutoffIso } from '../lib/eventTimes';
 import { locationHref } from '../lib/locationLink';
 
 interface Props {
@@ -63,7 +64,9 @@ const [guidelines, { data: classEvents, error }, { data: allClassEventsForTotals
     )
     .eq('visibility', 'public')
     .eq('event_type', eventType)
-    .gte('start_time', new Date().toISOString())
+    // Classes until they start; events until 30 minutes after they end, so
+    // people can register at the door (see eventTimes.registrationOpen).
+    .gte(isEvent ? 'end_time' : 'start_time', isEvent ? lateRegistrationCutoffIso() : new Date().toISOString())
     .order('start_time', { ascending: true }),
   supabase.from('events').select('id, google_recurring_event_id').eq('visibility', 'public').eq('event_type', eventType),
   listActiveDeals(),

@@ -13,6 +13,7 @@ import { getConfirmationBccEmails, getConfirmationEmailPerIpCap, getContactEmail
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
 import { buildRegistrationConfirmation, CONFIRMATION_EMAIL_DAILY_CAP } from '../../lib/registrationConfirmation';
 import { saveContactMessage } from '../../lib/contactMessages';
+import { logSiteError } from '../../lib/siteErrors';
 import { capacityErrorMessage } from '../../lib/capacity';
 import { getCommunityGuidelines, hasGuidelines } from '../../lib/communityGuidelines';
 
@@ -266,6 +267,9 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     }
     if (error || typeof data !== 'string') {
       console.error('Failed to insert intake submission:', error);
+      await logSiteError('signup_save', `A ${registrationType === 'events' ? 'event' : 'class'} sign-up from ${firstName} ${lastName} failed to save, and they were asked to try again: ${error?.message ?? 'no id returned'}`, {
+        dedupeKey: 'signup-save',
+      });
       return new Response('Something went wrong submitting your form. Please try again.', {
         status: 500,
       });

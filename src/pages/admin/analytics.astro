@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import ErrorsQueue from '../../components/ErrorsQueue.astro';
 ---
 
 <BaseLayout title="Dashboard">
@@ -25,7 +26,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     </div>
 
     <div id="dashboard" class="mt-8 hidden flex-col gap-6">
-      <div class="flex gap-1 border-b border-border" role="tablist">
+      <div class="themed-scrollbar flex gap-1 overflow-x-auto border-b border-border" role="tablist">
         <button type="button" data-tab="signups" class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Sign-Ups
         </button>
@@ -41,6 +42,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         <button type="button" data-tab="recycling" class="tab-btn flex items-center gap-1.5 border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Recycling Bin
           <span id="recycling-tab-count" class="hidden rounded-full bg-accent px-1.5 text-[10px] leading-4 text-white"></span>
+        </button>
+        <button type="button" data-tab="errors" class="tab-btn flex items-center gap-1.5 border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+          Errors
+          <span id="errors-tab-count" class="hidden rounded-full bg-red-600 px-1.5 text-[10px] leading-4 text-white"></span>
         </button>
       </div>
 
@@ -158,6 +163,14 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           <div class="flex items-baseline justify-between">
             <h2 class="font-display text-xl font-bold text-ink">Event Registration</h2>
             <p id="event-registrations-count" class="text-xs text-muted"></p>
+          </div>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              id="add-event-registration-btn"
+              class="hidden rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+            >
+              + Add Event Registration
+            </button>
           </div>
 
           <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
@@ -408,6 +421,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           </div>
         </div>
       </section>
+
+      <!-- ==================== ERRORS TAB ==================== -->
+      <ErrorsQueue />
     </div>
   </div>
 </BaseLayout>
@@ -541,6 +557,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     checkins: document.getElementById('tab-panel-checkins')!,
     attendance: document.getElementById('tab-panel-attendance')!,
     recycling: document.getElementById('tab-panel-recycling')!,
+    errors: document.getElementById('tab-panel-errors')!,
   };
 
   // Populated once the lock controllers exist (below); referenced here only
@@ -749,6 +766,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   let editingEventRegistrationKey: string | null = null;
   let editingCheckinKey: string | null = null;
   let addingSignup = false;
+  // A new event registration row at the top of the Event Registration tab (e.g. someone signing up at the door).
+  let addingEventRegistration = false;
   let addingCheckin = false;
 
   function setSignupEditModeUI(locked: boolean) {
@@ -817,7 +836,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     document.getElementById('event-registrations-lock-status')!,
     (locked) => {
       document.querySelectorAll('.event-registrations-actions-header').forEach((el) => el.classList.toggle('hidden', !locked));
-      if (!locked) editingEventRegistrationKey = null;
+      document.getElementById('add-event-registration-btn')?.classList.toggle('hidden', !locked);
+      if (!locked) {
+        editingEventRegistrationKey = null;
+        addingEventRegistration = false;
+      }
       renderEventRegistrations();
     }
   );
@@ -1473,8 +1496,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
   // Edit row for one dancer's event registration. The event checkboxes start
   // unchecked: checking any replaces the dancer's current events.
-  function eventRegistrationEditRowHtml(s: Signup): string {
-    const current = s.classRegistrations.map((e) => e.classTitle).filter(Boolean).join('; ');
+  function eventRegistrationEditRowHtml(s: Partial<Signup>, mode: 'edit' | 'add' = 'edit'): string {
+    const current = (s.classRegistrations ?? []).map((e) => e.classTitle).filter(Boolean).join('; ');
     const optionsHtml = eventSeries
       .map(
         (series) => `
@@ -1486,21 +1509,21 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       .join('');
     return `
       <tr class="border-t border-accent bg-accent/5">
-        <td class="px-2 py-2"><input class="edit-input first-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.firstName)}" placeholder="First name" /></td>
-        <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.lastName)}" placeholder="Last name" /></td>
-        <td class="px-2 py-2"><div class="flex flex-col gap-1"><input class="edit-input email w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.email)}" placeholder="Email" /><input class="edit-input phone w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.phone)}" placeholder="Phone" /></div></td>
+        <td class="px-2 py-2"><input class="edit-input first-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.firstName ?? '')}" placeholder="First name" /></td>
+        <td class="px-2 py-2"><input class="edit-input last-name w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.lastName ?? '')}" placeholder="Last name" /></td>
+        <td class="px-2 py-2"><div class="flex flex-col gap-1"><input class="edit-input email w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.email ?? '')}" placeholder="Email" /><input class="edit-input phone w-32 rounded-lg border border-border bg-bg px-2 py-1 text-xs" value="${escapeAttr(s.phone ?? '')}" placeholder="Phone" /></div></td>
         <td class="px-2 py-2">
           <div class="flex max-h-32 w-48 flex-col gap-1.5 overflow-y-auto rounded-lg border border-border bg-bg p-2">
             ${eventSeries.length ? optionsHtml : '<span class="text-xs text-muted">No events found.</span>'}
           </div>
-          <p class="mt-1 w-48 truncate text-[10px] text-muted" title="${escapeAttr(current)}">Current: ${escapeHtml(current || '—')}</p>
+          ${mode === 'edit' ? `<p class="mt-1 w-48 truncate text-[10px] text-muted" title="${escapeAttr(current)}">Current: ${escapeHtml(current || '—')}</p>` : ''}
         </td>
-        <td class="px-2 py-2 payment-select-cell">${paymentSelectHtml(s.paymentMethod)}</td>
+        <td class="px-2 py-2 payment-select-cell">${paymentSelectHtml(s.paymentMethod ?? null)}</td>
         <td class="px-2 py-2"><input type="checkbox" class="edit-input paid h-4 w-4" ${s.paid ? 'checked' : ''} /></td>
         <td class="px-2 py-2 text-xs text-muted">—</td>
         <td class="px-2 py-2">
           <div class="flex gap-2">
-            <button class="save-event-registration-btn text-xs font-bold text-green-600 hover:underline" data-submission-id="${s.submissionId}" data-dancer-index="${s.dancerIndex ?? ''}">Save</button>
+            <button class="save-event-registration-btn text-xs font-bold text-green-600 hover:underline" data-mode="${mode}" data-submission-id="${s.submissionId ?? ''}" data-dancer-index="${s.dancerIndex ?? ''}">Save</button>
             <button class="cancel-event-registration-edit-btn text-xs font-semibold text-ink/60 hover:underline">Cancel</button>
           </div>
         </td>
@@ -1519,7 +1542,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
     // One row per event the dancer registered for, like Sign-Ups; continuation
     // rows repeat only the Event and Payment columns.
-    eventRegistrationsBody.innerHTML = sorted
+    eventRegistrationsBody.innerHTML =
+      (isLockedByMe && addingEventRegistration ? eventRegistrationEditRowHtml({}, 'add') : '') +
+      sorted
       .flatMap((s) => {
         const key = signupRowKey(s);
         if (isLockedByMe && editingEventRegistrationKey === key) return [eventRegistrationEditRowHtml(s)];
@@ -1568,6 +1593,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     eventRegistrationsBody.querySelectorAll<HTMLButtonElement>('.cancel-event-registration-edit-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         editingEventRegistrationKey = null;
+        addingEventRegistration = false;
         renderEventRegistrations();
       });
     });
@@ -1624,9 +1650,15 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           mode: null,
           occurrenceEventId: null,
         }));
+        const adding = btn.dataset.mode === 'add';
+        if (adding && selections.length === 0) {
+          alert('Pick the event they are registering for.');
+          return;
+        }
         const dancerIndexRaw = btn.dataset.dancerIndex;
         const payload: Record<string, unknown> = {
-          action: 'update',
+          action: adding ? 'create' : 'update',
+          registrationType: 'events',
           holderId,
           submissionId: btn.dataset.submissionId,
           dancerIndex: dancerIndexRaw ? Number(dancerIndexRaw) : null,
@@ -1644,6 +1676,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         const res = await fetch('/api/admin/edit-signup', { method: 'POST', headers, body: JSON.stringify(payload) });
         if (res.ok) {
           editingEventRegistrationKey = null;
+          addingEventRegistration = false;
           if (await reloadData()) renderEventRegistrations();
         } else {
           const data = await res.json().catch(() => ({}));
@@ -1693,6 +1726,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     editingSignupKey = null;
     addingSignup = true;
     renderSignups();
+  });
+
+  document.getElementById('add-event-registration-btn')!.addEventListener('click', () => {
+    editingEventRegistrationKey = null;
+    addingEventRegistration = true;
+    renderEventRegistrations();
   });
 
   // --- Check-Ins tab ---

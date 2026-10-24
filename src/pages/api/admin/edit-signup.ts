@@ -52,6 +52,51 @@ export const POST: APIRoute = async ({ request }) => {
   const { action, holderId } = body ?? {};
   const holder = `${user.email}::${holderId}`;
 
+  // An event registration added by an admin (e.g. at the door), under the Event Registration tab's lock.
+  if (action === 'create' && body.registrationType === 'events') {
+    try {
+      await requireLock(EVENT_REGISTRATIONS_LOCK_RESOURCE, holder);
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Lock required.' }), { status: 409 });
+    }
+    const { firstName, lastName, email, phone, className, paymentMethod, paid } = body;
+    if (!firstName || !lastName) {
+      return new Response(JSON.stringify({ error: 'First and last name are required.' }), { status: 400 });
+    }
+    const classSelectionsRaw = serializeClassSelections(body.classSelections);
+    if (!classSelectionsRaw) return new Response(JSON.stringify({ error: 'Pick an event.' }), { status: 400 });
+    // Saved like a public event registration: one attendee, no role.
+    const dancer = { firstName, lastName, role: '', phone: phone || '', email: email || '' };
+    const { data: newRow, error } = await supabase
+      .from('intake_submissions')
+      .insert({
+        registration_type: 'events',
+        first_name: firstName,
+        last_name: lastName,
+        email: email || null,
+        phone: phone || null,
+        class: className || null,
+        payment_method: paymentMethod || null,
+        paid: Boolean(paid),
+        dancers: [dancer],
+      })
+      .select('id')
+      .single();
+    if (error || !newRow) return new Response(JSON.stringify({ error: 'Failed to create the registration.' }), { status: 500 });
+    await insertClassRegistrations({
+      submissionId: newRow.id,
+      classRaw: className || null,
+      classSelectionsRaw,
+      dancers: [dancer],
+      fallbackFirstName: firstName,
+      fallbackLastName: lastName,
+      fallbackEmail: email || null,
+      fallbackPhone: phone || null,
+      eventType: 'event',
+    });
+    return new Response(JSON.stringify({ ok: true, submissionId: newRow.id }), { status: 200 });
+  }
+
   if (action === 'create') {
     try {
       await requireLock(SIGNUPS_LOCK_RESOURCE, holder);
