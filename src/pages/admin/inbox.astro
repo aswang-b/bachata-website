@@ -26,7 +26,18 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     </div>
 
     <div id="messages-list" class="mt-8 hidden flex-col gap-4"></div>
-    <p id="messages-empty" class="mt-8 hidden text-sm text-muted">No messages yet.</p>
+    <p id="messages-empty" class="mt-8 hidden text-sm text-muted">No messages waiting for a reply.</p>
+    <p id="messages-status" class="mt-2 min-h-4 text-xs text-muted" role="status"></p>
+
+    {/* Starts closed, and its messages only load the first time it's opened. */}
+    <details id="replied-archive" class="mt-6 hidden rounded-2xl border border-border bg-bg">
+      <summary class="cursor-pointer select-none px-5 py-3 text-sm font-bold text-ink/80">Replied messages</summary>
+      <div class="flex flex-col gap-4 border-t border-border p-4">
+        <p id="replied-loading" class="text-sm text-muted">Loading&hellip;</p>
+        <div id="replied-list" class="flex flex-col gap-4"></div>
+        <p id="replied-empty" class="hidden text-sm text-muted">No replied messages yet.</p>
+      </div>
+    </details>
   </div>
 </BaseLayout>
 
@@ -56,51 +67,130 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
   const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: siteTimeZone() });
 
+  interface ContactMessage {
+    id: string;
+    created_at: string;
+    first_name: string;
+    last_name: string;
+    email: string | null;
+    phone: string | null;
+    instagram: string | null;
+    whatsapp: string | null;
+    message: string | null;
+    replied_at: string | null;
+    replied_by: string | null;
+  }
+
+  const list = document.getElementById('messages-list')!;
+  const empty = document.getElementById('messages-empty')!;
+  const status = document.getElementById('messages-status')!;
+  const archive = document.getElementById('replied-archive') as HTMLDetailsElement;
+  const repliedList = document.getElementById('replied-list')!;
+  const repliedEmpty = document.getElementById('replied-empty')!;
+  const repliedLoading = document.getElementById('replied-loading')!;
+  let accessToken = '';
+  let archiveLoaded = false;
+
+  const buttonClass =
+    'shrink-0 rounded-full border border-accent px-3 py-1 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white disabled:opacity-50';
+
+  // One message card; in the inbox it can be marked replied, in the archive moved back.
+  function messageCard(m: ContactMessage): HTMLElement {
+    const contactParts = [m.email, m.phone, m.instagram, m.whatsapp && `WhatsApp: ${m.whatsapp}`].filter(Boolean).map((p) => escapeHtml(p as string));
+    const card = document.createElement('div');
+    card.className = 'contact-message rounded-2xl border border-border bg-surface p-5';
+    card.dataset.id = m.id;
+    card.innerHTML = `
+      <div class="flex items-baseline justify-between gap-3">
+        <p class="font-display text-lg font-bold text-ink">${escapeHtml(m.first_name)} ${escapeHtml(m.last_name)}</p>
+        <p class="text-xs text-muted">${dateFormatter.format(new Date(m.created_at))}</p>
+      </div>
+      <p class="mt-1 text-sm text-ink/70">${contactParts.join(' · ')}</p>
+      ${m.message ? `<p class="mt-3 whitespace-pre-line text-sm text-ink">${escapeHtml(m.message)}</p>` : ''}
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p class="text-xs text-muted">${m.replied_at ? `Replied ${dateFormatter.format(new Date(m.replied_at))}${m.replied_by ? ` by ${escapeHtml(m.replied_by)}` : ''}` : ''}</p>
+      </div>`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `${m.replied_at ? 'move-to-inbox-btn' : 'mark-replied-btn'} ${buttonClass}`;
+    button.textContent = m.replied_at ? 'Move back to inbox' : 'Mark as replied';
+    button.addEventListener('click', () => setReplied(m, !m.replied_at, card, button));
+    card.lastElementChild!.append(button);
+    return card;
+  }
+
+  function refreshEmptyStates() {
+    const inboxCount = list.querySelectorAll('.contact-message').length;
+    empty.classList.toggle('hidden', inboxCount > 0);
+    list.classList.toggle('hidden', inboxCount === 0);
+    list.classList.toggle('flex', inboxCount > 0);
+    if (archiveLoaded) repliedEmpty.classList.toggle('hidden', repliedList.querySelectorAll('.contact-message').length > 0);
+  }
+
+  async function setReplied(m: ContactMessage, replied: boolean, card: HTMLElement, button: HTMLButtonElement) {
+    button.disabled = true;
+    const res = await fetch('/api/admin/inbox-data', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: m.id, replied }),
+    });
+    if (!res.ok) {
+      button.disabled = false;
+      const body = await res.json().catch(() => ({}));
+      status.textContent = body.error ?? 'Failed to update the message.';
+      return;
+    }
+    card.remove();
+    const moved: ContactMessage = { ...m, replied_at: replied ? new Date().toISOString() : null, replied_by: null };
+    // Moved over without reloading: into the archive only if it has been
+    // loaded (otherwise it comes with the rest when opened), or back to the top of the inbox.
+    if (!replied) list.prepend(messageCard(moved));
+    else if (archiveLoaded) repliedList.prepend(messageCard(moved));
+    status.textContent = replied ? 'Marked as replied and moved to the archive.' : 'Moved back to the inbox.';
+    refreshEmptyStates();
+  }
+
+  async function loadArchive() {
+    archiveLoaded = true;
+    const res = await fetch('/api/admin/inbox-data?archive=replied', { headers: { Authorization: `Bearer ${accessToken}` } });
+    repliedLoading.classList.add('hidden');
+    if (!res.ok) {
+      archiveLoaded = false;
+      repliedLoading.textContent = 'Failed to load. Close and reopen to try again.';
+      repliedLoading.classList.remove('hidden');
+      return;
+    }
+    const { messages } = (await res.json()) as { messages: ContactMessage[] };
+    repliedList.replaceChildren(...messages.map(messageCard));
+    refreshEmptyStates();
+  }
+
+  archive.addEventListener('toggle', () => {
+    if (archive.open && !archiveLoaded) void loadArchive();
+  });
+
   async function init() {
     const gate = await checkAdminSession();
     if (gate.status !== 'admin') {
       showPanel(gate.status);
       return;
     }
-    const { session } = gate;
+    accessToken = gate.session.access_token;
 
-    const res = await fetch('/api/admin/inbox-data', { headers: { Authorization: `Bearer ${session.access_token}` } });
+    const res = await fetch('/api/admin/inbox-data', { headers: { Authorization: `Bearer ${accessToken}` } });
     if (!res.ok) {
       showPanel('notAdmin');
       return;
     }
-
-    const { messages } = await res.json();
+    const { messages } = (await res.json()) as { messages: ContactMessage[] };
 
     Object.values(panels).forEach((el) => {
       el.classList.add('hidden');
       el.classList.remove('flex');
     });
-
-    const list = document.getElementById('messages-list')!;
-    const empty = document.getElementById('messages-empty')!;
-
-    if (messages.length === 0) {
-      empty.classList.remove('hidden');
-      return;
-    }
-
-    list.classList.remove('hidden');
-    list.classList.add('flex');
-    list.innerHTML = messages
-      .map((m: any) => {
-        const contactParts = [m.email, m.phone, m.instagram, m.whatsapp && `WhatsApp: ${m.whatsapp}`].filter(Boolean).map(escapeHtml);
-        return `
-          <div class="rounded-2xl border border-border bg-surface p-5">
-            <div class="flex items-baseline justify-between gap-3">
-              <p class="font-display text-lg font-bold text-ink">${escapeHtml(m.first_name)} ${escapeHtml(m.last_name)}</p>
-              <p class="text-xs text-muted">${dateFormatter.format(new Date(m.created_at))}</p>
-            </div>
-            <p class="mt-1 text-sm text-ink/70">${contactParts.join(' · ')}</p>
-            ${m.message ? `<p class="mt-3 text-sm text-ink">${escapeHtml(m.message)}</p>` : ''}
-          </div>`;
-      })
-      .join('');
+    list.replaceChildren(...messages.map(messageCard));
+    archive.classList.remove('hidden');
+    refreshEmptyStates();
   }
 
   init();

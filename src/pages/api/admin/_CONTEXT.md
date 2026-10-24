@@ -22,7 +22,7 @@ One file per endpoint (Astro API routes, `export const GET`/`POST`). Every route
 | **Errors** | `site-errors.ts` (GET/POST) | The Errors workqueue (`lib/siteErrors.ts`): list, dismiss, and for a bounce update the email / resend the confirmation with admin BCC |
 | **Time zone** | `time-zone.ts` (GET/POST) | The site time zone setting (`lib/siteConfig.ts`) |
 | **Confirmations** | `resend-confirmation.ts` (POST) | Resends a sign-up's confirmation email to its dancers' current addresses (counts toward the daily confirmation cap, no admin BCC) |
-| **Inbox** | `inbox-data.ts` (GET), `unseen-count.ts` (GET) | Contact form messages (`contact_messages` table, not sign-ups); `unseen-count.ts` backs the nav badge in `Header.astro` |
+| **Inbox** | `inbox-data.ts` (GET), `unseen-count.ts` (GET) | Contact form messages (`contact_messages` table, not sign-ups): GET the ones not replied to, `?archive=replied` for the replied archive (loaded only when the inbox opens it); POST `{ id, replied }` marks one replied or moves it back (migration 0054); `unseen-count.ts` backs the nav badge in `Header.astro` |
 | **Recycling Bin** | `recycling-bin.ts` (GET, POST) | Lists everything flagged as deleted on the dashboard; POST `restore` (by `deletionId`) or `empty`, under the `recycling` edit lock |
 | **Misc** | `places-usage-check.ts` (GET) | Reports the daily Google Places API quota counter from `src/lib/apiUsage.ts` |
 

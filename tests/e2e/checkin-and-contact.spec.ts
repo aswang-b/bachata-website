@@ -89,3 +89,39 @@ test('the contact form saves the message (apart from sign-ups) and notifies the 
     expect(recipients(sent[0])).toEqual(admins);
   }
 });
+
+test('the inbox marks a message replied into a collapsed archive that only loads when opened, and can move it back', async ({ page, adminPage }) => {
+  void adminPage;
+  const { data: saved } = await db
+    .from('contact_messages')
+    .insert({ first_name: 'ZZZInbox', last_name: RUN_ID, email: `zzz-inbox-${RUN_ID.toLowerCase()}@example.com`, message: `ZZZ inbox message ${RUN_ID}` })
+    .select('id')
+    .single();
+  const archiveRequests: string[] = [];
+  page.on('request', (r) => {
+    if (r.url().includes('archive=replied')) archiveRequests.push(r.url());
+  });
+
+  await page.goto('/admin/inbox');
+  const card = page.locator(`#messages-list .contact-message[data-id="${saved!.id}"]`);
+  await expect(card).toContainText(`ZZZ inbox message ${RUN_ID}`);
+  await expect(page.locator('#replied-archive')).not.toHaveAttribute('open', '');
+
+  await card.locator('.mark-replied-btn').click();
+  await expect(page.locator('#messages-status')).toHaveText('Marked as replied and moved to the archive.');
+  await expect(card).toHaveCount(0);
+  const { data: replied } = await db.from('contact_messages').select('replied_at, replied_by').eq('id', saved!.id).single();
+  expect(replied!.replied_at).not.toBeNull();
+  // The archive hasn't been opened, so it hasn't been loaded.
+  expect(archiveRequests).toEqual([]);
+
+  await page.locator('#replied-archive summary').click();
+  const archived = page.locator(`#replied-list .contact-message[data-id="${saved!.id}"]`);
+  await expect(archived).toContainText('Replied');
+  expect(archiveRequests).toHaveLength(1);
+
+  await archived.locator('.move-to-inbox-btn').click();
+  await expect(page.locator(`#messages-list .contact-message[data-id="${saved!.id}"]`)).toBeVisible();
+  const { data: back } = await db.from('contact_messages').select('replied_at').eq('id', saved!.id).single();
+  expect(back!.replied_at).toBeNull();
+});
