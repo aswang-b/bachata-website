@@ -4,7 +4,9 @@
 
 ## Architecture
 
-Astro 7 (SSR via `@astrojs/netlify`) + Tailwind CSS 4 + Supabase, hosted on Netlify. Public marketing/registration/check-in pages plus an admin area (`/admin/*`, `/api/admin/*`) for managing class events, signups, check-ins, Google Calendar sync, and site settings. Full stack details and file tree: [project-structure.md](docs/ai-context/project-structure.md).
+Astro 7 (SSR via `@astrojs/netlify`) + Tailwind CSS 4 + Supabase, hosted on Netlify. Public marketing/registration/check-in pages plus an admin area (`/admin/*`, `/api/admin/*`) for managing class events, signups, check-ins, bundle deals, the contact inbox, an errors workqueue, Google Calendar sync, and site settings. Full stack details and file tree: [project-structure.md](docs/ai-context/project-structure.md).
+
+Every date and time follows one site time zone (admin → General; `src/lib/siteTime.ts`, loaded per request by `src/middleware.ts`), never the server's (UTC on Netlify) or the visitor's: format with `siteFormatter`, group days with `zonedDateKey`, and turn typed dates into instants with `zonedToInstant`.
 
 ## Development
 
@@ -20,7 +22,7 @@ This folder is synced by OneDrive, which can make the dev server miss file edits
 
 ## Testing
 
-Run `npm test` (unit tests, then the end-to-end suite) before pushing, and add a test for every bug fixed. The e2e suite runs against the shared live database with emails, Google Calendar and usage quotas switched off for its own dev server; see [tests/CONTEXT.md](tests/CONTEXT.md) for how it stays safe and what each test guards.
+Run `npm test` (unit tests, then the end-to-end suite) before pushing, and add a test for every bug fixed. The e2e suite runs against the shared live database with emails, Google Calendar and usage quotas switched off for its own dev server, which runs in UTC like Netlify; see [tests/CONTEXT.md](tests/CONTEXT.md) for how it stays safe and what each test guards.
 
 ## Documentation
 

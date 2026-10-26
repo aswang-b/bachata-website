@@ -35,7 +35,8 @@
 ├── supabase/migrations/                 # Numbered SQL migrations (0001-0054); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
-│   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker)
+│   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker; admin DealsAdmin, ErrorsQueue, SiteTimeZoneSetting)
+│   ├── middleware.ts                    # Loads the site time zone for each request (checks nothing else)
 │   ├── layouts/
 │   │   └── BaseLayout.astro
 │   ├── lib/                             # Server-side helpers
