@@ -12,6 +12,7 @@ export interface ClassOccurrenceRow {
   description?: string | null;
   location?: string | null;
   image_url?: string | null;
+  flyer_url?: string | null;
   event_type?: string;
   color?: string | null;
   registration_closed?: boolean;
@@ -57,6 +58,8 @@ export interface ClassSeriesEntry {
   description: string | null;
   location: string | null;
   imageUrl: string | null;
+  // The uncropped flyer (migration 0055); classes on the same flyer share it.
+  flyerUrl: string | null;
   eventType: string;
   nextStartTime: string;
   color: string;
@@ -136,6 +139,7 @@ export function buildClassSeriesList(events: ClassOccurrenceRow[], allEventsForT
       description: first.description ?? null,
       location: first.location ?? null,
       imageUrl: first.image_url ?? null,
+      flyerUrl: first.flyer_url ?? null,
       eventType: first.event_type ?? 'class',
       nextStartTime: first.start_time,
       color: first.color ?? 'accent',

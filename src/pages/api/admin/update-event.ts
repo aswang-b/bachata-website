@@ -103,6 +103,7 @@ const handlePost: APIRoute = async ({ request }) => {
     flashSaleUntil,
     registrationClosed,
     imageUrl,
+    flyerUrl,
     lessonOverviewTitle,
     lessonOverviewBody,
     hideLessonOverview,
@@ -143,6 +144,8 @@ const handlePost: APIRoute = async ({ request }) => {
   const rowFlashSaleUntil = toTimestamp(flashSaleUntil);
   const rowRegistrationClosed = Boolean(registrationClosed);
   const rowImageUrl = imageUrl || null;
+  // Left alone when a request doesn't send it, so saving from an older form can't clear the flyer.
+  const rowFlyerColumns = flyerUrl === undefined ? {} : { flyer_url: typeof flyerUrl === 'string' && flyerUrl ? flyerUrl : null };
   const rowLessonOverview = normalizeLessonOverviewOverride(lessonOverviewTitle, lessonOverviewBody);
   const rowHideLessonOverview = Boolean(hideLessonOverview);
   const rowCapacityColumns = capacityColumns(body ?? {}, rowEventType);
@@ -248,6 +251,7 @@ const handlePost: APIRoute = async ({ request }) => {
           flash_sale_until: rowFlashSaleUntil,
           registration_closed: rowRegistrationClosed,
           image_url: rowImageUrl,
+          ...rowFlyerColumns,
           lesson_overview_title: rowLessonOverview.title,
           lesson_overview_body: rowLessonOverview.body,
           hide_lesson_overview: rowHideLessonOverview,
@@ -308,6 +312,7 @@ const handlePost: APIRoute = async ({ request }) => {
           flash_sale_until: rowFlashSaleUntil,
           registration_closed: rowRegistrationClosed,
           image_url: rowImageUrl,
+          ...rowFlyerColumns,
           lesson_overview_title: rowLessonOverview.title,
           lesson_overview_body: rowLessonOverview.body,
           hide_lesson_overview: rowHideLessonOverview,
@@ -363,6 +368,7 @@ const handlePost: APIRoute = async ({ request }) => {
       flash_sale_until: rowFlashSaleUntil,
       registration_closed: rowRegistrationClosed,
       image_url: rowImageUrl,
+      ...rowFlyerColumns,
       lesson_overview_title: rowLessonOverview.title,
       lesson_overview_body: rowLessonOverview.body,
       hide_lesson_overview: rowHideLessonOverview,

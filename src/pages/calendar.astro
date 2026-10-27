@@ -41,7 +41,7 @@ const monthStart = zonedToInstant(`${monthKey(year, month)}-01`);
 const monthEnd = zonedToInstant(`${nextMonthParam}-01`);
 
 const EVENT_COLUMNS =
-  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity';
+  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, flyer_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity';
 
 const { data: monthEvents, error: monthError } = await supabase
   .from('events')
@@ -791,6 +791,24 @@ const MAX_BANNERS_PER_DAY = 3;
                 <p id="event-image-error" class="hidden text-xs font-semibold text-red-600"></p>
               </div>
 
+              {/* Shown whole (never cropped) on the flyer homepage. Classes on one flyer share it, so pick it again from "Use an existing flyer". */}
+              <div class="flex flex-col gap-2 border-t border-border pt-3">
+                <span class="text-xs font-semibold text-muted">Flyer (optional)</span>
+                <input id="event-flyer-url" type="hidden" />
+                <div class="flex flex-wrap items-center gap-3">
+                  <img id="event-flyer-preview" class="hidden h-24 w-auto rounded-lg border border-border object-contain" alt="" />
+                  <label class="cursor-pointer rounded-full border border-border px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-surface">
+                    <span id="event-flyer-upload-label">Upload Flyer</span>
+                    <input id="event-flyer-file" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" />
+                  </label>
+                  <button type="button" id="event-flyer-remove" class="hidden text-xs font-semibold text-red-600 hover:underline">Remove</button>
+                </div>
+                <select id="event-flyer-existing" class="hidden rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink">
+                  <option value="">Use an existing flyer&hellip;</option>
+                </select>
+                <p id="event-flyer-error" class="hidden text-xs font-semibold text-red-600"></p>
+              </div>
+
               <div class="flex flex-col gap-3 border-t border-border pt-3">
                 <span class="text-sm font-semibold text-ink/80">Lesson overview override</span>
                 <p class="text-xs text-muted">
@@ -991,6 +1009,7 @@ const MAX_BANNERS_PER_DAY = 3;
     price_drop_in: number | null;
     price_student: number | null;
     image_url: string | null;
+    flyer_url: string | null;
     registration_closed: boolean;
     price_whole_series_early_bird: number | null;
     price_drop_in_early_bird: number | null;
@@ -1461,6 +1480,10 @@ const MAX_BANNERS_PER_DAY = 3;
     imageUrlInput.value = event?.image_url ?? '';
     imageError.classList.add('hidden');
     updateImagePreview();
+    flyerUrlInput.value = event?.flyer_url ?? '';
+    flyerError.classList.add('hidden');
+    fillExistingFlyers();
+    updateFlyerPreview();
     selectedType = event?.event_type === 'event' ? 'event' : 'class';
     // A new event starts with the most recently used color.
     selectedColor = event?.color ?? (cachedAllEvents.length > 0 ? recentEventColors(cachedAllEvents)[0] : DEFAULT_QUICK_COLORS[0]);
@@ -1620,7 +1643,7 @@ const MAX_BANNERS_PER_DAY = 3;
       details: locationInput.value.trim() || 'No location yet',
       registration: [registrationClosedInput.checked ? 'Closed' : 'Open', privateInput.checked ? 'Private' : '', capacityText].filter(Boolean).join(' · '),
       pricing: prices.length ? prices.join(' · ') : isEvent ? 'Free' : 'No prices',
-      homepage: [imageUrlInput.value ? 'Image set' : 'No image', hideLessonOverviewInput.checked ? 'overview hidden' : overviewSet ? 'custom overview' : 'default overview'].join(' · '),
+      homepage: [imageUrlInput.value ? 'Image set' : 'No image', ...(flyerUrlInput.value ? ['flyer set'] : []), hideLessonOverviewInput.checked ? 'overview hidden' : overviewSet ? 'custom overview' : 'default overview'].join(' · '),
     };
     document.querySelectorAll<HTMLElement>('#event-modal [data-summary]').forEach((el) => {
       el.textContent = summaries[el.dataset.summary ?? ''] ?? '';
@@ -1727,6 +1750,92 @@ const MAX_BANNERS_PER_DAY = 3;
   imageRemoveBtn.addEventListener('click', () => {
     imageUrlInput.value = '';
     updateImagePreview();
+  });
+
+  const flyerUrlInput = document.getElementById('event-flyer-url') as HTMLInputElement;
+  const flyerFileInput = document.getElementById('event-flyer-file') as HTMLInputElement;
+  const flyerPreview = document.getElementById('event-flyer-preview') as HTMLImageElement;
+  const flyerUploadLabel = document.getElementById('event-flyer-upload-label')!;
+  const flyerRemoveBtn = document.getElementById('event-flyer-remove') as HTMLButtonElement;
+  const flyerExisting = document.getElementById('event-flyer-existing') as HTMLSelectElement;
+  const flyerError = document.getElementById('event-flyer-error')!;
+
+  function updateFlyerPreview() {
+    const url = flyerUrlInput.value;
+    flyerPreview.classList.toggle('hidden', !url);
+    flyerRemoveBtn.classList.toggle('hidden', !url);
+    if (url) flyerPreview.src = url;
+    else flyerPreview.removeAttribute('src');
+    flyerUploadLabel.textContent = url ? 'Replace Flyer' : 'Upload Flyer';
+    flyerExisting.value = '';
+  }
+
+  // Flyers already on other classes/events, newest first, labeled by what uses them.
+  function fillExistingFlyers() {
+    const titlesByUrl = new Map<string, Set<string>>();
+    const latestByUrl = new Map<string, string>();
+    for (const e of cachedAllEvents) {
+      if (!e.flyer_url) continue;
+      titlesByUrl.set(e.flyer_url, (titlesByUrl.get(e.flyer_url) ?? new Set()).add(e.title));
+      if ((latestByUrl.get(e.flyer_url) ?? '') < e.start_time) latestByUrl.set(e.flyer_url, e.start_time);
+    }
+    const urls = [...latestByUrl.keys()].sort((a, b) => latestByUrl.get(b)!.localeCompare(latestByUrl.get(a)!));
+    flyerExisting.replaceChildren(flyerExisting.options[0]);
+    for (const url of urls) {
+      const option = document.createElement('option');
+      option.value = url;
+      option.textContent = [...titlesByUrl.get(url)!].join(' + ');
+      flyerExisting.append(option);
+    }
+    flyerExisting.classList.toggle('hidden', urls.length === 0);
+  }
+
+  // Flyers upload uncropped, scaled down so the long side is at most 2000px.
+  async function shrinkFlyer(file: File): Promise<Blob> {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size <= 2 * 1024 * 1024) return file;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("That file couldn't be read as an image."))), 'image/jpeg', 0.9));
+  }
+
+  flyerFileInput.addEventListener('change', async () => {
+    const picked = flyerFileInput.files?.[0];
+    flyerFileInput.value = '';
+    if (!picked) return;
+    flyerError.classList.add('hidden');
+    flyerUploadLabel.textContent = 'Uploading…';
+    try {
+      const blob = await shrinkFlyer(picked);
+      const headers = await withAuthHeader();
+      if (!headers) return;
+      const body = new FormData();
+      const baseName = picked.name.replace(/\.[^.]+$/, '') || 'flyer';
+      body.append('file', blob === picked ? picked : new File([blob], `${baseName}-flyer.jpg`, { type: 'image/jpeg' }));
+      const res = await fetch('/api/admin/upload-event-image', { method: 'POST', headers, body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? 'Failed to upload flyer.');
+      flyerUrlInput.value = data.url;
+    } catch (err) {
+      flyerError.textContent = err instanceof Error ? err.message : 'Failed to upload flyer.';
+      flyerError.classList.remove('hidden');
+    } finally {
+      updateFlyerPreview();
+    }
+  });
+
+  flyerExisting.addEventListener('change', () => {
+    if (!flyerExisting.value) return;
+    flyerUrlInput.value = flyerExisting.value;
+    updateFlyerPreview();
+  });
+
+  flyerRemoveBtn.addEventListener('click', () => {
+    flyerUrlInput.value = '';
+    updateFlyerPreview();
   });
 
   function showSync(text: string, autoHide: boolean) {
@@ -1959,6 +2068,7 @@ const MAX_BANNERS_PER_DAY = 3;
       lessonOverviewBody: lessonOverviewBodyInput.innerHTML.trim(),
       hideLessonOverview: hideLessonOverviewInput.checked,
       imageUrl: imageUrlInput.value.trim(),
+      flyerUrl: flyerUrlInput.value.trim(),
       eventType: selectedType,
       capacity: capacityInput.value.trim(),
       showCapacity: showCapacityInput.checked,

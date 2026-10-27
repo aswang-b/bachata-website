@@ -2,7 +2,7 @@ import { test, expect } from './support/fixtures';
 import { db } from './support/db';
 
 // Every public page renders without a server error or a script crash.
-const PAGES = ['/', '/calendar', '/register', '/register/events', '/contact', '/check-in', '/about', '/privacy-policy'];
+const PAGES = ['/', '/calendar', '/register', '/register/events', '/contact', '/check-in', '/about', '/privacy-policy', '/test'];
 
 for (const path of PAGES) {
   test(`${path} loads cleanly`, async ({ page, pageErrors }) => {
