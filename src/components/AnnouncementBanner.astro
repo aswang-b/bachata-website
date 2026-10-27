@@ -9,8 +9,6 @@
 </div>
 
 <script>
-  const SESSION_DISMISS_KEY = 'bwb-banner-dismissed';
-
   async function initBanner() {
     const banner = document.getElementById('announcement-banner')!;
     const content = document.getElementById('announcement-banner-content')!;
@@ -21,26 +19,14 @@
       const { enabled, content: html } = await res.json();
       if (!enabled || !html) return;
 
-      let dismissed = '';
-      try {
-        dismissed = sessionStorage.getItem(SESSION_DISMISS_KEY) ?? '';
-      } catch {
-        // Private browsing / storage blocked — treat as not dismissed.
-      }
-      if (dismissed === html) return;
-
       content.innerHTML = html;
       banner.classList.remove('hidden');
       banner.classList.add('flex');
 
+      // Closing hides it for this page only; it's back on the next page load or refresh.
       closeBtn.addEventListener('click', () => {
         banner.classList.add('hidden');
         banner.classList.remove('flex');
-        try {
-          sessionStorage.setItem(SESSION_DISMISS_KEY, html);
-        } catch {
-          // Ignore storage failures — worst case it reappears next load.
-        }
       });
     } catch {
       // If the banner can't be fetched, just don't show it.
