@@ -24,6 +24,8 @@ export interface Deal {
   seriesKeys: string[];
   // null: every class in the deal; N: any N of them.
   requiredCount: number | null;
+  // The admin's own wording for the homepage card's note (migration 0056); null shows dealHomepageText's default.
+  homepageText?: string | null;
 }
 
 // One picked class for one dancer. `price` is what it costs without a deal.
@@ -141,6 +143,12 @@ export function suggestDeals(items: DealItem[], deals: Deal[], addable: { key: s
     if (!current || s.saving > current.saving) byKey.set(s.key, s);
   }
   return [...byKey.values()].sort((a, b) => b.saving - a.saving);
+}
+
+// The default note on the homepage card, after the deal's name:
+// "Both for $120, applied automatically when you register."
+export function dealHomepageDefault(deal: Pick<Deal, 'kind' | 'amount' | 'requiredCount' | 'seriesKeys'>): string {
+  return `${dealSummary(deal, deal.seriesKeys.length)}, applied automatically when you register.`;
 }
 
 // "Both for $40", "$10 off", "20% off", with "any 3" when it's an any-N deal.

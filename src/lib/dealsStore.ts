@@ -20,9 +20,10 @@ interface DealRow {
   starts_at: string | null;
   ends_at: string | null;
   active: boolean;
+  homepage_text: string | null;
 }
 
-const COLUMNS = 'id, name, kind, amount, series_keys, required_count, starts_at, ends_at, active';
+const COLUMNS = 'id, name, kind, amount, series_keys, required_count, starts_at, ends_at, active, homepage_text';
 const SAFE_KEY_RE = /^[A-Za-z0-9_-]+$/;
 const MAX_KEYS = 50;
 
@@ -37,6 +38,7 @@ function fromRow(r: DealRow): DealRecord {
     startsAt: r.starts_at,
     endsAt: r.ends_at,
     active: r.active,
+    homepageText: r.homepage_text,
   };
 }
 
@@ -82,6 +84,8 @@ export function validateDeal(input: unknown): { error: string } | { row: Omit<De
   const startsAt = date(d.startsAt);
   const endsAt = date(d.endsAt);
   if (startsAt && endsAt && endsAt <= startsAt) return { error: 'The end date has to be after the start date.' };
+  const homepageText = typeof d.homepageText === 'string' ? d.homepageText.trim() : '';
+  if (homepageText.length > 300) return { error: 'Keep the homepage text to 300 characters or fewer.' };
 
   return {
     row: {
@@ -93,6 +97,7 @@ export function validateDeal(input: unknown): { error: string } | { row: Omit<De
       starts_at: startsAt,
       ends_at: endsAt,
       active: d.active !== false,
+      homepage_text: homepageText || null,
     },
   };
 }

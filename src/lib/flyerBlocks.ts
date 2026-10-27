@@ -1,6 +1,6 @@
 import type { ClassSeriesEntry } from './classSeries';
 import { getActivePrice, priceTierLabel } from './pricing';
-import { dealSummary, type Deal } from './deals';
+import { dealHomepageDefault, type Deal } from './deals';
 import { siteFormatter } from './siteTime';
 
 // The flyer homepage (/test while it's being tried out): offerings advertised
@@ -79,15 +79,15 @@ export function priceOptions(offering: ClassSeriesEntry, now: Date): PriceOption
 }
 
 // Deals whose classes are all in this block (an "any N" deal needs N of them
-// here), described for the block: "Both for $140".
-export function blockDeals(offerings: ClassSeriesEntry[], deals: Deal[]): { name: string; summary: string }[] {
+// here), for the block's note: the admin's own text, or the name and the default.
+export function blockDeals(offerings: ClassSeriesEntry[], deals: Deal[]): { name: string; text: string; custom: boolean }[] {
   const keys = new Set(offerings.map((o) => o.key));
   return deals
     .filter((d) => {
       const here = d.seriesKeys.filter((k) => keys.has(k)).length;
       return d.requiredCount == null ? here === d.seriesKeys.length && here > 1 : here >= d.requiredCount;
     })
-    .map((d) => ({ name: d.name, summary: dealSummary(d, d.seriesKeys.length) }));
+    .map((d) => (d.homepageText ? { name: d.name, text: d.homepageText, custom: true } : { name: d.name, text: dealHomepageDefault(d), custom: false }));
 }
 
 // The first and last class of each series, past ones included (rows from

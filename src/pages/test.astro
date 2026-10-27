@@ -169,7 +169,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
 
                   {blockDealList.map((d) => (
                     <p class="rounded-2xl border border-dashed border-accent/50 px-4 py-2.5 text-sm text-ink">
-                      <span class="font-bold text-accent">{d.name}:</span> {d.summary}, applied automatically when you register.
+                      {d.custom ? d.text : <><span class="font-bold text-accent">{d.name}:</span> {d.text}</>}
                     </p>
                   ))}
                 </div>

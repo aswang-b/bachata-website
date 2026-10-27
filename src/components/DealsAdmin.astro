@@ -82,6 +82,11 @@ const buttonClass =
 
     <p id="deal-preview" class="text-sm font-semibold text-accent"></p>
 
+    <label class="flex flex-col gap-1.5">
+      <span class="text-sm font-medium text-ink/80">Homepage text <span class="text-xs text-muted">(optional; leave empty for the default shown)</span></span>
+      <textarea id="deal-homepage-text" rows="2" maxlength="300" class={inputClass}></textarea>
+    </label>
+
     <div class="flex flex-wrap items-center gap-2">
       <button type="submit" id="deal-save" class="gradient-accent rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white">Save Deal</button>
       <button type="button" id="deal-cancel" class={buttonClass}>Cancel</button>
@@ -93,7 +98,7 @@ const buttonClass =
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
   import { siteTimeZone } from '../lib/siteTime';
-  import { dealSummary, type DealKind } from '../lib/deals';
+  import { dealHomepageDefault, dealSummary, type DealKind } from '../lib/deals';
   import type { DealRecord } from '../lib/dealsStore';
 
   interface DealOption {
@@ -123,6 +128,7 @@ const buttonClass =
   const activeInput = document.getElementById('deal-active') as HTMLInputElement;
   const preview = document.getElementById('deal-preview')!;
   const typeNote = document.getElementById('deal-type-note')!;
+  const homepageTextInput = document.getElementById('deal-homepage-text') as HTMLTextAreaElement;
 
   let deals: DealRecord[] = [];
   let options: DealOption[] = [];
@@ -306,6 +312,9 @@ const buttonClass =
     const amount = Number(amountInput.value);
     const keys = selectedKeys();
     const requiredCount = ruleValue() === 'any' ? Number(requiredInput.value) || 2 : null;
+    // The homepage text's placeholder is the default note, kept in step with the form.
+    homepageTextInput.placeholder =
+      amount && keys.length >= 2 ? `${nameInput.value.trim() || 'Deal name'}: ${dealHomepageDefault({ kind, amount, requiredCount, seriesKeys: keys })}` : '';
     if (!amount || keys.length < 2) {
       preview.textContent = '';
       return;
@@ -333,6 +342,7 @@ const buttonClass =
     // The stored end is the moment after the last day; the field shows that day.
     endsInput.value = toDateInput(deal?.endsAt ? new Date(Date.parse(deal.endsAt) - 1).toISOString() : null);
     activeInput.checked = deal?.active ?? true;
+    homepageTextInput.value = deal?.homepageText ?? '';
     formStatus.textContent = '';
     renderOptions(deal?.seriesKeys ?? []);
     updatePreview();
@@ -396,6 +406,7 @@ const buttonClass =
       startsAt: dayBoundary(startsInput.value, false),
       endsAt: dayBoundary(endsInput.value, true),
       active: activeInput.checked,
+      homepageText: homepageTextInput.value,
     };
     const res = await fetch('/api/admin/deals', { method: 'POST', headers: await authHeaders(), body: JSON.stringify(payload) });
     const body = await res.json().catch(() => ({}));
@@ -427,7 +438,7 @@ const buttonClass =
     openForm(null);
   });
   document.getElementById('deal-cancel')!.addEventListener('click', closeForm);
-  [kindSelect, amountInput, requiredInput].forEach((el) => el.addEventListener('input', updatePreview));
+  [nameInput, kindSelect, amountInput, requiredInput].forEach((el) => el.addEventListener('input', updatePreview));
   form.querySelectorAll('input[name="deal-rule"]').forEach((r) => r.addEventListener('change', updatePreview));
   // Loads the first time the tab is opened.
   document.querySelector('.admin-tab-btn[data-tab="deals"]')?.addEventListener('click', () => void ensureLoaded());

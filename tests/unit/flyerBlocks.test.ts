@@ -58,6 +58,8 @@ describe('flyer homepage blocks', () => {
     const offerings = buildClassSeriesList([...series('sensual'), ...series('head')]);
     const both: Deal = { id: 'd', name: 'Full pass', kind: 'bundle_price', amount: 140, seriesKeys: ['sensual', 'head'], requiredCount: null };
     const elsewhere: Deal = { ...both, id: 'e', seriesKeys: ['sensual', 'salsa'] };
-    expect(blockDeals(offerings, [both, elsewhere])).toEqual([{ name: 'Full pass', summary: 'Both for $140' }]);
+    expect(blockDeals(offerings, [both, elsewhere])).toEqual([{ name: 'Full pass', text: 'Both for $140, applied automatically when you register.', custom: false }]);
+    // An admin's own wording replaces the whole note.
+    expect(blockDeals(offerings, [{ ...both, homepageText: 'Take both for $140!' }])).toEqual([{ name: 'Full pass', text: 'Take both for $140!', custom: true }]);
   });
 });
