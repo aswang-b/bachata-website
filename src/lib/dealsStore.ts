@@ -62,6 +62,16 @@ export async function listActiveDeals(now = new Date()): Promise<Deal[]> {
     .filter((d) => (!d.startsAt || Date.parse(d.startsAt) <= t) && (!d.endsAt || Date.parse(d.endsAt) > t));
 }
 
+// For "any N" deals among `ids` (ended or paused ones too): deal id → N. A
+// failed read just means none are known (logged).
+export async function dealBundleSizes(ids: string[]): Promise<Map<string, number>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+  const { data, error } = await supabase.from('deals').select('id, required_count').in('id', unique);
+  if (error) console.error('Failed to load deals:', error.message);
+  return new Map((data ?? []).flatMap((d) => (d.required_count ? [[d.id as string, d.required_count as number] as const] : [])));
+}
+
 // An admin's deal from the Deals tab, checked: what's wrong with it, or the
 // row to save.
 export function validateDeal(input: unknown): { error: string } | { row: Omit<DealRow, 'id'> } {

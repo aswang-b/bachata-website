@@ -31,6 +31,14 @@ describe('site time zone', () => {
     expect(siteTimeZone()).toBe('America/Chicago');
   });
 
+  it("a typed day runs from its midnight to the next day's, in the site zone, even on a DST change (a deal's Starts/Ends)", () => {
+    // Reading the offset at noon put the start of Nov 1 at 06:00Z, an hour late.
+    expect(zonedToInstant('2026-11-01').toISOString()).toBe('2026-11-01T05:00:00.000Z');
+    expect(zonedToInstant(addDaysToKey('2026-11-01', 1)).toISOString()).toBe('2026-11-02T06:00:00.000Z');
+    expect(zonedToInstant('2026-03-08').toISOString()).toBe('2026-03-08T06:00:00.000Z');
+    expect(zonedToInstant(addDaysToKey('2026-03-08', 1)).toISOString()).toBe('2026-03-09T05:00:00.000Z');
+  });
+
   it("today's bounds are the site zone's midnights (a DST day is 25 hours)", () => {
     expect(siteDayBoundsUtcIso(new Date('2026-11-01T12:00:00Z'))).toEqual({ startIso: '2026-11-01T05:00:00.000Z', endIso: '2026-11-02T06:00:00.000Z' });
   });

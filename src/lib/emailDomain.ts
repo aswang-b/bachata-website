@@ -10,7 +10,21 @@ const LOOKUP_TIMEOUT_MS = 2500;
 const CACHE_MS = 60 * 60 * 1000;
 const DOMAIN_RE = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
 
+// Bounded, since anyone can ask about any domain: oldest entries go first.
+export const CACHE_MAX = 1000;
 const cache = new Map<string, { ok: boolean; at: number }>();
+
+export const domainCacheSize = () => cache.size;
+
+function remember(domain: string, ok: boolean) {
+  cache.delete(domain);
+  if (cache.size >= CACHE_MAX) {
+    const now = Date.now();
+    for (const [d, v] of cache) if (now - v.at >= CACHE_MS) cache.delete(d);
+    while (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
+  }
+  cache.set(domain, { ok, at: Date.now() });
+}
 
 // Errors that mean the domain or its mail records don't exist.
 const MISSING = new Set(['ENOTFOUND', 'ENODATA', 'ENONAME', 'NXDOMAIN', 'ESERVFAIL_NX']);
@@ -49,6 +63,6 @@ export async function domainAcceptsMail(rawDomain: string): Promise<boolean> {
     const aaaa = a ? true : await hasRecords(() => dns.resolve6(domain));
     ok = a !== false || aaaa !== false;
   }
-  cache.set(domain, { ok, at: Date.now() });
+  remember(domain, ok);
   return ok;
 }

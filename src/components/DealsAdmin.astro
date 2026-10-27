@@ -97,7 +97,7 @@ const buttonClass =
 
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
-  import { siteTimeZone } from '../lib/siteTime';
+  import { addDaysToKey, siteFormatter, zonedDateKey, zonedToInstant } from '../lib/siteTime';
   import { dealHomepageDefault, dealSummary, type DealKind } from '../lib/deals';
   import type { DealRecord } from '../lib/dealsStore';
 
@@ -137,7 +137,7 @@ const buttonClass =
   let firstLoad: Promise<void> | null = null;
   const ensureLoaded = () => (firstLoad ??= load());
 
-  const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: siteTimeZone() });
+  const dateFormatter = siteFormatter({ month: 'short', day: 'numeric' });
   const money = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
 
   async function authHeaders(): Promise<Record<string, string>> {
@@ -328,7 +328,7 @@ const buttonClass =
     preview.textContent = text;
   }
 
-  const toDateInput = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: siteTimeZone() }) : '');
+  const toDateInput = (iso: string | null) => (iso ? zonedDateKey(iso) : '');
 
   function openForm(deal: DealRecord | null) {
     editingId = deal?.id ?? null;
@@ -374,21 +374,12 @@ const buttonClass =
     renderList();
   }
 
-  // A date picked in the form is a whole day in Chicago time: Starts from its
-  // first moment, Ends through its last.
+  // A date picked in the form is a whole day in the site's zone: Starts from
+  // its first moment, Ends through its last (the next day's midnight, so a
+  // 23- or 25-hour day keeps its length).
   function dayBoundary(value: string, end: boolean): string | null {
     if (!value) return null;
-    const [y, m, d] = value.split('-').map(Number);
-    // Chicago's offset from UTC that day (read at noon UTC), to find its midnight.
-    const noon = new Date(Date.UTC(y, m - 1, d, 12));
-    const parts = Object.fromEntries(
-      new Intl.DateTimeFormat('en-US', { timeZone: siteTimeZone(), hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
-        .formatToParts(noon)
-        .map((p) => [p.type, Number(p.value)])
-    );
-    const chicagoWall = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute);
-    const midnight = Date.UTC(y, m - 1, d) + (noon.getTime() - chicagoWall);
-    return new Date(end ? midnight + 86400000 : midnight).toISOString();
+    return zonedToInstant(end ? addDaysToKey(value, 1) : value).toISOString();
   }
 
   form.addEventListener('submit', async (e) => {

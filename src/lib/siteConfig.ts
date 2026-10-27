@@ -10,8 +10,14 @@ let cached: { tz: string; at: number } | null = null;
 export async function loadSiteTimeZone(): Promise<string> {
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.tz;
   const { data, error } = await supabase.from('site_config').select('time_zone').eq('id', true).maybeSingle();
-  if (error) console.error('Failed to load the site time zone:', error.message);
-  // Before migration 0051 (or on an error): what the site has always used.
+  if (error) {
+    // A failed read isn't the saved setting: keep the last good zone (even if
+    // it's older than a minute) and try again on the next request, rather than
+    // switching the site to the default for a minute.
+    console.error('Failed to load the site time zone:', error.message);
+    return cached?.tz ?? DEFAULT_TIME_ZONE;
+  }
+  // Before migration 0051: what the site has always used.
   const tz = isValidTimeZone(data?.time_zone) ? data!.time_zone : DEFAULT_TIME_ZONE;
   cached = { tz, at: Date.now() };
   return tz;

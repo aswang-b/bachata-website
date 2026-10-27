@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { getActivePrice, type PriceTier } from './pricing';
 import { buildClassSeriesList } from './classSeries';
 import { applyDeals, type Deal } from './deals';
-import { listActiveDeals } from './dealsStore';
+import { dealBundleSizes, listActiveDeals } from './dealsStore';
 import { lateRegistrationCutoffIso, registrationOpen } from './eventTimes';
 
 export interface ParsedClassSelection {
@@ -277,11 +277,17 @@ function buildRegistrationRows(
     // And the reverse: a class with only a drop-in price (no whole/flat price)
     // can only ever be a drop-in, whatever mode the client sent.
     const dropInOnly = dropInAvailable && info?.whole == null;
-    const effectiveMode: ParsedClassSelection['mode'] = dropInOnly
-      ? 'dropin'
-      : sel.mode === 'dropin' && !dropInAvailable
-        ? 'whole'
-        : sel.mode;
+    // An event sells one ticket at its whole-series price, as the form shows
+    // it (the editor has no drop-in price for events; one left over from when
+    // it was a class is ignored), so it's never a drop-in and counts toward deals.
+    const isEventTicket = info?.eventType === 'event';
+    const effectiveMode: ParsedClassSelection['mode'] = isEventTicket
+      ? null
+      : dropInOnly
+        ? 'dropin'
+        : sel.mode === 'dropin' && !dropInAvailable
+          ? 'whole'
+          : sel.mode;
     const isDropIn = effectiveMode === 'dropin';
 
     const priceResult = getActivePrice(now, {
@@ -439,6 +445,7 @@ export function resolveClassSelections(classRaw: string | null | undefined, clas
 // Snapshots one row per (dancer, class) pair at submission time — price is
 // looked up once here and stored, so a later class rename/price change
 // doesn't retroactively change what a past registration is shown to owe.
+// Throws if the rows can't be saved, so the caller doesn't report success.
 export async function insertClassRegistrations(params: {
   submissionId: string;
   classRaw: string | null;
@@ -467,7 +474,7 @@ export async function insertClassRegistrations(params: {
   if (rows.length === 0) return;
 
   const { error } = await supabase.from('class_registrations').insert(rows);
-  if (error) console.error('Failed to insert class registrations:', error.message);
+  if (error) throw new Error(`Failed to save the class registrations: ${error.message}`);
 }
 
 type SavedPricing = Pick<ClassRegistrationRow, 'series_mode' | 'occurrence_event_id' | 'price' | 'price_tier' | 'deal_id' | 'deal_name' | 'deal_discount'> & { series_key: string | null };
@@ -478,8 +485,11 @@ type RebuiltRow = ReturnType<typeof buildRegistrationRows>[number];
 // edit never re-prices what didn't change (an early bird that has since
 // ended, a deal that has since ended or been paused). A deal only stays while
 // the dancer still has every class it covered; otherwise the classes left go
-// back to the full price they were saved at. Mutates and returns the rows.
-export function carryOverPricing<T extends RebuiltRow>(rows: T[], saved: SavedPricing[]): T[] {
+// back to the full price they were saved at. An "any N" deal can apply more
+// than once (6 workshops on "any 3" are two bundles), so `bundleSizes` (deal
+// id → N) lets the whole bundles that are left keep it; only the broken
+// one's classes go back to full price. Mutates and returns the rows.
+export function carryOverPricing<T extends RebuiltRow>(rows: T[], saved: SavedPricing[], bundleSizes: Map<string, number> = new Map()): T[] {
   const matchKey = (r: Pick<SavedPricing, 'series_key' | 'series_mode' | 'occurrence_event_id'>) => [r.series_key, r.series_mode, r.occurrence_event_id ?? ''].join('|');
   const unused = [...saved];
   const kept = new Map<T, SavedPricing>();
@@ -491,9 +501,19 @@ export function carryOverPricing<T extends RebuiltRow>(rows: T[], saved: SavedPr
   }
   const dealGroup = (s: SavedPricing) => `${s.deal_id ?? ''}|${s.deal_name}`;
   const brokenDeals = new Set(unused.filter((s) => s.deal_name).map(dealGroup));
+  // For a broken repeating deal: how many of its kept classes still make up whole bundles.
+  const stillWhole = new Map<string, number>();
+  for (const group of brokenDeals) {
+    const keptInGroup = [...kept.values()].filter((s) => s.deal_name && dealGroup(s) === group);
+    const size = keptInGroup[0]?.deal_id ? bundleSizes.get(keptInGroup[0].deal_id) : undefined;
+    stillWhole.set(group, size ? Math.floor(keptInGroup.length / size) * size : 0);
+  }
   for (const [row, s] of kept) {
     row.price_tier = s.price_tier;
-    if (s.deal_name && !brokenDeals.has(dealGroup(s))) {
+    const group = dealGroup(s);
+    const keepsDeal = Boolean(s.deal_name) && (!brokenDeals.has(group) || (stillWhole.get(group) ?? 0) > 0);
+    if (s.deal_name && brokenDeals.has(group) && keepsDeal) stillWhole.set(group, stillWhole.get(group)! - 1);
+    if (keepsDeal && s.deal_name) {
       row.price = s.price;
       row.deal_id = s.deal_id ?? null;
       row.deal_name = s.deal_name;
@@ -539,9 +559,11 @@ export async function replaceClassRegistrations(params: {
 
   const selections = await sanitizeOccurrenceIds(parsed);
   const priceMap = await lookupClassPrices(selections, params.eventType);
+  const savedRows = (saved ?? []) as SavedPricing[];
+  const [bundleSizes, activeDeals] = await Promise.all([dealBundleSizes(savedRows.flatMap((s) => (s.deal_id ? [s.deal_id] : []))), listActiveDeals()]);
   const rows = applyDealsToRows(
-    carryOverPricing(buildRegistrationRows(params.submissionId, params.dancerIndex, params.dancer, selections, priceMap), (saved ?? []) as SavedPricing[]),
-    await listActiveDeals()
+    carryOverPricing(buildRegistrationRows(params.submissionId, params.dancerIndex, params.dancer, selections, priceMap), savedRows, bundleSizes),
+    activeDeals
   );
 
   const { error } = await supabase.from('class_registrations').insert(rows);

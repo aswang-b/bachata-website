@@ -34,6 +34,20 @@ function parseOccurrenceUpdates(raw: unknown): DropInOccurrenceUpdate[] {
   });
 }
 
+// Saves a just-created sign-up's class/event registrations. If that fails,
+// the sign-up is removed again so it isn't left with nothing attached (out of
+// the class's or event's list and spot count) while the admin is told it worked.
+async function saveRegistrationsOrUndo(submissionId: string, params: Parameters<typeof insertClassRegistrations>[0]): Promise<boolean> {
+  try {
+    await insertClassRegistrations(params);
+    return true;
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : err);
+    await supabase.from('intake_submissions').delete().eq('id', submissionId);
+    return false;
+  }
+}
+
 interface Dancer {
   firstName?: string;
   lastName?: string;
@@ -83,7 +97,7 @@ export const POST: APIRoute = async ({ request }) => {
       .select('id')
       .single();
     if (error || !newRow) return new Response(JSON.stringify({ error: 'Failed to create the registration.' }), { status: 500 });
-    await insertClassRegistrations({
+    const saved = await saveRegistrationsOrUndo(newRow.id, {
       submissionId: newRow.id,
       classRaw: className || null,
       classSelectionsRaw,
@@ -94,6 +108,7 @@ export const POST: APIRoute = async ({ request }) => {
       fallbackPhone: phone || null,
       eventType: 'event',
     });
+    if (!saved) return new Response(JSON.stringify({ error: 'Failed to save the registration. Please try again.' }), { status: 500 });
     return new Response(JSON.stringify({ ok: true, submissionId: newRow.id }), { status: 200 });
   }
 
@@ -126,7 +141,7 @@ export const POST: APIRoute = async ({ request }) => {
       .single();
     if (error || !newRow) return new Response(JSON.stringify({ error: 'Failed to create sign-up.' }), { status: 500 });
 
-    await insertClassRegistrations({
+    const saved = await saveRegistrationsOrUndo(newRow.id, {
       submissionId: newRow.id,
       classRaw: className || null,
       classSelectionsRaw: serializeClassSelections(body.classSelections),
@@ -138,6 +153,7 @@ export const POST: APIRoute = async ({ request }) => {
       // Always a group sign-up, so a selection without a key matches a class by title.
       eventType: 'class',
     });
+    if (!saved) return new Response(JSON.stringify({ error: 'Failed to save the sign-up. Please try again.' }), { status: 500 });
 
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }

@@ -25,6 +25,25 @@ const COMMON_DOMAINS = [
   'madisoncollege.edu',
 ];
 
+// Real mail domains a letter or two from a common one (mail.com → gmail.com,
+// aim.com → aol.com): never "corrected".
+const REAL_DOMAINS = ['mail.com', 'email.com', 'aim.com', 'gmx.com', 'gmx.net', 'gmx.de', 'mail.ru', 'zoho.com', 'yandex.com', 'hey.com', 'pm.me', 'fastmail.com', 'rocketmail.com'];
+
+// Providers with country domains of their own (yahoo.ca, live.ca, hotmail.fr):
+// one of these names on a two-letter country ending is left alone. Not .co,
+// which is the usual slip for .com.
+const COUNTRY_PROVIDERS = ['yahoo', 'hotmail', 'live', 'outlook', 'msn'];
+
+function isCountryVariant(domain: string): boolean {
+  const labels = domain.split('.');
+  const tld = labels[labels.length - 1];
+  const name = labels[0];
+  if (!COUNTRY_PROVIDERS.includes(name) || labels.length < 2) return false;
+  // yahoo.co.uk, yahoo.com.mx
+  if (labels.length === 3 && ['co', 'com'].includes(labels[1]) && tld.length === 2) return true;
+  return labels.length === 2 && tld.length === 2 && tld !== 'co';
+}
+
 // Endings that are almost always a slip for a common one (not .co, .cm or
 // .om, which are real country domains).
 const TLD_FIXES: Record<string, string> = {
@@ -63,7 +82,7 @@ export function suggestEmail(email: string): string | null {
   if (at < 1) return null;
   const local = email.slice(0, at);
   const domain = email.slice(at + 1).trim().toLowerCase();
-  if (!domain || COMMON_DOMAINS.includes(domain)) return null;
+  if (!domain || COMMON_DOMAINS.includes(domain) || REAL_DOMAINS.includes(domain) || isCountryVariant(domain)) return null;
 
   // Closest common domain, one or two edits away (only one for short ones, so
   // "me.co" isn't turned into something unrelated).

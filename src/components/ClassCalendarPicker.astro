@@ -90,6 +90,7 @@ const {
 
 <script>
   import { eventDotStyle } from '../lib/eventColors';
+  import { siteFormatter, zonedDateKey, zonedParts, zonedToInstant } from '../lib/siteTime';
 
   interface ClassEvent {
     id: string;
@@ -115,21 +116,24 @@ const {
     const seriesRadios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="series_choice_radio"]'));
 
 
-    const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
-    const dateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
-    const fullDateFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    // Days and times in the site's zone, wherever the visitor is.
+    const timeFormatter = siteFormatter({ hour: 'numeric', minute: '2-digit' });
+    const dateFormatter = siteFormatter({ weekday: 'short', month: 'short', day: 'numeric' });
+    const monthFormatter = siteFormatter({ month: 'long', year: 'numeric' });
+    const fullDateFormatter = siteFormatter({ weekday: 'long', month: 'long', day: 'numeric' });
 
-    const firstEventDate = events.length ? new Date(events[0].start_time) : new Date();
-    let viewYear = firstEventDate.getFullYear();
-    let viewMonth = firstEventDate.getMonth();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    // A grid day as "YYYY-MM-DD", and its noon in the site zone for formatting.
+    const dayKey = (year: number, month: number, day: number) => `${year}-${pad(month + 1)}-${pad(day)}`;
+    const dayInstant = (key: string) => zonedToInstant(key, '12:00');
+
+    const firstEventDate = zonedParts(events.length ? events[0].start_time : Date.now());
+    let viewYear = firstEventDate.year;
+    let viewMonth = firstEventDate.month - 1;
     let selectedEvent: ClassEvent | null = null;
 
-    function eventsOnDate(date: Date) {
-      return events.filter((e) => {
-        const d = new Date(e.start_time);
-        return d.getFullYear() === date.getFullYear() && d.getMonth() === date.getMonth() && d.getDate() === date.getDate();
-      });
+    function eventsOnDate(key: string) {
+      return events.filter((e) => zonedDateKey(e.start_time) === key);
     }
 
     function updateHiddenValue() {
@@ -149,8 +153,8 @@ const {
 
     seriesRadios.forEach((r) => r.addEventListener('change', updateHiddenValue));
 
-    function renderOptionsForDate(date: Date) {
-      const dayEvents = eventsOnDate(date);
+    function renderOptionsForDate(key: string) {
+      const dayEvents = eventsOnDate(key);
       optionsEl.innerHTML = '';
       seriesChoiceEl.classList.add('hidden');
       seriesChoiceEl.classList.remove('flex');
@@ -192,19 +196,20 @@ const {
     }
 
     function render() {
-      monthLabelEl.textContent = monthFormatter.format(new Date(viewYear, viewMonth, 1));
+      monthLabelEl.textContent = monthFormatter.format(dayInstant(dayKey(viewYear, viewMonth, 1)));
       cellsEl.innerHTML = '';
 
-      const startWeekday = new Date(viewYear, viewMonth, 1).getDay();
-      const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+      const startWeekday = new Date(Date.UTC(viewYear, viewMonth, 1)).getUTCDay();
+      const daysInMonth = new Date(Date.UTC(viewYear, viewMonth + 1, 0)).getUTCDate();
 
       for (let i = 0; i < startWeekday; i++) {
         cellsEl.appendChild(document.createElement('div'));
       }
 
       for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(viewYear, viewMonth, day);
-        const dayEvents = eventsOnDate(date);
+        const key = dayKey(viewYear, viewMonth, day);
+        const date = dayInstant(key);
+        const dayEvents = eventsOnDate(key);
         const cell = document.createElement('button');
         cell.type = 'button';
         const hasEvents = dayEvents.length > 0;
@@ -241,7 +246,7 @@ const {
             });
             cell.classList.add('bg-accent', 'text-white');
             cell.setAttribute('aria-selected', 'true');
-            renderOptionsForDate(date);
+            renderOptionsForDate(key);
           });
         }
         cellsEl.appendChild(cell);
@@ -313,11 +318,11 @@ const {
     if (preselectKey) {
       const target = events.find((e) => (e.google_recurring_event_id ?? e.id) === preselectKey);
       if (target) {
-        const targetDate = new Date(target.start_time);
-        viewYear = targetDate.getFullYear();
-        viewMonth = targetDate.getMonth();
+        const targetDate = zonedParts(target.start_time);
+        viewYear = targetDate.year;
+        viewMonth = targetDate.month - 1;
         render();
-        const cell = cellsEl.querySelector<HTMLButtonElement>(`button[data-day="${targetDate.getDate()}"]`);
+        const cell = cellsEl.querySelector<HTMLButtonElement>(`button[data-day="${targetDate.day}"]`);
         cell?.click();
         const optionBtn = optionsEl.querySelector<HTMLButtonElement>(`button[data-event-id="${target.id}"]`);
         optionBtn?.click();

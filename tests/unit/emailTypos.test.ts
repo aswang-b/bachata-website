@@ -23,4 +23,17 @@ describe('email typo suggestions', () => {
     expect(suggestEmail('deb@example.com')).toBeNull();
     expect(suggestEmail('not an email')).toBeNull();
   });
+
+  it("leaves real providers that are an edit or two from a common one alone (they were 'corrected' before)", () => {
+    expect(suggestEmail('deb@mail.com')).toBeNull();
+    expect(suggestEmail('deb@aim.com')).toBeNull();
+    expect(suggestEmail('deb@gmx.com')).toBeNull();
+    expect(suggestEmail('deb@yahoo.ca')).toBeNull();
+    expect(suggestEmail('deb@live.ca')).toBeNull();
+    expect(suggestEmail('deb@hotmail.fr')).toBeNull();
+    expect(suggestEmail('deb@yahoo.co.uk')).toBeNull();
+    // Still slips: .co for .com, and a misspelled provider.
+    expect(suggestEmail('deb@yahoo.co')).toBe('deb@yahoo.com');
+    expect(suggestEmail('deb@yaho.com')).toBe('deb@yahoo.com');
+  });
 });

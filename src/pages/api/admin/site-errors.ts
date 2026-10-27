@@ -6,6 +6,7 @@ import { checkAndIncrementUsage } from '../../../lib/apiUsage';
 import { getConfirmationBccEmails } from '../../../lib/notificationSettings';
 import { buildRegistrationConfirmation, CONFIRMATION_EMAIL_DAILY_CAP } from '../../../lib/registrationConfirmation';
 import { closeSiteError, getOpenSiteError, listOpenSiteErrors } from '../../../lib/siteErrors';
+import { isDeletedDancer } from '../../../lib/recyclingBin';
 
 export const prerender = false;
 
@@ -68,6 +69,33 @@ async function currentEmail(submissionId: string, dancerIndex: number | null): P
   return data.email || null;
 }
 
+// Writes a dancer's (or a single-person sign-up's) corrected email. The
+// dancers list is only written back if nobody changed it since it was read
+// (e.g. another admin moving a dancer to the Recycling Bin), retrying on a
+// fresh copy otherwise, so a concurrent edit is never overwritten.
+async function saveDancerEmail(submissionId: string, dancerIndex: number | null, email: string): Promise<'ok' | 'not-found' | 'failed'> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data: row } = await supabase.from('intake_submissions').select('dancers').eq('id', submissionId).is('deleted_at', null).maybeSingle();
+    if (!row) return 'not-found';
+    const dancers = Array.isArray(row.dancers) ? [...(row.dancers as Record<string, unknown>[])] : null;
+    const update: Record<string, unknown> = {};
+    if (dancers && dancerIndex != null) {
+      // A dancer in the Recycling Bin can only come back through a restore.
+      if (!dancers[dancerIndex] || isDeletedDancer(dancers[dancerIndex])) return 'not-found';
+      dancers[dancerIndex] = { ...dancers[dancerIndex], email };
+      update.dancers = dancers;
+    }
+    // The sign-up's own email mirrors its first dancer.
+    if (dancerIndex == null || dancerIndex === 0) update.email = email;
+    let query = supabase.from('intake_submissions').update(update).eq('id', submissionId).is('deleted_at', null);
+    if (update.dancers) query = query.eq('dancers', JSON.stringify(row.dancers));
+    const { data: written, error } = await query.select('id');
+    if (error) return 'failed';
+    if (written && written.length > 0) return 'ok';
+  }
+  return 'failed';
+}
+
 // Admin → Dashboard → Errors: the open errors (a bounce lists the sign-ups
 // using that address), and their actions.
 export const GET: APIRoute = async ({ request }) => {
@@ -112,18 +140,8 @@ export const POST: APIRoute = async ({ request }) => {
     if (body.action === 'update-email') {
       const email = typeof body.email === 'string' ? body.email.trim() : '';
       if (!EMAIL_RE.test(email) || email.length > 200) return json({ error: "That email address isn't in a valid format." }, 400);
-      const { data: row } = await supabase.from('intake_submissions').select('dancers').eq('id', submissionId).is('deleted_at', null).maybeSingle();
-      if (!row) return json({ error: 'Sign-up not found.' }, 404);
-      const dancers = Array.isArray(row.dancers) ? [...(row.dancers as Record<string, unknown>[])] : null;
-      const update: Record<string, unknown> = {};
-      if (dancers && dancerIndex != null && dancers[dancerIndex]) {
-        dancers[dancerIndex] = { ...dancers[dancerIndex], email };
-        update.dancers = dancers;
-      }
-      // The sign-up's own email mirrors its first dancer.
-      if (dancerIndex == null || dancerIndex === 0) update.email = email;
-      const { error: subError } = await supabase.from('intake_submissions').update(update).eq('id', submissionId);
-      if (subError) return json({ error: 'Failed to update the sign-up.' }, 500);
+      const saved = await saveDancerEmail(submissionId, dancerIndex, email);
+      if (saved !== 'ok') return json({ error: saved === 'not-found' ? 'Sign-up not found.' : 'Failed to update the sign-up.' }, saved === 'not-found' ? 404 : 500);
       let regs = supabase.from('class_registrations').update({ email }).eq('submission_id', submissionId).is('deleted_at', null);
       regs = dancerIndex == null ? regs.is('dancer_index', null) : regs.eq('dancer_index', dancerIndex);
       const { error: regError } = await regs;

@@ -61,6 +61,17 @@ describe('codebase rules', () => {
     expect(missing).toEqual([]);
   });
 
+  it('dates follow the site time zone: no visitor/server-zone Date getters or hand-built formatters outside siteTime.ts', () => {
+    // Use siteFormatter / zonedParts / zonedDateKey instead. A formatter pinned
+    // to UTC (a calendar date with no time of day) is fine.
+    const offenders = filesUnder('src', ['.ts', '.astro'])
+      .filter((f) => !f.replace(/\\/g, '/').endsWith('lib/siteTime.ts'))
+      .flatMap((f) => read(f).split('\n').map((line, i) => `${f}:${i + 1}: ${line.trim()}`))
+      .filter((line) => /\.(getFullYear|getMonth|getDate|getDay|getHours|getMinutes)\(\)|toLocale(Date|Time)?String\(|new Intl\.DateTimeFormat\(/.test(line))
+      .filter((line) => !/timeZone: 'UTC'/.test(line));
+    expect(offenders).toEqual([]);
+  });
+
   it('test-mode switches are only honored by the dev server', () => {
     expect(read('src/lib/testMode.ts')).toMatch(/env\?\.DEV/);
   });

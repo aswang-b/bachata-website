@@ -20,7 +20,7 @@
 
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
-  import { siteTimeZone } from '../lib/siteTime';
+  import { siteFormatter } from '../lib/siteTime';
 
   interface Signup {
     submissionId: string;
@@ -45,7 +45,7 @@
   const empty = document.getElementById('errors-empty')!;
   const status = document.getElementById('errors-status')!;
   const tabCount = document.getElementById('errors-tab-count');
-  const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: siteTimeZone() });
+  const dateFormatter = siteFormatter({ month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   const KIND_LABELS: Record<string, string> = {
     email_bounce: 'Bounced email',
     google_api: 'Google Calendar',

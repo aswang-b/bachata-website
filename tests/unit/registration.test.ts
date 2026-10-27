@@ -77,6 +77,36 @@ describe('class selections', () => {
     expect(await cost(FREE, 'Free Social')).toBe(false);
     expect(await cost(PAID, 'Gala')).toBe(true);
   });
+
+  it('an event is always one ticket at the price the form shows, never a drop-in, so it counts toward a deal', async () => {
+    // Both carry a drop-in price left over from when they were classes. The
+    // server used to save a drop-in pick (or an event with no ticket price) as
+    // a drop-in, outside the deal the form had applied.
+    db.current.seed('events', [
+      { id: FREE, event_type: 'event', google_recurring_event_id: null, title: 'Social', price_whole_series: 20, price_drop_in: 10, ...upcoming },
+      { id: PAID, event_type: 'event', google_recurring_event_id: null, title: 'Gala', price_whole_series: 30, price_drop_in: 15, ...upcoming },
+    ]);
+    db.current.seed('deals', [{ id: 'd', name: 'Night Out', kind: 'amount_off', amount: 5, series_keys: [FREE, PAID], required_count: null, starts_at: null, ends_at: null, active: true }]);
+    const prepared = await prepareRegistrationRows(
+      [
+        { key: FREE, title: 'Social', label: 'Social', mode: 'dropin' },
+        { key: PAID, title: 'Gala', label: 'Gala', mode: null },
+      ],
+      'event',
+      [{ firstName: 'A', lastName: 'B' }]
+    );
+    if (!('rows' in prepared)) throw new Error(prepared.error.message);
+    expect(prepared.rows.map((r) => [r.class_title, r.is_drop_in, r.series_mode, r.deal_name])).toEqual([
+      ['Social', false, null, 'Night Out'],
+      ['Gala', false, null, 'Night Out'],
+    ]);
+    expect(prepared.rows.reduce((s, r) => s + (r.price ?? 0), 0)).toBe(45);
+
+    db.current.rows('events')[1].price_whole_series = null;
+    const ticketless = await prepareRegistrationRows([{ key: PAID, title: 'Gala', label: 'Gala', mode: null }], 'event', [{ firstName: 'A', lastName: 'B' }]);
+    // Shown as Free on the form, so saved free, not at the old drop-in price.
+    expect('rows' in ticketless && ticketless.rows.map((r) => [r.is_drop_in, r.price])).toEqual([[false, null]]);
+  });
 });
 
 describe('registration rows (what a public sign-up saves, and is capacity-checked on)', () => {
@@ -364,6 +394,21 @@ describe('an admin edit keeps what unchanged classes were saved at', () => {
   it('removing one of a deal\'s classes returns the other to its full saved price', () => {
     const rows = carryOverPricing([rebuilt('a', 28)], [saved('a', 20, 5), saved('b', 20, 5)]);
     expect(rows.map((r) => [r.price, r.deal_name])).toEqual([[25, null]]);
+  });
+
+  it('removing a class from one of two bundles of an "any 3" deal keeps the other bundle', () => {
+    // Six workshops on an "any 3" deal, saved at $25 each after $5 off: two bundles.
+    const keys = ['a', 'b', 'c', 'd', 'e', 'f'];
+    const savedRows = keys.map((k) => saved(k, 25, 5));
+    // The admin removes "f"; the deal has since ended.
+    const rows = carryOverPricing(keys.slice(0, 5).map((k) => rebuilt(k, 30)), savedRows, new Map([['d', 3]]));
+    expect(rows.map((r) => [r.series_key, r.price, r.deal_name])).toEqual([
+      ['a', 25, 'Zouk Bundle'],
+      ['b', 25, 'Zouk Bundle'],
+      ['c', 25, 'Zouk Bundle'],
+      ['d', 30, null],
+      ['e', 30, null],
+    ]);
   });
 
   it('keeps an early-bird price that has since ended', () => {

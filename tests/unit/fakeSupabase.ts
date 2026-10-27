@@ -22,6 +22,9 @@ export class FakeSupabase {
   // Force an error for the next matching operation: `${table}.${op}` → error.
   failNext = new Map<string, FakeError>();
   rpcHandlers: Record<string, (args: Record<string, unknown>) => unknown> = {};
+  // Run once just before the next matching operation: `${table}.${op}` → callback
+  // (e.g. another admin's write landing between a read and a write).
+  beforeNext = new Map<string, () => void>();
   private nextId = 1;
 
   seed(table: string, rows: Row[]): this {
@@ -113,7 +116,8 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
     return this;
   }
   eq(col: string, v: unknown) {
-    this.filters.push((r) => r[col] === v);
+    // A JSON column compared with a JSON string, as PostgREST compares jsonb.
+    this.filters.push((r) => (r[col] !== null && typeof r[col] === 'object' && typeof v === 'string' ? JSON.stringify(r[col]) === JSON.stringify(JSON.parse(v)) : r[col] === v));
     return this;
   }
   neq(col: string, v: unknown) {
@@ -193,6 +197,12 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
   }
 
   private execute(): { data: unknown; error: FakeError | null } {
+    const key = `${this.table}.${this.op}`;
+    const before = this.db.beforeNext.get(key);
+    if (before) {
+      this.db.beforeNext.delete(key);
+      before();
+    }
     this.db.calls.push({ table: this.table, op: this.op, payload: this.payload });
     const failure = this.db.takeFailure(this.table, this.op);
     if (failure) return { data: null, error: failure };
