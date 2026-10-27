@@ -97,9 +97,9 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                     const hasDetails = o.description || (overviewBody && !o.hideLessonOverview);
                     return (
                       <div data-offering-key={o.key} class="rounded-2xl border border-border bg-surface/60 p-4 sm:p-5">
-                        <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                          <h3 class="font-display text-xl font-bold text-ink">{o.title}</h3>
-                          <span class="text-xs font-bold uppercase tracking-wide text-muted">{typeLabel(o)}</span>
+                        <div class="flex items-start justify-between gap-3">
+                          <h3 class="min-w-0 font-display text-xl font-bold text-ink">{o.title}</h3>
+                          <span class="mt-1.5 shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-wide text-muted">{typeLabel(o)}</span>
                         </div>
                         <p class="mt-1 text-sm text-ink/80">
                           {o.isSeries ? `${o.subLabel} · ${dateRange(o)}` : o.subLabel}
