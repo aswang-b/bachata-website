@@ -60,7 +60,8 @@ try {
 const showCapacityByKey = new Map((events ?? []).map((e) => [e.google_recurring_event_id ?? e.id, e.show_capacity]));
 function spotsFor(offering: ClassSeriesEntry) {
   const spots = seriesSpots(spotsByOccurrence, offering.occurrences.map((o) => o.id));
-  return { full: spots?.full ?? false, label: publicSpotsLabel(spots, showCapacityByKey.get(offering.key) ?? false) };
+  const shown = showCapacityByKey.get(offering.key) ?? false;
+  return { full: spots?.full ?? false, label: publicSpotsLabel(spots, shown), adminOnly: spots != null && !shown && !spots.full };
 }
 
 // Events sit under Upcoming Events, so only classes get a type tag.
@@ -94,7 +95,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                 <div class="flex flex-col gap-3 p-3 sm:p-4">
 
                   {block.offerings.map((o) => {
-                    const { full, label } = spotsFor(o);
+                    const { full, label, adminOnly } = spotsFor(o);
                     const prices = priceOptions(o, now);
                     const overviewBody = o.lessonOverviewBody ?? lessonOverview;
                     const showOverview = Boolean(overviewBody) && !o.hideLessonOverview;
@@ -107,7 +108,9 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                         </div>
                         <p class="mt-1 text-sm text-ink/80">
                           {o.isSeries ? `${o.subLabel} · ${dateRange(o, bounds)}` : o.subLabel}
-                          {!o.registrationClosed && label && <span class="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent">{label}</span>}
+                          {!o.registrationClosed && label && <span data-public-spots class="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent">{label}</span>}
+                          {/* Filled in for admins by the script below when the count is hidden from the public. */}
+                          {adminOnly && <span data-admin-spots-key={o.key} class="ml-2 hidden rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent"></span>}
                         </p>
                         {o.location && (
                           <a href={locationHref(o.location)} target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-semibold text-accent hover:opacity-80">
@@ -207,6 +210,33 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
 </BaseLayout>
 
 <script>
+  import { checkAdminSession } from '../lib/adminSession';
+  import { isPreviewingAsPublic } from '../lib/previewMode';
+
+  // Admins also see the spots left on classes whose count is hidden from the public.
+  async function revealAdminSpots() {
+    const tags = Array.from(document.querySelectorAll<HTMLElement>('[data-admin-spots-key]'));
+    if (tags.length === 0 || isPreviewingAsPublic()) return;
+    const gate = await checkAdminSession();
+    if (gate.status !== 'admin') return;
+    try {
+      const res = await fetch('/api/admin/series-spots', { headers: { Authorization: `Bearer ${gate.session.access_token}` } });
+      if (!res.ok) return;
+      const { series } = (await res.json()) as { series: Record<string, { label: string }> };
+      for (const tag of tags) {
+        const info = series[tag.dataset.adminSpotsKey ?? ''];
+        if (!info) continue;
+        tag.textContent = `${info.label} (admin only)`;
+        tag.classList.remove('hidden');
+        // The public's partial tag (e.g. "Leaders full") is covered by this one.
+        tag.parentElement?.querySelector('[data-public-spots]')?.classList.add('hidden');
+      }
+    } catch {
+      // Leave the tags hidden if the count can't be loaded.
+    }
+  }
+  revealAdminSpots();
+
   const dialog = document.getElementById('flyer-dialog') as HTMLDialogElement;
   const dialogImg = document.getElementById('flyer-dialog-img') as HTMLImageElement;
   document.querySelectorAll<HTMLButtonElement>('[data-flyer-open]').forEach((button) => {
