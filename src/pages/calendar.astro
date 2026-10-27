@@ -179,9 +179,10 @@ const dateFormatter = siteFormatter({ weekday: 'short', month: 'short', day: 'nu
 const monthAbbrevFormatter = siteFormatter({ month: 'short' });
 const weekdayAbbrevFormatter = siteFormatter({ weekday: 'short' });
 const MAX_BANNERS_PER_DAY = 3;
-// Phone dots: up to 4 (two rows of two); more shows 3 and a "+N".
-const MAX_DOTS = 4;
-const dotsShown = (count: number) => (count > MAX_DOTS ? MAX_DOTS - 1 : count);
+// Phone dots: rows of two for up to 4 events, rows of three for 5 or 6 (3 over 2,
+// 3 and 3). More than 6 shows 6; tapping the day lists them all.
+const MAX_DOTS = 6;
+const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2');
 ---
 
 <BaseLayout
@@ -322,13 +323,14 @@ const dotsShown = (count: number) => (count > MAX_DOTS ? MAX_DOTS - 1 : count);
                       <p class="text-[10px] font-semibold text-muted">+{dayEvents.length - MAX_BANNERS_PER_DAY} more</p>
                     )}
                   </div>
-                  <div class="day-dots grid w-fit cursor-pointer grid-cols-2 content-start items-center justify-items-center gap-[3px] self-center sm:hidden">
-                    {dayEvents.slice(0, dotsShown(dayEvents.length)).map((event) => (
+                  {/* Every event of the day rides along (data-events) for the list a tap opens. */}
+                  <div
+                    class={`day-dots grid w-fit cursor-pointer ${dotColumns(dayEvents.length)} content-start items-center justify-items-center gap-[3px] self-center sm:hidden`}
+                    data-events={JSON.stringify(dayEvents.map((event) => ({ ...event, weekNumber: weekNumberByEventId.get(event.id) ?? null })))}
+                  >
+                    {dayEvents.slice(0, MAX_DOTS).map((event) => (
                       <span class="h-1.5 w-1.5 rounded-full" style={eventDotStyle(event.color)}></span>
                     ))}
-                    {dayEvents.length > MAX_DOTS && (
-                      <span class="text-[8px] font-semibold leading-none text-muted">+{dayEvents.length - dotsShown(dayEvents.length)}</span>
-                    )}
                   </div>
                 </div>
               );
@@ -2268,16 +2270,15 @@ const dotsShown = (count: number) => (count > MAX_DOTS ? MAX_DOTS - 1 : count);
     closeDayExpandPanel();
     if (wasOpen) return;
 
-    const banners = Array.from(cell.querySelectorAll<HTMLElement>('.event-banner'));
-    if (banners.length === 0) return;
+    const dayEvents = JSON.parse(cell.querySelector<HTMLElement>('.day-dots')?.dataset.events ?? '[]') as SiteEvent[];
+    if (dayEvents.length === 0) return;
 
     cell.classList.add('day-expanded', 'ring-2', 'ring-accent');
 
     const panel = document.createElement('div');
     panel.className = 'day-expand-panel col-span-7 m-1 flex flex-col gap-1 rounded-xl border border-border bg-surface p-2 sm:hidden';
 
-    banners.forEach((banner) => {
-      const event = JSON.parse(banner.dataset.event ?? '{}');
+    dayEvents.forEach((event) => {
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'flex items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-bg';
@@ -2290,13 +2291,6 @@ const dotsShown = (count: number) => (count > MAX_DOTS ? MAX_DOTS - 1 : count);
       panel.appendChild(item);
     });
 
-    const moreLine = cell.querySelector('.day-banners > p');
-    if (moreLine) {
-      const more = document.createElement('p');
-      more.className = 'px-2 py-1 text-[10px] font-semibold text-muted';
-      more.textContent = moreLine.textContent;
-      panel.appendChild(more);
-    }
 
     // Insert after the last cell of this day's week row (not right after
     // the tapped cell) so the panel opens as its own full-width row below
@@ -2351,13 +2345,14 @@ const dotsShown = (count: number) => (count > MAX_DOTS ? MAX_DOTS - 1 : count);
 
       const dotsContainer = cell.querySelector('.day-dots');
       if (dotsContainer) {
-        // Up to 4 dots in two rows of two; more shows 3 and a "+N".
-        const dots = dayEvents.length > 4 ? 3 : dayEvents.length;
-        dotsContainer.innerHTML =
-          dayEvents
-            .slice(0, dots)
-            .map((e) => `<span class="h-1.5 w-1.5 rounded-full" style="${eventDotStyle(e.color)}"></span>`)
-            .join('') + (dayEvents.length > dots ? `<span class="text-[8px] font-semibold leading-none text-muted">+${dayEvents.length - dots}</span>` : '');
+        // Rows of two up to 4 events, rows of three for 5 or 6; at most 6 dots (a tap lists them all).
+        dotsContainer.classList.remove('grid-cols-2', 'grid-cols-3');
+        dotsContainer.classList.add(dayEvents.length > 4 ? 'grid-cols-3' : 'grid-cols-2');
+        (dotsContainer as HTMLElement).dataset.events = JSON.stringify(dayEvents.map((e) => ({ ...e, weekNumber: weekNumberByEventId.get(e.id) ?? null })));
+        dotsContainer.innerHTML = dayEvents
+          .slice(0, 6)
+          .map((e) => `<span class="h-1.5 w-1.5 rounded-full" style="${eventDotStyle(e.color)}"></span>`)
+          .join('');
       }
     });
 

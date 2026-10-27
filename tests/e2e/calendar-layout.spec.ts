@@ -139,3 +139,22 @@ test("an evening class shows on its own day in the site's time zone, though the 
   const time = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' }).format(start);
   await expect(cell.locator('.event-banner', { hasText: series.title }).first()).toContainText(time);
 });
+
+// On a phone, tapping a day listed only the first three of its events (the
+// banners kept in the cell), and its dots wrapped unevenly past three.
+test('a busy day on a phone shows its dots in even rows and lists every event when tapped', async ({ page }) => {
+  const busy = await Promise.all([1, 2, 3, 4, 5].map((i) => seedEvent({ name: `Busy Day ${i}`, dayOffset: 70 })));
+  await page.setViewportSize({ width: 375, height: 812 });
+  const { data } = await db.from('events').select('start_time').eq('id', busy[0].ids[0]).single();
+  const central = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(data!.start_time));
+  const [y, m] = central.split('-');
+  await page.goto(`/calendar?month=${y}-${m}`);
+  await page.locator('#view-toggle-calendar').click();
+  const cell = page.locator(`.calendar-cell[data-date="${central}"]`);
+  // Five dots: a row of three over a row of two.
+  await expect(cell.locator('.day-dots')).toHaveClass(/grid-cols-3/);
+  await expect(cell.locator('.day-dots > span')).toHaveCount(5);
+  await cell.locator('.day-dots').click();
+  const panel = page.locator('.day-expand-panel');
+  for (const s of busy) await expect(panel.getByText(s.title)).toBeVisible();
+});
