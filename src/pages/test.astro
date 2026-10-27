@@ -63,7 +63,8 @@ function spotsFor(offering: ClassSeriesEntry) {
   return { full: spots?.full ?? false, label: publicSpotsLabel(spots, showCapacityByKey.get(offering.key) ?? false) };
 }
 
-const typeLabel = (o: ClassSeriesEntry) => (o.eventType === 'event' ? 'Event' : o.isSeries ? `${o.totalOccurrences}-week series` : 'Workshop');
+// Events sit under Upcoming Events, so only classes get a type tag.
+const typeLabel = (o: ClassSeriesEntry) => (o.eventType === 'event' ? '' : o.isSeries ? `${o.totalOccurrences}-week series` : 'Workshop');
 const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/register/events' : '/register'}?series=${encodeURIComponent(o.key)}`;
 ---
 
@@ -97,11 +98,12 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                     const prices = priceOptions(o, now);
                     const overviewBody = o.lessonOverviewBody ?? lessonOverview;
                     const showOverview = Boolean(overviewBody) && !o.hideLessonOverview;
+                    const previewDescription = Boolean(single && block.flyerUrl && o.description);
                     return (
-                      <div data-offering-key={o.key} class="rounded-2xl border border-border bg-surface/60 px-4 py-3">
+                      <div data-offering-key={o.key} class:list={['rounded-2xl border border-border bg-surface/60 px-4 py-3', previewDescription && 'md:flex md:flex-1 md:flex-col']}>
                         <div class="flex items-start justify-between gap-3">
                           <h3 class="min-w-0 font-display text-xl font-bold text-ink">{o.title}</h3>
-                          <span class="mt-1.5 shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-wide text-muted">{typeLabel(o)}</span>
+                          {typeLabel(o) && <span class="mt-1.5 shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-wide text-muted">{typeLabel(o)}</span>}
                         </div>
                         <p class="mt-1 text-sm text-ink/80">
                           {o.isSeries ? `${o.subLabel} · ${dateRange(o, bounds)}` : o.subLabel}
@@ -133,7 +135,17 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                           )}
                         </div>
 
-                        {o.description && (
+                        {previewDescription && (
+                          <div data-desc-preview class="group/desc mt-2 flex min-h-28 flex-col overflow-hidden rounded-xl border border-border bg-bg md:flex-1">
+                            {/* On desktop the text is taken out of the flow, so the flyer alone sets the card's height and the text fills what's beside it. */}
+                            <div data-desc-clip class="relative max-h-56 overflow-hidden md:max-h-none md:min-h-0 md:flex-1 group-data-[expanded]/desc:max-h-none group-data-[expanded]/desc:md:flex-none">
+                              <div data-desc-body class="px-3 py-2.5 text-sm leading-relaxed text-ink/75 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5 md:absolute md:inset-x-0 md:top-0 group-data-[expanded]/desc:md:static" set:html={o.description} />
+                              <div class="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-bg to-transparent group-data-[expanded]/desc:hidden group-data-[fits]/desc:hidden"></div>
+                            </div>
+                            <button type="button" data-desc-toggle class="hidden border-t border-border px-3 py-2 text-left text-sm font-bold text-accent hover:opacity-80">Read more</button>
+                          </div>
+                        )}
+                        {o.description && !previewDescription && (
                           <details class="group/acc mt-2 rounded-xl border border-border bg-surface open:bg-bg">
                             <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
                               More about {o.title}
@@ -203,6 +215,34 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
       dialog.showModal();
     });
   });
+  // Single-class flyer blocks: "Read more" only when the description runs past the space it has.
+  const previews = Array.from(document.querySelectorAll<HTMLElement>('[data-desc-preview]'));
+  function measurePreviews() {
+    for (const preview of previews) {
+      if (preview.dataset.expanded !== undefined) continue;
+      const clip = preview.querySelector<HTMLElement>('[data-desc-clip]')!;
+      const body = preview.querySelector<HTMLElement>('[data-desc-body]')!;
+      const fits = body.scrollHeight <= clip.clientHeight + 2;
+      preview.toggleAttribute('data-fits', fits);
+      preview.querySelector('[data-desc-toggle]')!.classList.toggle('hidden', fits);
+    }
+  }
+  for (const preview of previews) {
+    const toggle = preview.querySelector<HTMLButtonElement>('[data-desc-toggle]')!;
+    toggle.addEventListener('click', () => {
+      const expanded = preview.toggleAttribute('data-expanded');
+      toggle.textContent = expanded ? 'Show less' : 'Read more';
+      if (!expanded) {
+        measurePreviews();
+        preview.closest('article')?.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  }
+  // The flyer's height (once loaded) and the window's width decide the space.
+  document.querySelectorAll<HTMLImageElement>('[data-flyer-open] img').forEach((img) => img.addEventListener('load', measurePreviews));
+  window.addEventListener('resize', measurePreviews);
+  measurePreviews();
+
   // A click on the dimmed backdrop (outside the flyer) closes it too.
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog) dialog.close();
