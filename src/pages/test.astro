@@ -12,7 +12,7 @@ import { applyCardOrder, getHomepageCardOrder, getHomepageContent, getHomepageSe
 import { listFaqs } from '../lib/faqs';
 import { listActiveDeals } from '../lib/dealsStore';
 import { getSpotsByOccurrence, publicSpotsLabel, seriesSpots } from '../lib/capacity';
-import { blockDeals, dateRange, endedDiscountNote, formatPrice, groupByFlyer, priceOptions } from '../lib/flyerBlocks';
+import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions } from '../lib/flyerBlocks';
 import { locationHref } from '../lib/locationLink';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
 import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
@@ -76,7 +76,6 @@ const sharedLocation = (list: ClassSeriesEntry[]) => (list.every((o) => o.locati
           <h2 class="text-center font-display text-3xl font-extrabold text-ink">{section.title}</h2>
           {section.blocks.map((block) => {
             const location = sharedLocation(block.offerings);
-            const note = block.flyerUrl ? endedDiscountNote(block.offerings, now) : null;
             const blockDealList = blockDeals(block.offerings, deals);
             const single = block.offerings.length === 1 ? block.offerings[0] : null;
             const fallbackImage = single?.imageUrl ?? (single?.eventType === 'event' ? eventPlaceholder.src : classPlaceholder.src);
@@ -97,7 +96,6 @@ const sharedLocation = (list: ClassSeriesEntry[]) => (list.every((o) => o.locati
                       <span aria-hidden="true">📍</span> <span class="underline underline-offset-2">{location}</span>
                     </a>
                   )}
-                  {note && <p class="rounded-xl bg-accent/10 px-3 py-2 text-sm font-semibold text-ink">{note}</p>}
 
                   {block.offerings.map((o) => {
                     const { full, label } = spotsFor(o);

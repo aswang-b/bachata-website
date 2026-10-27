@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildClassSeriesList, type ClassOccurrenceRow } from '../../src/lib/classSeries';
-import { blockDeals, dateRange, endedDiscountNote, groupByFlyer, priceOptions } from '../../src/lib/flyerBlocks';
+import { blockDeals, dateRange, groupByFlyer, priceOptions } from '../../src/lib/flyerBlocks';
 import type { Deal } from '../../src/lib/deals';
 
 const now = new Date('2026-10-20T12:00:00Z');
@@ -35,13 +35,11 @@ describe('flyer homepage blocks', () => {
       { label: 'Series', price: 80, was: null, tag: '', suffix: '' },
       { label: 'Drop in', price: 25, was: null, tag: '', suffix: '/class' },
     ]);
-    expect(endedDiscountNote([o], now)).toBe('Early bird pricing ended Oct 18. Prices below are current.');
   });
 
-  it('shows a running early bird crossed out, with no "ended" note', () => {
+  it('shows a running early bird crossed out', () => {
     const [o] = buildClassSeriesList(series('sensual', { price_whole_series: 80, price_whole_series_early_bird: 65, early_bird_until: '2026-10-22T05:00:00Z' }));
     expect(priceOptions(o, now)[0]).toEqual({ label: 'Series', price: 65, was: 80, tag: 'Early Bird', suffix: '' });
-    expect(endedDiscountNote([o], now)).toBeNull();
   });
 
   it("an event's ticket, and the date range of a series", () => {

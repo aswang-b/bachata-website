@@ -78,27 +78,6 @@ export function priceOptions(offering: ClassSeriesEntry, now: Date): PriceOption
   return options.filter((o): o is PriceOption => o != null);
 }
 
-// Flyers usually print the early-bird (or flash-sale) price. Once that has
-// ended, the block says so, so the flyer's price doesn't read as a mistake.
-export function endedDiscountNote(offerings: ClassSeriesEntry[], now: Date): string | null {
-  let latest: { until: string; kind: string } | null = null;
-  for (const o of offerings) {
-    const ended = [
-      { until: o.earlyBirdUntil, kind: 'Early bird', has: [o.priceWholeSeriesEarlyBird, o.priceDropInEarlyBird, o.priceStudentEarlyBird].some((p) => p != null) },
-      { until: o.flashSaleUntil, kind: 'Flash sale', has: [o.priceWholeSeriesFlashSale, o.priceDropInFlashSale, o.priceStudentFlashSale].some((p) => p != null) },
-    ];
-    for (const d of ended) {
-      if (!d.has || !d.until || Date.parse(d.until) > now.getTime()) continue;
-      if (!latest || d.until > latest.until) latest = { until: d.until, kind: d.kind };
-    }
-  }
-  // A discount still running on another class in the block means the flyer may still be right.
-  const stillOn = offerings.some((o) => priceOptions(o, now).some((p) => p.was != null));
-  if (!latest || stillOn) return null;
-  const date = siteFormatter({ month: 'short', day: 'numeric' }).format(new Date(latest.until));
-  return `${latest.kind} pricing ended ${date}. Prices below are current.`;
-}
-
 // Deals whose classes are all in this block (an "any N" deal needs N of them
 // here), described for the block: "Both for $140".
 export function blockDeals(offerings: ClassSeriesEntry[], deals: Deal[]): { name: string; summary: string }[] {
