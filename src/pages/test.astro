@@ -63,7 +63,6 @@ function spotsFor(offering: ClassSeriesEntry) {
 
 const typeLabel = (o: ClassSeriesEntry) => (o.eventType === 'event' ? 'Event' : o.isSeries ? `${o.totalOccurrences}-week series` : 'Workshop');
 const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/register/events' : '/register'}?series=${encodeURIComponent(o.key)}`;
-const sharedLocation = (list: ClassSeriesEntry[]) => (list.every((o) => o.location === list[0].location) ? list[0].location : null);
 ---
 
 <BaseLayout title="Classes and Events in Madison, WI" description="Bachata classes and social dance events in Madison, WI." noindex>
@@ -75,7 +74,6 @@ const sharedLocation = (list: ClassSeriesEntry[]) => (list.every((o) => o.locati
         <div data-section={section.id} class="flex flex-col gap-8">
           <h2 class="text-center font-display text-3xl font-extrabold text-ink">{section.title}</h2>
           {section.blocks.map((block) => {
-            const location = sharedLocation(block.offerings);
             const blockDealList = blockDeals(block.offerings, deals);
             const single = block.offerings.length === 1 ? block.offerings[0] : null;
             const fallbackImage = single?.imageUrl ?? (single?.eventType === 'event' ? eventPlaceholder.src : classPlaceholder.src);
@@ -91,11 +89,6 @@ const sharedLocation = (list: ClassSeriesEntry[]) => (list.every((o) => o.locati
                 )}
 
                 <div class="flex flex-col gap-4 p-5 sm:p-7">
-                  {location && (
-                    <a href={locationHref(location)} target="_blank" rel="noopener noreferrer" class="self-start text-sm font-semibold text-accent hover:opacity-80">
-                      <span aria-hidden="true">📍</span> <span class="underline underline-offset-2">{location}</span>
-                    </a>
-                  )}
 
                   {block.offerings.map((o) => {
                     const { full, label } = spotsFor(o);
@@ -112,7 +105,11 @@ const sharedLocation = (list: ClassSeriesEntry[]) => (list.every((o) => o.locati
                           {o.isSeries ? `${o.subLabel} · ${dateRange(o)}` : o.subLabel}
                           {!o.registrationClosed && label && <span class="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent">{label}</span>}
                         </p>
-                        {!location && o.location && <p class="mt-1 text-sm text-muted">{o.location}</p>}
+                        {o.location && (
+                          <a href={locationHref(o.location)} target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-semibold text-accent hover:opacity-80">
+                            <span aria-hidden="true">📍</span> <span class="underline underline-offset-2">{o.location}</span>
+                          </a>
+                        )}
 
                         <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
                           {prices.length > 0 ? (
