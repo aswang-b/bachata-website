@@ -1,291 +1,234 @@
 ---
 export const prerender = false;
 
+// The homepage: one block per flyer, shown whole beside the live details of
+// every class or event it advertises (src/lib/flyerBlocks.ts); classes and
+// events without a flyer get a block of their own. Admins can reorder blocks
+// within a section and swap the sections (saved for everyone; reset from
+// Admin Tools → Homepage).
+
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
-import { buildClassSeriesList } from '../lib/classSeries';
-import { getActivePrice, priceTierLabel } from '../lib/pricing';
+import { buildClassSeriesList, type ClassSeriesEntry } from '../lib/classSeries';
 import { applyCardOrder, getHomepageCardOrder, getHomepageContent, getHomepageSectionOrder, type HomepageSection } from '../lib/homepageContent';
 import { listFaqs } from '../lib/faqs';
+import { listActiveDeals } from '../lib/dealsStore';
 import { getSpotsByOccurrence, publicSpotsLabel, seriesSpots } from '../lib/capacity';
-import { eventPillStyle } from '../lib/eventColors';
-import classPlaceholder from '../assets/stock/class-placeholder.jpg';
-import classPlaceholder2 from '../assets/stock/class-placeholder-2.jpg';
-import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
+import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesBounds } from '../lib/flyerBlocks';
 import { locationHref } from '../lib/locationLink';
+import classPlaceholder from '../assets/stock/class-placeholder.jpg';
+import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
 
-const classPlaceholders = [classPlaceholder, classPlaceholder2];
-
-// Every read the page needs up front is independent, so they load together.
-// The series totals are unfiltered by date, so a series' whole-series
-// occurrence count doesn't shrink as classes pass (see buildClassSeriesList's
-// `allEventsForTotals`). An admin-saved card order (set with the arrows shown
-// to admins on this page, reset from Admin Tools → Homepage) overrides the
-// default soonest-first order.
-const [{ lessonOverview }, faqs, { data: events, error }, { data: allEventsForTotals, error: totalsError }, cardOrder, sectionOrder] = await Promise.all([
+const now = new Date();
+const [{ lessonOverview }, faqs, { data: events, error }, { data: allEventsForTotals }, cardOrder, sectionOrder, deals] = await Promise.all([
   getHomepageContent(),
   listFaqs(),
   supabase
     .from('events')
     .select(
-      'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
+      'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, flyer_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
     )
     .eq('visibility', 'public')
     .in('event_type', ['class', 'event'])
-    .gte('start_time', new Date().toISOString())
+    .gte('start_time', now.toISOString())
     .order('start_time', { ascending: true }),
-  supabase.from('events').select('id, google_recurring_event_id').eq('visibility', 'public').in('event_type', ['class', 'event']),
+  supabase.from('events').select('id, google_recurring_event_id, start_time').eq('visibility', 'public').in('event_type', ['class', 'event']),
   getHomepageCardOrder(),
   getHomepageSectionOrder(),
+  listActiveDeals(now),
 ]);
-
 if (error) console.error('Failed to load current offerings:', error);
-if (totalsError) console.error('Failed to load series totals:', totalsError);
 
-// Only upcoming classes are loaded above, so a past class drops off regardless of the saved order.
 const offerings = applyCardOrder(
   buildClassSeriesList(events ?? [], allEventsForTotals ?? []).sort((a, b) => a.nextStartTime.localeCompare(b.nextStartTime)),
   cardOrder
 );
+const blocks = groupByFlyer(offerings);
+// A series shows its full dates, not just the classes still to come.
+const bounds = seriesBounds(allEventsForTotals ?? []);
 
-// Events and classes get their own sections (events first by default; admins
-// can swap them). The one saved card order still applies within each section.
-const SECTION_TITLES: Record<HomepageSection, string> = {
-  events: 'Upcoming Events',
-  classes: 'Current Lesson Offerings',
-};
+// A block sits in the section of the first thing on its flyer.
+const SECTION_TITLES: Record<HomepageSection, string> = { events: 'Upcoming Events', classes: 'Upcoming Classes' };
 const sections = sectionOrder
-  .map((id) => ({
-    id,
-    title: SECTION_TITLES[id],
-    offerings: offerings.filter((o) => (o.eventType === 'event') === (id === 'events')),
-  }))
-  .filter((section) => section.offerings.length > 0);
+  .map((id) => ({ id, title: SECTION_TITLES[id], blocks: blocks.filter((b) => (b.offerings[0].eventType === 'event') === (id === 'events')) }))
+  .filter((s) => s.blocks.length > 0);
 
-// Spots per series (its tightest upcoming class). Shown on the card only when
-// the class/event shows its capacity publicly; admins get the rest from
-// /api/admin/series-spots. A full one can't be registered for either way.
 let spotsByOccurrence = new Map<string, import('../lib/capacity').SpotsInfo>();
 try {
   spotsByOccurrence = await getSpotsByOccurrence(events ?? []);
 } catch {
-  // Show the cards without spots rather than failing the homepage.
+  // Show the blocks without spots rather than failing the page.
 }
 const showCapacityByKey = new Map((events ?? []).map((e) => [e.google_recurring_event_id ?? e.id, e.show_capacity]));
-function offeringSpots(offering: (typeof offerings)[number]) {
-  const spots = seriesSpots(
-    spotsByOccurrence,
-    offering.occurrences.map((o) => o.id)
-  );
+function spotsFor(offering: ClassSeriesEntry) {
+  const spots = seriesSpots(spotsByOccurrence, offering.occurrences.map((o) => o.id));
   const shown = showCapacityByKey.get(offering.key) ?? false;
-  return { full: spots?.full ?? false, shown, hasSpots: spots != null, publicLabel: publicSpotsLabel(spots, shown) };
+  return { full: spots?.full ?? false, label: publicSpotsLabel(spots, shown), adminOnly: spots != null && !shown && !spots.full };
 }
 
-function formatPrice(value: number): string {
-  return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
-}
-
-function priceTypeHtml(label: string, offering: (typeof offerings)[number], field: 'whole' | 'dropIn' | 'student', suffix = ''): string {
-  const base = field === 'whole' ? offering.priceWholeSeries : field === 'dropIn' ? offering.priceDropIn : offering.priceStudent;
-  if (base == null) return '';
-  const earlyBird = field === 'whole' ? offering.priceWholeSeriesEarlyBird : field === 'dropIn' ? offering.priceDropInEarlyBird : offering.priceStudentEarlyBird;
-  const flashSale = field === 'whole' ? offering.priceWholeSeriesFlashSale : field === 'dropIn' ? offering.priceDropInFlashSale : offering.priceStudentFlashSale;
-  const result = getActivePrice(new Date(), {
-    base,
-    earlyBird,
-    earlyBirdUntil: offering.earlyBirdUntil,
-    flashSale,
-    flashSaleUntil: offering.flashSaleUntil,
-  });
-  if (result.display === 'original') return `${label}: ${formatPrice(result.originalPrice!)}${suffix}`;
-  return `${label}: <s class="text-muted">${formatPrice(result.originalPrice!)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
-}
-
-function priceLine(offering: (typeof offerings)[number]): string | null {
-  if (offering.priceWholeSeries == null && offering.priceDropIn == null && offering.priceStudent == null) return null;
-  // Events have a single ticket price (with its own early bird / flash sale).
-  if (offering.eventType === 'event') return priceTypeHtml('Ticket', offering, 'whole') || null;
-  // Events (not classes) just list the price, with no per-class unit.
-  const perClass = offering.eventType === 'event' ? '' : '/class';
-  const whole = priceTypeHtml(offering.isSeries ? 'Whole Series' : 'Price', offering, 'whole');
-  // A one-off class with only a drop-in price (e.g. a practica) still shows that price.
-  const dropIn =
-    offering.isSeries || offering.priceWholeSeries == null
-      ? priceTypeHtml('Drop In', offering, 'dropIn', offering.isSeries ? perClass : '')
-      : '';
-  const student = priceTypeHtml('Student', offering, 'student', perClass);
-  return [whole, dropIn, student].filter(Boolean).join(' &middot; ');
-}
-
-function seriesTypeLabel(offering: (typeof offerings)[number]): string {
-  return offering.isSeries ? `${offering.totalOccurrences}-Week Series` : 'Workshop';
-}
-
-// Pills use a solid, slightly darkened fill of the class's color (see
-// eventPillStyle) rather than colored text on a translucent chip, so their
-// text stays readable over the card photo.
-
-const registerBase = (offering: (typeof offerings)[number]) => (offering.eventType === 'event' ? '/register/events' : '/register');
+// Events sit under Upcoming Events, so only classes get a type tag.
+const typeLabel = (o: ClassSeriesEntry) => (o.eventType === 'event' ? '' : o.isSeries ? `${o.totalOccurrences}-week series` : 'Workshop');
+const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/register/events' : '/register'}?series=${encodeURIComponent(o.key)}`;
 ---
 
 <BaseLayout
   title="Bachata Classes in Madison, WI"
   description="Weekly bachata sensual classes, private coaching, and social dance events in Madison, WI at Dance Life Studio. Beginner-friendly — no partner or experience required."
 >
-  <section class="mx-auto max-w-6xl px-6 py-20">
-    {sections.length === 0 ? (
-      <>
-        <div class="mb-12 mx-auto max-w-4xl text-center">
-          <h2 class="font-display text-3xl font-extrabold text-ink">Current Lesson Offerings</h2>
-        </div>
-        <p class="mx-auto max-w-md text-center text-sm text-muted">
-          No upcoming classes or events right now — check back soon!
-        </p>
-      </>
-    ) : (
+  <section class="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
+    {sections.length === 0 && <p class="mx-auto max-w-md text-center text-sm text-muted">No upcoming classes or events right now — check back soon!</p>}
+
+    {sections.length > 0 && (
       <p id="card-order-hint" class="mx-auto mb-8 hidden max-w-3xl rounded-xl border border-border bg-surface px-4 py-2.5 text-xs text-muted">
-        Admin: use the arrows on each card to reorder it within its section, and the arrows by each section title to swap the sections. The order is saved for
+        Admin: use the arrows on each flyer to move it within its section, and the arrows by each section title to swap the sections. The order is saved for
         everyone, and you can reset it to the default under Admin Tools → Homepage.
         <span id="card-order-status" class="ml-1 font-semibold text-accent"></span>
       </p>
-      <div id="offering-sections" class="flex flex-col gap-16">
-        {sections.map((section) => (
-        <div data-section={section.id} class="homepage-section flex flex-col">
-          <div class="mb-12 mx-auto flex max-w-4xl items-center justify-center gap-3 text-center">
-            <h2 class="font-display text-3xl font-extrabold text-ink">{section.title}</h2>
+    )}
+
+    <div id="offering-sections" class="flex flex-col gap-16">
+      {sections.map((section) => (
+        <div data-section={section.id} class="flex flex-col gap-8">
+          <div class="flex items-center justify-center gap-3">
+            <h2 class="text-center font-display text-3xl font-extrabold text-ink">{section.title}</h2>
             {/* Admin-only section arrows; revealed by the script below once an admin session is confirmed. */}
             <div class="section-order-controls hidden gap-1.5">
-              <button type="button" data-section-move="-1" aria-label={`Move ${section.title} up`} title="Move section up" class="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink/70 transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-ink/70">
+              <button type="button" data-section-move="-1" aria-label={`Move ${section.title} up`} title="Move section up" class="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink/70 transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
               </button>
-              <button type="button" data-section-move="1" aria-label={`Move ${section.title} down`} title="Move section down" class="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink/70 transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-ink/70">
+              <button type="button" data-section-move="1" aria-label={`Move ${section.title} down`} title="Move section down" class="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink/70 transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
               </button>
             </div>
           </div>
-      <div class="offering-list mx-auto flex w-full max-w-3xl flex-col gap-6">
-        {section.offerings.map((offering, index) => {
-          const image =
-            offering.imageUrl ??
-            (offering.eventType === 'event' ? eventPlaceholder.src : classPlaceholders[index % classPlaceholders.length].src);
-          const price = priceLine(offering);
-          // A class can override the "About This Class Format" header and/or body
-          // (each falls back to the default when not filled in) or hide the section.
-          const overviewTitle = offering.lessonOverviewTitle ?? 'About This Class Format';
-          const overviewBody = offering.lessonOverviewBody ?? lessonOverview;
-          const href = `${registerBase(offering)}?series=${encodeURIComponent(offering.key)}`;
-          const { full, shown, hasSpots, publicLabel } = offeringSpots(offering);
-
-          return (
-            <article
-              data-offering-key={offering.key}
-              class="group flex flex-col overflow-hidden rounded-3xl border border-border bg-bg shadow-[0_2px_16px_rgba(0,0,0,0.06)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)]"
-            >
-              <div class="relative h-28 w-full overflow-hidden sm:h-36">
-                <img
-                  src={image}
-                  alt={offering.title}
-                  class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <div class="absolute left-3 top-3 flex gap-2">
-                  {/* Events sit in their own "Upcoming Events" section, so only classes get a type pill. */}
-                  {offering.eventType !== 'event' && (
-                    <span class="rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wide shadow-md" style={eventPillStyle(offering.color)}>
-                      {seriesTypeLabel(offering)}
-                    </span>
-                  )}
-                  {!offering.registrationClosed && publicLabel && (
-                    <span data-public-spots class="rounded-full bg-black/60 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md backdrop-blur">
-                      {publicLabel}
-                    </span>
-                  )}
-                  {/* Filled in for admins by the script below when the count is hidden from the public. */}
-                  {hasSpots && !shown && !full && (
-                    <span data-admin-spots-key={offering.key} class="hidden rounded-full bg-black/60 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white shadow-md backdrop-blur"></span>
-                  )}
-                </div>
+          <div class="offering-list flex flex-col gap-8">
+          {section.blocks.map((block) => {
+            const blockDealList = blockDeals(block.offerings, deals);
+            const single = block.offerings.length === 1 ? block.offerings[0] : null;
+            const fallbackImage = single?.imageUrl ?? (single?.eventType === 'event' ? eventPlaceholder.src : classPlaceholder.src);
+            return (
+              <article data-flyer-block={block.key} class:list={['relative overflow-clip rounded-3xl border border-border bg-bg shadow-[0_2px_16px_rgba(0,0,0,0.06)]', block.flyerUrl && 'md:grid md:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]']}>
                 {/* Admin-only reorder arrows; revealed by the script below once an admin session is confirmed. */}
-                <div class="card-order-controls absolute right-3 top-3 hidden gap-1.5">
-                  <button type="button" data-move="-1" aria-label={`Move ${offering.title} up`} title="Move up" class="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/60">
+                <div class="card-order-controls absolute left-3 top-3 z-10 hidden gap-1.5">
+                  <button type="button" data-move="-1" aria-label="Move up" title="Move up" class="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/60">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
                   </button>
-                  <button type="button" data-move="1" aria-label={`Move ${offering.title} down`} title="Move down" class="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/60">
+                  <button type="button" data-move="1" aria-label="Move down" title="Move down" class="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/60">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                   </button>
                 </div>
-              </div>
-              <div class="flex flex-col gap-3 p-6 sm:p-8">
-                <h3 class="font-display text-xl font-bold text-ink sm:text-2xl">{offering.title}</h3>
-                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-                  <span>{offering.subLabel}</span>
-                  {offering.location && (
-                    <>
-                      <span class="text-muted/50">·</span>
-                      <a
-                        href={locationHref(offering.location)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="font-semibold text-accent hover:opacity-80"
-                      >
-                        <span aria-hidden="true">📍</span> <span class="underline underline-offset-2">{offering.location}</span>
-                      </a>
-                    </>
-                  )}
-                </div>
-                {price && <p class="text-sm font-semibold text-ink" set:html={price} />}
-
-                {offering.registrationClosed || full ? (
-                  <span class="mt-1 inline-block self-start rounded-full bg-border px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-ink/50">
-                    {offering.registrationClosed ? 'Registration Closed' : 'Full'}
-                  </span>
+                {block.flyerUrl ? (
+                  <button type="button" data-flyer-open={block.flyerUrl} class="group relative block w-full bg-surface p-3 sm:p-4 md:sticky md:top-20 md:self-start md:bg-transparent md:p-4 md:pr-0" aria-label="View the flyer full size">
+                    <img src={block.flyerUrl} alt={`Flyer for ${block.offerings.map((o) => o.title).join(' and ')}`} loading="lazy" class="mx-auto max-h-[75vh] w-full rounded-2xl object-contain md:max-h-[calc(100vh-9rem)]" />
+                    <span class="mt-1 block text-center text-xs font-semibold text-muted group-hover:text-accent">Tap to view full size</span>
+                  </button>
                 ) : (
-                  <a
-                    href={href}
-                    class="gradient-accent mt-1 inline-block self-start rounded-full px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
-                  >
-                    Register Now
-                  </a>
+                  <img src={fallbackImage} alt="" class="h-28 w-full object-cover sm:h-36" />
                 )}
 
-                <div class="mt-2 flex flex-col gap-2">
-                  {offering.description && (
-                    <details open class="group/acc rounded-xl border border-border bg-surface open:bg-bg">
-                      <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
-                        About {offering.title}
-                        <span class="shrink-0 text-muted transition-transform group-open/acc:rotate-180">⌄</span>
-                      </summary>
-                      <div
-                        class="border-t border-border px-4 py-3 text-sm leading-relaxed text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
-                        set:html={offering.description}
-                      />
-                    </details>
-                  )}
+                <div class="flex flex-col gap-3 p-3 sm:p-4">
 
-                  {overviewBody && !offering.hideLessonOverview && (
-                    <details class="group/acc rounded-xl border border-border bg-surface open:bg-bg">
-                      <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
-                        {overviewTitle}
-                        <span class="shrink-0 text-muted transition-transform group-open/acc:rotate-180">⌄</span>
-                      </summary>
-                      <div
-                        class="border-t border-border px-4 py-3 text-sm leading-relaxed text-ink/70 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5"
-                        set:html={overviewBody}
-                      />
-                    </details>
-                  )}
+                  {block.offerings.map((o) => {
+                    const { full, label, adminOnly } = spotsFor(o);
+                    const prices = priceOptions(o, now);
+                    const overviewBody = o.lessonOverviewBody ?? lessonOverview;
+                    const showOverview = Boolean(overviewBody) && !o.hideLessonOverview;
+                    // A flyer with one class/event: its description, then About This Class Format, shown in the panel beside the flyer.
+                    const inlineDetails = Boolean(single && block.flyerUrl && (o.description || showOverview));
+                    return (
+                      <div data-offering-key={o.key} class:list={['rounded-2xl border border-border bg-surface/60 px-4 py-3', inlineDetails && 'md:flex md:flex-1 md:flex-col']}>
+                        <div class="flex items-start justify-between gap-3">
+                          <h3 class="min-w-0 font-display text-xl font-bold text-ink">{o.title}</h3>
+                          {typeLabel(o) && <span class="mt-1.5 shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-wide text-muted">{typeLabel(o)}</span>}
+                        </div>
+                        <p class="mt-1 text-sm text-ink/80">
+                          {o.isSeries ? `${o.subLabel} · ${dateRange(o, bounds)}` : o.subLabel}
+                          {!o.registrationClosed && label && <span data-public-spots class="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent">{label}</span>}
+                          {/* Filled in for admins by the script below when the count is hidden from the public. */}
+                          {adminOnly && <span data-admin-spots-key={o.key} class="ml-2 hidden rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent"></span>}
+                        </p>
+                        {o.location && (
+                          <a href={locationHref(o.location)} target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-semibold text-accent hover:opacity-80">
+                            <span aria-hidden="true">📍</span> <span class="underline underline-offset-2">{o.location}</span>
+                          </a>
+                        )}
+
+                        <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+                          {prices.length > 0 ? (
+                            <p class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink">
+                              {prices.map((p) => (
+                                <span>
+                                  {p.label}:{' '}
+                                  {p.was != null && <s class="text-muted">{formatPrice(p.was)}</s>}{' '}
+                                  <strong class="font-bold">{formatPrice(p.price)}</strong>{p.suffix}
+                                  {p.tag && <span class="ml-1 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">{p.tag}</span>}
+                                </span>
+                              ))}
+                            </p>
+                          ) : <span />}
+                          {o.registrationClosed || full ? (
+                            <span class="rounded-full bg-border px-5 py-2 text-xs font-bold uppercase tracking-wider text-ink/60">{o.registrationClosed ? 'Registration closed' : 'Full'}</span>
+                          ) : (
+                            <a href={registerHref(o)} class="gradient-accent rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Register</a>
+                          )}
+                        </div>
+
+                        {inlineDetails && (
+                          <div data-desc-preview class="group/desc mt-2 flex min-h-28 flex-col overflow-hidden rounded-xl border border-border bg-bg md:flex-1 data-[fits]:min-h-0 md:data-[fits]:flex-none">
+                            {/* On desktop the text is taken out of the flow, so the flyer alone sets the card's height and the text fills what's beside it. */}
+                            <div data-desc-clip class="relative max-h-56 overflow-hidden md:max-h-none md:min-h-0 md:flex-1 group-data-[expanded]/desc:max-h-none group-data-[expanded]/desc:md:flex-none group-data-[fits]/desc:md:flex-none">
+                              <div data-desc-body class="px-3 py-2.5 text-sm leading-relaxed text-ink/75 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5 md:absolute md:inset-x-0 md:top-0 group-data-[expanded]/desc:md:static group-data-[fits]/desc:md:static">
+                                {o.description && <div set:html={o.description} />}
+                                {showOverview && (
+                                  <div class:list={[o.description && 'mt-3 border-t border-border pt-3']}>
+                                    <p class="font-bold text-ink">{o.lessonOverviewTitle ?? 'About This Class Format'}</p>
+                                    <div class="mt-1" set:html={overviewBody} />
+                                  </div>
+                                )}
+                              </div>
+                              <div class="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-bg to-transparent group-data-[expanded]/desc:hidden group-data-[fits]/desc:hidden"></div>
+                            </div>
+                            <button type="button" data-desc-toggle class="hidden border-t border-border px-3 py-2 text-left text-sm font-bold text-accent hover:opacity-80">Read more</button>
+                          </div>
+                        )}
+                        {o.description && !inlineDetails && (
+                          <details class="group/acc mt-2 rounded-xl border border-border bg-surface open:bg-bg">
+                            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
+                              More about {o.title}
+                              <span class="shrink-0 text-muted transition-transform group-open/acc:rotate-180">⌄</span>
+                            </summary>
+                            <div class="border-t border-border px-3 py-2.5 text-sm leading-relaxed text-ink/75 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5" set:html={o.description} />
+                          </details>
+                        )}
+                        {showOverview && !inlineDetails && (
+                          <details class="group/acc mt-2 rounded-xl border border-border bg-surface open:bg-bg">
+                            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
+                              {o.lessonOverviewTitle ?? 'About This Class Format'}
+                              <span class="shrink-0 text-muted transition-transform group-open/acc:rotate-180">⌄</span>
+                            </summary>
+                            <div class="border-t border-border px-3 py-2.5 text-sm leading-relaxed text-ink/75 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5" set:html={overviewBody} />
+                          </details>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {blockDealList.map((d) => (
+                    <p class="rounded-2xl border border-dashed border-accent/50 px-4 py-2.5 text-sm text-ink">
+                      {d.custom ? d.text : <><span class="font-bold text-accent">{d.name}:</span> {d.text}</>}
+                    </p>
+                  ))}
                 </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
+              </article>
+            );
+          })}
+          </div>
         </div>
-        ))}
-      </div>
-    )}
+      ))}
+    </div>
 
     {faqs.length > 0 && (
-      <div class="mx-auto mt-12 max-w-3xl">
+      <div class="mx-auto mt-16 max-w-3xl">
         <h3 class="font-display text-xl font-bold text-ink">FAQs & Other Info</h3>
         <div class="mt-4 flex flex-col gap-2">
           {faqs.map((faq) => (
@@ -294,16 +237,20 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
                 {faq.question}
                 <span class="shrink-0 text-muted transition-transform group-open:rotate-180">⌄</span>
               </summary>
-              <div
-                class="border-t border-border px-4 py-3 text-sm leading-relaxed text-ink/70 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5"
-                set:html={faq.answer}
-              />
+              <div class="border-t border-border px-4 py-3 text-sm leading-relaxed text-ink/70 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5" set:html={faq.answer} />
             </details>
           ))}
         </div>
       </div>
     )}
   </section>
+
+  <dialog id="flyer-dialog" class="m-auto max-h-[95vh] max-w-[95vw] rounded-2xl bg-transparent p-0 backdrop:bg-black/80">
+    <form method="dialog" class="flex flex-col items-end gap-2">
+      <button class="rounded-full bg-black/70 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white">Close</button>
+      <img id="flyer-dialog-img" alt="Flyer, full size" class="max-h-[85vh] w-auto rounded-2xl object-contain" />
+    </form>
+  </dialog>
 </BaseLayout>
 
 <script>
@@ -311,24 +258,48 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
   import { checkAdminSession } from '../lib/adminSession';
   import { isPreviewingAsPublic } from '../lib/previewMode';
 
+  // Admins also see the spots left on classes whose count is hidden from the public.
+  async function revealAdminSpots() {
+    const tags = Array.from(document.querySelectorAll<HTMLElement>('[data-admin-spots-key]'));
+    if (tags.length === 0 || isPreviewingAsPublic()) return;
+    const gate = await checkAdminSession();
+    if (gate.status !== 'admin') return;
+    try {
+      const res = await fetch('/api/admin/series-spots', { headers: { Authorization: `Bearer ${gate.session.access_token}` } });
+      if (!res.ok) return;
+      const { series } = (await res.json()) as { series: Record<string, { label: string }> };
+      for (const tag of tags) {
+        const info = series[tag.dataset.adminSpotsKey ?? ''];
+        if (!info) continue;
+        tag.textContent = `${info.label} (admin only)`;
+        tag.classList.remove('hidden');
+        // The public's partial tag (e.g. "Leaders full") is covered by this one.
+        tag.parentElement?.querySelector('[data-public-spots]')?.classList.add('hidden');
+      }
+    } catch {
+      // Leave the tags hidden if the count can't be loaded.
+    }
+  }
+  revealAdminSpots();
+
+  // Admin reordering: a flyer block moves within its section, a section swaps
+  // with the other. The saved card order is every class/event key in page
+  // order, so a block's classes keep their place together.
   const sectionsEl = document.getElementById('offering-sections');
   const hint = document.getElementById('card-order-hint');
-  const status = document.getElementById('card-order-status');
-
+  const orderStatus = document.getElementById('card-order-status');
   let saving = false;
 
   const sections = () => Array.from(sectionsEl?.querySelectorAll<HTMLElement>(':scope > [data-section]') ?? []);
-  // Every card on the page, in page order — the saved card order covers both
-  // sections, and a card only ever moves within its own.
-  const cards = () => Array.from(sectionsEl?.querySelectorAll<HTMLElement>('[data-offering-key]') ?? []);
-  const sectionCards = (list: Element) => Array.from(list.querySelectorAll<HTMLElement>(':scope > [data-offering-key]'));
+  const sectionBlocks = (list: Element) => Array.from(list.querySelectorAll<HTMLElement>(':scope > [data-flyer-block]'));
+  const offeringKeys = () => Array.from(sectionsEl?.querySelectorAll<HTMLElement>('[data-offering-key]') ?? []).map((el) => el.dataset.offeringKey!);
 
   function refreshArrows() {
     sectionsEl?.querySelectorAll('.offering-list').forEach((list) => {
-      const all = sectionCards(list);
-      all.forEach((card, index) => {
-        card.querySelector<HTMLButtonElement>('[data-move="-1"]')!.disabled = index === 0;
-        card.querySelector<HTMLButtonElement>('[data-move="1"]')!.disabled = index === all.length - 1;
+      const all = sectionBlocks(list);
+      all.forEach((block, index) => {
+        block.querySelector<HTMLButtonElement>('[data-move="-1"]')!.disabled = index === 0;
+        block.querySelector<HTMLButtonElement>('[data-move="1"]')!.disabled = index === all.length - 1;
       });
     });
     const allSections = sections();
@@ -339,32 +310,11 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
   }
 
   function showStatus(message: string) {
-    if (!status) return;
-    status.textContent = message;
+    if (!orderStatus) return;
+    orderStatus.textContent = message;
     setTimeout(() => {
-      if (status.textContent === message) status.textContent = '';
+      if (orderStatus.textContent === message) orderStatus.textContent = '';
     }, 2000);
-  }
-
-  // Spots remaining on cards whose count is hidden from the public.
-  async function revealAdminSpots(accessToken: string) {
-    const tags = Array.from(document.querySelectorAll<HTMLElement>('[data-admin-spots-key]'));
-    if (tags.length === 0) return;
-    try {
-      const res = await fetch('/api/admin/series-spots', { headers: { Authorization: `Bearer ${accessToken}` } });
-      if (!res.ok) return;
-      const { series } = (await res.json()) as { series: Record<string, { label: string }> };
-      for (const tag of tags) {
-        const info = series[tag.dataset.adminSpotsKey ?? ''];
-        if (!info) continue;
-        tag.textContent = `${info.label} (admin only)`;
-        tag.classList.remove('hidden');
-        // The public's partial badge (e.g. "Leaders full") is covered by this one.
-        tag.parentElement?.querySelector('[data-public-spots]')?.classList.add('hidden');
-      }
-    } catch {
-      // Leave the tags hidden if the count can't be loaded.
-    }
   }
 
   async function saveOrder(accessToken: string, body: { order?: string[]; sectionOrder?: string[] }): Promise<boolean> {
@@ -376,38 +326,22 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
     return res.ok;
   }
 
-  // Moves one element past its neighbor in `parent` (a card within its
-  // section, or a whole section), saves, and undoes the move if the save fails.
-  async function moveAndSave(
-    parent: HTMLElement,
-    siblings: HTMLElement[],
-    el: HTMLElement,
-    direction: number,
-    buildBody: () => { order?: string[]; sectionOrder?: string[] }
-  ) {
+  // Moves one element past its neighbor in `parent`, saves, and undoes the move if the save fails.
+  async function moveAndSave(parent: HTMLElement, siblings: HTMLElement[], el: HTMLElement, direction: number, buildBody: () => { order?: string[]; sectionOrder?: string[] }) {
     const target = siblings[siblings.indexOf(el) + direction];
-    if (!target) return;
-
-    // Ignore clicks while a save is in flight so responses can't land out of
-    // order, and so the rollback below always restores a known state.
-    if (saving) return;
+    // One save at a time, so responses can't land out of order.
+    if (!target || saving) return;
     saving = true;
-
-    // Move optimistically, then undo if the save fails.
     if (direction < 0) parent.insertBefore(el, target);
     else parent.insertBefore(target, el);
     refreshArrows();
     showStatus('Saving…');
-
     try {
       const {
         data: { session: current },
       } = await supabaseBrowser.auth.getSession();
-      if (current && (await saveOrder(current.access_token, buildBody()))) {
-        showStatus('Saved.');
-      } else {
-        throw new Error('save failed');
-      }
+      if (!current || !(await saveOrder(current.access_token, buildBody()))) throw new Error('save failed');
+      showStatus('Saved.');
     } catch {
       siblings.forEach((sibling) => parent.appendChild(sibling));
       refreshArrows();
@@ -418,12 +352,9 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
   }
 
   async function revealReorderControlsIfAdmin() {
-    if (!sectionsEl || cards().length === 0 || isPreviewingAsPublic()) return;
-
+    if (!sectionsEl || offeringKeys().length === 0 || isPreviewingAsPublic()) return;
     const gate = await checkAdminSession();
     if (gate.status !== 'admin') return;
-
-    revealAdminSpots(gate.session.access_token);
 
     hint?.classList.remove('hidden');
     document.querySelectorAll('.card-order-controls, .section-order-controls').forEach((el) => {
@@ -434,26 +365,62 @@ const registerBase = (offering: (typeof offerings)[number]) => (offering.eventTy
 
     sectionsEl.addEventListener('click', async (event) => {
       const target = event.target as HTMLElement;
-
       const sectionButton = target.closest<HTMLButtonElement>('[data-section-move]');
       if (sectionButton) {
         const section = sectionButton.closest<HTMLElement>('[data-section]');
         if (!section || sectionButton.disabled) return;
-        await moveAndSave(sectionsEl, sections(), section, Number(sectionButton.dataset.sectionMove), () => ({
-          sectionOrder: sections().map((s) => s.dataset.section!),
-        }));
+        await moveAndSave(sectionsEl, sections(), section, Number(sectionButton.dataset.sectionMove), () => ({ sectionOrder: sections().map((s) => s.dataset.section!) }));
         return;
       }
-
       const button = target.closest<HTMLButtonElement>('[data-move]');
-      const card = button?.closest<HTMLElement>('[data-offering-key]');
-      const list = card?.parentElement;
-      if (!button || !card || !list || button.disabled) return;
-      await moveAndSave(list, sectionCards(list), card, Number(button.dataset.move), () => ({
-        order: cards().map((c) => c.dataset.offeringKey!),
-      }));
+      const block = button?.closest<HTMLElement>('[data-flyer-block]');
+      const list = block?.parentElement;
+      if (!button || !block || !list || button.disabled) return;
+      await moveAndSave(list, sectionBlocks(list), block, Number(button.dataset.move), () => ({ order: offeringKeys() }));
     });
   }
-
   revealReorderControlsIfAdmin();
+
+  const dialog = document.getElementById('flyer-dialog') as HTMLDialogElement;
+  const dialogImg = document.getElementById('flyer-dialog-img') as HTMLImageElement;
+  document.querySelectorAll<HTMLButtonElement>('[data-flyer-open]').forEach((button) => {
+    button.addEventListener('click', () => {
+      dialogImg.src = button.dataset.flyerOpen!;
+      dialog.showModal();
+    });
+  });
+  // Single-class flyer blocks: "Read more" only when the details run past the space they have.
+  const previews = Array.from(document.querySelectorAll<HTMLElement>('[data-desc-preview]'));
+  function measurePreviews() {
+    for (const preview of previews) {
+      if (preview.dataset.expanded !== undefined) continue;
+      const clip = preview.querySelector<HTMLElement>('[data-desc-clip]')!;
+      const body = preview.querySelector<HTMLElement>('[data-desc-body]')!;
+      // Measured against the full space beside the flyer (a fitting box shrinks to its text).
+      preview.removeAttribute('data-fits');
+      const fits = body.scrollHeight <= clip.clientHeight + 2;
+      preview.toggleAttribute('data-fits', fits);
+      preview.querySelector('[data-desc-toggle]')!.classList.toggle('hidden', fits);
+    }
+  }
+  for (const preview of previews) {
+    const toggle = preview.querySelector<HTMLButtonElement>('[data-desc-toggle]')!;
+    toggle.addEventListener('click', () => {
+      const expanded = preview.toggleAttribute('data-expanded');
+      toggle.textContent = expanded ? 'Show less' : 'Read more';
+      if (!expanded) {
+        measurePreviews();
+        preview.closest('article')?.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  }
+  // The flyer's height (once loaded) and the window's width decide the space.
+  document.querySelectorAll<HTMLImageElement>('[data-flyer-open] img').forEach((img) => img.addEventListener('load', measurePreviews));
+  window.addEventListener('resize', measurePreviews);
+  measurePreviews();
+
+  // A click on the dimmed backdrop (outside the flyer) closes it too.
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) dialog.close();
+  });
 </script>

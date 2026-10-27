@@ -6,7 +6,7 @@ export interface HomepageContent {
 }
 
 // Paragraphs and lists, not just inline formatting — this renders as full
-// prose blocks under "Current Lesson Offerings", not a single line.
+// prose blocks under "About This Class Format", not a single line.
 const LESSON_OVERVIEW_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'A', 'BR', 'P', 'DIV', 'UL', 'OL', 'LI']);
 
 export function sanitizeLessonOverviewHtml(html: string): string {

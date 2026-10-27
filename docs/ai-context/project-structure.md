@@ -81,7 +81,7 @@
 │   │   ├── supabase.ts / supabaseBrowser.ts  # Supabase clients (server/browser)
 │   │   ├── testMode.ts                  # Dev-server-only switches the e2e suite uses (email sink, Google off, no quotas)
 │   └── pages/
-│       ├── index.astro, about.astro, contact.astro, contact/confirmation.astro, privacy-policy.astro, calendar.astro
+│       ├── index.astro (flyer blocks: each flyer beside its classes' live details), about.astro, contact.astro, contact/confirmation.astro, privacy-policy.astro, calendar.astro
 │       ├── register.astro, register/events.astro, register/confirmation.astro
 │       ├── check-in.astro, check-in/[eventId].astro, check-in/confirmation.astro
 │       ├── admin.astro, admin/analytics.astro, admin/checkin-qr.astro, admin/inbox.astro
@@ -94,7 +94,7 @@
 
 ## Domain Overview
 
-The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, attendance matching/reconciliation, Google Calendar sync, site settings/banner, an editable FAQ list, community guidelines, bundle deals, editable homepage copy (including admin-reorderable offering cards and per-class overrides of the lesson-overview section), and an inbox.
+The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, attendance matching/reconciliation, Google Calendar sync, site settings/banner, an editable FAQ list, community guidelines, bundle deals, a homepage built from class/event flyers (admin-reorderable blocks, per-class overrides of the lesson-overview section, and editable deal notes), and an inbox.
 
 - **Event editor**: classes and events are edited in a sectioned editor on `/calendar`. Its section menu is a list on desktop and a sideways-scrolling chip row on phones. It offers any color (a picker plus the five most recently used colors), a single capacity cap or separate Leader/Follower caps for classes, and tiered pricing. Calendar banner text shrinks to fit, and all banners share one size.
 - **Registration**: shows an itemized subtotal (also on the confirmation page and email, optionally BCC'd to admins) and enforces capacity, per role where capped. Event registrants agree to the community guidelines, which event confirmations list FAQ-style. Double-submitted sign-ups and check-ins are moved to the Recycling Bin automatically.
