@@ -179,6 +179,9 @@ const dateFormatter = siteFormatter({ weekday: 'short', month: 'short', day: 'nu
 const monthAbbrevFormatter = siteFormatter({ month: 'short' });
 const weekdayAbbrevFormatter = siteFormatter({ weekday: 'short' });
 const MAX_BANNERS_PER_DAY = 3;
+// Phone dots: up to 4 (two rows of two); more shows 3 and a "+N".
+const MAX_DOTS = 4;
+const dotsShown = (count: number) => (count > MAX_DOTS ? MAX_DOTS - 1 : count);
 ---
 
 <BaseLayout
@@ -256,11 +259,11 @@ const MAX_BANNERS_PER_DAY = 3;
               const isCompact = dayEvents.length > 2;
               return (
                 <div
-                  class={`calendar-cell flex flex-col gap-1 border-b border-r border-border/30 p-1 text-sm aspect-square sm:aspect-auto ${isCompact ? 'sm:min-h-[6.5rem]' : 'sm:min-h-[7.5rem]'}`}
+                  class={`calendar-cell flex flex-col gap-0.5 border-b border-r border-border/30 p-1 text-sm min-h-[2.75rem] sm:gap-1 ${isCompact ? 'sm:min-h-[6.5rem]' : 'sm:min-h-[7.5rem]'}`}
                   data-date={dateKey}
                 >
                   {date && (
-                    <span class={`text-xs ${isToday ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent font-bold text-white' : 'text-ink/70'}`}>
+                    <span class={`text-xs ${isToday ? 'inline-flex h-4 w-4 items-center justify-center rounded-full bg-accent font-bold text-white sm:h-5 sm:w-5' : 'text-ink/70'}`}>
                       {day}
                     </span>
                   )}
@@ -319,12 +322,12 @@ const MAX_BANNERS_PER_DAY = 3;
                       <p class="text-[10px] font-semibold text-muted">+{dayEvents.length - MAX_BANNERS_PER_DAY} more</p>
                     )}
                   </div>
-                  <div class="day-dots flex flex-1 cursor-pointer flex-wrap content-start items-center justify-center gap-1 sm:hidden">
-                    {dayEvents.slice(0, MAX_BANNERS_PER_DAY).map((event) => (
-                      <span class="h-2 w-2 rounded-full" style={eventDotStyle(event.color)}></span>
+                  <div class="day-dots grid w-fit cursor-pointer grid-cols-2 content-start items-center justify-items-center gap-[3px] self-center sm:hidden">
+                    {dayEvents.slice(0, dotsShown(dayEvents.length)).map((event) => (
+                      <span class="h-1.5 w-1.5 rounded-full" style={eventDotStyle(event.color)}></span>
                     ))}
-                    {dayEvents.length > MAX_BANNERS_PER_DAY && (
-                      <span class="text-[9px] font-semibold text-muted">+{dayEvents.length - MAX_BANNERS_PER_DAY}</span>
+                    {dayEvents.length > MAX_DOTS && (
+                      <span class="text-[8px] font-semibold leading-none text-muted">+{dayEvents.length - dotsShown(dayEvents.length)}</span>
                     )}
                   </div>
                 </div>
@@ -2348,11 +2351,13 @@ const MAX_BANNERS_PER_DAY = 3;
 
       const dotsContainer = cell.querySelector('.day-dots');
       if (dotsContainer) {
+        // Up to 4 dots in two rows of two; more shows 3 and a "+N".
+        const dots = dayEvents.length > 4 ? 3 : dayEvents.length;
         dotsContainer.innerHTML =
           dayEvents
-            .slice(0, MAX)
-            .map((e) => `<span class="h-2 w-2 rounded-full" style="${eventDotStyle(e.color)}"></span>`)
-            .join('') + (dayEvents.length > MAX ? `<span class="text-[9px] font-semibold text-muted">+${dayEvents.length - MAX}</span>` : '');
+            .slice(0, dots)
+            .map((e) => `<span class="h-1.5 w-1.5 rounded-full" style="${eventDotStyle(e.color)}"></span>`)
+            .join('') + (dayEvents.length > dots ? `<span class="text-[8px] font-semibold leading-none text-muted">+${dayEvents.length - dots}</span>` : '');
       }
     });
 
