@@ -181,10 +181,10 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                           </a>
                         )}
 
-                        {/* Register sits in one place whatever the prices: under them on a phone, at the right from tablet width up (long prices wrap in their own column). */}
-                        <div class="mt-2 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        {/* Register always sits at the right, whatever the prices: they stack one per line on a phone and wrap in their own column wider up. */}
+                        <div class="mt-2 flex items-center justify-between gap-3">
                           {prices.length > 0 ? (
-                            <p class="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-sm text-ink sm:flex-1">
+                            <p class="flex min-w-0 flex-1 flex-col gap-y-0.5 text-sm text-ink sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-1">
                               {prices.map((p) => (
                                 <span>
                                   {p.label}:{' '}
