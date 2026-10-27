@@ -83,9 +83,16 @@ const localBusinessSchema = {
     />
   </head>
   <body class="flex min-h-screen flex-col">
+    <script>
+      const siteTop = document.getElementById('site-top');
+      if (siteTop) new ResizeObserver(() => document.documentElement.style.setProperty('--site-top-h', `${siteTop.offsetHeight}px`)).observe(siteTop);
+    </script>
     <PreviewBanner />
-    <AnnouncementBanner />
-    <Header />
+    {/* The announcement banner sticks to the top with the nav header. Its height goes in --site-top-h for anything that sticks just below them. */}
+    <div id="site-top" class="sticky top-0 z-50 print:hidden">
+      <AnnouncementBanner />
+      <Header />
+    </div>
     <main class="flex-1">
       <slot />
     </main>

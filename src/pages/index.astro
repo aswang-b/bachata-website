@@ -120,8 +120,8 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                   </button>
                 </div>
                 {block.flyerUrl ? (
-                  <button type="button" data-flyer-open={block.flyerUrl} class="group relative block w-full bg-surface p-3 sm:p-4 md:sticky md:top-20 md:self-start md:bg-transparent md:p-4 md:pr-0" aria-label="View the flyer full size">
-                    <img src={block.flyerUrl} alt={`Flyer for ${block.offerings.map((o) => o.title).join(' and ')}`} loading="lazy" class="mx-auto max-h-[75vh] w-full rounded-2xl object-contain md:max-h-[calc(100vh-9rem)]" />
+                  <button type="button" data-flyer-open={block.flyerUrl} class="group relative block w-full bg-surface p-3 sm:p-4 md:sticky md:top-[calc(var(--site-top-h,4rem)+1rem)] md:self-start md:bg-transparent md:p-4 md:pr-0" aria-label="View the flyer full size">
+                    <img src={block.flyerUrl} alt={`Flyer for ${block.offerings.map((o) => o.title).join(' and ')}`} loading="lazy" class="mx-auto max-h-[75vh] w-full rounded-2xl object-contain md:max-h-[calc(100vh-var(--site-top-h,4rem)-5rem)]" />
                     <span class="mt-1 block text-center text-xs font-semibold text-muted group-hover:text-accent">Tap to view full size</span>
                   </button>
                 ) : (
