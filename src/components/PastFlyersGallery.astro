@@ -99,6 +99,7 @@ const arrowClass =
       if (width <= 0) return;
       const copy = Math.floor((gallery.scrollLeft + gallery.clientWidth / 2 - items[0].offsetLeft) / width);
       if (copy < 1 || copy > copies - 2) gallery.scrollLeft += (middleCopy - copy) * width;
+      target = null;
     };
     gallery.addEventListener(
       'scroll',
@@ -117,13 +118,27 @@ const arrowClass =
     gallery.querySelectorAll('img').forEach((img) => img.addEventListener('load', centerStart));
     centerStart();
 
-    // An arrow brings the next flyer to the middle; there's always a next one.
+    // An arrow centers the next flyer exactly (flyers differ in width, so a
+    // fixed step would drift); there's always a next one. Clicks during the
+    // glide count from the flyer it's heading to.
+    const centeredIndex = () => {
+      const middle = gallery.scrollLeft + gallery.clientWidth / 2;
+      let best = 0;
+      items.forEach((item, i) => {
+        if (Math.abs(item.offsetLeft + item.offsetWidth / 2 - middle) < Math.abs(items[best].offsetLeft + items[best].offsetWidth / 2 - middle)) best = i;
+      });
+      return best;
+    };
+    let target: number | null = null;
     document.querySelectorAll<HTMLButtonElement>('[data-gallery-scroll]').forEach((button) => {
       button.addEventListener('click', () => {
         touched = true;
-        const step = items.length > 1 ? items[1].offsetLeft - items[0].offsetLeft : gallery.clientWidth / 2;
-        gallery.scrollBy({ left: Number(button.dataset.galleryScroll) * step, behavior: 'smooth' });
+        target = Math.max(0, Math.min(items.length - 1, (target ?? centeredIndex()) + Number(button.dataset.galleryScroll)));
+        const item = items[target];
+        gallery.scrollTo({ left: item.offsetLeft + item.offsetWidth / 2 - gallery.clientWidth / 2, behavior: 'smooth' });
       });
     });
+    // Swiping or the wheel takes over from an arrow's glide.
+    for (const type of ['pointerdown', 'wheel', 'touchstart'] as const) gallery.addEventListener(type, () => (target = null), { passive: true });
   }
 </script>

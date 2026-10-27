@@ -134,7 +134,9 @@ test('the past flyers gallery loops forever both ways', async ({ page }) => {
       const mid = g.scrollLeft + g.clientWidth / 2;
       const index = items.reduce((best, it, i) => (Math.abs(it.offsetLeft + it.offsetWidth / 2 - mid) < Math.abs(items[best].offsetLeft + items[best].offsetWidth / 2 - mid) ? i : best), 0);
       const count = Number(g.dataset.count);
-      return { flyer: index % count, copy: Math.floor(index / count), copies: Number(g.dataset.copies), count };
+      // How far that flyer sits from the exact middle (flyers differ in width, so a fixed step used to drift).
+      const off = Math.abs(items[index].offsetLeft + items[index].offsetWidth / 2 - mid);
+      return { flyer: index % count, copy: Math.floor(index / count), copies: Number(g.dataset.copies), count, off };
     });
   const start = await centered();
   const steps = start.count * start.copies;
@@ -144,9 +146,11 @@ test('the past flyers gallery loops forever both ways', async ({ page }) => {
   const back = await centered();
   expect(back.flyer).toBe((((start.flyer - steps) % start.count) + start.count) % start.count);
   expect(back.copy).toBeGreaterThan(0);
+  expect(back.off).toBeLessThan(2);
   for (let i = 0; i < steps * 2; i++) await page.click('[data-gallery-scroll="1"]', { delay: 0 }).then(() => page.waitForTimeout(450));
   await page.waitForTimeout(400);
   const forward = await centered();
   expect(forward.flyer).toBe((back.flyer + steps * 2) % start.count);
   expect(forward.copy).toBeLessThan(start.copies - 1);
+  expect(forward.off).toBeLessThan(2);
 });
