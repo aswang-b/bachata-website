@@ -160,23 +160,31 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                       <div data-offering-key={o.key} class:list={['rounded-2xl border border-border bg-surface/60 px-4 py-3', inlineDetails && 'md:flex md:flex-1 md:flex-col']}>
                         <div class="flex items-start justify-between gap-3">
                           <h3 class="min-w-0 font-display text-xl font-bold text-ink">{o.title}</h3>
-                          {typeLabel(o) && <span class="mt-1.5 shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-wide text-muted">{typeLabel(o)}</span>}
+                          {typeLabel(o) && <span class="mt-1.5 hidden sm:inline shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-wide text-muted">{typeLabel(o)}</span>}
                         </div>
+                        {/* On a phone the title gets the full width: the dates are followed by the type tag, and a series' day and time go on the next line. */}
+                        <p class="mt-1 text-sm text-ink/80 sm:hidden">
+                          {o.isSeries ? dateRange(o, bounds) : o.subLabel}
+                          {typeLabel(o) && <><span class="text-muted" aria-hidden="true"> · </span><span class="whitespace-nowrap text-xs font-bold uppercase tracking-wide text-muted">{typeLabel(o)}</span></>}
+                        </p>
                         <p class="mt-1 text-sm text-ink/80">
-                          {o.isSeries ? `${o.subLabel} · ${dateRange(o, bounds)}` : o.subLabel}
+                          {o.isSeries && <span class="sm:hidden">{o.subLabel}</span>}
+                          <span class="hidden sm:inline">{o.isSeries ? `${o.subLabel} · ${dateRange(o, bounds)}` : o.subLabel}</span>
                           {!o.registrationClosed && label && <span data-public-spots class="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent">{label}</span>}
                           {/* Filled in for admins by the script below when the count is hidden from the public. */}
                           {adminOnly && <span data-admin-spots-key={o.key} class="ml-2 hidden rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent"></span>}
                         </p>
                         {o.location && (
                           <a href={locationHref(o.location)} target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-semibold text-accent hover:opacity-80">
-                            <span aria-hidden="true">📍</span> <span class="underline underline-offset-2">{o.location}</span>
+                            {/* The pin emoji has blank space on its left; pulled back so it lines up with the text above. */}
+                            <span aria-hidden="true" class="-ml-[0.35em]">📍</span> <span class="underline underline-offset-2">{o.location}</span>
                           </a>
                         )}
 
-                        <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+                        {/* Register sits in one place whatever the prices: under them on a phone, at the right from tablet width up (long prices wrap in their own column). */}
+                        <div class="mt-2 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                           {prices.length > 0 ? (
-                            <p class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink">
+                            <p class="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-sm text-ink sm:flex-1">
                               {prices.map((p) => (
                                 <span>
                                   {p.label}:{' '}
@@ -188,9 +196,9 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                             </p>
                           ) : <span />}
                           {o.registrationClosed || full ? (
-                            <span class="rounded-full bg-border px-5 py-2 text-xs font-bold uppercase tracking-wider text-ink/60">{o.registrationClosed ? 'Registration closed' : 'Full'}</span>
+                            <span class="shrink-0 rounded-full bg-border px-5 py-2 text-xs font-bold uppercase tracking-wider text-ink/60">{o.registrationClosed ? 'Registration closed' : 'Full'}</span>
                           ) : (
-                            <a href={registerHref(o)} class="gradient-accent rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Register</a>
+                            <a href={registerHref(o)} class="gradient-accent shrink-0 rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Register</a>
                           )}
                         </div>
 
