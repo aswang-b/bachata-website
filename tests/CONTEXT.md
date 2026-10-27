@@ -38,15 +38,17 @@ Pure logic plus server modules with Supabase replaced by `fakeSupabase.ts` (an i
 Real browser flows against the **shared live database**, made safe by `src/lib/testMode.ts`: the test server (and only a dev server) writes emails to `tests/e2e/.output/emails.jsonl` instead of sending them, behaves as if Google Calendar isn't connected, and skips the daily email/check-in quotas. Every spec imports `test` from `support/fixtures.ts`, which refuses to run unless `/api/test-mode` confirms all three, then warms up each page (a fresh dev server force-reloads a page the first time it optimizes its scripts).
 
 Test data rules (`support/db.ts`):
-- Everything is prefixed `ZZZ` and deleted before and after each run (`globalSetup`/`globalTeardown`), including leftovers from a crashed run.
+- Everything is prefixed `ZZZ` and deleted before and after each run (`globalSetup`/`globalTeardown`), including leftovers from a crashed run. The sweep is case-sensitive, so an admin's own "zzz…" records are left alone.
 - Seeded events are dated past the sync's 180-day window and carry fake Google ids, so the live 15-minute sync never pushes them to Google.
-- They are public while a run lasts (≈2 min), so they briefly appear on the live site's register pages.
+- They are public while a run lasts (≈2 min), so they briefly appear on the live site's homepage and register pages.
+- Ad-hoc seeding outside the suite must follow the same rules (fake Google id, far future): a row without a `google_event_id` gets pushed to the public Google Calendar by the live sync.
 - Tests that change a shared setting (the community guidelines) restore it afterwards. Nothing ever empties the Recycling Bin.
 - Admin tests use a magic-link session made with the service role (`support/admin.ts`), always ended with a **local** sign-out.
 
 | Spec | Covers |
 | --- | --- |
 | `public-pages` | Every public page renders without errors |
+| `homepage` | Flyer blocks: two classes sharing a flyer form one block (type tags, prices with a running early bird, public spots incl. per role, Register links); a lone class shows its details beside the flyer, and the flyer opens full size; Full and Registration closed; a hidden count shows only to admins; one card without a flyer still renders. Past flyers gallery: only site-uploaded images are accepted (rejected before any write), and it loops both ways (read-only, skipped while the gallery is empty) |
 | `calendar-layout` | An evening class on its own day in the site zone (server in UTC); Calendar banner text (with a "Wk N" pill) stays inside its box at narrow widths, e.g. 125% zoom, and every banner shares one font size; banners reachable with Tab and opened with Enter |
 | `class-registration` | Full sign-up → itemized confirmation page and email (+ one BCC copy per the admin setting); drop-in date; whole-series-only and drop-in-only radios; closed classes; server validation; double submit → Recycling Bin → admin restore; blocked-submit focus and screen-reader announcement; dancer autocomplete tokens and aria-invalid on missing fields; the location link is its own control (Enter opens it); drop-in policy note on a phone |
 | `capacity` | Full classes; a namesake can't take a full class's spot, and same-name different people each count; Leader/Follower caps (badge, form block, server refusal, role-edit recount); an admin changes a dancer's role from the edit row; hidden counts |

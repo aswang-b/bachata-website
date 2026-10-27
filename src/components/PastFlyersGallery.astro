@@ -1,13 +1,21 @@
 ---
 // The homepage's "Past Classes & Events": the flyers an admin uploaded to the
-// gallery (admin → Homepage), in a sideways row that turns like a cylinder as it scrolls.
-// A flyer opens full size through the homepage's flyer dialog (data-flyer-open).
+// gallery (admin → Homepage), in a sideways row that turns like a cylinder as it
+// scrolls and loops forever both ways. A flyer opens full size through the
+// homepage's flyer dialog (data-flyer-open).
 interface Props {
   flyers: string[];
 }
 const { flyers } = Astro.props;
+
+// The loop: the flyers are repeated in identical copies, the row starts on the
+// middle copy, and whenever scrolling stops near either end it jumps back by
+// whole copies (invisibly, since the copies match). An odd count, enough that a
+// long flick can't reach the end before it stops.
+const copies = flyers.length > 0 ? Math.max(5, Math.ceil(15 / flyers.length) | 1) : 0;
+const middleCopy = Math.floor(copies / 2);
 const arrowClass =
-  'absolute top-1/2 z-[200] hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition hover:bg-accent disabled:pointer-events-none disabled:opacity-0 sm:flex';
+  'absolute top-1/2 z-[200] hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition hover:bg-accent sm:flex';
 ---
 
 {flyers.length > 0 && (
@@ -17,13 +25,26 @@ const arrowClass =
       <button type="button" data-gallery-scroll="-1" aria-label="Scroll back" class={`${arrowClass} left-2`}>
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
       </button>
-      {/* Side padding lets the first and last flyer reach the middle, where they face you. */}
-      <div id="past-flyers" class="flex items-center gap-10 overflow-x-auto overscroll-x-contain px-[calc(50%-6rem)] py-8 [perspective:1100px] [scrollbar-width:none] sm:gap-14 sm:px-[calc(50%-7.5rem)] [&::-webkit-scrollbar]:hidden">
-        {flyers.map((url) => (
-          <button type="button" data-flyer-open={url} data-gallery-flyer class="shrink-0 will-change-transform" aria-label="View this past flyer full size">
-            <img src={url} alt="Flyer from a past class or event" loading="lazy" class="h-64 w-auto max-w-none rounded-2xl border border-border shadow-[0_12px_32px_rgba(0,0,0,0.45)] sm:h-80" />
-          </button>
-        ))}
+      <div id="past-flyers" data-copies={copies} data-count={flyers.length} class="flex items-center gap-10 overflow-x-auto overscroll-x-contain py-8 [perspective:1100px] [scrollbar-width:none] sm:gap-14 [&::-webkit-scrollbar]:hidden">
+        {Array.from({ length: copies }, (_, copy) =>
+          flyers.map((url) => {
+            // Only the middle copy is for screen readers and the keyboard; the rest are its look-alikes.
+            const real = copy === middleCopy;
+            return (
+              <button
+                type="button"
+                data-flyer-open={url}
+                data-gallery-flyer
+                class="shrink-0 will-change-transform"
+                aria-label={real ? 'View this past flyer full size' : undefined}
+                aria-hidden={real ? undefined : 'true'}
+                tabindex={real ? undefined : -1}
+              >
+                <img src={url} alt={real ? 'Flyer from a past class or event' : ''} loading="lazy" class="h-64 w-auto max-w-none rounded-2xl border border-border shadow-[0_12px_32px_rgba(0,0,0,0.45)] sm:h-80" />
+              </button>
+            );
+          })
+        )}
       </div>
       <button type="button" data-gallery-scroll="1" aria-label="Scroll forward" class={`${arrowClass} right-2`}>
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
@@ -36,40 +57,73 @@ const arrowClass =
   const gallery = document.getElementById('past-flyers');
   if (gallery) {
     const items = Array.from(gallery.querySelectorAll<HTMLElement>('[data-gallery-flyer]'));
-    const back = document.querySelector<HTMLButtonElement>('[data-gallery-scroll="-1"]')!;
-    const forward = document.querySelector<HTMLButtonElement>('[data-gallery-scroll="1"]')!;
+    const copies = Number(gallery.dataset.copies);
+    const count = Number(gallery.dataset.count);
+    const middleCopy = Math.floor(copies / 2);
+    // One copy's width, flyer to flyer (gaps included).
+    const copyWidth = () => items[count].offsetLeft - items[0].offsetLeft;
 
     // Each flyer turns away, drops back and fades the further it is from the
     // middle, like posters on a cylinder that spins as the row scrolls.
     let frame = 0;
     const render = () => {
       frame = 0;
-      const box = gallery.getBoundingClientRect();
-      const center = box.left + box.width / 2;
+      const half = gallery.clientWidth / 2;
+      const center = gallery.scrollLeft + half;
       for (const item of items) {
-        const middle = item.offsetLeft - gallery.scrollLeft + item.offsetWidth / 2 + box.left;
-        const offset = Math.max(-1.5, Math.min(1.5, (middle - center) / (box.width / 2)));
+        const offset = Math.max(-1.5, Math.min(1.5, (item.offsetLeft + item.offsetWidth / 2 - center) / half));
         item.style.transform = `translateZ(${-Math.abs(offset) * 160}px) rotateY(${offset * 45}deg)`;
         item.style.opacity = String(1 - Math.min(1, Math.abs(offset)) * 0.45);
         item.style.zIndex = String(100 - Math.round(Math.abs(offset) * 50));
       }
-      back.disabled = gallery.scrollLeft <= 2;
-      forward.disabled = gallery.scrollLeft + gallery.clientWidth >= gallery.scrollWidth - 2;
     };
     const schedule = () => {
       frame ||= requestAnimationFrame(render);
     };
-    gallery.addEventListener('scroll', schedule, { passive: true });
-    window.addEventListener('resize', schedule);
-    gallery.querySelectorAll('img').forEach((img) => img.addEventListener('load', schedule));
-    render();
 
-    // An arrow brings the next flyer to the middle.
-    for (const button of [back, forward]) {
+    // Puts the middle copy's first flyer in the middle (until someone scrolls,
+    // since the flyers' widths are only known as their images load).
+    let touched = false;
+    const centerStart = () => {
+      if (touched) return;
+      const first = items[middleCopy * count];
+      gallery.scrollLeft = first.offsetLeft + first.offsetWidth / 2 - gallery.clientWidth / 2;
+      render();
+    };
+
+    // Back to the middle copies once scrolling stops near either end; the jump
+    // is a whole number of copies, so nothing on screen changes.
+    let idle = 0;
+    const recenter = () => {
+      const width = copyWidth();
+      if (width <= 0) return;
+      const copy = Math.floor((gallery.scrollLeft + gallery.clientWidth / 2 - items[0].offsetLeft) / width);
+      if (copy < 1 || copy > copies - 2) gallery.scrollLeft += (middleCopy - copy) * width;
+    };
+    gallery.addEventListener(
+      'scroll',
+      () => {
+        schedule();
+        clearTimeout(idle);
+        idle = window.setTimeout(recenter, 150);
+      },
+      { passive: true }
+    );
+    for (const type of ['pointerdown', 'wheel', 'touchstart'] as const) gallery.addEventListener(type, () => (touched = true), { passive: true });
+    window.addEventListener('resize', () => {
+      centerStart();
+      schedule();
+    });
+    gallery.querySelectorAll('img').forEach((img) => img.addEventListener('load', centerStart));
+    centerStart();
+
+    // An arrow brings the next flyer to the middle; there's always a next one.
+    document.querySelectorAll<HTMLButtonElement>('[data-gallery-scroll]').forEach((button) => {
       button.addEventListener('click', () => {
-        const step = (items[1]?.offsetLeft ?? 0) - (items[0]?.offsetLeft ?? 0) || gallery.clientWidth / 2;
+        touched = true;
+        const step = items.length > 1 ? items[1].offsetLeft - items[0].offsetLeft : gallery.clientWidth / 2;
         gallery.scrollBy({ left: Number(button.dataset.galleryScroll) * step, behavior: 'smooth' });
       });
-    }
+    });
   }
 </script>

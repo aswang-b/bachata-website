@@ -229,8 +229,6 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
       ))}
     </div>
 
-    <PastFlyersGallery flyers={galleryFlyers} />
-
     {faqs.length > 0 && (
       <div class="mx-auto mt-16 max-w-3xl">
         <h3 class="font-display text-xl font-bold text-ink">FAQs & Other Info</h3>
@@ -247,6 +245,8 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
         </div>
       </div>
     )}
+
+    <PastFlyersGallery flyers={galleryFlyers} />
   </section>
 
   <dialog id="flyer-dialog" class="m-auto max-h-[95vh] max-w-[95vw] rounded-2xl bg-transparent p-0 backdrop:bg-black/80">

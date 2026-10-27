@@ -31,6 +31,12 @@ export interface SeedOptions {
   registrationClosed?: boolean;
   description?: string;
   dayOffset?: number;
+  // The uncropped flyer (classes sharing one URL form one homepage block).
+  flyerUrl?: string;
+  priceEarlyBird?: number;
+  // Days from now the early bird runs until (negative: it has ended).
+  earlyBirdDays?: number;
+  hideLessonOverview?: boolean;
 }
 
 export interface Seeded {
@@ -64,6 +70,10 @@ export async function seedEvent(o: SeedOptions): Promise<Seeded> {
     leader_capacity: o.leaderCapacity ?? null,
     follower_capacity: o.followerCapacity ?? null,
     show_capacity: o.showCapacity ?? false,
+    flyer_url: o.flyerUrl ?? null,
+    price_whole_series_early_bird: o.priceEarlyBird ?? null,
+    early_bird_until: o.earlyBirdDays === undefined ? null : new Date(Date.now() + o.earlyBirdDays * DAY).toISOString(),
+    hide_lesson_overview: o.hideLessonOverview ?? false,
   }));
   const { data, error } = await db.from('events').insert(rows).select('id, start_time').order('start_time');
   if (error || !data) throw new Error(`Seeding "${title}" failed: ${error?.message}`);
@@ -131,16 +141,17 @@ export async function spotCounts(eventId: string) {
 
 // Deletes every ZZZ row the suite (or an earlier, crashed run) left behind.
 export async function sweepTestData(): Promise<void> {
+  // Case-sensitive (uppercase ZZZ), so an admin's own "zzz…" records are never swept.
   const like = `${TEST_PREFIX}%`;
   const results = await Promise.all([
-    db.from('intake_submissions').delete().ilike('first_name', like),
-    db.from('class_checkins').delete().ilike('first_name', like),
-    db.from('deals').delete().ilike('name', like),
-    db.from('contact_messages').delete().ilike('first_name', like),
+    db.from('intake_submissions').delete().like('first_name', like),
+    db.from('class_checkins').delete().like('first_name', like),
+    db.from('deals').delete().like('name', like),
+    db.from('contact_messages').delete().like('first_name', like),
     db.from('email_bounces').delete().ilike('email', like),
     db.from('site_errors').delete().ilike('message', `%${TEST_PREFIX}%`),
   ]);
   // Sign-ups first: class registrations point at the events' occurrences.
-  const events = await db.from('events').delete().ilike('title', like);
+  const events = await db.from('events').delete().like('title', like);
   for (const r of [...results, events]) if (r.error) throw new Error(`Cleanup failed: ${r.error.message}`);
 }
