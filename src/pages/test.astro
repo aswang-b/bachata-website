@@ -133,7 +133,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
 
                         {o.description && (
                           <details class="group/acc mt-3 border-t border-border pt-2">
-                            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 py-1 text-sm font-semibold text-ink/80 [&::-webkit-details-marker]:hidden">
+                            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 py-1 text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
                               More about {o.title}
                               <span class="shrink-0 text-muted transition-transform group-open/acc:rotate-180">⌄</span>
                             </summary>
@@ -142,7 +142,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                         )}
                         {showOverview && (
                           <details class="group/acc mt-3 border-t border-border pt-2">
-                            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 py-1 text-sm font-semibold text-ink/80 [&::-webkit-details-marker]:hidden">
+                            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 py-1 text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
                               {o.lessonOverviewTitle ?? 'About This Class Format'}
                               <span class="shrink-0 text-muted transition-transform group-open/acc:rotate-180">⌄</span>
                             </summary>
