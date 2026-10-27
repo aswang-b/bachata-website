@@ -25,6 +25,10 @@ describe('structured data for search engines', () => {
     expect(person.alternateName).toContain('Belinda Li');
     expect(JSON.stringify(graph)).not.toContain('Seybold');
     expect(JSON.stringify(graph)).not.toContain('streetAddress');
+    // Google takes the site name it shows in results from the WebSite entry.
+    const site = graph.find((n: { '@type': string }) => n['@type'] === 'WebSite') as Record<string, unknown>;
+    expect(site.name).toBe('Dance with B');
+    expect(site.url).toBe('https://dancewithb.fun/');
   });
 
   it("gives each upcoming class its own venue, today's prices, flyer and register link", () => {

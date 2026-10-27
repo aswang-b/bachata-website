@@ -20,10 +20,20 @@ export function siteSchema(sameAs: string[]) {
   return {
     '@context': 'https://schema.org',
     '@graph': [
+      // The site's name as Google shows it in results, and the ways people search for it.
+      {
+        '@type': 'WebSite',
+        '@id': `${SITE_URL}/#website`,
+        name: 'Dance with B',
+        alternateName: ['DanceWithB', 'dancewithb.fun', 'Dance with B Li'],
+        url: `${SITE_URL}/`,
+        publisher: { '@id': ORG_ID },
+      },
       {
         '@type': 'Organization',
         '@id': ORG_ID,
         name: 'Dance with B',
+        alternateName: ['DanceWithB', 'Dance with B Li', 'Dance with Belinda Li'],
         url: SITE_URL,
         logo: DEFAULT_SHARE_IMAGE,
         description: 'Bachata and sensual bachata classes, workshops, and social dance events in Madison, WI, taught and organized by B Li (Belinda Li).',
