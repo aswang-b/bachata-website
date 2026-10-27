@@ -46,7 +46,7 @@ const blocks = groupByFlyer(offerings);
 const bounds = seriesBounds(allEventsForTotals ?? []);
 
 // A block sits in the section of the first thing on its flyer.
-const SECTION_TITLES: Record<HomepageSection, string> = { events: 'Upcoming Events', classes: 'Classes' };
+const SECTION_TITLES: Record<HomepageSection, string> = { events: 'Upcoming Events', classes: 'Current Lesson Offerings' };
 const sections = sectionOrder
   .map((id) => ({ id, title: SECTION_TITLES[id], blocks: blocks.filter((b) => (b.offerings[0].eventType === 'event') === (id === 'events')) }))
   .filter((s) => s.blocks.length > 0);
