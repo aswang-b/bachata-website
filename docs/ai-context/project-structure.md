@@ -32,7 +32,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0054); a new table must be granted to service_role in its migration (see 0045)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0057); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting)
@@ -68,6 +68,7 @@
 │   │   ├── registrationConfirmation.ts  # Builds the sign-up confirmation email (sent on sign-up, resent by admins)
 │   │   ├── faqs.ts                      # FAQ list persistence
 │   │   ├── googleCalendar.ts            # Google Calendar API client
+│   │   ├── eventImages.ts               # The event-images bucket: allowed image/flyer URLs, flyer sizes in file names, scaled srcset
 │   │   ├── flyerBlocks.ts               # Homepage flyer blocks: grouping by flyer, today's prices, deal notes, series dates
 │   │   ├── homepageContent.ts           # Homepage copy, card/section order, past flyers gallery
 │   │   ├── imageCropper.ts              # Browser-only crop dialog for event images (locked 16:3 banner, 1536x288 JPEG)
