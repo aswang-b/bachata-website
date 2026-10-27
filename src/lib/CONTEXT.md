@@ -48,6 +48,7 @@ Almost everything here runs server-side (Astro SSR pages, `/api/*` routes, the s
 | `previewMode.ts` | Browser-side flag for admins previewing the site as a public visitor |
 | `pricing.ts` | `getActivePrice`/`priceTierLabel` — resolves early-bird/flash-sale tiered pricing against a given time; pure (no Supabase/env imports) so it's safe from both SSR frontmatter and client `<script>` bundles |
 | `richText.ts` | `sanitizeRichHtml` — regex-based allow-list HTML sanitizer for admin-authored rich text (event descriptions, FAQ answers, homepage copy) |
+| `seoSchema.ts` | Search-engine structured data (JSON-LD), never shown: Dance with B and B Li (alternate name Belinda Li) as instructor/organizer with Madison, WI as the area served and no studio address (the venue changes), plus one `DanceEvent` per upcoming class (its own location, today's prices, flyer, register link). `jsonLd` escapes `<`. Used by `BaseLayout` and the homepage. Pure |
 | `siteBanner.ts` | Site-wide announcement banner get/set, with HTML sanitization |
 | `siteSettings.ts` | Boolean site settings (`hide_about_nav`, `hide_contact_nav`, `hide_checkin_nav`, `disable_checkin_page`) persistence |
 | `supabase.ts` | Server Supabase client (service role key) |

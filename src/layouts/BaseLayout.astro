@@ -6,49 +6,29 @@ import CookieConsent from '../components/CookieConsent.astro';
 import PreviewBanner from '../components/PreviewBanner.astro';
 import AnnouncementBanner from '../components/AnnouncementBanner.astro';
 import { siteTimeZone } from '../lib/siteTime';
+import { DEFAULT_SHARE_IMAGE, jsonLd, siteSchema } from '../lib/seoSchema';
 
 interface Props {
   title: string;
   description?: string;
+  // Link-preview image (absolute URL); the site icon when not given.
+  image?: string;
+  // Extra schema.org JSON-LD for search engines (e.g. the homepage's classes); never shown.
+  structuredData?: unknown[];
 }
 
 const {
   title,
   description = 'Bachata lessons, private coaching, and social events.',
+  image = DEFAULT_SHARE_IMAGE,
+  structuredData = [],
 } = Astro.props;
 
 const canonicalUrl = new URL(Astro.url.pathname, 'https://dancewithb.fun').toString();
 
-const localBusinessSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'DanceSchool',
-  name: 'Dance with B',
-  description: 'Bachata sensual classes, private coaching, and social dance events in Madison, WI.',
-  url: 'https://dancewithb.fun',
-  image: 'https://dancewithb.fun/favicon.svg',
-  address: {
-    '@type': 'PostalAddress',
-    streetAddress: '6725 Seybold Rd',
-    addressLocality: 'Madison',
-    addressRegion: 'WI',
-    postalCode: '53719',
-    addressCountry: 'US',
-  },
-  founder: {
-    '@type': 'Person',
-    name: 'B Li',
-  },
-  // Reflects the published group-class hours (also set on the Google
-  // Business Profile). Private lessons/workshops run outside these hours
-  // by appointment, so they're described in copy rather than modeled here.
-  openingHoursSpecification: {
-    '@type': 'OpeningHoursSpecification',
-    dayOfWeek: 'Sunday',
-    opens: '13:00',
-    closes: '15:00',
-  },
-  sameAs: ['https://www.instagram.com/ohmytofuu/', 'https://open.spotify.com/playlist/15WaYTwjYFwQ2yq33c9Gh8'],
-};
+// Search engines see Dance with B and B as the instructor and organizer
+// (lib/seoSchema.ts), with no studio address, since the venue changes.
+const siteStructuredData = siteSchema(['https://www.instagram.com/ohmytofuu/', 'https://open.spotify.com/playlist/15WaYTwjYFwQ2yq33c9Gh8']);
 ---
 
 <!doctype html>
@@ -70,11 +50,15 @@ const localBusinessSchema = {
     <meta property="og:title" content={`${title} | Dance with B`} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:site_name" content="Dance with B" />
+    <meta property="og:image" content={image} />
+    <meta name="twitter:card" content={image === DEFAULT_SHARE_IMAGE ? 'summary' : 'summary_large_image'} />
+    <meta name="twitter:image" content={image} />
     <meta name="twitter:title" content={`${title} | Dance with B`} />
     <meta name="twitter:description" content={description} />
 
-    <script type="application/ld+json" set:html={JSON.stringify(localBusinessSchema)} />
+    <script type="application/ld+json" set:html={jsonLd(siteStructuredData)} />
+    {structuredData.map((data) => <script type="application/ld+json" set:html={jsonLd(data)} />)}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

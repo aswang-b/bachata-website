@@ -17,6 +17,7 @@ import { getSpotsByOccurrence, publicSpotsLabel, seriesSpots } from '../lib/capa
 import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesBounds } from '../lib/flyerBlocks';
 import PastFlyersGallery from '../components/PastFlyersGallery.astro';
 import FlyerDialog from '../components/FlyerDialog.astro';
+import { eventSchemas } from '../lib/seoSchema';
 import { locationHref } from '../lib/locationLink';
 import { flyerSize, flyerSrcset, scaledImageUrl } from '../lib/eventImages';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
@@ -78,14 +79,23 @@ function spotsFor(offering: ClassSeriesEntry) {
 
 // Events sit under Upcoming Events, so only classes get a type tag.
 const typeLabel = (o: ClassSeriesEntry) => (o.eventType === 'event' ? '' : o.isSeries ? `${o.totalOccurrences}-week series` : 'Workshop');
+// For search engines only: each upcoming class/event as structured data, and
+// the first flyer as the link-preview image.
+const fullOccurrences = new Set([...spotsByOccurrence].filter(([, s]) => s.full).map(([id]) => id));
+const structuredData = eventSchemas(events ?? [], now, fullOccurrences);
+const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyerUrl ?? undefined;
 const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/register/events' : '/register'}?series=${encodeURIComponent(o.key)}`;
 ---
 
 <BaseLayout
   title="Bachata Classes in Madison, WI"
-  description="Weekly bachata sensual classes, private coaching, and social dance events in Madison, WI at Dance Life Studio. Beginner-friendly — no partner or experience required."
+  description="Bachata and sensual bachata classes, workshops, private coaching, and social dance events in Madison, WI with B. Beginner-friendly — no partner or experience required."
+  image={shareImage}
+  structuredData={structuredData}
 >
   <section class="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
+    {/* For search engines and screen readers only; the page itself leads with the flyers. */}
+    <h1 class="sr-only">Bachata classes and social dance events in Madison, WI with B Li (Belinda Li)</h1>
     {sections.length === 0 && <p class="mx-auto max-w-md text-center text-sm text-muted">No upcoming classes or events right now — check back soon!</p>}
 
     {sections.length > 0 && (
