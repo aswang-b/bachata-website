@@ -12,7 +12,7 @@ import { applyCardOrder, getHomepageCardOrder, getHomepageContent, getHomepageSe
 import { listFaqs } from '../lib/faqs';
 import { listActiveDeals } from '../lib/dealsStore';
 import { getSpotsByOccurrence, publicSpotsLabel, seriesSpots } from '../lib/capacity';
-import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions } from '../lib/flyerBlocks';
+import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesBounds } from '../lib/flyerBlocks';
 import { locationHref } from '../lib/locationLink';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
 import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
@@ -30,7 +30,7 @@ const [{ lessonOverview }, faqs, { data: events, error }, { data: allEventsForTo
     .in('event_type', ['class', 'event'])
     .gte('start_time', now.toISOString())
     .order('start_time', { ascending: true }),
-  supabase.from('events').select('id, google_recurring_event_id').eq('visibility', 'public').in('event_type', ['class', 'event']),
+  supabase.from('events').select('id, google_recurring_event_id, start_time').eq('visibility', 'public').in('event_type', ['class', 'event']),
   getHomepageCardOrder(),
   getHomepageSectionOrder(),
   listActiveDeals(now),
@@ -42,6 +42,8 @@ const offerings = applyCardOrder(
   cardOrder
 );
 const blocks = groupByFlyer(offerings);
+// A series shows its full dates, not just the classes still to come.
+const bounds = seriesBounds(allEventsForTotals ?? []);
 
 // A block sits in the section of the first thing on its flyer.
 const SECTION_TITLES: Record<HomepageSection, string> = { events: 'Upcoming Events', classes: 'Classes' };
@@ -102,7 +104,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                           <span class="mt-1.5 shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-wide text-muted">{typeLabel(o)}</span>
                         </div>
                         <p class="mt-1 text-sm text-ink/80">
-                          {o.isSeries ? `${o.subLabel} · ${dateRange(o)}` : o.subLabel}
+                          {o.isSeries ? `${o.subLabel} · ${dateRange(o, bounds)}` : o.subLabel}
                           {!o.registrationClosed && label && <span class="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent">{label}</span>}
                         </p>
                         {o.location && (

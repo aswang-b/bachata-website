@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildClassSeriesList, type ClassOccurrenceRow } from '../../src/lib/classSeries';
-import { blockDeals, dateRange, groupByFlyer, priceOptions } from '../../src/lib/flyerBlocks';
+import { blockDeals, dateRange, groupByFlyer, priceOptions, seriesBounds } from '../../src/lib/flyerBlocks';
 import type { Deal } from '../../src/lib/deals';
 
 const now = new Date('2026-10-20T12:00:00Z');
@@ -47,6 +47,11 @@ describe('flyer homepage blocks', () => {
     expect(priceOptions(event, now)).toEqual([{ label: 'Ticket', price: 5, was: null, tag: '', suffix: '' }]);
     const [o] = buildClassSeriesList(series('sensual'));
     expect(dateRange(o)).toBe('Oct 25 – Nov 15');
+    // Once the first class has passed, the series still shows its full dates.
+    const all = series('sensual');
+    const [upcoming] = buildClassSeriesList(all.slice(1), all);
+    expect(dateRange(upcoming)).toBe('Nov 1 – Nov 15');
+    expect(dateRange(upcoming, seriesBounds(all))).toBe('Oct 25 – Nov 15');
   });
 
   it("names a deal only when all of its classes (or any N of them) are on the flyer", () => {

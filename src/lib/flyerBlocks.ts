@@ -90,11 +90,29 @@ export function blockDeals(offerings: ClassSeriesEntry[], deals: Deal[]): { name
     .map((d) => ({ name: d.name, summary: dealSummary(d, d.seriesKeys.length) }));
 }
 
-// "Oct 25 – Nov 15" across a series' remaining dates, or the one date.
-export function dateRange(offering: ClassSeriesEntry): string {
+// The first and last class of each series, past ones included (rows from
+// every occurrence, not just upcoming ones).
+export function seriesBounds(rows: { id: string; google_recurring_event_id: string | null; start_time: string }[]): Map<string, { first: string; last: string }> {
+  const bounds = new Map<string, { first: string; last: string }>();
+  for (const r of rows) {
+    const key = r.google_recurring_event_id ?? r.id;
+    const b = bounds.get(key);
+    if (!b) bounds.set(key, { first: r.start_time, last: r.start_time });
+    else {
+      if (Date.parse(r.start_time) < Date.parse(b.first)) b.first = r.start_time;
+      if (Date.parse(r.start_time) > Date.parse(b.last)) b.last = r.start_time;
+    }
+  }
+  return bounds;
+}
+
+// "Oct 25 – Nov 15": the whole series, from its first class even once that
+// has passed (`bounds` from seriesBounds), or the one date.
+export function dateRange(offering: ClassSeriesEntry, bounds?: Map<string, { first: string; last: string }>): string {
   const fmt = siteFormatter({ month: 'short', day: 'numeric' });
-  const first = offering.occurrences[0]?.startTime ?? offering.nextStartTime;
-  const last = offering.occurrences[offering.occurrences.length - 1]?.startTime ?? first;
+  const whole = bounds?.get(offering.key);
+  const first = whole?.first ?? offering.occurrences[0]?.startTime ?? offering.nextStartTime;
+  const last = whole?.last ?? offering.occurrences[offering.occurrences.length - 1]?.startTime ?? first;
   const a = fmt.format(new Date(first));
   const b = fmt.format(new Date(last));
   return a === b ? a : `${a} – ${b}`;
