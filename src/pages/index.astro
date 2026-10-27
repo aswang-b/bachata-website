@@ -17,6 +17,7 @@ import { getSpotsByOccurrence, publicSpotsLabel, seriesSpots } from '../lib/capa
 import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesBounds } from '../lib/flyerBlocks';
 import PastFlyersGallery from '../components/PastFlyersGallery.astro';
 import { locationHref } from '../lib/locationLink';
+import { flyerSize, flyerSrcset, scaledImageUrl } from '../lib/eventImages';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
 import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
 
@@ -54,6 +55,12 @@ const SECTION_TITLES: Record<HomepageSection, string> = { events: 'Upcoming Even
 const sections = sectionOrder
   .map((id) => ({ id, title: SECTION_TITLES[id], blocks: blocks.filter((b) => (b.offerings[0].eventType === 'event') === (id === 'events')) }))
   .filter((s) => s.blocks.length > 0);
+// The first flyer on the page is usually its largest image: loaded right
+// away, not lazily, so the page doesn't wait on it.
+const firstFlyerBlock = sections.flatMap((s) => s.blocks).find((b) => b.flyerUrl)?.key;
+// The flyer column is about a third of the page (the whole width on a phone).
+const FLYER_SIZES = '(min-width: 1152px) 380px, (min-width: 768px) 33vw, 100vw';
+const blockTitles = (offerings: ClassSeriesEntry[]) => offerings.map((o) => o.title).join(' and ');
 
 let spotsByOccurrence = new Map<string, import('../lib/capacity').SpotsInfo>();
 try {
@@ -112,16 +119,27 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
               <article data-flyer-block={block.key} class:list={['relative overflow-clip rounded-3xl border border-border bg-bg shadow-[0_2px_16px_rgba(0,0,0,0.06)]', block.flyerUrl && 'md:grid md:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]']}>
                 {/* Admin-only reorder arrows; revealed by the script below once an admin session is confirmed. */}
                 <div class="card-order-controls absolute left-3 top-3 z-10 hidden gap-1.5">
-                  <button type="button" data-move="-1" aria-label="Move up" title="Move up" class="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/60">
+                  <button type="button" data-move="-1" aria-label={`Move ${blockTitles(block.offerings)} up`} title="Move up" class="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/60">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
                   </button>
-                  <button type="button" data-move="1" aria-label="Move down" title="Move down" class="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/60">
+                  <button type="button" data-move="1" aria-label={`Move ${blockTitles(block.offerings)} down`} title="Move down" class="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/60">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                   </button>
                 </div>
                 {block.flyerUrl ? (
-                  <button type="button" data-flyer-open={block.flyerUrl} class="group relative block w-full bg-surface p-3 sm:p-4 md:sticky md:top-[calc(var(--site-top-h,4rem)+1rem)] md:self-start md:bg-transparent md:p-4 md:pr-0" aria-label="View the flyer full size">
-                    <img src={block.flyerUrl} alt={`Flyer for ${block.offerings.map((o) => o.title).join(' and ')}`} loading="lazy" class="mx-auto max-h-[75vh] w-full rounded-2xl object-contain md:max-h-[calc(100vh-var(--site-top-h,4rem)-5rem)]" />
+                  <button type="button" data-flyer-open={block.flyerUrl} class="group relative block w-full bg-surface p-3 sm:p-4 md:sticky md:top-[calc(var(--site-top-h,4rem)+1rem)] md:self-start md:bg-transparent md:p-4 md:pr-0">
+                    {/* Its alt text and the visible hint below name the button. */}
+                    <img
+                      src={scaledImageUrl(block.flyerUrl, 800)}
+                      srcset={flyerSrcset(block.flyerUrl)}
+                      sizes={FLYER_SIZES}
+                      width={flyerSize(block.flyerUrl)?.width}
+                      height={flyerSize(block.flyerUrl)?.height}
+                      alt={`Flyer for ${blockTitles(block.offerings)}`}
+                      loading={block.key === firstFlyerBlock ? 'eager' : 'lazy'}
+                      fetchpriority={block.key === firstFlyerBlock ? 'high' : undefined}
+                      decoding="async"
+                      class="mx-auto max-h-[75vh] w-full rounded-2xl object-contain md:max-h-[calc(100vh-var(--site-top-h,4rem)-5rem)]" />
                     <span class="mt-1 block text-center text-xs font-semibold text-muted group-hover:text-accent">Tap to view full size</span>
                   </button>
                 ) : (
@@ -178,7 +196,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                         {inlineDetails && (
                           <div data-desc-preview class="group/desc mt-2 flex min-h-28 flex-col overflow-hidden rounded-xl border border-border bg-bg md:flex-1 data-[fits]:min-h-0 md:data-[fits]:flex-none">
                             {/* On desktop the text is taken out of the flow, so the flyer alone sets the card's height and the text fills what's beside it. */}
-                            <div data-desc-clip class="relative max-h-56 overflow-hidden md:max-h-none md:min-h-0 md:flex-1 group-data-[expanded]/desc:max-h-none group-data-[expanded]/desc:md:flex-none group-data-[fits]/desc:md:flex-none">
+                            <div data-desc-clip id={`desc-${o.key}`} class="relative max-h-56 overflow-hidden md:max-h-none md:min-h-0 md:flex-1 group-data-[expanded]/desc:max-h-none group-data-[expanded]/desc:md:flex-none group-data-[fits]/desc:md:flex-none">
                               <div data-desc-body class="px-3 py-2.5 text-sm leading-relaxed text-ink/75 [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p:not(:first-child)]:mt-3 [&_ul]:list-disc [&_ul]:pl-5 md:absolute md:inset-x-0 md:top-0 group-data-[expanded]/desc:md:static group-data-[fits]/desc:md:static">
                                 {o.description && <div set:html={o.description} />}
                                 {showOverview && (
@@ -190,7 +208,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                               </div>
                               <div class="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-bg to-transparent group-data-[expanded]/desc:hidden group-data-[fits]/desc:hidden"></div>
                             </div>
-                            <button type="button" data-desc-toggle class="hidden border-t border-border px-3 py-2 text-left text-sm font-bold text-accent hover:opacity-80">Read more</button>
+                            <button type="button" data-desc-toggle aria-expanded="false" aria-controls={`desc-${o.key}`} class="hidden border-t border-border px-3 py-2 text-left text-sm font-bold text-accent hover:opacity-80">Read more</button>
                           </div>
                         )}
                         {o.description && !inlineDetails && (
@@ -390,37 +408,64 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
   document.querySelectorAll<HTMLButtonElement>('[data-flyer-open]').forEach((button) => {
     button.addEventListener('click', () => {
       dialogImg.src = button.dataset.flyerOpen!;
+      // The same description as the flyer it opens.
+      dialogImg.alt = button.querySelector('img')?.alt || 'Flyer';
       dialog.showModal();
     });
   });
   // Single-class flyer blocks: "Read more" only when the details run past the space they have.
   const previews = Array.from(document.querySelectorAll<HTMLElement>('[data-desc-preview]'));
   function measurePreviews() {
-    for (const preview of previews) {
-      if (preview.dataset.expanded !== undefined) continue;
+    const open = previews.filter((preview) => preview.dataset.expanded === undefined);
+    // Measured against the full space beside the flyer (a fitting box shrinks
+    // to its text). Every change, then every measurement, then every result,
+    // so the page is laid out once rather than once per block.
+    open.forEach((preview) => preview.removeAttribute('data-fits'));
+    const fits = open.map((preview) => {
       const clip = preview.querySelector<HTMLElement>('[data-desc-clip]')!;
       const body = preview.querySelector<HTMLElement>('[data-desc-body]')!;
-      // Measured against the full space beside the flyer (a fitting box shrinks to its text).
-      preview.removeAttribute('data-fits');
-      const fits = body.scrollHeight <= clip.clientHeight + 2;
-      preview.toggleAttribute('data-fits', fits);
-      preview.querySelector('[data-desc-toggle]')!.classList.toggle('hidden', fits);
-    }
+      return body.scrollHeight <= clip.clientHeight + 2;
+    });
+    open.forEach((preview, i) => {
+      preview.toggleAttribute('data-fits', fits[i]);
+      preview.querySelector('[data-desc-toggle]')!.classList.toggle('hidden', fits[i]);
+    });
+  }
+  let measureQueued = false;
+  function queueMeasure() {
+    if (measureQueued) return;
+    measureQueued = true;
+    requestAnimationFrame(() => {
+      measureQueued = false;
+      measurePreviews();
+    });
   }
   for (const preview of previews) {
     const toggle = preview.querySelector<HTMLButtonElement>('[data-desc-toggle]')!;
-    toggle.addEventListener('click', () => {
-      const expanded = preview.toggleAttribute('data-expanded');
+    const setExpanded = (expanded: boolean) => {
+      preview.toggleAttribute('data-expanded', expanded);
       toggle.textContent = expanded ? 'Show less' : 'Read more';
+      toggle.setAttribute('aria-expanded', String(expanded));
+    };
+    toggle.addEventListener('click', () => {
+      const expanded = preview.dataset.expanded === undefined;
+      setExpanded(expanded);
       if (!expanded) {
         measurePreviews();
         preview.closest('article')?.scrollIntoView({ block: 'nearest' });
       }
     });
+    // Tabbing to a link in the cut-off part shows the rest, so focus is never out of sight.
+    preview.querySelector('[data-desc-body]')!.addEventListener('focusin', (event) => {
+      if (preview.dataset.expanded !== undefined || preview.dataset.fits !== undefined) return;
+      setExpanded(true);
+      // The text grew under the focused link, which may have moved off screen.
+      (event.target as HTMLElement).scrollIntoView({ block: 'nearest' });
+    });
   }
   // The flyer's height (once loaded) and the window's width decide the space.
-  document.querySelectorAll<HTMLImageElement>('[data-flyer-open] img').forEach((img) => img.addEventListener('load', measurePreviews));
-  window.addEventListener('resize', measurePreviews);
+  document.querySelectorAll<HTMLImageElement>('[data-flyer-open] img').forEach((img) => img.addEventListener('load', queueMeasure));
+  window.addEventListener('resize', queueMeasure);
   measurePreviews();
 
   // A click on the dimmed backdrop (outside the flyer) closes it too.

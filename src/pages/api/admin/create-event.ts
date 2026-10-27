@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
+import { isEventImageUrl } from '../../../lib/eventImages';
 import {
   getGoogleAccessToken,
   GoogleNotConnectedError,
@@ -58,6 +59,13 @@ const handlePost: APIRoute = async ({ request }) => {
 
   if (!title || !startTime || !endTime) {
     return new Response(JSON.stringify({ error: 'Missing title, startTime, or endTime.' }), { status: 400 });
+  }
+
+  // Shown on the public homepage, so only this site's own uploads (see eventImages.ts).
+  for (const url of [imageUrl, flyerUrl]) {
+    if (url !== undefined && url !== null && url !== '' && !isEventImageUrl(url)) {
+      return new Response(JSON.stringify({ error: 'Images must be uploaded from the editor.' }), { status: 400 });
+    }
   }
 
   const rowVisibility = visibility === 'private' ? 'private' : 'public';

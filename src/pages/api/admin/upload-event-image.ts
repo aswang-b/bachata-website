@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
+import { eventImagePath } from '../../../lib/eventImages';
 
 export const prerender = false;
 
@@ -35,7 +36,11 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'Image must be 5MB or smaller.' }), { status: 400 });
   }
 
-  const path = `${randomUUID()}.${extension}`;
+  // A flyer's pixel size, sent by the editor, goes in its file name (see eventImages.ts).
+  const width = Number(formData?.get('width'));
+  const height = Number(formData?.get('height'));
+  const validSize = (n: number) => Number.isInteger(n) && n > 0 && n <= 20000;
+  const path = eventImagePath(randomUUID(), extension, validSize(width) && validSize(height) ? { width, height } : null);
   const { error: uploadError } = await supabase.storage.from('event-images').upload(path, file, {
     contentType: file.type,
     cacheControl: '31536000',
