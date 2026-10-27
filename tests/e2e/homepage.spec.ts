@@ -202,4 +202,15 @@ test('the past flyers gallery loops forever both ways', async ({ page }) => {
   expect(forward.flyer).toBe((back.flyer + steps * 2) % start.count);
   expect(forward.copy).toBeLessThan(start.copies - 1);
   expect(forward.off).toBeLessThan(2);
+  // Clicking fast, faster than the glide, still ends on a centered flyer and never runs out.
+  for (let i = 0; i < steps * 2; i++) await page.click('[data-gallery-scroll="1"]', { delay: 0 }).then(() => page.waitForTimeout(60));
+  await page.waitForTimeout(1500);
+  const fast = await centered();
+  expect(fast.flyer).toBe((forward.flyer + steps * 2) % start.count);
+  expect(fast.off).toBeLessThan(2);
+  for (let i = 0; i < steps * 2; i++) await page.click('[data-gallery-scroll="-1"]', { delay: 0 }).then(() => page.waitForTimeout(60));
+  await page.waitForTimeout(1500);
+  const fastBack = await centered();
+  expect(fastBack.flyer).toBe(fast.flyer);
+  expect(fastBack.off).toBeLessThan(2);
 });

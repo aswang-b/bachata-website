@@ -133,7 +133,17 @@ const arrowClass =
     document.querySelectorAll<HTMLButtonElement>('[data-gallery-scroll]').forEach((button) => {
       button.addEventListener('click', () => {
         touched = true;
-        target = Math.max(0, Math.min(items.length - 1, (target ?? centeredIndex()) + Number(button.dataset.galleryScroll)));
+        let next = (target ?? centeredIndex()) + Number(button.dataset.galleryScroll);
+        // Heading into an end copy (fast clicks outrun the jump that waits for
+        // scrolling to stop): jump back by whole copies first. The view is
+        // identical, so the glide carries on seamlessly toward the same flyer.
+        const copy = Math.floor(next / count);
+        if (copy < 1 || copy > copies - 2) {
+          const shift = middleCopy - copy;
+          gallery.scrollLeft += shift * copyWidth();
+          next += shift * count;
+        }
+        target = next;
         const item = items[target];
         gallery.scrollTo({ left: item.offsetLeft + item.offsetWidth / 2 - gallery.clientWidth / 2, behavior: 'smooth' });
       });
