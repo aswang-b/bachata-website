@@ -1,5 +1,5 @@
 import { test, expect } from './support/fixtures';
-import { seedEvent, seedSignup, type Seeded } from './support/db';
+import { db, seedEvent, seedSignup, type Seeded } from './support/db';
 import { BASE_URL, RUN_ID } from './support/env';
 import { bearer } from './support/admin';
 
@@ -116,6 +116,55 @@ test('the past flyers gallery only accepts images uploaded to the site', async (
   });
   expect(res.status()).toBe(400);
   expect((await request.post('/api/admin/gallery-flyers', { headers: { Origin: BASE_URL }, data: { flyers: [] } })).status()).toBe(403);
+});
+
+// The calendar offers the same flyer: a "See flyer" button in the detail
+// panel, and a thumbnail on each list entry (a link on phones).
+async function calendarMonth(page: import('@playwright/test').Page, s: Seeded) {
+  const { data } = await db.from('events').select('start_time').eq('id', s.ids[0]).single();
+  const d = new Date(data!.start_time);
+  await page.goto(`/calendar?month=${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
+}
+
+test("the calendar's detail panel offers See flyer only for a class with a flyer", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await calendarMonth(page, series);
+  await page.locator('.event-banner', { hasText: series.title }).first().click();
+  const button = page.locator('#detail-flyer-btn');
+  await expect(button).toBeVisible();
+  await expect(button).toContainText('See flyer');
+  await button.click();
+  await expect(page.locator('#flyer-dialog-img')).toHaveAttribute('src', flyer('pair'));
+  await expect(page.locator('#flyer-dialog-img')).toHaveAttribute('alt', `Flyer for ${series.title}`);
+  await page.keyboard.press('Escape');
+
+  await calendarMonth(page, noFlyer);
+  await page.locator('.event-banner', { hasText: noFlyer.title }).first().click();
+  await expect(page.locator('#detail-title')).toHaveText(noFlyer.title);
+  await expect(button).toBeHidden();
+});
+
+test('calendar list entries show a flyer thumbnail that opens it full size (a link on phones)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await calendarMonth(page, series);
+  await page.locator('#view-toggle-list').click();
+  const entry = page.locator('#list-view > div', { hasText: series.title }).first();
+  const thumb = entry.locator('.list-flyer-thumb');
+  await expect(thumb).toBeVisible();
+  await thumb.click();
+  await expect(page.locator('#flyer-dialog-img')).toHaveAttribute('src', flyer('pair'));
+  await page.keyboard.press('Escape');
+  // Phones get a "See flyer" link instead of the thumbnail.
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(thumb).toBeHidden();
+  await expect(entry.locator('.list-flyer-link')).toBeVisible();
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await calendarMonth(page, noFlyer);
+  await page.locator('#view-toggle-list').click();
+  const plain = page.locator('#list-view > div', { hasText: noFlyer.title }).first();
+  await expect(plain).toBeVisible();
+  await expect(plain.locator('[data-flyer-open]')).toHaveCount(0);
 });
 
 // Reads the real gallery without changing it, so it only runs while the gallery has flyers.

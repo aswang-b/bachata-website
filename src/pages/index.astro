@@ -16,6 +16,7 @@ import { listActiveDeals } from '../lib/dealsStore';
 import { getSpotsByOccurrence, publicSpotsLabel, seriesSpots } from '../lib/capacity';
 import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesBounds } from '../lib/flyerBlocks';
 import PastFlyersGallery from '../components/PastFlyersGallery.astro';
+import FlyerDialog from '../components/FlyerDialog.astro';
 import { locationHref } from '../lib/locationLink';
 import { flyerSize, flyerSrcset, scaledImageUrl } from '../lib/eventImages';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
@@ -267,12 +268,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
     <PastFlyersGallery flyers={galleryFlyers} />
   </section>
 
-  <dialog id="flyer-dialog" class="m-auto max-h-[95vh] max-w-[95vw] rounded-2xl bg-transparent p-0 backdrop:bg-black/80">
-    <form method="dialog" class="flex flex-col items-end gap-2">
-      <button class="rounded-full bg-black/70 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white">Close</button>
-      <img id="flyer-dialog-img" alt="Flyer, full size" class="max-h-[85vh] w-auto rounded-2xl object-contain" />
-    </form>
-  </dialog>
+  <FlyerDialog />
 </BaseLayout>
 
 <script>
@@ -403,16 +399,6 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
   }
   revealReorderControlsIfAdmin();
 
-  const dialog = document.getElementById('flyer-dialog') as HTMLDialogElement;
-  const dialogImg = document.getElementById('flyer-dialog-img') as HTMLImageElement;
-  document.querySelectorAll<HTMLButtonElement>('[data-flyer-open]').forEach((button) => {
-    button.addEventListener('click', () => {
-      dialogImg.src = button.dataset.flyerOpen!;
-      // The same description as the flyer it opens.
-      dialogImg.alt = button.querySelector('img')?.alt || 'Flyer';
-      dialog.showModal();
-    });
-  });
   // Single-class flyer blocks: "Read more" only when the details run past the space they have.
   const previews = Array.from(document.querySelectorAll<HTMLElement>('[data-desc-preview]'));
   function measurePreviews() {
@@ -467,9 +453,4 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
   document.querySelectorAll<HTMLImageElement>('[data-flyer-open] img').forEach((img) => img.addEventListener('load', queueMeasure));
   window.addEventListener('resize', queueMeasure);
   measurePreviews();
-
-  // A click on the dimmed backdrop (outside the flyer) closes it too.
-  dialog.addEventListener('click', (event) => {
-    if (event.target === dialog) dialog.close();
-  });
 </script>

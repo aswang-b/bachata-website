@@ -1,0 +1,30 @@
+---
+// The full-size flyer viewer shared by the homepage and the calendar. Any
+// element with data-flyer-open="<image url>" opens it, including ones a
+// script adds later (the calendar's detail panel). Its description comes from
+// data-flyer-alt, else the image inside the button.
+---
+
+<dialog id="flyer-dialog" class="m-auto max-h-[95vh] max-w-[95vw] rounded-2xl bg-transparent p-0 backdrop:bg-black/80">
+  <form method="dialog" class="flex flex-col items-end gap-2">
+    <button class="rounded-full bg-black/70 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white">Close</button>
+    <img id="flyer-dialog-img" alt="Flyer, full size" class="max-h-[85vh] w-auto rounded-2xl object-contain" />
+  </form>
+</dialog>
+
+<script>
+  const dialog = document.getElementById('flyer-dialog') as HTMLDialogElement;
+  const dialogImg = document.getElementById('flyer-dialog-img') as HTMLImageElement;
+  document.addEventListener('click', (event) => {
+    const opener = (event.target as Element | null)?.closest<HTMLElement>('[data-flyer-open]');
+    if (!opener?.dataset.flyerOpen) return;
+    event.preventDefault();
+    dialogImg.src = opener.dataset.flyerOpen;
+    dialogImg.alt = opener.dataset.flyerAlt || opener.querySelector('img')?.alt || 'Flyer';
+    dialog.showModal();
+  });
+  // A click on the dimmed backdrop (outside the flyer) closes it too.
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+</script>

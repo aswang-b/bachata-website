@@ -8,6 +8,8 @@ import { getSpotsByOccurrence, publicSpotsLabel, type SpotsInfo } from '../lib/c
 import { eventBannerStyle, eventDotStyle, eventTextStyle } from '../lib/eventColors';
 import { eventTypeLabel } from '../lib/classSeries';
 import { locationHref } from '../lib/locationLink';
+import { scaledImageUrl } from '../lib/eventImages';
+import FlyerDialog from '../components/FlyerDialog.astro';
 import { siteFormatter, zonedDateKey, zonedParts, zonedToInstant } from '../lib/siteTime';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -350,13 +352,24 @@ const MAX_BANNERS_PER_DAY = 3;
               rel="noopener noreferrer"
               class="hidden text-sm font-semibold text-accent"
             ></a>
-            <a
-              id="detail-register-btn"
-              href="#"
-              class="gradient-accent mt-1 hidden self-start rounded-full px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
-            >
-              Register Now
-            </a>
+            <div class="mt-1 flex flex-wrap items-center gap-2">
+              <a
+                id="detail-register-btn"
+                href="#"
+                class="gradient-accent hidden rounded-full px-6 py-2.5 text-center text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+              >
+                Register Now
+              </a>
+              {/* Shown for a class or event with a flyer; opens the shared flyer viewer (FlyerDialog). */}
+              <button
+                id="detail-flyer-btn"
+                type="button"
+                class="hidden items-center gap-1.5 rounded-full border border-accent px-5 py-2.5 text-sm font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-5-5L5 21" /></svg>
+                See flyer
+              </button>
+            </div>
             <div id="detail-admin-actions" class="admin-only mt-3 hidden flex-wrap gap-2">
               <button id="detail-edit-btn" class="rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white">
                 Edit
@@ -435,7 +448,19 @@ const MAX_BANNERS_PER_DAY = 3;
                 )}
                 {priceLines.main && <p class="text-xs font-semibold text-ink" set:html={priceLines.main} />}
                 {event.spots_label && <p class="text-xs font-bold text-accent">{event.spots_label}</p>}
+                {event.flyer_url && (
+                  <button type="button" data-flyer-open={event.flyer_url} data-flyer-alt={`Flyer for ${event.title}`} class="list-flyer-link mt-1 inline-flex items-center gap-1.5 self-start text-xs font-bold uppercase tracking-wider text-accent hover:underline sm:hidden">
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-5-5L5 21" /></svg>
+                    See flyer
+                  </button>
+                )}
               </div>
+              {/* The class's flyer, small; it opens full size in the shared flyer viewer. */}
+              {event.flyer_url && (
+                <button type="button" data-flyer-open={event.flyer_url} class="list-flyer-thumb group hidden shrink-0 self-center sm:block">
+                  <img src={scaledImageUrl(event.flyer_url, 240)} alt={`Flyer for ${event.title}`} loading="lazy" decoding="async" class="h-24 w-auto max-w-28 rounded-lg border border-border object-contain transition-transform group-hover:scale-[1.04]" />
+                </button>
+              )}
               </div>
 
               {/* Full-height edge strip with an arrow (a bottom bar on phones) instead of a Register Now pill. */}
@@ -874,6 +899,7 @@ const MAX_BANNERS_PER_DAY = 3;
   >
     <span id="sync-indicator-text">Syncing&hellip;</span>
   </div>
+  <FlyerDialog />
 </BaseLayout>
 
 <script>
@@ -1227,6 +1253,7 @@ const MAX_BANNERS_PER_DAY = 3;
   const detailPrice = document.getElementById('detail-price')!;
   const detailPriceStudent = document.getElementById('detail-price-student')!;
   const detailRegisterBtn = document.getElementById('detail-register-btn') as HTMLAnchorElement;
+  const detailFlyerBtn = document.getElementById('detail-flyer-btn') as HTMLButtonElement;
   const detailLocation = document.getElementById('detail-location') as HTMLAnchorElement;
 
   function formatPrice(value: number): string {
@@ -1425,6 +1452,12 @@ const MAX_BANNERS_PER_DAY = 3;
     } else {
       detailRegisterBtn.classList.add('hidden');
     }
+
+    if (event.flyer_url) detailFlyerBtn.dataset.flyerOpen = event.flyer_url;
+    else delete detailFlyerBtn.dataset.flyerOpen;
+    detailFlyerBtn.dataset.flyerAlt = `Flyer for ${event.title}`;
+    detailFlyerBtn.classList.toggle('hidden', !event.flyer_url);
+    detailFlyerBtn.classList.toggle('inline-flex', Boolean(event.flyer_url));
 
     if (event.location) {
       detailLocation.href = locationHref(event.location);
