@@ -66,7 +66,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
 ---
 
 <BaseLayout title="Classes and Events in Madison, WI" description="Bachata classes and social dance events in Madison, WI." noindex>
-  <section class="mx-auto max-w-5xl px-4 py-14 sm:px-6 sm:py-20">
+  <section class="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
     {sections.length === 0 && <p class="mx-auto max-w-md text-center text-sm text-muted">No upcoming classes or events right now — check back soon!</p>}
 
     <div class="flex flex-col gap-16">
@@ -78,7 +78,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
             const single = block.offerings.length === 1 ? block.offerings[0] : null;
             const fallbackImage = single?.imageUrl ?? (single?.eventType === 'event' ? eventPlaceholder.src : classPlaceholder.src);
             return (
-              <article data-flyer-block={block.key} class:list={['overflow-clip rounded-3xl border border-border bg-bg shadow-[0_2px_16px_rgba(0,0,0,0.06)]', block.flyerUrl && 'md:grid md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]']}>
+              <article data-flyer-block={block.key} class:list={['overflow-clip rounded-3xl border border-border bg-bg shadow-[0_2px_16px_rgba(0,0,0,0.06)]', block.flyerUrl && 'md:grid md:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]']}>
                 {block.flyerUrl ? (
                   <button type="button" data-flyer-open={block.flyerUrl} class="group relative block w-full bg-surface p-3 sm:p-4 md:sticky md:top-20 md:self-start md:bg-transparent md:p-6 md:pr-0" aria-label="View the flyer full size">
                     <img src={block.flyerUrl} alt={`Flyer for ${block.offerings.map((o) => o.title).join(' and ')}`} loading="lazy" class="mx-auto max-h-[75vh] w-full rounded-2xl object-contain md:max-h-[calc(100vh-9rem)]" />
