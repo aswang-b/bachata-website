@@ -83,6 +83,33 @@ export async function setHomepageSectionOrder(order: HomepageSection[]): Promise
   if (error) throw new Error(`Failed to update homepage section order: ${error.message}`);
 }
 
+// The homepage's past-flyers gallery (homepage_content.gallery_flyers,
+// migration 0057): image URLs an admin uploads by hand, in display order.
+export const MAX_GALLERY_FLYERS = 40;
+
+// Only images uploaded to this site's event-images bucket are accepted.
+export function isGalleryFlyerUrl(url: unknown): url is string {
+  const prefix = supabase.storage.from('event-images').getPublicUrl('').data.publicUrl;
+  return typeof url === 'string' && url.length <= 500 && url.startsWith(prefix) && /^[A-Za-z0-9._-]+$/.test(url.slice(prefix.length));
+}
+
+// A failure shows no gallery rather than breaking the homepage.
+export async function getGalleryFlyers(): Promise<string[]> {
+  const { data, error } = await supabase.from('homepage_content').select('gallery_flyers').eq('id', true).maybeSingle();
+  if (error) {
+    console.error('Failed to load the flyer gallery:', error.message);
+    return [];
+  }
+  return (data?.gallery_flyers ?? []).filter(isGalleryFlyerUrl);
+}
+
+export async function setGalleryFlyers(flyers: string[]): Promise<void> {
+  const { error } = await supabase
+    .from('homepage_content')
+    .upsert({ id: true, gallery_flyers: flyers, updated_at: new Date().toISOString() });
+  if (error) throw new Error(`Failed to save the flyer gallery: ${error.message}`);
+}
+
 // Orders cards by the saved key list. Cards not in the list (new classes) go
 // after the ordered ones in their existing (default) order, and saved keys with
 // no card (classes that have passed) are ignored — so a saved order never keeps

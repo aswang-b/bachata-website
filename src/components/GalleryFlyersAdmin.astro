@@ -1,0 +1,150 @@
+---
+// Admin → Homepage: the flyers in the homepage's "Past Classes & Events"
+// gallery, uploaded by hand. Every change (add, move, remove) saves at once.
+---
+
+<div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
+  <p class="text-xs font-bold uppercase tracking-wider text-muted">Past Flyers Gallery</p>
+  <p class="text-xs text-muted">
+    Flyers shown in the sideways gallery under the classes on the homepage, left to right in this order. New uploads go first. The gallery is hidden while
+    it's empty.
+  </p>
+  <div id="gallery-admin-list" class="flex flex-wrap gap-3"></div>
+  <label class="cursor-pointer self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white">
+    <span id="gallery-admin-upload-label">Add Flyers</span>
+    <input id="gallery-admin-file" type="file" accept="image/jpeg,image/png,image/webp" multiple class="hidden" />
+  </label>
+  <p id="gallery-admin-status" class="min-h-4 text-xs text-muted" role="status"></p>
+</div>
+
+<script>
+  import { supabaseBrowser } from '../lib/supabaseBrowser';
+
+  const list = document.getElementById('gallery-admin-list')!;
+  const fileInput = document.getElementById('gallery-admin-file') as HTMLInputElement;
+  const uploadLabel = document.getElementById('gallery-admin-upload-label')!;
+  const status = document.getElementById('gallery-admin-status')!;
+  let flyers: string[] = [];
+
+  async function token(): Promise<string> {
+    const { data } = await supabaseBrowser.auth.getSession();
+    return data.session?.access_token ?? '';
+  }
+
+  const buttonClass =
+    'rounded-full border border-border px-2 py-0.5 text-xs font-bold text-ink/70 transition-colors hover:border-accent hover:text-accent disabled:opacity-30 disabled:hover:border-border disabled:hover:text-ink/70';
+
+  function render() {
+    list.replaceChildren(
+      ...flyers.map((url, index) => {
+        const item = document.createElement('div');
+        item.className = 'flex w-36 flex-col gap-1.5';
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = `Gallery flyer ${index + 1}`;
+        img.className = 'h-48 w-36 rounded-xl border border-border object-cover';
+        const controls = document.createElement('div');
+        controls.className = 'flex items-center justify-between gap-1';
+        const button = (label: string, title: string, onClick: () => void, disabled = false) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = buttonClass;
+          b.textContent = label;
+          b.title = title;
+          b.setAttribute('aria-label', title);
+          b.disabled = disabled;
+          b.addEventListener('click', onClick);
+          return b;
+        };
+        const move = (to: number) => {
+          const next = [...flyers];
+          [next[index], next[to]] = [next[to], next[index]];
+          void save(next, 'Moved.');
+        };
+        controls.append(
+          button('←', 'Move left', () => move(index - 1), index === 0),
+          button('Remove', 'Remove from the gallery', () => {
+            if (confirm('Remove this flyer from the gallery?')) void save(flyers.filter((_, i) => i !== index), 'Removed.');
+          }),
+          button('→', 'Move right', () => move(index + 1), index === flyers.length - 1)
+        );
+        item.append(img, controls);
+        return item;
+      })
+    );
+    if (flyers.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'text-sm text-muted';
+      empty.textContent = 'No flyers yet.';
+      list.append(empty);
+    }
+  }
+
+  async function save(next: string[], done: string) {
+    status.textContent = 'Saving…';
+    const res = await fetch('/api/admin/gallery-flyers', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flyers: next }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      status.textContent = body.error ?? 'Failed to save the gallery.';
+      return false;
+    }
+    flyers = next;
+    render();
+    status.textContent = done;
+    return true;
+  }
+
+  // Flyers upload uncropped, scaled down so the long side is at most 2000px.
+  async function shrink(file: File): Promise<File> {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size <= 2 * 1024 * 1024) return file;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+    if (!blob) throw new Error("That file couldn't be read as an image.");
+    return new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'flyer'}-flyer.jpg`, { type: 'image/jpeg' });
+  }
+
+  fileInput.addEventListener('change', async () => {
+    const files = Array.from(fileInput.files ?? []);
+    fileInput.value = '';
+    if (files.length === 0) return;
+    uploadLabel.textContent = 'Uploading…';
+    const added: string[] = [];
+    try {
+      for (const file of files) {
+        const body = new FormData();
+        body.append('file', await shrink(file));
+        const res = await fetch('/api/admin/upload-event-image', { method: 'POST', headers: { Authorization: `Bearer ${await token()}` }, body });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? `Failed to upload ${file.name}.`);
+        added.push(data.url);
+      }
+    } catch (err) {
+      status.textContent = err instanceof Error ? err.message : 'Failed to upload.';
+    } finally {
+      uploadLabel.textContent = 'Add Flyers';
+    }
+    if (added.length > 0) await save([...added.reverse(), ...flyers], `Added ${added.length} flyer${added.length === 1 ? '' : 's'}.`);
+  });
+
+  // One small request, so it loads with the page (the admin page shows nothing to non-admins anyway).
+  async function load() {
+    const res = await fetch('/api/admin/gallery-flyers', { headers: { Authorization: `Bearer ${await token()}` } });
+    if (res.status === 403) return;
+    if (!res.ok) {
+      status.textContent = 'Failed to load the gallery.';
+      return;
+    }
+    flyers = ((await res.json()) as { flyers: string[] }).flyers;
+    render();
+  }
+  void load();
+</script>

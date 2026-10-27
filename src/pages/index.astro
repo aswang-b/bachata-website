@@ -10,17 +10,18 @@ export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
 import { buildClassSeriesList, type ClassSeriesEntry } from '../lib/classSeries';
-import { applyCardOrder, getHomepageCardOrder, getHomepageContent, getHomepageSectionOrder, type HomepageSection } from '../lib/homepageContent';
+import { applyCardOrder, getGalleryFlyers, getHomepageCardOrder, getHomepageContent, getHomepageSectionOrder, type HomepageSection } from '../lib/homepageContent';
 import { listFaqs } from '../lib/faqs';
 import { listActiveDeals } from '../lib/dealsStore';
 import { getSpotsByOccurrence, publicSpotsLabel, seriesSpots } from '../lib/capacity';
 import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesBounds } from '../lib/flyerBlocks';
+import PastFlyersGallery from '../components/PastFlyersGallery.astro';
 import { locationHref } from '../lib/locationLink';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
 import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
 
 const now = new Date();
-const [{ lessonOverview }, faqs, { data: events, error }, { data: allEventsForTotals }, cardOrder, sectionOrder, deals] = await Promise.all([
+const [{ lessonOverview }, faqs, { data: events, error }, { data: allEventsForTotals }, cardOrder, sectionOrder, deals, galleryFlyers] = await Promise.all([
   getHomepageContent(),
   listFaqs(),
   supabase
@@ -36,6 +37,7 @@ const [{ lessonOverview }, faqs, { data: events, error }, { data: allEventsForTo
   getHomepageCardOrder(),
   getHomepageSectionOrder(),
   listActiveDeals(now),
+  getGalleryFlyers(),
 ]);
 if (error) console.error('Failed to load current offerings:', error);
 
@@ -226,6 +228,8 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
         </div>
       ))}
     </div>
+
+    <PastFlyersGallery flyers={galleryFlyers} />
 
     {faqs.length > 0 && (
       <div class="mx-auto mt-16 max-w-3xl">

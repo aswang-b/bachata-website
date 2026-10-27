@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import DealsAdmin from '../components/DealsAdmin.astro';
+import GalleryFlyersAdmin from '../components/GalleryFlyersAdmin.astro';
 import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
 ---
 
@@ -243,6 +244,8 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
           </button>
           <p id="card-order-reset-status" class="min-h-4 text-xs text-muted"></p>
         </div>
+
+        <GalleryFlyersAdmin />
 
         <div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
           <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage FAQs</p>
