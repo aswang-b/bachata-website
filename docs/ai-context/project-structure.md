@@ -35,10 +35,10 @@
 ├── supabase/migrations/                 # Numbered SQL migrations (0001-0054); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
-│   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker; admin DealsAdmin, ErrorsQueue, SiteTimeZoneSetting)
+│   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting)
 │   ├── middleware.ts                    # Loads the site time zone for each request (checks nothing else)
 │   ├── layouts/
-│   │   └── BaseLayout.astro
+│   │   └── BaseLayout.astro             # Page shell; banner + header share one sticky #site-top (height in --site-top-h)
 │   ├── lib/                             # Server-side helpers
 │   │   ├── admin.ts                     # Admin auth/session helpers
 │   │   ├── adminSession.ts              # Browser-only shared admin check (refreshes stale sessions, local sign-out)
@@ -68,7 +68,8 @@
 │   │   ├── registrationConfirmation.ts  # Builds the sign-up confirmation email (sent on sign-up, resent by admins)
 │   │   ├── faqs.ts                      # FAQ list persistence
 │   │   ├── googleCalendar.ts            # Google Calendar API client
-│   │   ├── homepageContent.ts           # Editable homepage copy (lesson overview) persistence
+│   │   ├── flyerBlocks.ts               # Homepage flyer blocks: grouping by flyer, today's prices, deal notes, series dates
+│   │   ├── homepageContent.ts           # Homepage copy, card/section order, past flyers gallery
 │   │   ├── imageCropper.ts              # Browser-only crop dialog for event images (locked 16:3 banner, 1536x288 JPEG)
 │   │   ├── notificationSettings.ts      # Admin-editable notification recipients + per-IP email caps
 │   │   ├── previewMode.ts               # Draft/preview banner state
@@ -94,7 +95,7 @@
 
 ## Domain Overview
 
-The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, attendance matching/reconciliation, Google Calendar sync, site settings/banner, an editable FAQ list, community guidelines, bundle deals, a homepage built from class/event flyers (admin-reorderable blocks, per-class overrides of the lesson-overview section, and editable deal notes), and an inbox.
+The site is a bachata dance-class business site: public pages for class info, registration/intake, and check-in, plus an admin area (`/admin`, `/admin/*`, `/api/admin/*`) for managing events, class series, signups, check-ins, attendance matching/reconciliation, Google Calendar sync, site settings/banner, an editable FAQ list, community guidelines, bundle deals, a homepage built from class/event flyers (admin-reorderable blocks, per-class overrides of the lesson-overview section, and editable deal notes, plus a hand-uploaded past flyers gallery), and an inbox.
 
 - **Event editor**: classes and events are edited in a sectioned editor on `/calendar`. Its section menu is a list on desktop and a sideways-scrolling chip row on phones. It offers any color (a picker plus the five most recently used colors), a single capacity cap or separate Leader/Follower caps for classes, and tiered pricing. Calendar banner text shrinks to fit, and all banners share one size.
 - **Registration**: shows an itemized subtotal (also on the confirmation page and email, optionally BCC'd to admins) and enforces capacity, per role where capped. Event registrants agree to the community guidelines, which event confirmations list FAQ-style. Double-submitted sign-ups and check-ins are moved to the Recycling Bin automatically.
