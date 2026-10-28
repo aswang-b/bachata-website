@@ -454,6 +454,9 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
   import { isPreviewingAsPublic, setPreviewAsPublic } from '../lib/previewMode';
   import { showErrorDialog } from '../lib/errorDialog';
   import { checkAdminSession } from '../lib/adminSession';
+  import { installRichTextShortcuts } from '../lib/richTextShortcuts';
+
+  installRichTextShortcuts();
 
   const panels = {
     loading: document.getElementById('account-loading')!,

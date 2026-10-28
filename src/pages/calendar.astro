@@ -925,6 +925,9 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
   import { DEFAULT_QUICK_COLORS, eventBannerStyle, eventColorHex, eventDotStyle, eventTextStyle, recentEventColors } from '../lib/eventColors';
   import { eventTypeLabel } from '../lib/classSeries';
   import { escapeAttr, locationHref } from '../lib/locationLink';
+  import { installRichTextShortcuts } from '../lib/richTextShortcuts';
+
+  installRichTextShortcuts();
 
   // --- Calendar / List view toggle ---
   const viewToggleButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.view-toggle-btn'));

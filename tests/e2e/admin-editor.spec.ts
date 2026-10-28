@@ -100,6 +100,29 @@ test('an event can end at midnight (the next day), but not at its start time', a
   expect(Date.parse(data!.end_time) - Date.parse(data!.start_time)).toBe(4 * 60 * 60 * 1000);
 });
 
+test('Ctrl+B, I and U format a rich-text box themselves, so a browser shortcut on the same key (e.g. bookmarks) never wins', async ({ page, adminPage }) => {
+  void adminPage;
+  await openEditor(page, klass);
+  const description = page.locator('#event-description');
+  await description.evaluate((el) => {
+    el.innerHTML = 'Shine';
+    el.focus();
+    getSelection()!.selectAllChildren(el);
+  });
+  // A synthetic key press: the browser itself does nothing with it, so any formatting is the editor's.
+  const results = await description.evaluate((el) =>
+    ['b', 'i', 'u'].map((key) => {
+      const e = new KeyboardEvent('keydown', { key, ctrlKey: true, bubbles: true, cancelable: true });
+      el.dispatchEvent(e);
+      return e.defaultPrevented;
+    })
+  );
+  expect(results).toEqual([true, true, true]);
+  const html = await description.innerHTML();
+  for (const tag of ['b', 'i', 'u']) expect(html).toContain(`<${tag}>`);
+  await page.locator('#event-close').click();
+});
+
 test('desktop: the section menu shows summaries and jumps to a section', async ({ page, adminPage }) => {
   void adminPage;
   await page.setViewportSize({ width: 1280, height: 800 });
