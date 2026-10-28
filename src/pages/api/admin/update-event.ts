@@ -131,9 +131,13 @@ const handlePost: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'Event not found.' }), { status: 404 });
   }
 
+  // An e2e test class (visibility 'test', see testMode.ts) stays one, so
+  // editing it never puts it on the live site; it never reaches Google.
+  const isTestRow = before.visibility === 'test';
   const newVisibility: EventVisibility = visibility === 'private' ? 'private' : 'public';
+  const rowVisibility = isTestRow ? 'test' : newVisibility;
   const oldVisibility = before.visibility as EventVisibility;
-  const visibilityChanged = oldVisibility !== newVisibility;
+  const visibilityChanged = oldVisibility !== rowVisibility;
   // A named color or any "#rrggbb" from the color picker.
   const rowColor = isValidEventColor(color) ? color.toLowerCase() : 'accent';
   const rowEventType = eventType === 'event' ? 'event' : 'class';
@@ -169,7 +173,7 @@ const handlePost: APIRoute = async ({ request }) => {
     calendarSyncSkipped = true;
     calendarSyncError ??= err instanceof Error ? err.message : String(err);
   };
-  const accessToken = await getGoogleAccessToken().catch((err) => {
+  const accessToken = isTestRow ? null : await getGoogleAccessToken().catch((err) => {
     // No Google connection at all just means there's nothing to push to.
     if (err instanceof GoogleNotConnectedError) return null;
     console.error('Failed to get a Google access token; skipping calendar push:', err);
@@ -305,7 +309,7 @@ const handlePost: APIRoute = async ({ request }) => {
           location: location || null,
           event_type: rowEventType,
           color: rowColor,
-          visibility: newVisibility,
+          visibility: rowVisibility,
           google_event_id: visibilityChanged ? null : sibling.google_event_id,
           price_whole_series: rowPriceWholeSeries,
           price_drop_in: rowPriceDropIn,
@@ -359,7 +363,7 @@ const handlePost: APIRoute = async ({ request }) => {
       location: location || null,
       event_type: rowEventType,
       color: rowColor,
-      visibility: newVisibility,
+      visibility: rowVisibility,
       google_event_id: visibilityChanged ? null : before.google_event_id,
       start_time: startTime,
       end_time: endTime,

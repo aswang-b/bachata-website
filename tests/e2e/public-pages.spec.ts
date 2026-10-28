@@ -1,5 +1,9 @@
 import { test, expect } from './support/fixtures';
-import { db } from './support/db';
+import { db, sweepTestData } from './support/db';
+
+// Each test deletes the classes it seeded for itself (support/fixtures.ts);
+// what this file's tests share goes as soon as the file is done.
+test.afterAll(sweepTestData);
 
 // Every public page renders without a server error or a script crash.
 const PAGES = ['/', '/calendar', '/register', '/register/events', '/contact', '/check-in', '/about', '/privacy-policy'];

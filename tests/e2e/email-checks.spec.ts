@@ -1,9 +1,13 @@
 import { createHmac } from 'node:crypto';
 import { test, expect } from './support/fixtures';
-import { db, seedEvent, seedSignup } from './support/db';
+import { db, seedEvent, seedSignup, sweepTestData } from './support/db';
 import { RUN_ID, WEBHOOK_SECRET } from './support/env';
 import { bearer } from './support/admin';
 import { recipients, sunkEmails } from './support/emails';
+
+// Each test deletes the classes it seeded for itself (support/fixtures.ts);
+// what this file's tests share goes as soon as the file is done.
+test.afterAll(sweepTestData);
 
 // Catching a mistyped email: a "Did you mean …?" fix for a likely typo, a
 // note when the domain can't receive mail (both stop the first submit only),

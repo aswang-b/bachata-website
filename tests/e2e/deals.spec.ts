@@ -1,8 +1,12 @@
 import { test, expect, postForm } from './support/fixtures';
-import { db, seedEvent, testTitle, type Seeded } from './support/db';
+import { db, seedEvent, sweepTestData, testTitle, track, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { emailsAbout } from './support/emails';
 import { confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
+
+// Each test deletes the classes it seeded for itself (support/fixtures.ts);
+// what this file's tests share goes as soon as the file is done.
+test.afterAll(sweepTestData);
 
 // Bundle deals: made in admin → Deals, applied at registration (form and
 // server alike), offered as an "Add" when a dancer is one class short, and
@@ -141,9 +145,10 @@ test('the Deals list labels each deal, live ones first, and keeps an end date th
   void adminPage;
   const { data: past } = await db
     .from('events')
-    .insert({ title: testTitle('Past Workshop'), event_type: 'class', visibility: 'public', color: 'green', start_time: '2020-01-05T01:00:00Z', end_time: '2020-01-05T02:00:00Z', price_whole_series: 25 })
+    .insert({ title: testTitle('Past Workshop'), event_type: 'class', visibility: 'test', color: 'green', start_time: '2020-01-05T01:00:00Z', end_time: '2020-01-05T02:00:00Z', price_whole_series: 25 })
     .select('id')
     .single();
+  track({ title: testTitle('Past Workshop'), key: past!.id, ids: [past!.id] });
   const day = 86400000;
   const mixedEvent = await seedEvent({ name: 'Mixed Social', type: 'event', priceWhole: 10, dayOffset: 42 });
   const base = { kind: 'bundle_price', amount: 40, series_keys: [intro.key, open.key] };

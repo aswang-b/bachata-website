@@ -54,7 +54,7 @@ export async function seedEvent(o: SeedOptions): Promise<Seeded> {
   const rows = Array.from({ length: n }, (_, i) => ({
     title,
     event_type: o.type ?? 'class',
-    visibility: 'public',
+    visibility: 'test',
     color: 'green',
     location: 'ZZZ Test Studio',
     start_time: farFuture((o.dayOffset ?? 0) + i * 7, 1),
@@ -78,7 +78,42 @@ export async function seedEvent(o: SeedOptions): Promise<Seeded> {
   const { data, error } = await db.from('events').insert(rows).select('id, start_time').order('start_time');
   if (error || !data) throw new Error(`Seeding "${title}" failed: ${error?.message}`);
   const ids = data.map((r) => r.id as string);
-  return { title, key: recurring ?? ids[0], ids };
+  return track({ title, key: recurring ?? ids[0], ids });
+}
+
+// Classes a test seeds for itself are deleted when that test ends (with
+// their sign-ups and check-ins; see `cleanUpTestData` in fixtures.ts). Ones
+// a file's beforeAll seeds are shared by its tests, so they wait for the
+// file's sweepTestData in afterAll. beforeAll runs before any test's
+// fixtures, so this is only set while a test (or its beforeEach) runs.
+let ownedByTest: Seeded[] | null = null;
+
+// Registers a class seeded outside seedEvent (e.g. a raw insert) for the same clean-up.
+export function track(seeded: Seeded): Seeded {
+  ownedByTest?.push(seeded);
+  return seeded;
+}
+
+export function startTestScope(): void {
+  ownedByTest = [];
+}
+
+// Best-effort: anything left over is still caught by the file's sweep.
+export async function endTestScope(): Promise<void> {
+  const owned = ownedByTest ?? [];
+  ownedByTest = null;
+  if (owned.length === 0) return;
+  const ids = owned.flatMap((s) => s.ids);
+  const keys = owned.map((s) => s.key);
+  const { data: regs } = await db.from('class_registrations').select('submission_id').in('series_key', keys);
+  const submissionIds = [...new Set((regs ?? []).map((r) => r.submission_id as string))];
+  if (submissionIds.length > 0) {
+    await db.from('confirmation_admin_copies').delete().in('submission_id', submissionIds);
+    await db.from('intake_submissions').delete().in('id', submissionIds).like('first_name', `${TEST_PREFIX}%`);
+  }
+  await db.from('class_checkins').delete().in('event_id', ids).like('first_name', `${TEST_PREFIX}%`);
+  const { error } = await db.from('events').delete().in('id', ids).like('title', `${TEST_PREFIX}%`);
+  if (error) console.warn(`Couldn't delete a test's own classes (the file's sweep will): ${error.message}`);
 }
 
 export interface SeedDancer {

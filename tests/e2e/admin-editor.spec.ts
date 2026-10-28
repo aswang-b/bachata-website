@@ -1,8 +1,12 @@
 import { test, expect } from './support/fixtures';
-import { db, seedEvent, type Seeded } from './support/db';
+import { db, seedEvent, sweepTestData, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { bearer } from './support/admin';
 import type { Page } from '@playwright/test';
+
+// Each test deletes the classes it seeded for itself (support/fixtures.ts);
+// what this file's tests share goes as soon as the file is done.
+test.afterAll(sweepTestData);
 
 // The event editor, with Google Calendar off for the test server: saves only
 // write the database (the editor then shows its "not synced" dialog).
@@ -55,6 +59,9 @@ test('class capacity: the toggle swaps a single cap for Leader/Follower caps, an
 
   const { data } = await db.from('events').select('capacity, capacity_by_role, leader_capacity, follower_capacity, show_capacity').eq('id', klass.ids[0]).single();
   expect(data).toEqual({ capacity: 20, capacity_by_role: true, leader_capacity: 6, follower_capacity: 7, show_capacity: true });
+  // Saved from the editor, it stays a test class, so it never shows on the live site.
+  const { data: saved } = await db.from('events').select('visibility').eq('id', klass.ids[0]).single();
+  expect(saved!.visibility).toBe('test');
 
   // Reopened, the editor shows the role fields again.
   await openEditor(page, klass);

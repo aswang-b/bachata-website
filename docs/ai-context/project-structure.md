@@ -32,7 +32,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0059); a new table must be granted to service_role in its migration (see 0045)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0060); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting)
@@ -82,7 +82,7 @@
 │   │   ├── siteBanner.ts                # Site-wide announcement banner
 │   │   ├── siteSettings.ts              # Site settings persistence
 │   │   ├── supabase.ts / supabaseBrowser.ts  # Supabase clients (server/browser)
-│   │   ├── testMode.ts                  # Dev-server-only switches the e2e suite uses (email sink, Google off, no quotas)
+│   │   ├── testMode.ts                  # Dev-server-only switches the e2e suite uses (email sink, Google off, no quotas, its own 'test' classes)
 │   └── pages/
 │       ├── index.astro (flyer blocks: each flyer beside its classes' live details), about.astro, contact.astro, contact/confirmation.astro, privacy-policy.astro, calendar.astro
 │       ├── register.astro, register/events.astro, register/confirmation.astro

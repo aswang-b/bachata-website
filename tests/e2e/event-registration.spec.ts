@@ -1,8 +1,12 @@
 import { test, expect, postForm } from './support/fixtures';
-import { db, seedEvent, testTitle, type Seeded } from './support/db';
+import { db, seedEvent, sweepTestData, testTitle, track, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { emailsAbout } from './support/emails';
 import { confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
+
+// Each test deletes the classes it seeded for itself (support/fixtures.ts);
+// what this file's tests share goes as soon as the file is done.
+test.afterAll(sweepTestData);
 
 // The guidelines are one shared setting: these tests set their own and put
 // the real ones back afterwards.
@@ -159,7 +163,7 @@ test.describe('at the door', () => {
       .insert({
         title: testTitle(name),
         event_type: 'event',
-        visibility: 'public',
+        visibility: 'test',
         color: 'green',
         start_time: new Date(Date.now() + startMinutes * 60000).toISOString(),
         end_time: new Date(Date.now() + endMinutes * 60000).toISOString(),
@@ -169,7 +173,7 @@ test.describe('at the door', () => {
       .select('id, title')
       .single();
     if (error || !data) throw new Error(error?.message);
-    return { title: data.title as string, key: data.id as string, ids: [data.id as string] };
+    return track({ title: data.title as string, key: data.id as string, ids: [data.id as string] });
   };
 
   test('an event takes registrations until 30 minutes after it ends, then stops', async ({ page, request }) => {

@@ -9,6 +9,7 @@ export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
+import { publicVisibilities } from '../lib/testMode';
 import { buildClassSeriesList, type ClassSeriesEntry } from '../lib/classSeries';
 import { applyCardOrder, getHomepageSettings, type HomepageSection } from '../lib/homepageContent';
 import { listFaqs } from '../lib/faqs';
@@ -32,7 +33,7 @@ const [{ lessonOverview, cardOrder, sectionOrder, galleryFlyers }, faqs, { data:
     .select(
       'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, flyer_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
     )
-    .eq('visibility', 'public')
+    .in('visibility', publicVisibilities())
     .in('event_type', ['class', 'event'])
     .gte('start_time', now.toISOString())
     .order('start_time', { ascending: true }),
@@ -49,7 +50,7 @@ const [{ data: seriesOccurrences, error: seriesError }, spotsByOccurrence] = awa
     ? supabase
         .from('events')
         .select('id, google_recurring_event_id, start_time')
-        .eq('visibility', 'public')
+        .in('visibility', publicVisibilities())
         .in('event_type', ['class', 'event'])
         .in('google_recurring_event_id', seriesKeys)
     : Promise.resolve({ data: [], error: null }),

@@ -3,6 +3,7 @@ export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
+import { publicVisibilities } from '../lib/testMode';
 import { getActivePrice, priceTierLabel } from '../lib/pricing';
 import { getSpotsByOccurrence, publicSpotsLabel, type SpotsInfo } from '../lib/capacity';
 import { eventBannerStyle, eventDotStyle, eventTextStyle } from '../lib/eventColors';
@@ -49,7 +50,7 @@ const EVENT_COLUMNS =
 const { data: monthEvents, error: monthError } = await supabase
   .from('events')
   .select(EVENT_COLUMNS)
-  .eq('visibility', 'public')
+  .in('visibility', publicVisibilities())
   .gte('start_time', monthStart.toISOString())
   .lt('start_time', monthEnd.toISOString())
   .order('start_time', { ascending: true });
@@ -57,7 +58,7 @@ const { data: monthEvents, error: monthError } = await supabase
 const { data: upcomingEvents, error: upcomingError } = await supabase
   .from('events')
   .select(EVENT_COLUMNS)
-  .eq('visibility', 'public')
+  .in('visibility', publicVisibilities())
   .gte('start_time', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
   .order('start_time', { ascending: true })
   .limit(20);
@@ -1038,7 +1039,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     location: string | null;
     event_type: string;
     color: string;
-    visibility: 'public' | 'private';
+    visibility: 'public' | 'private' | 'test';
     start_time: string;
     end_time: string;
     google_recurring_event_id: string | null;
@@ -1447,12 +1448,12 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     // Only public classes/events actually appear as a pickable series on
     // the registration pages — a private one would 404 the preselect, so
     // the button only shows where it can actually work.
-    if (event.visibility === 'public' && event.registration_closed) {
+    if (event.visibility !== 'private' && event.registration_closed) {
       detailRegisterBtn.removeAttribute('href');
       detailRegisterBtn.textContent = 'Registration Closed';
       detailRegisterBtn.classList.remove('hidden', 'gradient-accent', 'hover:opacity-90');
       detailRegisterBtn.classList.add('bg-border', 'text-ink/50', 'pointer-events-none');
-    } else if (event.visibility === 'public') {
+    } else if (event.visibility !== 'private') {
       const seriesKey = event.google_recurring_event_id ?? event.id;
       const base = event.event_type === 'event' ? '/register/events' : '/register';
       detailRegisterBtn.href = `${base}?series=${encodeURIComponent(seriesKey)}`;

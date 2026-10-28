@@ -75,4 +75,14 @@ describe('codebase rules', () => {
   it('test-mode switches are only honored by the dev server', () => {
     expect(read('src/lib/testMode.ts')).toMatch(/env\?\.DEV/);
   });
+
+  it("public pages list events through publicVisibilities(), so the e2e suite's 'test' classes never show on the live site", () => {
+    const offenders = filesUnder('src', ['.ts', '.astro']).filter((f) => /\.eq\(\s*'visibility',\s*'public'\s*\)/.test(read(f)));
+    expect(offenders).toEqual([]);
+  });
+
+  it("every e2e spec sweeps its own test data when it's done, instead of leaving it for the end of the run", () => {
+    const missing = filesUnder('tests/e2e', ['.spec.ts']).filter((f) => !/^test\.afterAll\(sweepTestData\);$/m.test(read(f)));
+    expect(missing).toEqual([]);
+  });
 });

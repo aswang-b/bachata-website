@@ -1,7 +1,11 @@
 import { test, expect } from './support/fixtures';
-import { seedEvent, seedSignup, type Seeded } from './support/db';
+import { seedEvent, seedSignup, sweepTestData, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { bearer } from './support/admin';
+
+// Each test deletes the classes it seeded for itself (support/fixtures.ts);
+// what this file's tests share goes as soon as the file is done.
+test.afterAll(sweepTestData);
 
 let klass: Seeded;
 let event: Seeded;

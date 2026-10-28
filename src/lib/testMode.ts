@@ -27,3 +27,20 @@ export function googleDisabled(): boolean {
 export function usageCountersDisabled(): boolean {
   return flag('E2E_SKIP_USAGE_COUNTERS') === '1';
 }
+
+// The suite's own classes and events are saved with visibility 'test'
+// (migration 0060). Only the test server shows them, as if public; the live
+// site, and any other dev server, never does, so a run never shows on it.
+export function showsTestEvents(): boolean {
+  return flag('E2E_TEST_EVENTS') === '1';
+}
+
+// The visibilities public pages list: 'public', plus 'test' on the test server.
+export function publicVisibilities(): string[] {
+  return showsTestEvents() ? ['public', 'test'] : ['public'];
+}
+
+// The visibilities admin pages list: public and private, plus 'test' on the test server.
+export function adminVisibilities(): string[] {
+  return showsTestEvents() ? ['public', 'private', 'test'] : ['public', 'private'];
+}

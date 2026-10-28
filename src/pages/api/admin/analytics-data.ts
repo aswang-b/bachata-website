@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
+import { adminVisibilities } from '../../../lib/testMode';
 import { requireAdmin } from '../../../lib/admin';
 import { buildClassSeriesList } from '../../../lib/classSeries';
 import { isDeletedDancer } from '../../../lib/recyclingBin';
@@ -104,6 +105,7 @@ export const GET: APIRoute = async ({ request }) => {
     supabase
       .from('events')
       .select('id, title, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in')
+      .in('visibility', adminVisibilities())
       .eq('event_type', 'class')
       .order('start_time', { ascending: true }),
     supabase
@@ -115,6 +117,7 @@ export const GET: APIRoute = async ({ request }) => {
     supabase
       .from('events')
       .select('id, title, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in')
+      .in('visibility', adminVisibilities())
       .eq('event_type', 'event')
       .order('start_time', { ascending: true }),
     // Addresses Resend reported bouncing (migration 0050), flagged next to the sign-up.

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { publicVisibilities } from './testMode';
 import { getActivePrice, type PriceTier } from './pricing';
 import { buildClassSeriesList } from './classSeries';
 import { applyDeals, type Deal } from './deals';
@@ -359,8 +360,8 @@ async function findUnbookable(rows: RegistrationRow[]): Promise<ClassSelectionEr
   // after it ends (door sign-ups; registrationOpen has the rule).
   const now = new Date().toISOString();
   const columns = 'id, google_recurring_event_id, event_type, start_time, end_time';
-  const upcoming = () => supabase.from('events').select(columns).eq('visibility', 'public').gte('start_time', now);
-  const atTheDoor = () => supabase.from('events').select(columns).eq('visibility', 'public').eq('event_type', 'event').lt('start_time', now).gte('end_time', lateRegistrationCutoffIso());
+  const upcoming = () => supabase.from('events').select(columns).in('visibility', publicVisibilities()).gte('start_time', now);
+  const atTheDoor = () => supabase.from('events').select(columns).in('visibility', publicVisibilities()).eq('event_type', 'event').lt('start_time', now).gte('end_time', lateRegistrationCutoffIso());
   const results = await Promise.all([
     ids.length > 0 ? upcoming().in('id', ids) : null,
     upcoming().in('google_recurring_event_id', seriesKeys),

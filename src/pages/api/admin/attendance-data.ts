@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
+import { adminVisibilities } from '../../../lib/testMode';
 import { requireAdmin } from '../../../lib/admin';
 import { buildClassSeriesList } from '../../../lib/classSeries';
 import {
@@ -44,6 +45,7 @@ export const GET: APIRoute = async ({ request }) => {
     supabase
       .from('events')
       .select('id, title, start_time, end_time, google_recurring_event_id, event_type')
+      .in('visibility', adminVisibilities())
       .eq('event_type', 'class')
       .order('start_time', { ascending: true }),
     supabase.from('attendance_matches').select('class_registration_id, occurrence_event_id, checkin_id'),

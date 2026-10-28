@@ -3,6 +3,7 @@ export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
+import { publicVisibilities } from '../lib/testMode';
 import { buildClassSeriesList, siteDayBoundsUtcIso } from '../lib/classSeries';
 import { getSiteSettings } from '../lib/siteSettings';
 import { siteFormatter } from '../lib/siteTime';
@@ -61,7 +62,7 @@ async function loadTodayItems(): Promise<PickerItem[]> {
   const { data: classEvents, error } = await supabase
     .from('events')
     .select('id, title, start_time, end_time, google_recurring_event_id')
-    .eq('visibility', 'public')
+    .in('visibility', publicVisibilities())
     .eq('event_type', 'class')
     .gte('start_time', startIso)
     .order('start_time', { ascending: true });

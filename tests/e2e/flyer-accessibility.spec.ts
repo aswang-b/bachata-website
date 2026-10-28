@@ -1,7 +1,11 @@
 import { test, expect } from './support/fixtures';
-import { db, seedEvent, type Seeded } from './support/db';
+import { db, seedEvent, sweepTestData, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import type { Page } from '@playwright/test';
+
+// Each test deletes the classes it seeded for itself (support/fixtures.ts);
+// what this file's tests share goes as soon as the file is done.
+test.afterAll(sweepTestData);
 
 // Homepage flyers for screen-reader, keyboard and slow-connection visitors,
 // and the editor's flyer upload. Flyers are a site image with a per-flyer

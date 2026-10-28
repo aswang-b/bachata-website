@@ -1,5 +1,9 @@
 import { test, expect } from './support/fixtures';
-import { db, seedEvent, type Seeded } from './support/db';
+import { db, seedEvent, sweepTestData, type Seeded } from './support/db';
+
+// Each test deletes the classes it seeded for itself (support/fixtures.ts);
+// what this file's tests share goes as soon as the file is done.
+test.afterAll(sweepTestData);
 
 // Calendar event banners must keep their text inside the colored box at
 // narrow widths (e.g. a laptop at 125% zoom): a "Wk N" pill once had no

@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
+import { publicVisibilities } from '../../lib/testMode';
 import { checkAndIncrementUsage } from '../../lib/apiUsage';
 import { createCheckinDropInRegistration } from '../../lib/classRegistrations';
 import { getCheckinPerIpCap } from '../../lib/notificationSettings';
@@ -103,7 +104,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
         .from('events')
         .select('id, title')
         .or(keyFilter)
-        .eq('visibility', 'public')
+        .in('visibility', publicVisibilities())
         .eq('event_type', 'class')
         .gte('start_time', startIso)
         .lt('start_time', endIso)
@@ -126,7 +127,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
         .from('events')
         .select('title')
         .or(keyFilter)
-        .eq('visibility', 'public')
+        .in('visibility', publicVisibilities())
         .eq('event_type', 'class')
         .order('start_time', { ascending: true })
         .limit(1);

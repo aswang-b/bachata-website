@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireAdmin } from '../../../lib/admin';
 import { supabase } from '../../../lib/supabase';
+import { publicVisibilities } from '../../../lib/testMode';
 import { deleteDeal, listDeals, saveDeal, validateDeal } from '../../../lib/dealsStore';
 
 export const prerender = false;
@@ -26,7 +27,7 @@ async function loadOptions(dealKeys: string[]): Promise<DealOption[]> {
   const now = new Date().toISOString();
   const ids = dealKeys.filter((k) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k));
   const [upcoming, byRecurring, byId] = await Promise.all([
-    supabase.from('events').select(columns).eq('visibility', 'public').gte('start_time', now).order('start_time'),
+    supabase.from('events').select(columns).in('visibility', publicVisibilities()).gte('start_time', now).order('start_time'),
     dealKeys.length > 0 ? supabase.from('events').select(columns).in('google_recurring_event_id', dealKeys) : null,
     ids.length > 0 ? supabase.from('events').select(columns).in('id', ids) : null,
   ]);

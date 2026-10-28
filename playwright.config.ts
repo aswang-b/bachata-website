@@ -37,6 +37,8 @@ export default defineConfig({
       E2E_EMAIL_SINK: EMAIL_SINK,
       E2E_DISABLE_GOOGLE: '1',
       E2E_SKIP_USAGE_COUNTERS: '1',
+      // Lists the suite's own (visibility 'test') classes, which no other server shows.
+      E2E_TEST_EVENTS: '1',
       E2E_PORT: String(PORT),
       RESEND_WEBHOOK_SECRET: WEBHOOK_SECRET,
       // Like Netlify, whose servers run in UTC: dates must come out in the site's time zone anyway.

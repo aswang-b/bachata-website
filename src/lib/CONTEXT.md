@@ -54,7 +54,7 @@ Almost everything here runs server-side (Astro SSR pages, `/api/*` routes, the s
 | `siteBanner.ts` | Site-wide announcement banner get/set, with HTML sanitization |
 | `siteSettings.ts` | Boolean site settings (`hide_about_nav`, `hide_contact_nav`, `hide_checkin_nav`, `disable_checkin_page`) persistence |
 | `supabase.ts` | Server Supabase client (service role key) |
-| `testMode.ts` | Switches the e2e suite turns on for its own dev server (`E2E_EMAIL_SINK`, `E2E_DISABLE_GOOGLE`, `E2E_SKIP_USAGE_COUNTERS`): `sendEmail` appends to a file instead of sending, `getGoogleAccessToken` acts as if Google isn't connected, and `checkAndIncrementUsage` always allows. Ignored outside the dev server; `/api/test-mode` reports them. See [tests/CONTEXT.md](../../tests/CONTEXT.md) |
+| `testMode.ts` | Switches the e2e suite turns on for its own dev server (`E2E_EMAIL_SINK`, `E2E_DISABLE_GOOGLE`, `E2E_SKIP_USAGE_COUNTERS`): `sendEmail` appends to a file instead of sending, `getGoogleAccessToken` acts as if Google isn't connected, and `checkAndIncrementUsage` always allows. The suite's classes are saved with visibility `test` (migration 0060), which only `E2E_TEST_EVENTS` lists: public pages ask for `publicVisibilities()` and admin event lists for `adminVisibilities()`, so a run never shows on the live site (and the Google sync, reading only public and private, never touches them). Ignored outside the dev server; `/api/test-mode` reports them. See [tests/CONTEXT.md](../../tests/CONTEXT.md) |
 | `supabaseBrowser.ts` | Browser Supabase client (anon key) — the one exception safe to import client-side |
 
 ## Integration Points

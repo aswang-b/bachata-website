@@ -2,12 +2,13 @@ import { test as base, expect, type APIRequestContext } from '@playwright/test';
 import type { Session } from '@supabase/supabase-js';
 import { createAdminSession, endAdminSession, signInBrowser } from './admin';
 import { BASE_URL } from './env';
+import { endTestScope, startTestScope } from './db';
 
 const WARM_UP_PAGES = ['/', '/calendar', '/register', '/register/events', '/contact', '/check-in', '/admin', '/admin/analytics', '/admin/checkin-qr', '/admin/inbox'];
 
 // Every spec imports `test` from here, so the safety check below always runs first.
 export const test = base.extend<
-  { adminPage: void; admin: Session; pageErrors: string[] },
+  { adminPage: void; admin: Session; pageErrors: string[]; cleanUpTestData: void },
   { testModeVerified: void; adminSession: Session }
 >({
   // Refuses to run anything unless the dev server confirms emails go to the
@@ -18,7 +19,7 @@ export const test = base.extend<
       const res = await req.get('/api/test-mode');
       const status = res.ok() ? await res.json() : null;
       await req.dispose();
-      if (!status?.emailSink || !status?.googleDisabled || !status?.usageCountersDisabled) {
+      if (!status?.emailSink || !status?.googleDisabled || !status?.usageCountersDisabled || !status?.testEvents) {
         throw new Error(`The test dev server is not in test mode (${res.status()} ${JSON.stringify(status)}); refusing to run.`);
       }
 
@@ -52,6 +53,17 @@ export const test = base.extend<
     await signInBrowser(context, adminSession);
     await use();
   },
+
+  // Deletes the classes (and their sign-ups) a test seeded for itself once it
+  // ends, so they don't linger until the file is done (support/db.ts).
+  cleanUpTestData: [
+    async ({}, use) => {
+      startTestScope();
+      await use();
+      await endTestScope();
+    },
+    { auto: true },
+  ],
 
   // Uncaught page errors, collected for tests that assert there are none.
   pageErrors: async ({ page }, use) => {

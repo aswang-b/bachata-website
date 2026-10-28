@@ -1,6 +1,11 @@
 import { readdirSync } from 'node:fs';
 import { test, expect } from './support/fixtures';
+import { sweepTestData } from './support/db';
 import { authStorageKey, bearer, createAdminSession, endAdminSession, signInBrowser } from './support/admin';
+
+// Each test deletes the classes it seeded for itself (support/fixtures.ts);
+// what this file's tests share goes as soon as the file is done.
+test.afterAll(sweepTestData);
 
 // Every admin API route, from the source tree, so a new one is covered automatically.
 const routes = readdirSync('src/pages/api/admin')
