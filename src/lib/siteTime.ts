@@ -1,4 +1,4 @@
-// The site's time zone (admin → General → Site Time Zone): every date and
+// The site's time zone (admin → Admin → Site Time Zone): every date and
 // time on the site is shown, grouped into days and typed into the editor in
 // it, wherever the server (UTC on Netlify) or the visitor happens to be.
 // Pure apart from where the zone comes from, so it runs on the server and in

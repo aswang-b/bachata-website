@@ -7,7 +7,7 @@ export const prerender = false;
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
-// Admin → General → Site Time Zone (siteTime.ts): GET the saved zone, POST { timeZone } to change it.
+// Admin → Admin → Site Time Zone (siteTime.ts): GET the saved zone, POST { timeZone } to change it.
 export const GET: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
   if (!user) return json({ error: authError }, 403);

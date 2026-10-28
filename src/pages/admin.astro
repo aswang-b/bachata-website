@@ -86,7 +86,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
 
           <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
             <div>
-              <p class="text-sm font-semibold text-ink">About page link</p>
+              <p class="text-sm font-semibold text-ink">Hide About Page Link</p>
               <p class="text-xs text-muted">Hide the About link in the nav header for everyone.</p>
             </div>
             <button
@@ -101,7 +101,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
 
           <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
             <div>
-              <p class="text-sm font-semibold text-ink">Contact page link</p>
+              <p class="text-sm font-semibold text-ink">Hide Contact Page Link</p>
               <p class="text-xs text-muted">Hide the Contact link in the nav header for everyone.</p>
             </div>
             <button
@@ -116,7 +116,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
 
           <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
             <div>
-              <p class="text-sm font-semibold text-ink">Check-In page</p>
+              <p class="text-sm font-semibold text-ink">Disable Check-In Page</p>
               <p class="text-xs text-muted">Turn off online check-in for everyone. Also removes it from the nav.</p>
             </div>
             <button
@@ -132,7 +132,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
 
           <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
             <div>
-              <p class="text-sm font-semibold text-ink">Check In page link</p>
+              <p class="text-sm font-semibold text-ink">Hide Check-In Page Link</p>
               <p class="text-xs text-muted">Hide the Check In link in the nav header for everyone.</p>
             </div>
             <button
@@ -148,7 +148,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
 
           <div class="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left">
             <div>
-              <p class="text-sm font-semibold text-ink">Register for Events button</p>
+              <p class="text-sm font-semibold text-ink">Show Register for Events Button</p>
               <p class="text-xs text-muted">Show a Register for Events button in the nav header, next to Register for Classes.</p>
             </div>
             <button
@@ -164,7 +164,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
           <div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
             <div class="flex w-full items-center justify-between">
               <div>
-                <p class="text-sm font-semibold text-ink">Site-wide announcement banner</p>
+                <p class="text-sm font-semibold text-ink">Show Site-Wide Announcement Banner</p>
                 <p class="text-xs text-muted">Shows at the top of every page for all visitors.</p>
               </div>
               <button
@@ -199,8 +199,6 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
 
           <p id="settings-status" class="min-h-4 text-xs text-muted"></p>
         </div>
-
-        <SiteTimeZoneSetting />
       </section>
 
       <!-- ==================== HOMEPAGE TAB ==================== -->
@@ -228,6 +226,21 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
           <p id="overview-status" class="min-h-4 text-xs text-muted"></p>
         </div>
 
+        <GalleryFlyersAdmin />
+
+        <div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
+          <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage FAQs</p>
+          <div id="faq-list" class="flex flex-col gap-3"></div>
+          <button
+            id="faq-add-btn"
+            type="button"
+            class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            + Add FAQ
+          </button>
+          <p id="faq-status" class="min-h-4 text-xs text-muted"></p>
+        </div>
+
         <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
           <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage Card Order</p>
           <p class="text-xs text-muted">
@@ -243,21 +256,6 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
             Reset to Default Order
           </button>
           <p id="card-order-reset-status" class="min-h-4 text-xs text-muted"></p>
-        </div>
-
-        <GalleryFlyersAdmin />
-
-        <div class="flex w-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-left">
-          <p class="text-xs font-bold uppercase tracking-wider text-muted">Homepage FAQs</p>
-          <div id="faq-list" class="flex flex-col gap-3"></div>
-          <button
-            id="faq-add-btn"
-            type="button"
-            class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white"
-          >
-            + Add FAQ
-          </button>
-          <p id="faq-status" class="min-h-4 text-xs text-muted"></p>
         </div>
       </section>
 
@@ -415,6 +413,8 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
           </button>
           <p id="checkin-cap-status" class="min-h-4 text-xs text-muted"></p>
         </div>
+
+        <SiteTimeZoneSetting />
       </section>
 
       <!-- ==================== DEBUG TAB ==================== -->
