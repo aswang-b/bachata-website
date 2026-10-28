@@ -27,7 +27,8 @@ Pure logic plus server modules with Supabase replaced by `fakeSupabase.ts` (an i
 | `scheduling.test.ts` | Midnight end times (`src/lib/eventTimes.ts`), tiered pricing, recurrence rules, color mapping |
 | `eventColors.test.ts` | Color names/hex, Google color matching, quick picks, readable text on light picks |
 | `siteTime.test.ts` | Instants on the site zone's day and time; wall-clock → instant across DST; a changed zone; today's bounds on a 25-hour day; a typed day's start and end on a DST change (deal Starts/Ends); midnight end times |
-| `emailTypos.test.ts` / `emailDomain.test.ts` / `resendWebhook.test.ts` | Typo suggestions (and leaving real look-alike and country domains alone, e.g. mail.com, yahoo.ca); the domain check's cache stays bounded; webhook signatures (tampered, wrong secret, replayed), bounce parsing and delivered/bounced outcomes by email id |
+| `emailTypos.test.ts` / `emailDomain.test.ts` / `resendWebhook.test.ts` | Typo suggestions (and leaving real look-alike and country domains alone, e.g. mail.com, yahoo.ca); the domain check's cache stays bounded; webhook signatures (tampered, wrong secret, replayed), bounce parsing and delivered/bounced outcomes by email id (transient bounces ignored) |
+| `confirmationAdminCopy.test.ts` | The admins' confirmation copy goes back in the queue (and onto the Errors workqueue) when its send fails, and is sent once queued when every report already came in |
 | `deals.test.ts` | Bundle deals: bundle price / amount / percent off, all vs any-N (repeating), best price wins, drop-ins never count, one deal per class, cent-exact split, "add this class" suggestions |
 | `locationLink.test.ts` | Location links never break out of an `href` (quotes, angle brackets) and only link to http(s) |
 | `content.test.ts` | Guidelines → FAQ-style sections, rich-text sanitizing |

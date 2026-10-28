@@ -44,15 +44,24 @@ if (error) console.error('Failed to load current offerings:', error);
 // dates and class counts, and the spots left; read together. Only those series,
 // not every event ever, so the page doesn't slow down as past classes pile up.
 const seriesKeys = [...new Set((events ?? []).flatMap((e) => (e.google_recurring_event_id ? [e.google_recurring_event_id] : [])))];
-const [{ data: seriesOccurrences }, spotsByOccurrence] = await Promise.all([
+const [{ data: seriesOccurrences, error: seriesError }, spotsByOccurrence] = await Promise.all([
   seriesKeys.length > 0
-    ? supabase.from('events').select('id, google_recurring_event_id, start_time').eq('visibility', 'public').in('google_recurring_event_id', seriesKeys)
-    : Promise.resolve({ data: [] }),
+    ? supabase
+        .from('events')
+        .select('id, google_recurring_event_id, start_time')
+        .eq('visibility', 'public')
+        .in('event_type', ['class', 'event'])
+        .in('google_recurring_event_id', seriesKeys)
+    : Promise.resolve({ data: [], error: null }),
   // Show the blocks without spots rather than failing the page.
   getSpotsByOccurrence(events ?? []).catch(() => new Map<string, import('../lib/capacity').SpotsInfo>()),
 ]);
+// Without them, a series' counts and dates fall back to its classes still to come.
+if (seriesError) console.error('Failed to load series occurrences:', seriesError);
 // A one-off event is its own whole "series".
-const allEventsForTotals = [...(seriesOccurrences ?? []), ...(events ?? []).filter((e) => !e.google_recurring_event_id)];
+const allEventsForTotals = seriesError
+  ? (events ?? [])
+  : [...(seriesOccurrences ?? []), ...(events ?? []).filter((e) => !e.google_recurring_event_id)];
 
 const offerings = applyCardOrder(
   buildClassSeriesList(events ?? [], allEventsForTotals).sort((a, b) => a.nextStartTime.localeCompare(b.nextStartTime)),

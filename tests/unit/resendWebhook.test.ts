@@ -54,4 +54,9 @@ describe('how one email went, from a Resend event', () => {
     expect(deliveryOutcomeFrom({ type: 'email.delivered', data: { to: ['a@b.com'] } })).toBeNull();
     expect(deliveryOutcomeFrom(null)).toBeNull();
   });
+
+  it("ignores a transient bounce, since the email may still arrive", () => {
+    expect(deliveryOutcomeFrom({ type: 'email.bounced', data: { email_id: 'e3', to: ['a@b.com'], bounce: { type: 'Transient', message: 'Mailbox full' } } })).toBeNull();
+    expect(deliveryOutcomeFrom({ type: 'email.bounced', data: { email_id: 'e4', to: ['a@b.com'], bounce: { type: 'Permanent', message: 'No such user' } } })?.status).toBe('bounced');
+  });
 });

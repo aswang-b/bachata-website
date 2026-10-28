@@ -50,8 +50,10 @@ export async function sendEmail(
     });
     throw new Error(`Failed to send email via Resend: ${reason}`);
   }
+  // Sent either way: without an id from Resend, a stand-in no event will name
+  // (so whatever waits on it times out instead of calling the send failed).
   const sent = (await res.json().catch(() => null)) as { id?: unknown } | null;
-  return typeof sent?.id === 'string' ? sent.id : null;
+  return typeof sent?.id === 'string' && sent.id ? sent.id : `unreported_${crypto.randomUUID()}`;
 }
 
 export async function sendAdminNotification(subject: string, html: string): Promise<void> {

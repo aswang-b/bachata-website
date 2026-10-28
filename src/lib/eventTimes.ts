@@ -25,30 +25,33 @@ interface OrderedEvent {
   google_recurring_event_id?: string | null;
 }
 
-// Each series' (or lone event's) first start, keyed by its recurring id (or own id).
-export function seriesFirstStarts(events: OrderedEvent[]): Map<string, string> {
-  const firsts = new Map<string, string>();
+// Each series' (or lone event's) first occurrence, keyed by its recurring id (or own id).
+export function seriesFirstOccurrences(events: OrderedEvent[]): Map<string, OrderedEvent> {
+  const firsts = new Map<string, OrderedEvent>();
   for (const e of events) {
     const key = e.google_recurring_event_id ?? e.id;
     const seen = firsts.get(key);
-    if (!seen || Date.parse(e.start_time) < Date.parse(seen)) firsts.set(key, e.start_time);
+    if (!seen || Date.parse(e.start_time) < Date.parse(seen.start_time)) firsts.set(key, e);
   }
   return firsts;
 }
 
-// The calendar's order: by start, then whichever ends first, then the series
-// that began first (events have no creation date; a series' first class stands
+// The calendar's order: by start, then the shorter class (its series' first
+// class's length, so one week run long can't swap it), then the series that
+// began first (events have no creation date; a series' first class stands
 // in), then the series id, so two series sharing a time slot keep the same
-// order every week. `firsts` comes from seriesFirstStarts over whole series.
-export function calendarOrder(firsts: Map<string, string>) {
-  const time = (iso: string | null | undefined) => (iso ? Date.parse(iso) : Number.POSITIVE_INFINITY);
+// order every week. `firsts` comes from seriesFirstOccurrences over whole series.
+export function calendarOrder(firsts: Map<string, OrderedEvent>) {
+  const length = (e: OrderedEvent) => (e.end_time ? Date.parse(e.end_time) - Date.parse(e.start_time) : 0);
   return (a: OrderedEvent, b: OrderedEvent): number => {
     const keyA = a.google_recurring_event_id ?? a.id;
     const keyB = b.google_recurring_event_id ?? b.id;
+    const firstA = firsts.get(keyA) ?? a;
+    const firstB = firsts.get(keyB) ?? b;
     return (
-      time(a.start_time) - time(b.start_time) ||
-      time(a.end_time ?? a.start_time) - time(b.end_time ?? b.start_time) ||
-      time(firsts.get(keyA) ?? a.start_time) - time(firsts.get(keyB) ?? b.start_time) ||
+      Date.parse(a.start_time) - Date.parse(b.start_time) ||
+      length(firstA) - length(firstB) ||
+      Date.parse(firstA.start_time) - Date.parse(firstB.start_time) ||
       (keyA < keyB ? -1 : keyA > keyB ? 1 : 0)
     );
   };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calendarOrder, endAfterStart, registrationOpen, seriesAnchorEndDate, seriesFirstStarts } from '../../src/lib/eventTimes';
+import { calendarOrder, endAfterStart, registrationOpen, seriesAnchorEndDate, seriesFirstOccurrences } from '../../src/lib/eventTimes';
 import { getActivePrice, priceTierLabel } from '../../src/lib/pricing';
 import { buildWeeklyRecurrenceRule, googleColorIdToSiteColor, siteColorToGoogleColorId } from '../../src/lib/googleCalendar';
 import { eventTypeLabel } from '../../src/lib/classSeries';
@@ -84,20 +84,32 @@ describe("the calendar's order for classes at the same time", () => {
 
   it('puts the one that ends first first', () => {
     const events = [occ('a', 'long', '01', '20:00'), occ('b', 'short', '01', '19:00')];
-    expect(events.sort(calendarOrder(seriesFirstStarts(events))).map((e) => e.id)).toEqual(['b', 'a']);
+    expect(events.sort(calendarOrder(seriesFirstOccurrences(events))).map((e) => e.id)).toEqual(['b', 'a']);
   });
 
   it('then the series that began first, the same way every week', () => {
     // "older" started a week earlier; the day's rows arrive in a different order each week.
     const all = [occ('o0', 'older', '01', '20:00'), occ('n1', 'newer', '08', '20:00'), occ('o1', 'older', '08', '20:00'), occ('o2', 'older', '15', '20:00'), occ('n2', 'newer', '15', '20:00')];
-    const order = calendarOrder(seriesFirstStarts(all));
+    const order = calendarOrder(seriesFirstOccurrences(all));
     expect([all[1], all[2]].sort(order).map((e) => e.id)).toEqual(['o1', 'n1']);
     expect([all[4], all[3]].sort(order).map((e) => e.id)).toEqual(['o2', 'n2']);
   });
 
   it('falls back to the series id when everything else ties', () => {
     const events = [occ('x', 'zeta', '01', '20:00'), occ('y', 'alpha', '01', '20:00')];
-    expect(events.sort(calendarOrder(seriesFirstStarts(events))).map((e) => e.id)).toEqual(['y', 'x']);
-    expect(events.reverse().sort(calendarOrder(seriesFirstStarts(events))).map((e) => e.id)).toEqual(['y', 'x']);
+    expect(events.sort(calendarOrder(seriesFirstOccurrences(events))).map((e) => e.id)).toEqual(['y', 'x']);
+    expect(events.reverse().sort(calendarOrder(seriesFirstOccurrences(events))).map((e) => e.id)).toEqual(['y', 'x']);
+  });
+});
+
+describe("a class run long one week doesn't change the calendar's order", () => {
+  it("ranks by each series' first class's length, not that week's", () => {
+    const at = (day: string, hm: string) => `2026-11-${day}T${hm}:00.000Z`;
+    const occ = (id: string, series: string, day: string, end: string) => ({ id, google_recurring_event_id: series, start_time: at(day, '18:00'), end_time: at(day, end) });
+    // "short" normally ends at 19:00, "long" at 20:30; on the 15th short runs to 21:00.
+    const all = [occ('s1', 'short', '01', '19:00'), occ('l1', 'long', '01', '20:30'), occ('s3', 'short', '15', '21:00'), occ('l3', 'long', '15', '20:30')];
+    const order = calendarOrder(seriesFirstOccurrences(all));
+    expect([all[1], all[0]].sort(order).map((e) => e.id)).toEqual(['s1', 'l1']);
+    expect([all[3], all[2]].sort(order).map((e) => e.id)).toEqual(['s3', 'l3']);
   });
 });

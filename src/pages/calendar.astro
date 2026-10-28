@@ -11,7 +11,7 @@ import { locationHref } from '../lib/locationLink';
 import { scaledImageUrl } from '../lib/eventImages';
 import FlyerDialog from '../components/FlyerDialog.astro';
 import { siteFormatter, zonedDateKey, zonedParts, zonedToInstant } from '../lib/siteTime';
-import { calendarOrder, seriesFirstStarts } from '../lib/eventTimes';
+import { calendarOrder, seriesFirstOccurrences } from '../lib/eventTimes';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -87,16 +87,16 @@ const sidebarEvents = upcomingEvents ?? [];
 // regardless of which month is being viewed.
 const recurringIds = [...new Set(gridEvents.map((e) => e.google_recurring_event_id).filter((id): id is string => Boolean(id)))];
 const weekNumberByEventId = new Map<string, number>();
-let seriesFirsts = seriesFirstStarts(gridEvents);
+let seriesFirsts = seriesFirstOccurrences(gridEvents);
 if (recurringIds.length > 0) {
   const { data: seriesOccurrences, error: seriesError } = await supabase
     .from('events')
-    .select('id, google_recurring_event_id, start_time')
+    .select('id, google_recurring_event_id, start_time, end_time')
     .in('google_recurring_event_id', recurringIds)
     .order('start_time', { ascending: true });
 
   if (seriesError) console.error('Failed to load series occurrences for week numbering:', seriesError);
-  seriesFirsts = seriesFirstStarts([...gridEvents, ...(seriesOccurrences ?? [])]);
+  seriesFirsts = seriesFirstOccurrences([...gridEvents, ...(seriesOccurrences ?? [])]);
 
   const bySeriesKey = new Map<string, { id: string }[]>();
   for (const occ of seriesOccurrences ?? []) {
@@ -919,7 +919,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
   import { isPreviewingAsPublic } from '../lib/previewMode';
   import { getActivePrice, priceTierLabel } from '../lib/pricing';
   import { openImageCropper } from '../lib/imageCropper';
-  import { calendarOrder, endAfterStart, seriesFirstStarts } from '../lib/eventTimes';
+  import { calendarOrder, endAfterStart, seriesFirstOccurrences } from '../lib/eventTimes';
   import { siteFormatter, zonedDateKey, zonedParts, zonedTimeOfDay, zonedToInstant } from '../lib/siteTime';
   import { DEFAULT_QUICK_COLORS, eventBannerStyle, eventColorHex, eventDotStyle, eventTextStyle, recentEventColors } from '../lib/eventColors';
   import { eventTypeLabel } from '../lib/classSeries';
@@ -2287,7 +2287,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'flex items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-bg';
-      item.innerHTML = `<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="${eventDotStyle(event.color)}"></span><span class="flex-1 truncate font-semibold text-ink">${escapeHtml(event.title)}</span><span class="shrink-0 text-xs text-muted">${timeFormatter.format(new Date(event.start_time))}</span>`;
+      item.innerHTML = `<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="${eventDotStyle(event.color)}"></span><span class="flex-1 truncate font-semibold text-ink">${escapeHtml(event.title)}</span><span class="shrink-0 text-xs text-muted">${timeFormatter.format(new Date(event.start_time))}${event.end_time ? `–${timeFormatter.format(new Date(event.end_time))}` : ''}</span>`;
       item.addEventListener('click', () => {
         showEventDetail(event);
         closeDayExpandPanel();
@@ -2328,7 +2328,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
 
   function rerenderWithMergedEvents(allEvents: SiteEvent[]) {
     const weekNumberByEventId = computeWeekNumbers(allEvents);
-    allEvents = allEvents.slice().sort(calendarOrder(seriesFirstStarts(allEvents)));
+    allEvents = allEvents.slice().sort(calendarOrder(seriesFirstOccurrences(allEvents)));
 
     document.querySelectorAll('.calendar-cell').forEach((cell) => {
       const dateKey = (cell as HTMLElement).dataset.date;

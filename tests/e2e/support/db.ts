@@ -150,6 +150,9 @@ export async function sweepTestData(): Promise<void> {
     const copies = await db.from('confirmation_admin_copies').delete().in('submission_id', ids);
     if (copies.error) throw new Error(`Cleanup failed: ${copies.error.message}`);
   }
+  // Reports the tests posted for their email sink's ids.
+  const outcomes = await db.from('confirmation_email_outcomes').delete().like('email_id', 'sink\\_%');
+  if (outcomes.error) throw new Error(`Cleanup failed: ${outcomes.error.message}`);
   const results = await Promise.all([
     db.from('intake_submissions').delete().like('first_name', like),
     db.from('class_checkins').delete().like('first_name', like),

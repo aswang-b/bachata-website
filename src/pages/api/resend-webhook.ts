@@ -34,6 +34,18 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response('Invalid JSON.', { status: 400 });
   }
 
+  // First, so a failure here (answered with a 500 for Resend to retry) can't
+  // log the bounce below twice. Recording it again on a retry is harmless.
+  const outcome = deliveryOutcomeFrom(event);
+  if (outcome) {
+    try {
+      await recordDeliveryOutcome(outcome.emailId, { status: outcome.status, email: outcome.email, reason: outcome.reason });
+    } catch (err) {
+      console.error(err);
+      return new Response('Failed to record.', { status: 500 });
+    }
+  }
+
   const bounces = bouncesFrom(event);
   if (bounces.length > 0) {
     const { error } = await supabase.from('email_bounces').upsert(
@@ -52,15 +64,6 @@ export const POST: APIRoute = async ({ request }) => {
         details: { email: b.email, bounceType: b.bounceType, reason: b.reason },
         dedupeKey: `bounce:${b.email}`,
       });
-    }
-  }
-  const outcome = deliveryOutcomeFrom(event);
-  if (outcome) {
-    try {
-      await recordDeliveryOutcome(outcome.emailId, { status: outcome.status, email: outcome.email, reason: outcome.reason });
-    } catch (err) {
-      console.error(err);
-      return new Response('Failed to record.', { status: 500 });
     }
   }
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
