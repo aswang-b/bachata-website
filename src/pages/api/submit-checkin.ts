@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
-import { publicVisibilities } from '../../lib/testMode';
+import { allVisibilities, publicVisibilities } from '../../lib/testMode';
 import { checkAndIncrementUsage } from '../../lib/apiUsage';
 import { createCheckinDropInRegistration } from '../../lib/classRegistrations';
 import { getCheckinPerIpCap } from '../../lib/notificationSettings';
@@ -83,6 +83,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
       .from('events')
       .select('id, title')
       .eq('event_type', 'class')
+      .in('visibility', allVisibilities())
       .in('id', directEventIds);
 
     if (eventsError || !events || events.length !== directEventIds.length) {

@@ -27,6 +27,8 @@ export const POST: APIRoute = async ({ request }) => {
   if (rowError || !row) {
     return new Response(JSON.stringify({ error: 'Event not found.' }), { status: 404 });
   }
+  // An e2e test row (visibility 'test', see testMode.ts) is never on Google.
+  const onGoogle = row.visibility !== 'test';
 
   if (deleteSeries && row.google_recurring_event_id) {
     // Deleting the recurring master on Google cascades to every real
@@ -44,7 +46,7 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(JSON.stringify({ error: 'Failed to load series.' }), { status: 500 });
     }
 
-    try {
+    if (onGoogle) try {
       const accessToken = await getGoogleAccessToken();
       await deleteCalendarEvent(accessToken, row.visibility, row.google_recurring_event_id);
 
@@ -70,7 +72,7 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }
 
-  if (row.google_event_id) {
+  if (onGoogle && row.google_event_id) {
     try {
       const accessToken = await getGoogleAccessToken();
       await deleteCalendarEvent(accessToken, row.visibility, row.google_event_id);

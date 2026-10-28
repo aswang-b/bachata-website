@@ -3,6 +3,7 @@ export const prerender = false;
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
+import { allVisibilities } from '../../lib/testMode';
 import { siteFormatter } from '../../lib/siteTime';
 import { getSiteSettings } from '../../lib/siteSettings';
 import { verifyCheckinRegisterToken } from '../../lib/checkinToken';
@@ -13,7 +14,7 @@ const { disable_checkin_page: checkinDisabled } = await getSiteSettings();
 
 const { data: event } = checkinDisabled
   ? { data: null }
-  : await supabase.from('events').select('id, title, start_time, end_time, price_drop_in, registration_closed').eq('id', eventId).maybeSingle();
+  : await supabase.from('events').select('id, title, start_time, end_time, price_drop_in, registration_closed').eq('id', eventId).in('visibility', allVisibilities()).maybeSingle();
 
 // Set by the admin QR's "also register attendees" option. Re-checked here so a
 // link tweaked onto a class with no drop-in price (or closed registration)

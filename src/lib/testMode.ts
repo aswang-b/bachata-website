@@ -40,7 +40,24 @@ export function publicVisibilities(): string[] {
   return showsTestEvents() ? ['public', 'test'] : ['public'];
 }
 
-// The visibilities admin pages list: public and private, plus 'test' on the test server.
-export function adminVisibilities(): string[] {
+// Every visibility this server lists (admin pages, and a class looked up by
+// its id, e.g. a check-in QR for a private class): public and private, plus
+// 'test' on the test server.
+export function allVisibilities(): string[] {
   return showsTestEvents() ? ['public', 'private', 'test'] : ['public', 'private'];
+}
+
+// A new event's visibility: always 'test' on the test server, so one an e2e
+// test creates through the editor never shows on the live site.
+export function newEventVisibility(requested: unknown): 'public' | 'private' | 'test' {
+  if (showsTestEvents()) return 'test';
+  return requested === 'private' ? 'private' : 'public';
+}
+
+// The suite's sign-ups, check-ins and messages start with ZZZ (case-sensitive,
+// like its clean-up). Left out of the live admin lists; the test server shows them.
+export const TEST_DATA_PREFIX = 'ZZZ';
+
+export function hideTestRows<Q extends { not(column: string, operator: string, value: string): Q }>(query: Q, column = 'first_name'): Q {
+  return showsTestEvents() ? query : query.not(column, 'like', `${TEST_DATA_PREFIX}%`);
 }

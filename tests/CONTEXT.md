@@ -20,7 +20,7 @@ Pure logic plus server modules with Supabase replaced by `fakeSupabase.ts` (an i
 | File | Guards |
 | --- | --- |
 | `calendarSync.test.ts` | Plain insert (not upsert) for new Google events, 23505 → update; no re-push of unchanged events (the 403 rate-limit bug); per-event errors collected, not thrown; series settings (type, prices, role caps) carried onto regenerated instances; nothing outside the 180-day window deleted or pushed |
-| `googleAuth.test.ts` | Tokens without the Calendar scope rejected; dead tokens skipped freshest-first; rate-limit retries (only for real rate limits); 410 on delete is fine; pagination |
+| `googleAuth.test.ts` | Tokens without the Calendar scope rejected; dead tokens skipped freshest-first; rate-limit retries (only for real rate limits); 410 on delete is fine; a `test` row never reaches Google; pagination |
 | `sessionAndDuplicates.test.ts` | Stale admin sessions refreshed, unrecoverable ones signed out with `scope: 'local'`; concurrent admin checks share one request; duplicate sign-up/check-in fingerprints |
 | `capacity.test.ts` | Spot math, per-role caps, series = tightest class, labels, hidden-count labels, editor → row columns, server-side capacity check (fails closed), admin calendar counts spots on upcoming classes only |
 | `registration.test.ts` | Class-selection parsing/labels, closed classes by key, free vs paid events, itemized receipt (deal discounts as their own line), deals applied per dancer on saved rows, an event is always one ticket (never a drop-in) so it counts toward a deal, admin edits keeping unchanged classes' saved prices and deals (and the whole bundles left of a repeating any-N deal), confirmation email (FAQs vs guidelines), check-in tokens |
@@ -35,7 +35,7 @@ Pure logic plus server modules with Supabase replaced by `fakeSupabase.ts` (an i
 | `siteErrorsQueue.test.ts` / `editSignup.test.ts` | Errors tab Update email never overwrites a concurrent Recycling Bin move and refuses a binned dancer; an admin-added registration whose class rows fail to save reports the error and leaves no empty sign-up |
 | `siteConfig.test.ts` / `eventImages.test.ts` | A failed time-zone read keeps the saved zone and isn't cached; only this site's bucket URLs are saved as event images/flyers, flyer sizes in their file names, scaled `srcset` that never scales up |
 | `codebaseRules.test.ts` | Source-level rules: dates only through `siteTime.ts` (no visitor-zone getters or hand-built formatters), every admin route calls `requireAdmin`, every `signOut` is local, no events upsert in the sync, forms don't lock their submit button, migrations numbered without gaps, every new table granted to `service_role` (Supabase stopped doing it automatically), public event queries go through `publicVisibilities()`, every e2e spec sweeps its data when done |
-| `testMode.test.ts` | The suite's `test` classes are listed only when the test server asks (`E2E_TEST_EVENTS`) |
+| `testMode.test.ts` | The suite's `test` classes and ZZZ sign-ups are listed only when the test server asks (`E2E_TEST_EVENTS`), where every new event is `test` |
 
 ## End-to-end tests (`tests/e2e`)
 
@@ -44,7 +44,7 @@ Real browser flows against the **shared live database**, made safe by `src/lib/t
 Test data rules (`support/db.ts`):
 - Everything is prefixed `ZZZ`. A class a test seeds for itself is deleted (with its sign-ups and check-ins) when that test ends, by the auto `cleanUpTestData` fixture (raw inserts register with `track()`); what a file's `beforeAll` seeds is shared by its tests and swept by `test.afterAll(sweepTestData)` when the file ends (every spec has one; `codebaseRules` checks). The whole sweep also runs before and after each run (`globalSetup`/`globalTeardown`), catching leftovers from a crashed run. The sweep is case-sensitive, so an admin's own "zzz…" records are left alone.
 - Seeded events are dated past the sync's 180-day window and carry fake Google ids, so the live 15-minute sync never pushes them to Google.
-- Seeded classes have visibility `test` (migration 0060): only the test server lists them (as public, and to its admins), so they never appear on the live site or another dev server. Editing one in the admin editor keeps it `test`.
+- Seeded classes have visibility `test` (migration 0060): only the test server lists them (as public, and to its admins), so they never appear on the live site or another dev server. Editing one in the admin editor keeps it `test`, and one created there is `test` too. The live dashboard also leaves out ZZZ sign-ups and check-ins.
 - Ad-hoc seeding outside the suite must follow the same rules (fake Google id, far future): a row without a `google_event_id` gets pushed to the public Google Calendar by the live sync.
 - Tests that change a shared setting (the community guidelines) restore it afterwards. Nothing ever empties the Recycling Bin.
 - Admin tests use a magic-link session made with the service role (`support/admin.ts`), always ended with a **local** sign-out.
@@ -62,7 +62,7 @@ Test data rules (`support/db.ts`):
 | `deals` | Admin creates a deal in the Deals tab; the form offers the missing class and adding it takes the bundle price (two dancers); saved prices, confirmation page and email; server pricing from a raw POST; a paused deal stops applying; classes and events can't share a deal; Deals list status labels and order; an end date survives repeated edits |
 | `checkin-and-contact` | QR check-in, duplicate check-in, contact form saved as a contact message (not a sign-up), sent twice → saved once, listed in the inbox, admin notification; the inbox marks a message replied into a collapsed archive that only loads when opened, and moves it back |
 | `admin-access` | Every admin API route rejects missing/bogus sessions; sign-in gate; stale-session recovery; sign-out is local only |
-| `admin-editor` | Capacity toggle round trip; events have no role caps; midnight end times; Ctrl+B/I/U formatted by the editor itself (never left to a browser shortcut); editing before admin data loads; the section menu (desktop list, phone chip row that opens and scrolls to a section); Guidelines tab |
+| `admin-editor` | Capacity toggle round trip; events have no role caps; midnight end times; Ctrl+B/I/U formatted by the editor itself (never left to a browser shortcut), also from a non-Latin layout; editing before admin data loads; the section menu (desktop list, phone chip row that opens and scrolls to a section); Guidelines tab |
 | `admin-dashboard` | Dashboard data (roles, events kept separate), dashboard page, check-in QR |
 
 ## Adding a test

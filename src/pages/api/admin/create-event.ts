@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { supabase } from '../../../lib/supabase';
+import { newEventVisibility } from '../../../lib/testMode';
 import { requireAdmin } from '../../../lib/admin';
 import { isEventImageUrl } from '../../../lib/eventImages';
 import {
@@ -68,7 +69,8 @@ const handlePost: APIRoute = async ({ request }) => {
     }
   }
 
-  const rowVisibility = visibility === 'private' ? 'private' : 'public';
+  // Always 'test' on the e2e test server (testMode.ts), which never reaches Google.
+  const rowVisibility = newEventVisibility(visibility);
   // A named color or any "#rrggbb" from the color picker.
   const rowColor = isValidEventColor(color) ? color.toLowerCase() : 'accent';
   const rowEventType = eventType === 'event' ? 'event' : 'class';
@@ -199,7 +201,7 @@ const handlePost: APIRoute = async ({ request }) => {
   }
 
   let calendarSyncError: string | null = null;
-  try {
+  if (rowVisibility !== 'test') try {
     const accessToken = await getGoogleAccessToken();
     const created = await insertCalendarEvent(accessToken, rowVisibility, {
       siteEventId: row.id,

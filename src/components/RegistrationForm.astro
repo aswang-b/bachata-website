@@ -54,10 +54,8 @@ interface ClassOccurrence {
 
 // Independent, so loaded together. Event registrants read and agree to the
 // community guidelines (admin → Guidelines); the section is left out while
-// they're blank. The series totals are unfiltered by date, so a series'
-// whole-series occurrence count doesn't shrink as classes pass (see
-// classSeries.ts's countOccurrencesByKey).
-const [guidelines, { data: classEvents, error }, { data: allClassEventsForTotals, error: totalsError }, activeDeals] = await Promise.all([
+// they're blank.
+const [guidelines, { data: classEvents, error }, activeDeals] = await Promise.all([
   isEvent ? getCommunityGuidelines() : Promise.resolve(''),
   supabase
     .from('events')
@@ -70,17 +68,28 @@ const [guidelines, { data: classEvents, error }, { data: allClassEventsForTotals
     // people can register at the door (see eventTimes.registrationOpen).
     .gte(isEvent ? 'end_time' : 'start_time', isEvent ? lateRegistrationCutoffIso() : new Date().toISOString())
     .order('start_time', { ascending: true }),
-  supabase.from('events').select('id, google_recurring_event_id, start_time').in('visibility', publicVisibilities()).eq('event_type', eventType),
   listActiveDeals(),
 ]);
 const showGuidelines = hasGuidelines(guidelines);
 
 if (error) console.error(`Failed to load ${eventType} events:`, error);
+// Every occurrence (past ones too) of the series on offer, for their class
+// counts and full dates, so a series doesn't shrink as its classes pass; only
+// those series, not every class ever (like the homepage). Read with the spots.
+const seriesKeys = [...new Set((classEvents ?? []).flatMap((e) => (e.google_recurring_event_id ? [e.google_recurring_event_id] : [])))];
+const [{ data: seriesOccurrences, error: totalsError }, spotsByOccurrence] = await Promise.all([
+  seriesKeys.length > 0
+    ? supabase.from('events').select('id, google_recurring_event_id, start_time').in('visibility', publicVisibilities()).eq('event_type', eventType).in('google_recurring_event_id', seriesKeys)
+    : Promise.resolve({ data: [], error: null }),
+  // Couldn't count spots: show the form without them; the server still checks capacity on submit.
+  getSpotsByOccurrence((classEvents ?? []) as ClassOccurrence[]).catch(() => new Map<string, import('../lib/capacity').SpotsInfo>()),
+]);
+// Without them, a series' count and dates fall back to its classes still to come.
 if (totalsError) console.error('Failed to load series totals:', totalsError);
 
-const totalCountByKey = countOccurrencesByKey(allClassEventsForTotals ?? []);
+const totalCountByKey = countOccurrencesByKey(seriesOccurrences ?? []);
 // Each series' first and last class, past ones included, for its date range.
-const bounds = seriesBounds(allClassEventsForTotals ?? []);
+const bounds = seriesBounds(seriesOccurrences ?? []);
 
 const weekdayFormatter = { format: (d: Date) => siteFormatter({ weekday: 'long' }).format(d) };
 const timeFormatter = { format: (d: Date) => siteFormatter({ hour: 'numeric', minute: '2-digit' }).format(d) };
@@ -96,13 +105,6 @@ for (const event of (classEvents ?? []) as ClassOccurrence[]) {
 }
 
 const now = new Date();
-
-let spotsByOccurrence = new Map<string, import('../lib/capacity').SpotsInfo>();
-try {
-  spotsByOccurrence = await getSpotsByOccurrence((classEvents ?? []) as ClassOccurrence[]);
-} catch {
-  // Couldn't count spots: show the form without them; the server still checks capacity on submit.
-}
 
 const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
   const sorted = [...occurrences].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());

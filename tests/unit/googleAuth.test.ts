@@ -92,6 +92,11 @@ describe('Calendar API calls', () => {
     await expect(deleteCalendarEvent('t', 'public', 'gone')).resolves.toBeUndefined();
   });
 
+  it("refuses an e2e 'test' row, which has no calendar, without calling Google", async () => {
+    await expect(deleteCalendarEvent('t', 'test', 'zzz-e2e-1')).rejects.toThrow('no Google Calendar');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('follows pagination', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { items: [{ id: '1' }], nextPageToken: 'p2' })).mockResolvedValueOnce(json(200, { items: [{ id: '2' }] }));
     expect((await listCalendarEvents('t', 'private', 'a', 'b')).map((e) => e.id)).toEqual(['1', '2']);

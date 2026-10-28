@@ -3,7 +3,7 @@ export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
-import { publicVisibilities } from '../lib/testMode';
+import { allVisibilities, publicVisibilities } from '../lib/testMode';
 import { buildClassSeriesList, siteDayBoundsUtcIso } from '../lib/classSeries';
 import { getSiteSettings } from '../lib/siteSettings';
 import { siteFormatter } from '../lib/siteTime';
@@ -45,6 +45,7 @@ async function loadLinkedItems(ids: string[]): Promise<PickerItem[]> {
     .from('events')
     .select('id, title, start_time, end_time, price_drop_in, registration_closed')
     .eq('event_type', 'class')
+    .in('visibility', allVisibilities())
     .in('id', ids)
     .order('start_time', { ascending: true });
   if (error) console.error('Failed to load linked classes for check-in:', error);

@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
-import { adminVisibilities } from '../../../lib/testMode';
+import { allVisibilities, hideTestRows } from '../../../lib/testMode';
 import { requireAdmin } from '../../../lib/admin';
 import { buildClassSeriesList } from '../../../lib/classSeries';
 import { isDeletedDancer } from '../../../lib/recyclingBin';
@@ -86,15 +86,11 @@ export const GET: APIRoute = async ({ request }) => {
     { data: allEventEvents, error: allEventEventsError },
     { data: bounceRows, error: bounceError },
   ] = await Promise.all([
-    supabase
-      .from('intake_submissions')
-      .select('id, created_at, registration_type, first_name, last_name, email, phone, dancers, payment_method, paid')
+    hideTestRows(supabase.from('intake_submissions').select('id, created_at, registration_type, first_name, last_name, email, phone, dancers, payment_method, paid'))
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(ANALYTICS_ROW_LIMIT),
-    supabase
-      .from('class_checkins')
-      .select('id, created_at, first_name, last_name, phone, class_title, event_id')
+    hideTestRows(supabase.from('class_checkins').select('id, created_at, first_name, last_name, phone, class_title, event_id'))
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(ANALYTICS_ROW_LIMIT),
@@ -105,19 +101,17 @@ export const GET: APIRoute = async ({ request }) => {
     supabase
       .from('events')
       .select('id, title, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in')
-      .in('visibility', adminVisibilities())
+      .in('visibility', allVisibilities())
       .eq('event_type', 'class')
       .order('start_time', { ascending: true }),
-    supabase
-      .from('class_registrations')
-      .select('id, submission_id, dancer_index, class_title, class_label, series_mode, price, occurrence_event_id')
+    hideTestRows(supabase.from('class_registrations').select('id, submission_id, dancer_index, class_title, class_label, series_mode, price, occurrence_event_id'))
       .is('deleted_at', null)
       .limit(ANALYTICS_ROW_LIMIT),
     // The Event Registration tab's edit row lets an admin switch a dancer's event.
     supabase
       .from('events')
       .select('id, title, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in')
-      .in('visibility', adminVisibilities())
+      .in('visibility', allVisibilities())
       .eq('event_type', 'event')
       .order('start_time', { ascending: true }),
     // Addresses Resend reported bouncing (migration 0050), flagged next to the sign-up.

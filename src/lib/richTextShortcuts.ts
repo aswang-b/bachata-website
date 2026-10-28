@@ -12,8 +12,11 @@ export function installRichTextShortcuts(): void {
   document.addEventListener(
     'keydown',
     (e) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
-      const command = COMMANDS[e.key.toLowerCase()];
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.isComposing) return;
+      // The typed letter (right on Dvorak or AZERTY); on a non-Latin layout,
+      // e.g. Cyrillic, the key's place on a US keyboard, as browsers do.
+      const letter = /^[a-z]$/i.test(e.key) ? e.key.toLowerCase() : e.code.replace(/^Key/, '').toLowerCase();
+      const command = COMMANDS[letter];
       if (!command || !(e.target instanceof HTMLElement) || !e.target.isContentEditable) return;
       e.preventDefault();
       document.execCommand(command, false);

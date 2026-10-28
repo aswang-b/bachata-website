@@ -29,7 +29,12 @@ const CALENDAR_IDS: Record<EventVisibility, string> = {
   private: CALENDAR_ID_PRIVATE,
 };
 
-function calendarApiBase(visibility: EventVisibility): string {
+// An events row's visibility. The e2e suite's 'test' rows (testMode.ts) have
+// no calendar: refused here, so a check missed upstream fails loudly.
+export type RowVisibility = EventVisibility | 'test';
+
+function calendarApiBase(visibility: RowVisibility): string {
+  if (visibility === 'test') throw new Error('A test event has no Google Calendar.');
   return `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_IDS[visibility])}/events`;
 }
 
@@ -292,7 +297,7 @@ export async function listCalendarEvents(
 
 export async function insertCalendarEvent(
   accessToken: string,
-  visibility: EventVisibility,
+  visibility: RowVisibility,
   event: {
     siteEventId: string;
     summary: string;
@@ -331,7 +336,7 @@ export async function insertCalendarEvent(
 
 export async function updateCalendarEvent(
   accessToken: string,
-  visibility: EventVisibility,
+  visibility: RowVisibility,
   googleEventId: string,
   event: {
     summary: string;
@@ -367,7 +372,7 @@ export async function updateCalendarEvent(
 
 export async function deleteCalendarEvent(
   accessToken: string,
-  visibility: EventVisibility,
+  visibility: RowVisibility,
   googleEventId: string
 ): Promise<void> {
   const res = await calendarFetch(`${calendarApiBase(visibility)}/${encodeURIComponent(googleEventId)}`, {

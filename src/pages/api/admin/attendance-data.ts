@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
-import { adminVisibilities } from '../../../lib/testMode';
+import { allVisibilities, hideTestRows } from '../../../lib/testMode';
 import { requireAdmin } from '../../../lib/admin';
 import { buildClassSeriesList } from '../../../lib/classSeries';
 import {
@@ -29,23 +29,23 @@ export const GET: APIRoute = async ({ request }) => {
     { data: manualMatchRows, error: matchError },
     { data: manualNoShowRows, error: noShowError },
   ] = await Promise.all([
-    supabase
-      .from('class_registrations')
-      // Event registrations aren't checked in to, so they're left out of
-      // attendance matching entirely (see the dashboard's Event Registration tab).
-      .select('id, first_name, last_name, email, phone, class_title, series_mode, price, occurrence_event_id, created_at, intake_submissions!inner(registration_type)')
+    // Event registrations aren't checked in to, so they're left out of
+    // attendance matching entirely (see the dashboard's Event Registration tab).
+    hideTestRows(
+      supabase
+        .from('class_registrations')
+        .select('id, first_name, last_name, email, phone, class_title, series_mode, price, occurrence_event_id, created_at, intake_submissions!inner(registration_type)')
+    )
       .is('deleted_at', null)
       .neq('intake_submissions.registration_type', 'events')
       .limit(ROW_LIMIT),
-    supabase
-      .from('class_checkins')
-      .select('id, first_name, last_name, phone, email, class_title, event_id, created_at')
+    hideTestRows(supabase.from('class_checkins').select('id, first_name, last_name, phone, email, class_title, event_id, created_at'))
       .is('deleted_at', null)
       .limit(ROW_LIMIT),
     supabase
       .from('events')
       .select('id, title, start_time, end_time, google_recurring_event_id, event_type')
-      .in('visibility', adminVisibilities())
+      .in('visibility', allVisibilities())
       .eq('event_type', 'class')
       .order('start_time', { ascending: true }),
     supabase.from('attendance_matches').select('class_registration_id, occurrence_event_id, checkin_id'),

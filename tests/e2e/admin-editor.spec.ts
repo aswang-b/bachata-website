@@ -110,9 +110,10 @@ test('Ctrl+B, I and U format a rich-text box themselves, so a browser shortcut o
     getSelection()!.selectAllChildren(el);
   });
   // A synthetic key press: the browser itself does nothing with it, so any formatting is the editor's.
+  // Ctrl+I comes from a Russian layout, where that key types "ш".
   const results = await description.evaluate((el) =>
-    ['b', 'i', 'u'].map((key) => {
-      const e = new KeyboardEvent('keydown', { key, ctrlKey: true, bubbles: true, cancelable: true });
+    [['b', 'KeyB'], ['ш', 'KeyI'], ['u', 'KeyU']].map(([key, code]) => {
+      const e = new KeyboardEvent('keydown', { key, code, ctrlKey: true, bubbles: true, cancelable: true });
       el.dispatchEvent(e);
       return e.defaultPrevented;
     })
