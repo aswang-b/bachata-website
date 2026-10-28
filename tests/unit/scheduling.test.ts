@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { endAfterStart, registrationOpen, seriesAnchorEndDate } from '../../src/lib/eventTimes';
+import { calendarOrder, endAfterStart, registrationOpen, seriesAnchorEndDate, seriesFirstStarts } from '../../src/lib/eventTimes';
 import { getActivePrice, priceTierLabel } from '../../src/lib/pricing';
 import { buildWeeklyRecurrenceRule, googleColorIdToSiteColor, siteColorToGoogleColorId } from '../../src/lib/googleCalendar';
 import { eventTypeLabel } from '../../src/lib/classSeries';
@@ -75,5 +75,29 @@ describe('when registration closes', () => {
     expect(registrationOpen({ event_type: 'class', start_time: at(-1), end_time: at(60) }, now)).toBe(false);
     expect(registrationOpen({ event_type: 'event', start_time: at(-120), end_time: at(-29) }, now)).toBe(true);
     expect(registrationOpen({ event_type: 'event', start_time: at(-120), end_time: at(-31) }, now)).toBe(false);
+  });
+});
+
+describe("the calendar's order for classes at the same time", () => {
+  const at = (day: string, hm: string) => `2026-11-${day}T${hm}:00.000Z`;
+  const occ = (id: string, series: string, day: string, end: string) => ({ id, google_recurring_event_id: series, start_time: at(day, '18:00'), end_time: at(day, end) });
+
+  it('puts the one that ends first first', () => {
+    const events = [occ('a', 'long', '01', '20:00'), occ('b', 'short', '01', '19:00')];
+    expect(events.sort(calendarOrder(seriesFirstStarts(events))).map((e) => e.id)).toEqual(['b', 'a']);
+  });
+
+  it('then the series that began first, the same way every week', () => {
+    // "older" started a week earlier; the day's rows arrive in a different order each week.
+    const all = [occ('o0', 'older', '01', '20:00'), occ('n1', 'newer', '08', '20:00'), occ('o1', 'older', '08', '20:00'), occ('o2', 'older', '15', '20:00'), occ('n2', 'newer', '15', '20:00')];
+    const order = calendarOrder(seriesFirstStarts(all));
+    expect([all[1], all[2]].sort(order).map((e) => e.id)).toEqual(['o1', 'n1']);
+    expect([all[4], all[3]].sort(order).map((e) => e.id)).toEqual(['o2', 'n2']);
+  });
+
+  it('falls back to the series id when everything else ties', () => {
+    const events = [occ('x', 'zeta', '01', '20:00'), occ('y', 'alpha', '01', '20:00')];
+    expect(events.sort(calendarOrder(seriesFirstStarts(events))).map((e) => e.id)).toEqual(['y', 'x']);
+    expect(events.reverse().sort(calendarOrder(seriesFirstStarts(events))).map((e) => e.id)).toEqual(['y', 'x']);
   });
 });
