@@ -33,6 +33,21 @@ export async function getHomepageContent(): Promise<HomepageContent> {
   return { lessonOverview: data.lesson_overview };
 }
 
+// Everything the homepage shows from homepage_content, in one read instead of
+// one per setting. select('*') so a column a migration hasn't added yet just
+// comes back missing (its default is used) instead of failing the read.
+export async function getHomepageSettings(): Promise<{ lessonOverview: string; cardOrder: string[]; sectionOrder: HomepageSection[]; galleryFlyers: string[] }> {
+  const { data, error } = await supabase.from('homepage_content').select('*').eq('id', true).maybeSingle();
+  if (error) console.error('Failed to load homepage content:', error.message);
+  const row = (data ?? {}) as Record<string, unknown>;
+  return {
+    lessonOverview: typeof row.lesson_overview === 'string' ? row.lesson_overview : '',
+    cardOrder: Array.isArray(row.card_order) ? row.card_order.filter((k): k is string => typeof k === 'string') : [],
+    sectionOrder: normalizeSectionOrder(row.section_order),
+    galleryFlyers: Array.isArray(row.gallery_flyers) ? row.gallery_flyers.filter(isGalleryFlyerUrl) : [],
+  };
+}
+
 // Admin-chosen order of the homepage offering cards: an ordered list of series
 // keys. Empty means "default order". Kept separate from getHomepageContent so a
 // missing card_order column (migration not run yet) can only ever affect the

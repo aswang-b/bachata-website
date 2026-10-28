@@ -10,7 +10,7 @@ export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabase } from '../lib/supabase';
 import { buildClassSeriesList, type ClassSeriesEntry } from '../lib/classSeries';
-import { applyCardOrder, getGalleryFlyers, getHomepageCardOrder, getHomepageContent, getHomepageSectionOrder, type HomepageSection } from '../lib/homepageContent';
+import { applyCardOrder, getHomepageSettings, type HomepageSection } from '../lib/homepageContent';
 import { listFaqs } from '../lib/faqs';
 import { listActiveDeals } from '../lib/dealsStore';
 import { getSpotsByOccurrence, publicSpotsLabel, seriesSpots } from '../lib/capacity';
@@ -24,8 +24,8 @@ import classPlaceholder from '../assets/stock/class-placeholder.jpg';
 import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
 
 const now = new Date();
-const [{ lessonOverview }, faqs, { data: events, error }, { data: allEventsForTotals }, cardOrder, sectionOrder, deals, galleryFlyers] = await Promise.all([
-  getHomepageContent(),
+const [{ lessonOverview, cardOrder, sectionOrder, galleryFlyers }, faqs, { data: events, error }, deals] = await Promise.all([
+  getHomepageSettings(),
   listFaqs(),
   supabase
     .from('events')
@@ -36,21 +36,31 @@ const [{ lessonOverview }, faqs, { data: events, error }, { data: allEventsForTo
     .in('event_type', ['class', 'event'])
     .gte('start_time', now.toISOString())
     .order('start_time', { ascending: true }),
-  supabase.from('events').select('id, google_recurring_event_id, start_time').eq('visibility', 'public').in('event_type', ['class', 'event']),
-  getHomepageCardOrder(),
-  getHomepageSectionOrder(),
   listActiveDeals(now),
-  getGalleryFlyers(),
 ]);
 if (error) console.error('Failed to load current offerings:', error);
 
+// Every occurrence (past ones too) of the series on the page, for their full
+// dates and class counts, and the spots left; read together. Only those series,
+// not every event ever, so the page doesn't slow down as past classes pile up.
+const seriesKeys = [...new Set((events ?? []).flatMap((e) => (e.google_recurring_event_id ? [e.google_recurring_event_id] : [])))];
+const [{ data: seriesOccurrences }, spotsByOccurrence] = await Promise.all([
+  seriesKeys.length > 0
+    ? supabase.from('events').select('id, google_recurring_event_id, start_time').eq('visibility', 'public').in('google_recurring_event_id', seriesKeys)
+    : Promise.resolve({ data: [] }),
+  // Show the blocks without spots rather than failing the page.
+  getSpotsByOccurrence(events ?? []).catch(() => new Map<string, import('../lib/capacity').SpotsInfo>()),
+]);
+// A one-off event is its own whole "series".
+const allEventsForTotals = [...(seriesOccurrences ?? []), ...(events ?? []).filter((e) => !e.google_recurring_event_id)];
+
 const offerings = applyCardOrder(
-  buildClassSeriesList(events ?? [], allEventsForTotals ?? []).sort((a, b) => a.nextStartTime.localeCompare(b.nextStartTime)),
+  buildClassSeriesList(events ?? [], allEventsForTotals).sort((a, b) => a.nextStartTime.localeCompare(b.nextStartTime)),
   cardOrder
 );
 const blocks = groupByFlyer(offerings);
 // A series shows its full dates, not just the classes still to come.
-const bounds = seriesBounds(allEventsForTotals ?? []);
+const bounds = seriesBounds(allEventsForTotals);
 
 // A block sits in the section of the first thing on its flyer.
 const SECTION_TITLES: Record<HomepageSection, string> = { events: 'Upcoming Events', classes: 'Upcoming Classes' };
@@ -64,12 +74,6 @@ const firstFlyerBlock = sections.flatMap((s) => s.blocks).find((b) => b.flyerUrl
 const FLYER_SIZES = '(min-width: 1152px) 380px, (min-width: 768px) 33vw, 100vw';
 const blockTitles = (offerings: ClassSeriesEntry[]) => offerings.map((o) => o.title).join(' and ');
 
-let spotsByOccurrence = new Map<string, import('../lib/capacity').SpotsInfo>();
-try {
-  spotsByOccurrence = await getSpotsByOccurrence(events ?? []);
-} catch {
-  // Show the blocks without spots rather than failing the page.
-}
 const showCapacityByKey = new Map((events ?? []).map((e) => [e.google_recurring_event_id ?? e.id, e.show_capacity]));
 function spotsFor(offering: ClassSeriesEntry) {
   const spots = seriesSpots(spotsByOccurrence, offering.occurrences.map((o) => o.id));
