@@ -13,7 +13,7 @@ export function emailSinkPath(): string | null {
   return flag('E2E_EMAIL_SINK') || null;
 }
 
-export function recordSunkEmail(email: { to: string | string[]; bcc?: string[]; subject: string; html: string }): void {
+export function recordSunkEmail(email: { id?: string; to: string | string[]; bcc?: string[]; subject: string; html: string }): void {
   const path = emailSinkPath();
   if (path) appendFileSync(path, JSON.stringify({ ...email, at: new Date().toISOString() }) + '\n');
 }

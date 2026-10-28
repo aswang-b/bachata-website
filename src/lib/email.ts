@@ -8,19 +8,22 @@ const NOTIFICATION_EMAILS_ENV = env('NOTIFICATION_EMAILS');
 
 const FROM_ADDRESS = 'Dance with B <service@dancewithb.fun>';
 
+// Resolves to Resend's id for the email (its webhook events name it), or null
+// when nothing was sent (no API key).
 export async function sendEmail(
   to: string | string[],
   subject: string,
   html: string,
   options: { bcc?: string[] } = {}
-): Promise<void> {
+): Promise<string | null> {
   if (emailSinkPath()) {
-    recordSunkEmail({ to, ...(options.bcc && options.bcc.length > 0 ? { bcc: options.bcc } : {}), subject, html });
-    return;
+    const id = `sink_${crypto.randomUUID()}`;
+    recordSunkEmail({ id, to, ...(options.bcc && options.bcc.length > 0 ? { bcc: options.bcc } : {}), subject, html });
+    return id;
   }
   if (!RESEND_API_KEY) {
     console.warn('Skipping email: RESEND_API_KEY not set.');
-    return;
+    return null;
   }
 
   const res = await fetch('https://api.resend.com/emails', {
@@ -47,6 +50,8 @@ export async function sendEmail(
     });
     throw new Error(`Failed to send email via Resend: ${reason}`);
   }
+  const sent = (await res.json().catch(() => null)) as { id?: unknown } | null;
+  return typeof sent?.id === 'string' ? sent.id : null;
 }
 
 export async function sendAdminNotification(subject: string, html: string): Promise<void> {

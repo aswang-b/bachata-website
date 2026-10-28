@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { bouncesFrom, verifyResendSignature } from '../../src/lib/resendWebhook';
+import { bouncesFrom, deliveryOutcomeFrom, verifyResendSignature } from '../../src/lib/resendWebhook';
 
 const secret = `whsec_${Buffer.from('unit-test-secret').toString('base64')}`;
 const now = 1_800_000_000;
@@ -35,5 +35,23 @@ describe('bounced addresses from a Resend event', () => {
     expect(bouncesFrom({ type: 'email.delivered', data: { to: ['a@b.com'] } })).toEqual([]);
     expect(bouncesFrom(null)).toEqual([]);
     expect(bouncesFrom({ type: 'email.bounced', data: { to: ['not-an-email'] } })).toEqual([]);
+  });
+});
+
+describe('how one email went, from a Resend event', () => {
+  it('reads delivered and bounced events by email id', () => {
+    expect(deliveryOutcomeFrom({ type: 'email.delivered', data: { email_id: 'e1', to: ['Deb@Example.com'] } })).toEqual({ emailId: 'e1', status: 'delivered', email: 'deb@example.com', reason: null });
+    expect(deliveryOutcomeFrom({ type: 'email.bounced', data: { email_id: 'e2', to: ['deb@gmial.com'], bounce: { message: 'Mailbox does not exist' } } })).toEqual({
+      emailId: 'e2',
+      status: 'bounced',
+      email: 'deb@gmial.com',
+      reason: 'Mailbox does not exist',
+    });
+  });
+
+  it('ignores other events and ones without an email id', () => {
+    expect(deliveryOutcomeFrom({ type: 'email.opened', data: { email_id: 'e1', to: ['a@b.com'] } })).toBeNull();
+    expect(deliveryOutcomeFrom({ type: 'email.delivered', data: { to: ['a@b.com'] } })).toBeNull();
+    expect(deliveryOutcomeFrom(null)).toBeNull();
   });
 });

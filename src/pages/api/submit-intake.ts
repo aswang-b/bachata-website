@@ -9,6 +9,7 @@ import {
   validateClassSelections,
   type RegistrationRow,
 } from '../../lib/classRegistrations';
+import { queueAdminCopy, type SentConfirmation } from '../../lib/confirmationAdminCopy';
 import { getConfirmationBccEmails, getConfirmationEmailPerIpCap, getContactEmailPerIpCap } from '../../lib/notificationSettings';
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
 import { buildRegistrationConfirmation, CONFIRMATION_EMAIL_DAILY_CAP } from '../../lib/registrationConfirmation';
@@ -335,17 +336,19 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
           toSend.push(recipient);
         }
 
-        // One admin copy per registration, sent on its own (reserved after the
-        // dancers' emails, so it never uses up their quota) so a failed dancer
-        // send can't lose it. The admins after the first are BCC'd, so they
-        // don't see each other's addresses.
-        const sends = toSend.map((recipient) => sendEmail(recipient, subject, html));
-        if (bcc.length > 0 && (await reserveEmail())) {
-          sends.push(sendEmail(bcc[0], subject, html, { bcc: bcc.slice(1) }));
-        }
-        const results = await Promise.allSettled(sends);
-        for (const r of results) {
+        const results = await Promise.allSettled(toSend.map((recipient) => sendEmail(recipient, subject, html)));
+        const sent: SentConfirmation[] = results.map((r, i) => {
           if (r.status === 'rejected') console.error('Failed to send registration confirmation to a recipient:', r.reason);
+          return r.status === 'fulfilled'
+            ? { email: toSend[i], id: r.value }
+            : { email: toSend[i], id: null, error: r.reason instanceof Error ? r.reason.message : String(r.reason) };
+        });
+
+        // One admin copy per registration (reserved after the dancers' emails,
+        // so it never uses up their quota). It waits for Resend to report on
+        // the dancers' emails, so it can say if one bounced.
+        if (bcc.length > 0 && (await reserveEmail())) {
+          await queueAdminCopy(submissionId, sent);
         }
       }
     } catch (err) {

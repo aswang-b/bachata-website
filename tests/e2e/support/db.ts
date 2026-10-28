@@ -143,6 +143,13 @@ export async function spotCounts(eventId: string) {
 export async function sweepTestData(): Promise<void> {
   // Case-sensitive (uppercase ZZZ), so an admin's own "zzz…" records are never swept.
   const like = `${TEST_PREFIX}%`;
+  // Admin confirmation copies still waiting on the test sign-ups (never sent anyway: their ids are the email sink's).
+  const { data: subs } = await db.from('intake_submissions').select('id').like('first_name', like);
+  const ids = (subs ?? []).map((s) => s.id);
+  if (ids.length > 0) {
+    const copies = await db.from('confirmation_admin_copies').delete().in('submission_id', ids);
+    if (copies.error) throw new Error(`Cleanup failed: ${copies.error.message}`);
+  }
   const results = await Promise.all([
     db.from('intake_submissions').delete().like('first_name', like),
     db.from('class_checkins').delete().like('first_name', like),

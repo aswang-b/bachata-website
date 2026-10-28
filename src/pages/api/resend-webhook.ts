@@ -1,14 +1,17 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
 import { env } from '../../lib/env';
-import { bouncesFrom, verifyResendSignature } from '../../lib/resendWebhook';
+import { bouncesFrom, deliveryOutcomeFrom, verifyResendSignature } from '../../lib/resendWebhook';
 import { logSiteError } from '../../lib/siteErrors';
+import { recordDeliveryOutcome } from '../../lib/confirmationAdminCopy';
 
 export const prerender = false;
 
 // Resend → Webhooks posts here (set up with the "email.bounced" event; its
 // signing secret goes in RESEND_WEBHOOK_SECRET). Each bounced address is
-// recorded in email_bounces (migration 0050) for the dashboard to flag.
+// recorded in email_bounces (migration 0050) for the dashboard to flag. With
+// "email.delivered" also on, each outcome is passed on to the admins' copy of
+// a registration confirmation, which waits for it (lib/confirmationAdminCopy.ts).
 export const POST: APIRoute = async ({ request }) => {
   const secret = env('RESEND_WEBHOOK_SECRET');
   if (!secret) {
@@ -49,6 +52,15 @@ export const POST: APIRoute = async ({ request }) => {
         details: { email: b.email, bounceType: b.bounceType, reason: b.reason },
         dedupeKey: `bounce:${b.email}`,
       });
+    }
+  }
+  const outcome = deliveryOutcomeFrom(event);
+  if (outcome) {
+    try {
+      await recordDeliveryOutcome(outcome.emailId, { status: outcome.status, email: outcome.email, reason: outcome.reason });
+    } catch (err) {
+      console.error(err);
+      return new Response('Failed to record.', { status: 500 });
     }
   }
   return new Response(JSON.stringify({ ok: true }), { status: 200 });

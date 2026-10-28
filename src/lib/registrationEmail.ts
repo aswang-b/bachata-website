@@ -4,7 +4,7 @@
 // reminders (an event's community guidelines instead) shown fully expanded
 // (email clients don't support the on-screen <details> accordion interaction).
 
-function escapeHtml(str: string): string {
+export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

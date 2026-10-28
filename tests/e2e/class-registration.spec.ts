@@ -1,7 +1,7 @@
 import { test, expect, postForm } from './support/fixtures';
 import { db, seedEvent, spotCounts, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
-import { emailsAbout, recipients } from './support/emails';
+import { emailsAbout, postResendEvent, recipients } from './support/emails';
 import { confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
 import { bearer } from './support/admin';
 
@@ -25,7 +25,7 @@ async function bccList(): Promise<string[]> {
     .filter(Boolean);
 }
 
-test('a group signs up for a whole series and gets an itemized confirmation page and email', async ({ page }) => {
+test('a group signs up for a whole series and gets an itemized confirmation page and email', async ({ page, request }) => {
   const email = `zzz-e2e-${RUN_ID.toLowerCase()}-lead@example.com`;
   await page.goto(`/register?series=${series.key}`);
   await selectSeries(page, series.key);
@@ -56,19 +56,80 @@ test('a group signs up for a whole series and gets an itemized confirmation page
   expect(regs!.every((r) => r.series_key === series.key && r.series_mode === 'whole' && Number(r.price) === 50)).toBe(true);
   for (const occ of series.ids) expect(await spotCounts(occ)).toMatchObject({ taken: 2, leaders_taken: 1, followers_taken: 1 });
 
-  // One confirmation to the dancer who gave an email, plus one admin copy when BCC is set (never BCC'ing the dancer).
+  // One confirmation to the dancer who gave an email, on its own.
   const sent = emailsAbout(`ZZZLead`).filter((e) => e.html.includes(RUN_ID));
-  const toDancer = sent.filter((e) => recipients(e).includes(email));
-  expect(toDancer).toHaveLength(1);
-  expect(toDancer[0].subject).toContain('Class Registration is Confirmed');
-  expect(toDancer[0].html).toContain('$50 × 2 dancers');
-  const bcc = (await bccList()).filter((e) => e.toLowerCase() !== email);
-  const adminCopies = sent.filter((e) => !recipients(e).includes(email));
-  expect(adminCopies).toHaveLength(bcc.length > 0 ? 1 : 0);
-  if (bcc.length > 0) {
-    expect(recipients(adminCopies[0])).toEqual([bcc[0]]);
-    expect(adminCopies[0].bcc ?? []).toEqual(bcc.slice(1));
+  expect(sent).toHaveLength(1);
+  const toDancer = sent[0];
+  expect(recipients(toDancer)).toEqual([email]);
+  expect(toDancer.bcc).toBeUndefined();
+  expect(toDancer.subject).toContain('Class Registration is Confirmed');
+  expect(toDancer.html).toContain('$50 × 2 dancers');
+
+  // The admins' copy (Confirmation BCC setting) waits until Resend reports the dancer's email delivered.
+  const admins = await bccList();
+  const adminCopies = () => emailsAbout(`ZZZLead`).filter((e) => e.html.includes(RUN_ID) && !recipients(e).includes(email));
+  expect(adminCopies()).toHaveLength(0);
+  expect((await postResendEvent(request, 'email.delivered', { email_id: toDancer.id, to: [email] })).status()).toBe(200);
+  expect(adminCopies()).toHaveLength(admins.length > 0 ? 1 : 0);
+  if (admins.length > 0) {
+    const copy = adminCopies()[0];
+    expect(recipients(copy)).toEqual([admins[0]]);
+    expect(copy.bcc ?? []).toEqual(admins.slice(1));
+    expect(copy.subject).toBe(toDancer.subject);
+    expect(copy.html).toBe(toDancer.html);
   }
+  // A repeat of the event doesn't send it again.
+  await postResendEvent(request, 'email.delivered', { email_id: toDancer.id, to: [email] });
+  expect(adminCopies()).toHaveLength(admins.length > 0 ? 1 : 0);
+});
+
+test("a dancer's confirmation that bounces is noted in the admins' copy, and a resend is the plain confirmation", async ({ page, request, admin }) => {
+  const admins = await bccList();
+  test.skip(admins.length === 0, 'No admins are on the Confirmation BCC list.');
+  const email = `zzz-e2e-${RUN_ID.toLowerCase()}-bounce@example.com`;
+  await page.goto(`/register?series=${series.key}`);
+  await selectSeries(page, series.key);
+  await fillDancer(page, 0, { first: 'Bouncy', role: 'leader', email });
+  await payCash(page);
+  await submitRegistration(page);
+  await page.waitForURL(/\/register\/confirmation\?id=/);
+  const submissionId = confirmationId(page.url())!;
+
+  const [toDancer] = emailsAbout('ZZZBouncy').filter((e) => recipients(e).includes(email));
+  const res = await postResendEvent(request, 'email.bounced', { email_id: toDancer.id, to: [email], bounce: { type: 'Permanent', message: 'Mailbox does not exist' } });
+  expect(res.status()).toBe(200);
+  const copies = emailsAbout('ZZZBouncy').filter((e) => !recipients(e).includes(email));
+  expect(copies).toHaveLength(1);
+  expect(recipients(copies[0])).toEqual([admins[0]]);
+  expect(copies[0].subject).toBe(`Not delivered: ${toDancer.subject}`);
+  expect(copies[0].html).toContain("This confirmation didn't reach the dancer:");
+  expect(copies[0].html).toContain(`<strong>${email}</strong> — bounced: Mailbox does not exist`);
+  expect(copies[0].html).toContain(toDancer.html);
+
+  // After the address is fixed, a resend from the dashboard is the same confirmation, with no note.
+  const fixed = `zzz-e2e-${RUN_ID.toLowerCase()}-fixed@example.com`;
+  const { data: sub } = await db.from('intake_submissions').select('dancers').eq('id', submissionId).single();
+  await db.from('intake_submissions').update({ email: fixed, dancers: (sub!.dancers as { email: string }[]).map((d) => ({ ...d, email: fixed })) }).eq('id', submissionId);
+  expect((await request.post('/api/admin/resend-confirmation', { headers: bearer(admin), data: { submissionId } })).status()).toBe(200);
+  const [resent] = emailsAbout('ZZZBouncy').filter((e) => recipients(e).includes(fixed));
+  expect(resent.subject).toBe(toDancer.subject);
+  expect(resent.html).toBe(toDancer.html.replaceAll(email, fixed));
+});
+
+test("with no dancer email to wait on, the admins' copy goes out right away", async ({ page }) => {
+  const admins = await bccList();
+  test.skip(admins.length === 0, 'No admins are on the Confirmation BCC list.');
+  await page.goto(`/register?series=${series.key}`);
+  await selectSeries(page, series.key);
+  await fillDancer(page, 0, { first: 'Phoneonly', role: 'follower', phone: '6085550123' });
+  await payCash(page);
+  await submitRegistration(page);
+  await page.waitForURL(/\/register\/confirmation\?id=/);
+  const copies = emailsAbout('ZZZPhoneonly');
+  expect(copies).toHaveLength(1);
+  expect(recipients(copies[0])).toEqual([admins[0]]);
+  expect(copies[0].subject).toContain('Class Registration is Confirmed');
+  expect(copies[0].html).not.toContain("didn't reach the dancer");
 });
 
 test('a drop-in has to pick its class date, and the receipt names that date', async ({ page }) => {

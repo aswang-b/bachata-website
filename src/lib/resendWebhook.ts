@@ -41,3 +41,16 @@ export function bouncesFrom(event: unknown): { email: string; bounceType: string
     .filter((t): t is string => typeof t === 'string' && t.includes('@'))
     .map((t) => ({ email: t.trim().toLowerCase(), bounceType: text(bounce.type), reason: text(bounce.message) }));
 }
+
+// How one sent email went, from an "email.delivered" or "email.bounced" event:
+// Resend's id for the email, its (first) recipient and, for a bounce, why.
+export function deliveryOutcomeFrom(event: unknown): { emailId: string; status: 'delivered' | 'bounced'; email: string; reason: string | null } | null {
+  const e = (event && typeof event === 'object' ? event : {}) as { type?: unknown; data?: Record<string, unknown> };
+  const status = e.type === 'email.delivered' ? 'delivered' : e.type === 'email.bounced' ? 'bounced' : null;
+  if (!status || !e.data || typeof e.data.email_id !== 'string' || !e.data.email_id) return null;
+  const to = Array.isArray(e.data.to) ? e.data.to : [e.data.to];
+  const email = typeof to[0] === 'string' ? to[0].trim().toLowerCase() : '';
+  const bounce = (e.data.bounce && typeof e.data.bounce === 'object' ? e.data.bounce : {}) as Record<string, unknown>;
+  const reason = status === 'bounced' && typeof bounce.message === 'string' && bounce.message ? bounce.message.slice(0, 500) : null;
+  return { emailId: e.data.email_id, status, email, reason };
+}
