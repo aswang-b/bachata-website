@@ -158,6 +158,17 @@ test('a class with only a whole-series price shows it selected, and clicking it 
   await expect(item).toHaveAttribute('data-selected', 'false');
 });
 
+test("a series that has started shows its whole date range, from its first class, not just the classes left", async ({ page }) => {
+  const started = await seedEvent({ name: 'Started Series', occurrences: 3, priceDropIn: 15, dayOffset: 4 });
+  // Its first class has passed (long ago, outside the calendar sync's window).
+  await db.from('events').update({ start_time: '2020-01-05T20:00:00Z', end_time: '2020-01-05T21:00:00Z' }).eq('id', started.ids[0]);
+  await page.goto('/register');
+  const item = page.locator(`.series-item[data-key="${started.key}"]`);
+  await expect(item.locator('.series-header')).toContainText('(Jan 5–');
+  // Only the classes still to come can be picked as a drop-in.
+  await expect(item.locator('.occurrence-btn')).toHaveCount(2);
+});
+
 test('a drop-in-only class preselects Drop In and asks for the date', async ({ page }) => {
   await page.goto('/register');
   const item = await selectSeries(page, dropInOnly.key);

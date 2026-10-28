@@ -12,6 +12,7 @@ import { listActiveDeals } from '../lib/dealsStore';
 import { siteFormatter } from '../lib/siteTime';
 import { lateRegistrationCutoffIso } from '../lib/eventTimes';
 import { locationHref } from '../lib/locationLink';
+import { seriesBounds } from '../lib/flyerBlocks';
 
 interface Props {
   kind?: 'class' | 'event';
@@ -68,7 +69,7 @@ const [guidelines, { data: classEvents, error }, { data: allClassEventsForTotals
     // people can register at the door (see eventTimes.registrationOpen).
     .gte(isEvent ? 'end_time' : 'start_time', isEvent ? lateRegistrationCutoffIso() : new Date().toISOString())
     .order('start_time', { ascending: true }),
-  supabase.from('events').select('id, google_recurring_event_id').eq('visibility', 'public').eq('event_type', eventType),
+  supabase.from('events').select('id, google_recurring_event_id, start_time').eq('visibility', 'public').eq('event_type', eventType),
   listActiveDeals(),
 ]);
 const showGuidelines = hasGuidelines(guidelines);
@@ -77,6 +78,8 @@ if (error) console.error(`Failed to load ${eventType} events:`, error);
 if (totalsError) console.error('Failed to load series totals:', totalsError);
 
 const totalCountByKey = countOccurrencesByKey(allClassEventsForTotals ?? []);
+// Each series' first and last class, past ones included, for its date range.
+const bounds = seriesBounds(allClassEventsForTotals ?? []);
 
 const weekdayFormatter = { format: (d: Date) => siteFormatter({ weekday: 'long' }).format(d) };
 const timeFormatter = { format: (d: Date) => siteFormatter({ hour: 'numeric', minute: '2-digit' }).format(d) };
@@ -109,8 +112,9 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
 
   const weekday = weekdayFormatter.format(new Date(first.start_time));
   const timeRange = `${timeFormatter.format(new Date(first.start_time))}–${timeFormatter.format(new Date(first.end_time))}`;
+  const whole = bounds.get(key);
   const dateRange = isSeries
-    ? `${dateFormatter.format(new Date(first.start_time))}–${dateFormatter.format(new Date(last.start_time))}`
+    ? `${dateFormatter.format(new Date(whole?.first ?? first.start_time))}–${dateFormatter.format(new Date(whole?.last ?? last.start_time))}`
     : dateFormatter.format(new Date(first.start_time));
 
   const spots = seriesSpots(
