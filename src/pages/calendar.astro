@@ -508,9 +508,16 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
   <div id="event-modal" class="fixed inset-0 z-[55] hidden items-stretch justify-center bg-black/40 sm:items-center sm:p-4">
     <div class="flex h-full w-full flex-col bg-bg shadow-2xl sm:h-auto sm:max-h-[90vh] sm:max-w-5xl sm:rounded-2xl">
       <div class="flex flex-col gap-3 border-b border-border px-4 pb-4 pt-3 sm:px-6 sm:pt-5">
-        <div class="flex items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:flex-nowrap">
           <h3 id="modal-heading" class="text-xs font-bold uppercase tracking-wider text-muted">Add Event</h3>
-          <div class="flex items-center gap-2">
+          {/* One tab per linked class (Linked Classes/Events), in the heading's place (on phones, its own row under it); a dot marks unsaved changes. */}
+          <div
+            id="event-tabs"
+            role="tablist"
+            aria-label="Linked classes"
+            class="relative order-last -mb-1 hidden min-w-0 basis-full gap-1 overflow-x-auto sm:order-none sm:flex-1 sm:basis-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          ></div>
+          <div class="ml-auto flex shrink-0 items-center gap-2">
             <div id="event-status-chips" class="flex flex-wrap justify-end gap-1.5"></div>
             <button type="button" id="event-close" aria-label="Close" class="flex h-9 w-9 items-center justify-center rounded-full text-ink/70 hover:bg-surface">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
@@ -676,7 +683,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                   <button type="button" data-cmd="strikeThrough" class="description-format-btn rounded-lg px-2.5 py-1 text-sm line-through text-ink/70 hover:bg-bg">S</button>
                   <button type="button" data-cmd="insertUnorderedList" class="description-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
                   <button type="button" data-cmd="insertOrderedList" class="description-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
-                  <button type="button" id="event-description-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button><span class="mx-1 w-px self-stretch bg-border" aria-hidden="true"></span><button type="button" data-rich-history="undo" data-rich-target="#event-description" aria-label="Undo" title="Undo (Ctrl+Z)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8630;</button><button type="button" data-rich-history="redo" data-rich-target="#event-description" aria-label="Redo" title="Redo (Ctrl+Y)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8631;</button>
+                  <button type="button" id="event-description-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button><span class="mx-1 w-px self-stretch bg-border" aria-hidden="true"></span><button type="button" data-rich-history="undo" data-rich-target="#event-description" aria-label="Undo" title="Undo (Ctrl+Z)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">&#8630;</button><button type="button" data-rich-history="redo" data-rich-target="#event-description" aria-label="Redo" title="Redo (Ctrl+Y)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">&#8631;</button>
                 </div>
                 <div
                   id="event-description"
@@ -867,7 +874,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                     <button type="button" data-cmd="underline" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
                     <button type="button" data-cmd="insertUnorderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
                     <button type="button" data-cmd="insertOrderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
-                    <button type="button" id="event-lesson-overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button><span class="mx-1 w-px self-stretch bg-border" aria-hidden="true"></span><button type="button" data-rich-history="undo" data-rich-target="#event-lesson-overview-body" aria-label="Undo" title="Undo (Ctrl+Z)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8630;</button><button type="button" data-rich-history="redo" data-rich-target="#event-lesson-overview-body" aria-label="Redo" title="Redo (Ctrl+Y)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8631;</button>
+                    <button type="button" id="event-lesson-overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button><span class="mx-1 w-px self-stretch bg-border" aria-hidden="true"></span><button type="button" data-rich-history="undo" data-rich-target="#event-lesson-overview-body" aria-label="Undo" title="Undo (Ctrl+Z)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">&#8630;</button><button type="button" data-rich-history="redo" data-rich-target="#event-lesson-overview-body" aria-label="Redo" title="Redo (Ctrl+Y)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">&#8631;</button>
                   </div>
                   <div
                     id="event-lesson-overview-body"
@@ -886,7 +893,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
           {/* Classes or events sold off one flyer, linked as whole series, and
               the rule for each linked pair (src/lib/linkRules.ts). Changes here
               save right away, not with the Save button. */}
-          <details id="sec-linked" class="event-section group/sec scroll-mt-3 rounded-2xl border border-border open:border-accent/60">
+          <details id="sec-linked" data-draft-skip class="event-section group/sec scroll-mt-3 rounded-2xl border border-border open:border-accent/60">
             <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
               <span class="min-w-0"><span class="font-display font-bold text-ink">Linked Classes/Events</span><span data-summary="linked" class="block truncate text-xs text-muted md:hidden"></span></span>
               <svg class="h-5 w-5 shrink-0 text-muted transition-transform group-open/sec:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
@@ -921,6 +928,10 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
           </button>
           <button id="event-save" class="gradient-accent rounded-full px-5 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90">
             Save
+          </button>
+          {/* With linked tabs: saves every tab with changes. */}
+          <button id="event-save-all" class="hidden rounded-full border border-accent px-4 py-2 text-sm font-bold text-accent transition-colors hover:bg-accent hover:text-white">
+            Save all
           </button>
         </div>
       </div>
@@ -981,6 +992,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
   import { installRichTextShortcuts } from '../lib/richTextShortcuts';
   import { installRichTextHistory, offerPrevious, rememberBeforeSave } from '../lib/richTextHistory';
   import { initLinkedEditor } from '../lib/linkedClassesEditor';
+  import { applyFields, captureFields, type FieldValues } from '../lib/editorDrafts';
 
   installRichTextShortcuts();
   installRichTextHistory();
@@ -1154,7 +1166,21 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     events: () => cachedAllEvents,
     current: () => ({ event: editingEvent, pendingLinkTo, eventType: selectedType }),
     authHeaders: withAuthHeader,
-    openEvent: (event) => openModal('edit', event),
+    // Its tab, when it has one.
+    openEvent(event) {
+      const i = editorTabs.findIndex((t) => t.key === seriesKeyOfEvent(event));
+      if (i === -1) return editEvent(event);
+      if (i === activeTab) return;
+      stashActiveDraft();
+      showTab(i);
+    },
+    linksChanged() {
+      if (!editingEvent) return;
+      const key = seriesKeyOfEvent(editingEvent);
+      editorTabs = tabsFor(editingEvent, editorTabs);
+      activeTab = Math.max(0, editorTabs.findIndex((t) => t.key === key));
+      renderTabs();
+    },
     newLinked: openNewLinked,
     flyerShared(flyerUrl, seriesKeys) {
       const keys = new Set(seriesKeys);
@@ -1582,6 +1608,11 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     editingRecurringId = event?.google_recurring_event_id ?? null;
     editingEvent = mode === 'edit' ? event ?? null : null;
     pendingLinkTo = null;
+    // A new class has no tabs (editEvent sets them up for a linked one).
+    if (mode === 'add') {
+      editorTabs = [];
+      renderTabs();
+    }
     modalHeading.textContent = mode === 'add' ? 'Add Event' : 'Edit Event';
     titleInput.value = event?.title ?? '';
     descriptionInput.innerHTML = event?.description ?? '';
@@ -1695,6 +1726,14 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     editingId = null;
     editingEvent = null;
     pendingLinkTo = null;
+    editorTabs = [];
+    renderTabs();
+  }
+
+  // Cancel or close: asks first when a tab has changes that would be lost.
+  function cancelEditing() {
+    if (hasUnsaved() && !confirm('Discard your unsaved changes?')) return;
+    closeModal();
   }
 
   // "New linked class": a copy of `source` with a blank title and
@@ -1825,6 +1864,8 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     modal.addEventListener(type, () => {
       updateEditorSummaries();
       updateSeriesBanner();
+      // The open tab's unsaved-changes dot.
+      if (editorTabs.length > 1) renderTabs();
     })
   );
 
@@ -2113,8 +2154,8 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
   }
 
   document.getElementById('add-event-btn')?.addEventListener('click', () => openModal('add'));
-  document.getElementById('event-cancel')?.addEventListener('click', closeModal);
-  document.getElementById('event-close')?.addEventListener('click', closeModal);
+  document.getElementById('event-cancel')?.addEventListener('click', cancelEditing);
+  document.getElementById('event-close')?.addEventListener('click', cancelEditing);
   document.getElementById('event-delete')?.addEventListener('click', () => editingId && performDelete(editingId));
   document.getElementById('event-delete-series')?.addEventListener('click', () => editingId && performDelete(editingId, true));
 
@@ -2129,7 +2170,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
       alert("This event's details haven't finished loading — reload the page and try again.");
       return;
     }
-    openModal('edit', full);
+    editEvent(full);
   });
   document.getElementById('detail-delete-btn')?.addEventListener('click', () => {
     if (detailEvent) performDelete(detailEvent.id);
@@ -2177,17 +2218,24 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     document.getElementById('detail-title')?.focus();
   });
 
-  document.getElementById('event-save')?.addEventListener('click', async () => {
-    const headers = await withAuthHeader();
-    if (!headers) return;
+  interface SaveRequest {
+    endpoint: string;
+    payload: Record<string, unknown>;
+    historyKey: string | null;
+    title: string;
+  }
 
+  // What the editor (its open tab) would save, or null when it can't be saved
+  // yet (after saying why, or with the empty field focused).
+  function buildSaveRequest(): SaveRequest | null {
     if (!titleInput.value.trim() || !dateInput.value || !startTimeInput.value || !endTimeInput.value) {
-      return;
+      (!titleInput.value.trim() ? titleInput : dateInput).focus();
+      return null;
     }
     const endTimeIso = endAfterStart(dateInput.value, startTimeInput.value, endTimeInput.value);
     if (!endTimeIso) {
       alert('The end time is the same as the start time — pick when the event ends.');
-      return;
+      return null;
     }
 
     const payload: Record<string, unknown> = {
@@ -2234,12 +2282,12 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     if (!editingId && repeatInput.checked) {
       if (selectedRepeatDays.size === 0) {
         alert('Pick at least one day of the week for the recurrence.');
-        return;
+        return null;
       }
       const endType = repeatEndRadios.find((r) => r.checked)?.value === 'until' ? 'until' : 'count';
       if (endType === 'until' && !repeatUntilInput.value) {
         alert('Pick an end date for the recurrence.');
-        return;
+        return null;
       }
       payload.recurrence = {
         byDay: WEEKDAY_CODES.filter((d) => selectedRepeatDays.has(d)),
@@ -2267,7 +2315,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
       if (patternChanged) {
         if (endType === 'until' && !repeatUntilInput.value) {
           alert('Pick an end date for the recurrence.');
-          return;
+          return null;
         }
         payload.rebuildSeries = true;
         payload.recurrence = {
@@ -2282,44 +2330,272 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
 
     if (!editingId && pendingLinkTo) payload.linkTo = pendingLinkTo;
 
-    const endpoint = editingId ? '/api/admin/update-event' : '/api/admin/create-event';
-    const historyKey = editingEvent ? `event:${editingEvent.google_recurring_event_id ?? editingEvent.id}` : null;
-    closeModal();
-    showSync('Syncing to Google Calendar…', false);
+    return {
+      endpoint: editingId ? '/api/admin/update-event' : '/api/admin/create-event',
+      payload,
+      historyKey: editingEvent ? `event:${editingEvent.google_recurring_event_id ?? editingEvent.id}` : null,
+      title: titleInput.value.trim(),
+    };
+  }
 
-    const res = await fetch(endpoint, {
+  type SaveResponse = { calendarSyncSkipped?: boolean; calendarSyncError?: string; linkError?: string | null; error?: string };
+
+  // Sends one save. On success the rich-text boxes (still showing what was
+  // saved) remember what it replaced, so reopening offers Undo back to it.
+  async function sendSave(req: SaveRequest, headers: Record<string, string>): Promise<{ ok: boolean; status: number; data: SaveResponse }> {
+    const res = await fetch(req.endpoint, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(req.payload),
     });
-
-    const data = await res.json().catch(() => ({}));
-
-    // So reopening this class offers Undo back to what this save replaced.
-    if (res.ok && historyKey) {
-      rememberBeforeSave(descriptionInput, `${historyKey}:description`);
-      rememberBeforeSave(lessonOverviewBodyInput, `${historyKey}:overview`);
+    const data: SaveResponse = await res.json().catch(() => ({}));
+    if (res.ok && req.historyKey) {
+      rememberBeforeSave(descriptionInput, `${req.historyKey}:description`);
+      rememberBeforeSave(lessonOverviewBodyInput, `${req.historyKey}:overview`);
     }
-    if (res.ok && data.linkError) {
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  const syncFailedDialog = (saved: { title: string; data: SaveResponse }[]) =>
+    showErrorDialog(
+      'Saved, but Google Calendar sync failed',
+      'The change is saved on the site. Google Calendar did not accept it; the next scheduled sync will retry.',
+      saved.map((r) => (saved.length > 1 ? `${r.title}: ` : '') + (r.data.calendarSyncError ?? 'No Google connection was available for this save.')).join('\n')
+    );
+
+  // After the editor's saves: the dialogs they need, then a reload to show what's saved.
+  async function finishSaves(saved: { title: string; data: SaveResponse }[]) {
+    for (const r of saved.filter((s) => s.data.linkError)) {
       hideSync();
-      await showErrorDialog('Saved, but not linked', "The new class is saved, but it couldn't be linked. Link it from its Linked Classes/Events section.", data.linkError);
+      await showErrorDialog('Saved, but not linked', "The new class is saved, but it couldn't be linked. Link it from its Linked Classes/Events section.", r.data.linkError!);
     }
-    if (res.ok && data.calendarSyncSkipped) {
+    const skipped = saved.filter((s) => s.data.calendarSyncSkipped);
+    if (skipped.length > 0) {
       hideSync();
-      await showErrorDialog(
-        'Saved, but Google Calendar sync failed',
-        'The change is saved on the site. Google Calendar did not accept it; the next scheduled sync will retry.',
-        data.calendarSyncError ?? 'No Google connection was available for this save.'
-      );
+      await syncFailedDialog(skipped);
       window.location.reload();
-    } else if (res.ok) {
-      showSync('Synced!', true);
-      setTimeout(() => window.location.reload(), 900);
-    } else {
-      hideSync();
-      await showErrorDialog('Save failed', `The server returned ${res.status}.`, data.error ?? 'unknown error');
+      return;
     }
+    showSync('Synced!', true);
+    setTimeout(() => window.location.reload(), 900);
+  }
+
+  // Save: just the open tab. While other tabs have unsaved changes the editor
+  // stays open for them; otherwise it closes and the page reloads.
+  document.getElementById('event-save')?.addEventListener('click', async () => {
+    const headers = await withAuthHeader();
+    if (!headers) return;
+    const req = buildSaveRequest();
+    if (!req) return;
+    if (!editorTabs.some((t, i) => i !== activeTab && t.draft)) {
+      closeModal();
+      showSync('Syncing to Google Calendar…', false);
+      const result = await sendSave(req, headers);
+      if (!result.ok) {
+        hideSync();
+        await showErrorDialog('Save failed', `The server returned ${result.status}.`, result.data.error ?? 'unknown error');
+        return;
+      }
+      await finishSaves([{ title: req.title, data: result.data }]);
+      return;
+    }
+    showSync('Saving…', false);
+    const result = await sendSave(req, headers);
+    hideSync();
+    if (!result.ok) {
+      await showErrorDialog('Save failed', `The server returned ${result.status}.`, result.data.error ?? 'unknown error');
+      return;
+    }
+    if (result.data.calendarSyncSkipped) await syncFailedDialog([{ title: req.title, data: result.data }]);
+    await refreshAdminEvents(headers);
+    // This tab starts over from what's now saved; the others keep their changes.
+    editorTabs[activeTab].draft = null;
+    showTab(activeTab);
+    showSync('Saved', true);
   });
+
+  // Save all: every tab with changes, one after another. One that can't be
+  // saved stops there, on its tab, with the ones before it saved.
+  document.getElementById('event-save-all')?.addEventListener('click', async () => {
+    const headers = await withAuthHeader();
+    if (!headers) return;
+    stashActiveDraft();
+    const pending = editorTabs.flatMap((t, i) => (t.draft ? [i] : []));
+    const saved: { title: string; data: SaveResponse }[] = [];
+    for (const i of pending) {
+      showTab(i);
+      const req = buildSaveRequest();
+      if (!req) {
+        hideSync();
+        if (saved.length > 0) await afterPartialSave(headers);
+        return;
+      }
+      showSync(`Saving ${req.title}…`, false);
+      const result = await sendSave(req, headers);
+      if (!result.ok) {
+        hideSync();
+        await showErrorDialog(`Couldn't save ${req.title}`, `The server returned ${result.status}.`, result.data.error ?? 'unknown error');
+        if (saved.length > 0) await afterPartialSave(headers);
+        return;
+      }
+      editorTabs[i].draft = null;
+      saved.push({ title: req.title, data: result.data });
+    }
+    closeModal();
+    if (saved.length > 0) await finishSaves(saved);
+  });
+
+  // Some tabs saved before one couldn't be: they show what's now saved, and
+  // the open tab keeps what's being fixed.
+  async function afterPartialSave(headers: Record<string, string>) {
+    stashActiveDraft();
+    await refreshAdminEvents(headers);
+    showTab(activeTab);
+  }
+
+  // ---- Tabs: one per linked class (src/lib/linkedClassesEditor.ts) ----
+  // One form serves every tab: leaving a tab keeps its changes as a draft
+  // (src/lib/editorDrafts.ts), which comes back on return and is what Save
+  // all saves. The Linked Classes/Events section saves on its own.
+  interface EditorDraft {
+    fields: FieldValues;
+    type: 'class' | 'event';
+    color: string;
+    capacityByRole: boolean;
+    repeatDays: string[];
+  }
+  interface EditorTab {
+    key: string;
+    event: SiteEvent;
+    draft: EditorDraft | null;
+  }
+  let editorTabs: EditorTab[] = [];
+  let activeTab = 0;
+  // The open tab as saved, to tell whether it has changes.
+  let pristine = '';
+  const tabsEl = document.getElementById('event-tabs')!;
+  const saveAllBtn = document.getElementById('event-save-all')!;
+  const seriesKeyOfEvent = (e: SiteEvent) => e.google_recurring_event_id ?? e.id;
+
+  function snapshot(): EditorDraft {
+    return { fields: captureFields(modal), type: selectedType, color: selectedColor, capacityByRole, repeatDays: [...selectedRepeatDays].sort() };
+  }
+
+  const activeHasChanges = () => editorTabs.length > 0 && JSON.stringify(snapshot()) !== pristine;
+  const hasUnsaved = () => activeHasChanges() || editorTabs.some((t, i) => i !== activeTab && t.draft);
+
+  function stashActiveDraft() {
+    const tab = editorTabs[activeTab];
+    if (tab) tab.draft = activeHasChanges() ? snapshot() : null;
+  }
+
+  function applyDraft(d: EditorDraft) {
+    applyFields(modal, d.fields);
+    selectedType = d.type;
+    selectedColor = d.color;
+    capacityByRole = d.capacityByRole;
+    selectedRepeatDays = new Set(d.repeatDays);
+    repeatOptions.classList.toggle('hidden', !repeatInput.checked);
+    repeatOptions.classList.toggle('flex', repeatInput.checked);
+    renderTypeButtons();
+    renderColorButtons();
+    renderRepeatDayButtons();
+    renderCapacityFields();
+    updateImagePreview();
+    updateFlyerPreview();
+    syncLessonOverviewFields();
+    updateDateLockForSeriesEdit();
+    updateEditorSummaries();
+    updateSeriesBanner();
+  }
+
+  function showTab(i: number) {
+    activeTab = i;
+    const tab = editorTabs[i];
+    openModal('edit', tab.event);
+    pristine = JSON.stringify(snapshot());
+    if (tab.draft) applyDraft(tab.draft);
+    renderTabs();
+  }
+
+  // Tabs in date order (then title), for the linked set `event` is in.
+  function tabsFor(event: SiteEvent, keep: EditorTab[] = []): EditorTab[] {
+    const keys = linkedEditor.groupKeys(seriesKeyOfEvent(event));
+    if (keys.length < 2) return [];
+    const kept = new Map(keep.map((t) => [t.key, t]));
+    return keys
+      .flatMap((key): EditorTab[] => {
+        if (kept.has(key)) return [kept.get(key)!];
+        const occurrence = key === seriesKeyOfEvent(event) ? event : linkedEditor.occurrenceFor(key, event);
+        return occurrence ? [{ key, event: occurrence, draft: null }] : [];
+      })
+      .sort((a, b) => a.event.start_time.localeCompare(b.event.start_time) || a.event.title.localeCompare(b.event.title));
+  }
+
+  // Opens the editor on `event`, with a tab for each class linked to it.
+  function editEvent(event: SiteEvent) {
+    editorTabs = tabsFor(event);
+    if (editorTabs.length === 0) {
+      openModal('edit', event);
+      renderTabs();
+      return;
+    }
+    showTab(Math.max(0, editorTabs.findIndex((t) => t.key === seriesKeyOfEvent(event))));
+  }
+
+  function renderTabs() {
+    const show = editorTabs.length > 1;
+    tabsEl.classList.toggle('hidden', !show);
+    tabsEl.classList.toggle('flex', show);
+    modalHeading.classList.toggle('hidden', show);
+    saveAllBtn.classList.toggle('hidden', !show);
+    if (!show) {
+      tabsEl.replaceChildren();
+      delete tabsEl.dataset.keys;
+      return;
+    }
+    // Updated in place, not redrawn: a field losing focus as a tab is pressed
+    // redraws this, and a redrawn tab would lose that click.
+    const keys = editorTabs.map((t) => t.key).join('|');
+    if (tabsEl.dataset.keys !== keys) {
+      tabsEl.dataset.keys = keys;
+      tabsEl.innerHTML = editorTabs
+        .map(
+          (t, i) => `<button type="button" role="tab" data-tab-index="${i}" class="event-tab flex max-w-[14rem] shrink-0 items-center gap-1.5 rounded-t-lg border-b-2 px-3 py-1.5 text-sm font-semibold aria-selected:border-accent aria-selected:text-ink aria-[selected=false]:border-transparent aria-[selected=false]:text-ink/60 hover:text-ink">
+            <span class="truncate">${escapeHtml(t.event.title)}</span><span class="event-tab-dot hidden h-2 w-2 shrink-0 rounded-full bg-amber-400" aria-label="unsaved changes"></span>
+          </button>`
+        )
+        .join('');
+    }
+    tabsEl.querySelectorAll<HTMLButtonElement>('.event-tab').forEach((btn, i) => {
+      btn.setAttribute('aria-selected', String(i === activeTab));
+      const dirty = i === activeTab ? activeHasChanges() : Boolean(editorTabs[i]?.draft);
+      btn.querySelector('.event-tab-dot')?.classList.toggle('hidden', !dirty);
+    });
+    // The open tab in view when the row scrolls sideways (phones, many links).
+    const open = tabsEl.querySelector<HTMLElement>('.event-tab[aria-selected="true"]');
+    if (open && (open.offsetLeft < tabsEl.scrollLeft || open.offsetLeft + open.offsetWidth > tabsEl.scrollLeft + tabsEl.clientWidth)) {
+      tabsEl.scrollLeft = open.offsetLeft - 8;
+    }
+  }
+
+  tabsEl.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.event-tab');
+    const i = Number(btn?.dataset.tabIndex);
+    if (!btn || Number.isNaN(i) || i === activeTab) return;
+    stashActiveDraft();
+    showTab(i);
+  });
+
+  // The admin copy of the events again (after a save that keeps the editor open).
+  async function refreshAdminEvents(headers: Record<string, string>) {
+    const res = await fetch('/api/admin/all-events', { headers });
+    if (!res.ok) return;
+    const { events } = await res.json();
+    cachedAllEvents = events;
+    rerenderWithMergedEvents(events);
+    for (const tab of editorTabs) tab.event = cachedAllEvents.find((e) => e.id === tab.event.id) ?? tab.event;
+  }
 
   function buildBannerHTML(event: SiteEvent, isCompact: boolean): string {
     const bannerClass = isCompact

@@ -280,3 +280,87 @@ test('cannot take both: a soft warning with a one-click remove; submitting anywa
   expect(flagged![0].message).toContain(a.title);
   expect(flagged![0].message).toContain(b.title);
 });
+
+// ---- Editor tabs: one per linked class ----
+
+const tab = (page: Page, s: Seeded) => page.locator('.event-tab', { hasText: s.title });
+const closeDialog = (page: Page) => page.locator('[data-error-close]').click();
+
+test('linked classes open as tabs that keep their changes; Save all saves each one', async ({ page, adminPage }) => {
+  void adminPage;
+  const a = await seedEvent({ name: 'Tab A', type: 'event', priceWhole: 40, dayOffset: 80 });
+  const b = await seedEvent({ name: 'Tab B', type: 'event', priceWhole: 15, dayOffset: 80 });
+  await seedLink(a, b);
+
+  await openEditor(page, a);
+  await expect(page.locator('.event-tab')).toHaveCount(2);
+  await expect(page.locator('#modal-heading')).toBeHidden();
+  await expect(tab(page, a)).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#event-save-all')).toBeVisible();
+
+  // A change on A, then over to B: A keeps it (and is marked), B shows its own.
+  await page.locator('#event-price-whole-series').fill('42');
+  await expect(tab(page, a).locator('.event-tab-dot')).toBeVisible();
+  await tab(page, b).click();
+  await expect(page.locator('#event-title')).toHaveValue(b.title);
+  await expect(page.locator('#event-price-whole-series')).toHaveValue('15');
+  await page.locator('#event-location').fill('ZZZ Tab B Hall');
+  await tab(page, a).click();
+  await expect(page.locator('#event-price-whole-series')).toHaveValue('42');
+  await expect(tab(page, b).locator('.event-tab-dot')).toBeVisible();
+
+  // The Linked section's Open goes to that tab.
+  await page.locator('.event-nav-btn[data-section="linked"]').click();
+  await page.locator('.linked-open-btn').click();
+  await expect(tab(page, b)).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#event-location')).toHaveValue('ZZZ Tab B Hall');
+
+  // Save all: both saved (Google is off for the test server, so one "not synced" dialog lists both).
+  await page.locator('#event-save-all').click();
+  await expect(page.getByText('Saved, but Google Calendar sync failed')).toBeVisible();
+  const { data } = await db.from('events').select('id, price_whole_series, location').in('id', [a.ids[0], b.ids[0]]);
+  expect(data!.find((r) => r.id === a.ids[0])!.price_whole_series).toBe(42);
+  expect(data!.find((r) => r.id === b.ids[0])!.location).toBe('ZZZ Tab B Hall');
+});
+
+test("Save saves only the open tab and keeps the editor open for the others' changes; closing asks before discarding", async ({ page, adminPage }) => {
+  void adminPage;
+  const a = await seedEvent({ name: 'Solo A', type: 'event', priceWhole: 40, dayOffset: 81 });
+  const b = await seedEvent({ name: 'Solo B', type: 'event', priceWhole: 15, dayOffset: 81 });
+  await seedLink(a, b);
+
+  await openEditor(page, a);
+  await page.locator('#event-price-whole-series').fill('44');
+  await tab(page, b).click();
+  await page.locator('#event-price-whole-series').fill('16');
+  await page.locator('#event-save').click();
+  await expect(page.getByText('Saved, but Google Calendar sync failed')).toBeVisible();
+  await closeDialog(page);
+
+  // B is saved and starts over clean; A still has its unsaved change.
+  await expect(page.locator('#event-modal')).toBeVisible();
+  await expect(tab(page, b)).toHaveAttribute('aria-selected', 'true');
+  await expect(tab(page, b).locator('.event-tab-dot')).toBeHidden();
+  await expect(tab(page, a).locator('.event-tab-dot')).toBeVisible();
+  const prices = async () => (await db.from('events').select('id, price_whole_series').in('id', [a.ids[0], b.ids[0]])).data ?? [];
+  expect((await prices()).find((r) => r.id === b.ids[0])!.price_whole_series).toBe(16);
+  expect((await prices()).find((r) => r.id === a.ids[0])!.price_whole_series).toBe(40);
+
+  // Closing with A's change unsaved asks first; declining keeps the editor open.
+  page.once('dialog', (d) => d.dismiss());
+  await page.locator('#event-close').click();
+  await expect(page.locator('#event-modal')).toBeVisible();
+  page.once('dialog', (d) => d.accept());
+  await page.locator('#event-close').click();
+  await expect(page.locator('#event-modal')).toBeHidden();
+  expect((await prices()).find((r) => r.id === a.ids[0])!.price_whole_series).toBe(40);
+});
+
+test('a class that is not linked has no tabs', async ({ page, adminPage }) => {
+  void adminPage;
+  const lone = await seedEvent({ name: 'No Tabs', dayOffset: 82 });
+  await openEditor(page, lone);
+  await expect(page.locator('#event-tabs')).toBeHidden();
+  await expect(page.locator('#modal-heading')).toBeVisible();
+  await expect(page.locator('#event-save-all')).toBeHidden();
+});

@@ -5,7 +5,7 @@
 
 import { combinations, defaultReason, findConflicts, REASON_MAX_LENGTH, ruleFor, type LinkRule } from './linkRules';
 import { escapeAttr } from './locationLink';
-import { siteFormatter } from './siteTime';
+import { siteFormatter, zonedDateKey } from './siteTime';
 
 export interface LinkableEvent {
   id: string;
@@ -28,12 +28,14 @@ export interface LinkedEditorHooks<E extends LinkableEvent> {
   // linked to once saved, and the type picked in the editor.
   current(): { event: E | null; pendingLinkTo: string | null; eventType: 'class' | 'event' };
   authHeaders(): Promise<Record<string, string> | null>;
-  // Switch the editor to this occurrence of a linked series.
+  // Show this occurrence of a linked series (its tab in the editor).
   openEvent(event: E): void;
   // Start a new class copied from this one (blank title and description), linked to it on save.
   newLinked(source: E): void;
   // Linking shared a flyer onto these series.
   flyerShared(flyerUrl: string, seriesKeys: string[]): void;
+  // A link was added or removed (the editor's tabs follow).
+  linksChanged(): void;
 }
 
 export const seriesKeyOf = (e: { id: string; google_recurring_event_id: string | null }) => e.google_recurring_event_id ?? e.id;
@@ -81,6 +83,14 @@ export function initLinkedEditor<E extends LinkableEvent>(hooks: LinkedEditorHoo
 
   const titleOf = (key: string) => occurrencesOf(key)[0]?.title ?? 'A deleted class';
 
+  // The class of a linked series to open next to `near`: the one on the same
+  // day, else its next one, else its last.
+  function occurrenceFor(key: string, near: E | null): E | undefined {
+    const occ = occurrencesOf(key);
+    const sameDay = near ? occ.find((o) => zonedDateKey(o.start_time) === zonedDateKey(near.start_time)) : undefined;
+    return sameDay ?? occ.find((o) => Date.parse(o.end_time) >= Date.now()) ?? occ[occ.length - 1];
+  }
+
   function seriesLabel(key: string): string {
     const occ = occurrencesOf(key);
     if (occ.length === 0) return '';
@@ -120,6 +130,7 @@ export function initLinkedEditor<E extends LinkableEvent>(hooks: LinkedEditorHoo
       if (!res.ok) throw new Error(data.error ?? `The server returned ${res.status}.`);
       links = data.links ?? links;
       rules = data.rules ?? rules;
+      hooks.linksChanged();
       return data;
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to save.');
@@ -266,12 +277,7 @@ export function initLinkedEditor<E extends LinkableEvent>(hooks: LinkedEditorHoo
       return;
     }
     if (btn.classList.contains('linked-open-btn')) {
-      if (!confirm(`Open ${titleOf(key)}? Unsaved changes here will be lost.`)) return;
-      const current = hooks.current().event;
-      const occ = occurrencesOf(key);
-      const sameDay = current ? occ.find((o) => o.start_time.slice(0, 10) === current.start_time.slice(0, 10)) : undefined;
-      const upcoming = occ.find((o) => Date.parse(o.end_time) >= Date.now());
-      const target = sameDay ?? upcoming ?? occ[occ.length - 1];
+      const target = occurrenceFor(key, hooks.current().event);
       if (target) hooks.openEvent(target);
     }
   });
@@ -435,6 +441,9 @@ export function initLinkedEditor<E extends LinkableEvent>(hooks: LinkedEditorHoo
       showError(null);
       render();
     },
+    // The series linked with `key` (itself included), for the editor's tabs.
+    groupKeys,
+    occurrenceFor,
     // The section's one-line summary in the editor menu.
     summary(): string {
       const { event, pendingLinkTo } = hooks.current();
