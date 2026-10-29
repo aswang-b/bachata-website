@@ -52,7 +52,7 @@ Test data rules (`support/db.ts`):
 
 | Spec | Covers |
 | --- | --- |
-| `public-pages` | Every public page renders without errors; the footer's Report a bug link goes to the contact form |
+| `public-pages` | Every public page renders without errors |
 | `homepage` | Flyer blocks: two classes sharing a flyer form one block (type tags, prices with a running early bird, public spots incl. per role, Register links); a lone class shows its details beside the flyer, and the flyer opens full size; Full and Registration closed; a hidden count shows only to admins; one card without a flyer still renders. Calendar: the detail panel's See flyer button and the list entries' flyer thumbnails (a link on phones), only for classes with a flyer. Past flyers gallery: only site-uploaded images are accepted (rejected before any write), and it loops both ways (read-only, skipped while the gallery is empty) |
 | `flyer-accessibility` | Only the first flyer loads eagerly; a flyer button is named by its alt text and visible hint, and the full-size view keeps that alt; Read more has `aria-expanded`/`aria-controls` and focusing a cut-off link expands it; admin move arrows name their flyer; the editor's flyer upload is keyboard-reachable, its existing-flyer picker is labelled, and a large transparent PNG is re-encoded as WebP with its size sent (the upload is intercepted, nothing is stored) |
 | `calendar-layout` | An evening class on its own day in the site zone (server in UTC); Calendar banner text (with a "Wk N" pill) stays inside its box at narrow widths, e.g. 125% zoom, and every banner shares one font size; banners reachable with Tab and opened with Enter; a busy day on a phone: dots in even rows (two per row up to 4, three for 5–6) and tapping lists every event |
