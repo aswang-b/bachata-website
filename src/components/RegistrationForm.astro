@@ -10,7 +10,7 @@ import { getActivePrice, priceTierLabel, type ActivePriceResult } from '../lib/p
 import { getSpotsByOccurrence, publicSpotsLabel, remainingFor, seriesSpots } from '../lib/capacity';
 import { getCommunityGuidelines, hasGuidelines } from '../lib/communityGuidelines';
 import { listActiveDeals } from '../lib/dealsStore';
-import { siteFormatter } from '../lib/siteTime';
+import { siteFormatter, zonedDateKey } from '../lib/siteTime';
 import { lateRegistrationCutoffIso } from '../lib/eventTimes';
 import { locationHref } from '../lib/locationLink';
 import { seriesBounds } from '../lib/flyerBlocks';
@@ -129,6 +129,8 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     const s = spotsByOccurrence.get(occ.id);
     return {
       id: occ.id,
+      // Its day, for linked classes: a Drop-In only takes in what it includes that day.
+      day: zonedDateKey(occ.start_time),
       label: `${dateFormatter.format(new Date(occ.start_time))}, ${timeFormatter.format(new Date(occ.start_time))}`,
       full: s?.full ?? false,
       fullRoles: s ? (['leader', 'follower'] as const).filter((r) => remainingFor(s, r) === 0) : [],
@@ -179,9 +181,22 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
 // its "add this to get the deal" suggestions (the server prices the same way).
 const pageKeys = new Set(seriesList.map((s) => s.key));
 const pageDeals = activeDeals.filter((d) => d.seriesKeys.some((k) => pageKeys.has(k)));
-// Rules between linked classes on this page (linkRules.ts), for the subtotal's
-// notes; the server applies the same rules to what's saved.
-const pageLinkRules = (await rulesForSeries([...pageKeys])).filter((r) => pageKeys.has(r.from) && pageKeys.has(r.to));
+// Every rule among the classes linked with those on this page (linkRules.ts),
+// for the subtotal's notes, including ones through a class that isn't on the
+// page (A includes B includes C), exactly as the server applies them to
+// what's saved. Those off the page are named from their latest class.
+const pageLinkRules = await rulesForSeries([...pageKeys]);
+const offPageKeys = [...new Set(pageLinkRules.flatMap((r) => [r.from, r.to]))].filter((k) => !pageKeys.has(k));
+const linkTitles: Record<string, string> = {};
+if (offPageKeys.length > 0) {
+  const ids = offPageKeys.filter((k) => /^[0-9a-f-]{36}$/i.test(k));
+  const { data: offPage } = await supabase
+    .from('events')
+    .select('id, title, google_recurring_event_id, start_time')
+    .or([`google_recurring_event_id.in.(${offPageKeys.join(',')})`, ...(ids.length ? [`id.in.(${ids.join(',')})`] : [])].join(','))
+    .order('start_time', { ascending: true });
+  for (const e of offPage ?? []) linkTitles[e.google_recurring_event_id ?? e.id] = e.title;
+}
 
 function formatPrice(value: number): string {
   return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
@@ -223,7 +238,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       <div class="flex flex-col gap-1.5">
         <span class="text-sm font-medium text-ink/80">{isEvent ? 'Events' : 'Classes'}<span class="text-accent"> *</span></span>
         <p class="text-xs text-muted">
-          {isEvent ? "Select any events you'd like to register for." : "Select any classes you'd like to register for."}
+          {isEvent ? "Select any events you'd like to register for. You can select more than one." : "Select any classes you'd like to register for. You can select more than one."}
         </p>
 
         {seriesList.length === 0 ? (
@@ -496,6 +511,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       {/* Linked classes: what's included with a pick (blue) and picks usually taken one or the other (amber). Never blocks submitting. */}
       <ul id="link-notes" class="hidden flex-col gap-2 text-sm" aria-live="polite"></ul>
       <script type="application/json" id="deals-data" set:html={JSON.stringify(pageDeals).replace(/</g, '\\u003c')} />
+      <script type="application/json" id="link-titles-data" set:html={JSON.stringify(linkTitles).replace(/</g, '\\u003c')} />
       <script type="application/json" id="link-rules-data" set:html={JSON.stringify(pageLinkRules).replace(/</g, '\\u003c')} />
 
       <div id="payment-section" class="flex flex-col gap-1.5">
@@ -528,7 +544,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
             </button>
             <div class="payment-details hidden flex-col items-center gap-3 border-t border-border bg-bg p-5 text-center">
               <p class="text-xs text-ink/70">
-                Your subtotal (<span class="payment-amount font-semibold text-ink">$0</span>) is due before {isEvent ? 'the event begins' : 'class begins'}. Scan the code below or tap to open Venmo.
+                Your subtotal (<span class="payment-amount font-semibold text-ink">$0</span>) is due before {isEvent ? 'the event' : 'class'} begins. Scan the code below or tap to open Venmo.
               </p>
               <p class="text-sm font-semibold text-ink">You are paying <span class="text-accent">@amumira</span></p>
               <img src="/venmo-qr.png" alt="Venmo QR code" class="h-40 w-40" />
@@ -569,7 +585,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
 <script>
   import { applyDeals, suggestDeals, type Deal, type DealItem } from '../lib/deals';
-  import { reasonText, resolvePicks, type LinkRule } from '../lib/linkRules';
+  import { reasonText, resolvePicks, type LinkRule, type PickScope } from '../lib/linkRules';
   import { attachEmailHint, emailsReadyToSubmit } from '../lib/emailHints';
 
   interface Dancer {
@@ -651,15 +667,15 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       ${isEvent ? '' : ROLE_PICKER_HTML}
       <div class="grid gap-3 sm:grid-cols-2">
         <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-ink/80">Phone<span class="text-accent"> *</span></span>
+          <span class="text-sm font-medium text-ink/80">Phone<span class="text-accent"> **</span></span>
           <input type="tel" class="dancer-phone ${inputClass}" ${autocomplete('tel')} />
         </label>
         <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-ink/80">Email<span class="text-accent"> *</span></span>
+          <span class="text-sm font-medium text-ink/80">Email<span class="text-accent"> **</span></span>
           <input type="email" class="dancer-email ${inputClass}" ${autocomplete('email')} />
         </label>
       </div>
-      <p class="text-xs text-muted">* Either phone or email is required. We'll use it to reach you about ${isEvent ? '' : 'class '}changes, cancellations or important announcements.</p>
+      <p class="text-xs text-muted">** Either phone or email is required. We'll use it to reach you about ${isEvent ? '' : 'class '}changes, cancellations, or other important announcements.</p>
       <p class="text-xs text-muted">${isEvent ? 'Confirmations' : 'Class confirmations'} are emailed to any email address entered above. You can also print your confirmation after submitting.</p>
     `;
 
@@ -749,14 +765,24 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   const deselectors = new Map<string, () => void>();
   let linked: { included: Map<string, string>; warnings: LinkRule[] } = { included: new Map(), warnings: [] };
 
+  // Linked classes that aren't on this page (past or closed), by name.
+  const linkTitles: Record<string, string> = JSON.parse(document.getElementById('link-titles-data')?.textContent || '{}');
   const cardOf = (key: string) => document.querySelector<HTMLElement>(`.series-item[data-key="${CSS.escape(key)}"]`);
-  const titleOf = (key: string) => cardOf(key)?.dataset.title ?? 'this class';
+  const titleOf = (key: string) => cardOf(key)?.dataset.title ?? linkTitles[key] ?? 'this class';
+
+  // What a pick covers (linkRules.PickScope): a whole series, or its Drop-In's day.
+  function scopeOf(key: string): PickScope {
+    const sel = selections.get(key);
+    if (!sel || sel.mode !== 'dropin') return null;
+    const occurrences: { id: string; day: string }[] = JSON.parse(cardOf(key)?.dataset.occurrences ?? '[]');
+    return occurrences.find((o) => o.id === sel.occurrenceEventId)?.day ?? '';
+  }
 
   function applyLinkRules() {
     if (linkRules.length === 0) return;
-    const resolved = resolvePicks([...selections.keys()], linkRules);
+    const resolved = resolvePicks([...selections.keys()], linkRules, scopeOf);
     for (const f of resolved.folded) deselectors.get(f.key)?.();
-    const after = resolvePicks([...selections.keys()], linkRules);
+    const after = resolvePicks([...selections.keys()], linkRules, scopeOf);
     linked = { included: after.included, warnings: after.warnings };
     document.querySelectorAll<HTMLElement>('.series-item').forEach((item) => {
       const by = linked.included.get(item.dataset.key ?? '');

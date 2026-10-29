@@ -82,6 +82,36 @@ describe('resolving a dancer\'s picks', () => {
   });
 });
 
+describe('a Drop-In only covers what it includes on its own day', () => {
+  const rules = [includes('ws', 'pr')];
+  const scopes = (s: Record<string, string | null>) => (k: string) => s[k] ?? null;
+
+  it('keeps a whole-series pick of the included class next to a Drop-In of the bigger one (it was once dropped, unpaid)', () => {
+    const r = resolvePicks(['ws', 'pr'], rules, scopes({ ws: '2026-11-02' }));
+    expect(r.picked).toEqual(['ws', 'pr']);
+    expect(r.folded).toEqual([]);
+  });
+
+  it('keeps a Drop-In of the included class on another day', () => {
+    expect(resolvePicks(['ws', 'pr'], rules, scopes({ ws: '2026-11-02', pr: '2026-11-09' })).picked).toEqual(['ws', 'pr']);
+  });
+
+  it('folds a Drop-In of the included class on the same day', () => {
+    const r = resolvePicks(['pr', 'ws'], rules, scopes({ ws: '2026-11-02', pr: '2026-11-02' }));
+    expect(r.picked).toEqual(['ws']);
+    expect(r.folded).toEqual([{ key: 'pr', by: 'ws' }]);
+  });
+
+  it('folds anything, Drop-In or whole, into a whole series of the bigger class', () => {
+    expect(resolvePicks(['ws', 'pr'], rules, scopes({ pr: '2026-11-02' })).picked).toEqual(['ws']);
+    expect(resolvePicks(['ws', 'pr'], rules).picked).toEqual(['ws']);
+  });
+
+  it('covers nothing while the Drop-In has no date picked yet', () => {
+    expect(resolvePicks(['ws', 'pr'], rules, scopes({ ws: '', pr: '' })).picked).toEqual(['ws', 'pr']);
+  });
+});
+
 describe('conflicts', () => {
   it('catches a class that comes with two things that cannot be taken together', () => {
     const c = findConflicts(['ws', 'pr', 'l2'], [includes('ws', 'pr'), includes('ws', 'l2'), exclusive('pr', 'l2')], titleOf);

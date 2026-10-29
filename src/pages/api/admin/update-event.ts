@@ -175,7 +175,8 @@ const handlePost: APIRoute = async ({ request }) => {
     calendarSyncSkipped = true;
     calendarSyncError ??= err instanceof Error ? err.message : String(err);
   };
-  // Linked classes share one flyer (linksStore.ts), so a new one goes on all of them.
+  // One flyer per series and per linked set (linksStore.ts): a new one goes on
+  // every week and every linked class, even from a one-week edit.
   const shareFlyer = async (seriesKey: string) => {
     const flyer = rowFlyerColumns.flyer_url;
     if (flyer === undefined || flyer === before.flyer_url) return;
@@ -292,15 +293,15 @@ const handlePost: APIRoute = async ({ request }) => {
       await shareFlyer(createdMaster.id);
       const { data: rebuiltRows } = await supabase.from('events').select('id').eq('google_recurring_event_id', createdMaster.id);
       await renameSignups(createdMaster.id, (rebuiltRows ?? []).map((r) => r.id), before.title, title);
+      // The series' new key, so an editor that stays open (other tabs unsaved) follows it.
+      return new Response(JSON.stringify({ ok: true, rebuilt: true, seriesKey: createdMaster.id, calendarSyncSkipped, calendarSyncError }), {
+        status: 200,
+      });
     } catch (err) {
       console.error('Failed to create rebuilt series:', err);
       const message = err instanceof Error ? err.message : 'Failed to rebuild series.';
       return new Response(JSON.stringify({ error: message }), { status: 500 });
     }
-
-    return new Response(JSON.stringify({ ok: true, rebuilt: true, calendarSyncSkipped, calendarSyncError }), {
-      status: 200,
-    });
   }
 
   if (applyToSeries && before.google_recurring_event_id) {

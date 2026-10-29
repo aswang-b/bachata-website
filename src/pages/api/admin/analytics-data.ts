@@ -135,12 +135,20 @@ export const GET: APIRoute = async ({ request }) => {
   // Event (by title, like the tab's filter) -> the events whose sign-ups count
   // in its headcount (linked, migration 0062), by series key, since a sign-up
   // keeps the title the event had when it was made. For its "+ N from …" note.
+  // Like spot_counts_with_linked, only an event that overlaps it in time counts.
   const eventTitleByKey = new Map(eventSeries.map((s) => [s.key, s.title]));
+  const timesByKey = new Map<string, { start: string; end: string }[]>();
+  for (const e of allEventEvents ?? []) {
+    const key = e.google_recurring_event_id ?? e.id;
+    timesByKey.set(key, [...(timesByKey.get(key) ?? []), { start: e.start_time, end: e.end_time }]);
+  }
+  const overlap = (a: string, b: string) =>
+    (timesByKey.get(a) ?? []).some((x) => (timesByKey.get(b) ?? []).some((y) => Date.parse(x.start) < Date.parse(y.end) && Date.parse(x.end) > Date.parse(y.start)));
   const headcountFrom: Record<string, { key: string; title: string }[]> = {};
   for (const r of await rulesForSeries([...eventTitleByKey.keys()])) {
     const to = eventTitleByKey.get(r.to);
     const from = eventTitleByKey.get(r.from);
-    if (r.kind !== 'includes' || r.countHeadcount === false || !to || !from) continue;
+    if (r.kind !== 'includes' || r.countHeadcount === false || !to || !from || !overlap(r.from, r.to)) continue;
     headcountFrom[to] = [...(headcountFrom[to] ?? []), { key: r.from, title: from }];
   }
 

@@ -92,10 +92,11 @@ async function seriesInfo(key: string): Promise<{ title: string; eventType: stri
   return row ? { title: row.title, eventType: row.event_type, flyerUrl: row.flyer_url } : null;
 }
 
-// Puts this flyer on every occurrence of every series linked with `key`.
+// Puts this flyer on every occurrence of `key`'s series and every series linked with it.
+// A series has one flyer for all its weeks, so this covers the series itself
+// even when it isn't linked to anything.
 export async function applyFlyerToLinked(key: string, flyerUrl: string | null): Promise<void> {
   const { keys } = await groupOf(key);
-  if (keys.length < 2) return;
   const { error } = await supabase.from('events').update({ flyer_url: flyerUrl }).or(seriesFilter(keys));
   if (error) throw new Error(`Failed to share the flyer with linked classes: ${error.message}`);
 }

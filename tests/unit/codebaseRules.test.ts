@@ -31,6 +31,22 @@ describe('codebase rules', () => {
     expect(offenders).toEqual([]);
   });
 
+  it("page text never wraps onto a new line right after a {expression}: Astro drops the space there (it once said 'before classbegins')", () => {
+    // Keep the text on the expression's line, or write the space as {' '}.
+    const offenders = filesUnder('src', ['.astro']).flatMap((f) => {
+      const template = read(f)
+        .replace(/^---[\s\S]*?\n---/, (m) => m.replace(/[^\n]/g, ''))
+        .replace(/<(script|style)\b(?:[^>]*[^/>])?>[\s\S]*?<\/\1>/g, (m) => m.replace(/[^\n]/g, ''));
+      const lines = template.split('\n');
+      return lines.slice(1).flatMap((line, i) => {
+        const prev = lines[i].trimEnd();
+        const endsWithExpression = /\}$/.test(prev) && !/\{' '\}$/.test(prev) && !/[\w:-]+=\{/.test(prev) && !/^\s*[})\]]/.test(prev);
+        return endsWithExpression && /^\s*[A-Za-z0-9&]/.test(line) ? [`${f}:${i + 1}: ${prev.trim()}`] : [];
+      });
+    });
+    expect(offenders).toEqual([]);
+  });
+
   it('the calendar sync never upserts events (the google_event_id index is partial, so ON CONFLICT fails)', () => {
     expect(read('src/lib/calendarSync.ts')).not.toMatch(/from\('events'\)\s*\.upsert/);
   });

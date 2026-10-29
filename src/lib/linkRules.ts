@@ -112,8 +112,20 @@ export interface LinkedPicks {
   warnings: LinkRule[];
 }
 
-// What one dancer ends up with for the series they picked.
-export function resolvePicks(pickedKeys: string[], rules: LinkRule[]): LinkedPicks {
+// What a pick covers: null for a whole series (or an event ticket), else the
+// day (site zone date key) of its one Drop-In; '' for a Drop-In with no date
+// picked yet, which covers nothing.
+export type PickScope = string | null;
+
+// Whether a pick scoped `outer` covers a pick of something it includes scoped `inner`:
+// a whole series covers all of it, a Drop-In only that same day.
+const covers = (outer: PickScope, inner: PickScope) => outer === null || (outer !== '' && outer === inner);
+
+// What one dancer ends up with for the series they picked. `scopeOf` says
+// what each pick covers (all of it when left out): a Drop-In of a class only
+// takes in the classes it includes on that same day, so a separate pick of
+// one of them on another day, or as a whole series, stays its own sign-up.
+export function resolvePicks(pickedKeys: string[], rules: LinkRule[], scopeOf: (key: string) => PickScope = () => null): LinkedPicks {
   const unique = [...new Set(pickedKeys)];
   const included = new Map<string, string>();
   // In pick order, so of two picks that include each other (a loop the editor
@@ -121,7 +133,9 @@ export function resolvePicks(pickedKeys: string[], rules: LinkRule[]): LinkedPic
   for (const key of unique) {
     if (included.has(key)) continue;
     for (const inner of includedBy(key, rules)) {
-      if (!included.has(inner)) included.set(inner, key);
+      if (included.has(inner)) continue;
+      if (unique.includes(inner) && !covers(scopeOf(key), scopeOf(inner))) continue;
+      included.set(inner, key);
     }
   }
   // Credit each included class to the pick it really came with (Practica

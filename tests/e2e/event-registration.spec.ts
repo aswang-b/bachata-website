@@ -218,3 +218,14 @@ test.describe('at the door', () => {
     expect(regs).toEqual([{ class_title: door.title, price: 10 }]);
   });
 });
+
+test('the payment and contact wording reads properly for an event, not just a class', async ({ page }) => {
+  await page.goto(`/register/events?series=${paid.key}`);
+  await selectSeries(page, paid.key);
+  // Raw textContent, not toContainText, which would hide a doubled space.
+  for (const method of ['cash', 'venmo']) {
+    expect(await page.locator(`.payment-item[data-value="${method}"] .payment-details`).textContent()).toContain('before the event begins.');
+  }
+  await expect(page.locator('.dancer-block').first()).toBeVisible();
+  expect(await page.locator('.dancer-block').first().textContent()).toContain('reach you about changes,');
+});

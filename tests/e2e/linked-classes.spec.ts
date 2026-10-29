@@ -405,3 +405,176 @@ test("the Event Registration tab lists an included event in its filter and count
   await page.locator('#event-registrations-event-filter').selectOption(practica.title);
   await expect(page.locator('#event-registrations-count')).toHaveText(`0 results · +1 from ${workshop.title} Renamed`);
 });
+
+
+// ---- Review fixes: Drop-Ins, admin edits, flyers, Undo, transitive rules, headcount ----
+
+const pick = (s: Seeded, mode: 'whole' | 'dropin', occurrenceEventId: string | null = null) => ({ key: s.key, title: s.title, label: '', mode, occurrenceEventId });
+const submitPicks = async (request: Parameters<typeof postForm>[0], picks: ReturnType<typeof pick>[], first: string) => {
+  const res = await postForm(request, '/api/submit-intake', {
+    ...classFields([], first),
+    class: picks.map((p) => p.title).join('; '),
+    class_selections: JSON.stringify(picks),
+  });
+  expect(res.status(), await res.text()).toBe(303);
+  return savedRows(submissionOf(res.headers().location));
+};
+
+// Adds `extra` to `inGroupOf`'s linked set, with `from` including `to`.
+async function linkThird(inGroupOf: Seeded, extra: Seeded, from: Seeded, to: Seeded) {
+  const { data: group } = await db.from('event_links').select('link_group_id').eq('series_key', inGroupOf.key).single();
+  await db.from('event_links').upsert({ series_key: extra.key, link_group_id: group!.link_group_id });
+  const [keyA, keyB] = [from.key, to.key].sort();
+  await db.from('event_link_rules').upsert({ key_a: keyA, key_b: keyB, kind: keyA === from.key ? 'a_includes_b' : 'b_includes_a', reason: null });
+}
+
+test('includes: a Drop-In of the bigger class only covers the included class on that same day', async ({ page, request }) => {
+  const combo = await seedEvent({ name: 'Day Combo', priceWhole: 160, priceDropIn: 40, occurrences: 2, dayOffset: 70 });
+  const base = await seedEvent({ name: 'Day Base', priceWhole: 85, priceDropIn: 25, occurrences: 2, dayOffset: 70 });
+  await seedLink(combo, base, { kind: 'a_includes_b' });
+
+  // A whole series of the included class stays its own, paid sign-up (it was once dropped unpaid).
+  const withWhole = await submitPicks(request, [pick(combo, 'dropin', combo.ids[0]), pick(base, 'whole')], 'DayWhole');
+  expect(withWhole).toHaveLength(2);
+  expect(withWhole).toEqual(
+    expect.arrayContaining([expect.objectContaining({ series_key: combo.key, price: 40 }), expect.objectContaining({ series_key: base.key, price: 85 })])
+  );
+  // A Drop-In of it on another day too.
+  expect(await submitPicks(request, [pick(combo, 'dropin', combo.ids[0]), pick(base, 'dropin', base.ids[1])], 'DayOther')).toHaveLength(2);
+  // On the same day it's covered.
+  expect(await submitPicks(request, [pick(combo, 'dropin', combo.ids[0]), pick(base, 'dropin', base.ids[0])], 'DaySame')).toEqual([
+    expect.objectContaining({ series_key: combo.key, price: 40 }),
+  ]);
+
+  // The form agrees: the base class picked next to a Drop-In of the combo stays picked.
+  await page.goto('/register');
+  const comboCard = await selectSeries(page, combo.key);
+  await comboCard.locator('.series-mode-radio[value="dropin"]').check();
+  await comboCard.locator(`.occurrence-btn[data-event-id="${combo.ids[0]}"]`).click();
+  await selectSeries(page, base.key);
+  await expect(page.locator(`.series-item[data-key="${base.key}"]`)).toHaveAttribute('data-selected', 'true');
+  await expect(page.locator('#subtotal-value')).toHaveText('$125');
+});
+
+test("includes: an admin adding a class another of the dancer's classes includes gets an error, and nothing changes", async ({ request, admin }) => {
+  const combo = await seedEvent({ name: 'Edit Combo', priceWhole: 160, dayOffset: 71 });
+  const base = await seedEvent({ name: 'Edit Base', priceWhole: 85, dayOffset: 71 });
+  await seedLink(combo, base, { kind: 'a_includes_b' });
+  const res = await postForm(request, '/api/submit-intake', classFields([combo], 'EditAdd'));
+  const submissionId = submissionOf(res.headers().location);
+
+  const holderId = `e2e-link-add-${RUN_ID}`;
+  expect((await request.post('/api/admin/acquire-lock', { headers: bearer(admin), data: { resource: 'signups', holderId } })).ok()).toBe(true);
+  try {
+    const edit = await request.post('/api/admin/edit-signup', {
+      headers: bearer(admin),
+      data: {
+        action: 'update',
+        holderId,
+        submissionId,
+        dancerIndex: 0,
+        firstName: 'ZZZEditAdd',
+        lastName: RUN_ID,
+        email: '',
+        phone: '6085550100',
+        role: 'leader',
+        paymentMethod: 'cash',
+        paid: false,
+        classSelections: [pick(combo, 'whole'), pick(base, 'whole')],
+      },
+    });
+    expect(edit.status()).toBe(400);
+    expect((await edit.json()).error).toBe(`${base.title} is already included with ${combo.title}, so it can't be added separately. Remove one of them and save again.`);
+  } finally {
+    await request.post('/api/admin/release-lock', { headers: bearer(admin), data: { resource: 'signups', holderId } });
+  }
+  expect(await savedRows(submissionId)).toEqual([expect.objectContaining({ series_key: combo.key, price: 160 })]);
+});
+
+test('a flyer set while editing one week goes on every week of the series (it once stayed on that week)', async ({ request, admin }) => {
+  const s = await seedEvent({ name: 'Week Flyer', occurrences: 2, dayOffset: 72, flyerUrl: flyer('week-old') });
+  const { data: row } = await db.from('events').select('title, start_time, end_time').eq('id', s.ids[1]).single();
+  const res = await request.post('/api/admin/update-event', {
+    headers: bearer(admin),
+    data: { id: s.ids[1], title: row!.title, startTime: row!.start_time, endTime: row!.end_time, priceWholeSeries: 50, flyerUrl: flyer('week-new'), applyToSeries: false },
+  });
+  expect(res.status(), await res.text()).toBe(200);
+  const { data } = await db.from('events').select('flyer_url').in('id', s.ids);
+  expect(data!.map((r) => r.flyer_url)).toEqual([flyer('week-new'), flyer('week-new')]);
+});
+
+test("linked classes share one flyer in the editor: a tab's older draft can't put the old one back on Save all", async ({ page, adminPage }) => {
+  void adminPage;
+  const a = await seedEvent({ name: 'Draft Flyer A', type: 'event', priceWhole: 40, dayOffset: 81, flyerUrl: flyer('draft-old') });
+  const b = await seedEvent({ name: 'Draft Flyer B', type: 'event', priceWhole: 15, dayOffset: 82, flyerUrl: flyer('draft-old') });
+  await seedLink(a, b);
+
+  await openEditor(page, a);
+  await expect(page.locator('#event-flyer-shared')).toHaveText(`Also used by ${b.title}.`);
+  // B gets a draft while it still shows the old flyer.
+  await tab(page, b).click();
+  await page.locator('#event-location').fill('ZZZ Draft Hall');
+  await tab(page, a).click();
+  await page.locator('.event-nav-btn[data-section="homepage"]').click();
+  await page.locator('#event-flyer-remove').click();
+  // Back on B, the flyer shows as removed there too.
+  await tab(page, b).click();
+  await expect(page.locator('#event-flyer-remove')).toBeHidden();
+  await page.locator('#event-save-all').click();
+  await expect(page.getByText('Saved, but Google Calendar sync failed')).toBeVisible();
+  const { data } = await db.from('events').select('flyer_url, location').in('id', [a.ids[0], b.ids[0]]);
+  expect(data!.map((r) => r.flyer_url)).toEqual([null, null]);
+  expect(data!.map((r) => r.location)).toContain('ZZZ Draft Hall');
+});
+
+test("Undo still brings back the text a tab's save replaced after switching tabs and back", async ({ page, adminPage }) => {
+  void adminPage;
+  const a = await seedEvent({ name: 'Undo A', type: 'event', priceWhole: 40, dayOffset: 83, description: '<div>ZZZ before</div>' });
+  const b = await seedEvent({ name: 'Undo B', type: 'event', priceWhole: 15, dayOffset: 83 });
+  await seedLink(a, b);
+
+  await openEditor(page, a);
+  await page.locator('#event-description').fill('ZZZ after');
+  await tab(page, b).click();
+  await tab(page, a).click();
+  await expect(page.locator('#event-description')).toHaveText('ZZZ after');
+  await page.locator('#event-save').click();
+  await expect(page.getByText('Saved, but Google Calendar sync failed')).toBeVisible();
+  expect(await page.evaluate((key) => localStorage.getItem(`rich-prev:event:${key}:description`), a.key)).toBe('<div>ZZZ before</div>');
+});
+
+test('includes through a class that is not on the page fold the same in the form as on the server', async ({ page }) => {
+  const top = await seedEvent({ name: 'Chain Top', priceWhole: 100, dayOffset: 73 });
+  const middle = await seedEvent({ name: 'Chain Middle', priceWhole: 60, dayOffset: 73 });
+  const bottom = await seedEvent({ name: 'Chain Bottom', priceWhole: 30, dayOffset: 73 });
+  await seedLink(top, middle, { kind: 'a_includes_b' });
+  await linkThird(top, bottom, middle, bottom);
+  // The middle class is over, so it isn't on the form.
+  const past = Date.now() - 2 * 86400000;
+  await db.from('events').update({ start_time: new Date(past).toISOString(), end_time: new Date(past + 3600000).toISOString() }).in('id', middle.ids);
+
+  await page.goto('/register');
+  await expect(page.locator(`.series-item[data-key="${middle.key}"]`)).toHaveCount(0);
+  await selectSeries(page, top.key);
+  await page.locator(`.series-item[data-key="${bottom.key}"] .series-toggle-btn`).click();
+  await expect(page.locator(`.series-item[data-key="${bottom.key}"]`)).toHaveAttribute('data-selected', 'false');
+  await expect(page.locator(`.series-item[data-key="${bottom.key}"] .series-included-badge`)).toHaveText(`Included with ${top.title}`);
+  await expect(page.locator('#subtotal-value')).toHaveText('$100');
+});
+
+test('the Event Registration tab\'s "+N from" leaves out an including event that doesn\'t overlap in time, and counts dancers', async ({ page, adminPage }) => {
+  void adminPage;
+  const gala = await seedEvent({ name: 'Overlap Gala', type: 'event', priceWhole: 20, dayOffset: 66 });
+  const after = await seedEvent({ name: 'Overlap After', type: 'event', priceWhole: 10, dayOffset: 66 });
+  const later = await seedEvent({ name: 'Overlap Later', type: 'event', priceWhole: 10, dayOffset: 67 });
+  await seedLink(gala, after, { kind: 'a_includes_b' });
+  await linkThird(gala, later, gala, later);
+  await seedSignup(gala, [{ first: 'OverlapOne' }, { first: 'OverlapTwo' }], 'events');
+
+  await page.goto('/admin/analytics');
+  await page.locator('.tab-btn[data-tab="event-registration"]').click();
+  await page.locator('#event-registrations-event-filter').selectOption(after.title);
+  await expect(page.locator('#event-registrations-count')).toHaveText(`0 results · +2 from ${gala.title}`);
+  // The later event doesn't overlap the gala, so nothing counts toward it: it isn't even offered as a filter.
+  await expect(page.locator('#event-registrations-event-filter option', { hasText: later.title })).toHaveCount(0);
+});

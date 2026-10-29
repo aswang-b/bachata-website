@@ -179,8 +179,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       selectedByKey.size === 0
         ? ''
         : selectedByKey.size === 1
-          ? '1 class selected — dancers check in straight to it.'
-          : `${selectedByKey.size} classes selected — dancers pick which they're checking in for (they can pick more than one).`;
+          ? '1 class selected. Dancers check in straight to it.'
+          : `${selectedByKey.size} classes selected. Dancers pick which they're checking in for and can select more than one.`;
     syncRegisterOption(items);
     hideResult();
   }

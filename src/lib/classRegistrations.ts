@@ -5,7 +5,8 @@ import { buildClassSeriesList } from './classSeries';
 import { applyDeals, type Deal } from './deals';
 import { dealBundleSizes, listActiveDeals } from './dealsStore';
 import { lateRegistrationCutoffIso, registrationOpen } from './eventTimes';
-import { resolvePicks, type LinkRule } from './linkRules';
+import { resolvePicks, type LinkRule, type PickScope } from './linkRules';
+import { zonedDateKey } from './siteTime';
 import { rulesForSeries } from './linksStore';
 
 export interface ParsedClassSelection {
@@ -332,13 +333,29 @@ async function foldLinkedClasses(
   selections: ParsedClassSelection[],
   priceMap: Map<string, ClassPriceInfo>,
   eventType: EventType
-): Promise<{ selections: ParsedClassSelection[]; warnings: string[] }> {
+): Promise<{ selections: ParsedClassSelection[]; warnings: string[]; folded: { title: string; by: string }[] }> {
   const keyOf = (s: ParsedClassSelection) => priceMap.get(s.key ?? s.title)?.seriesKey;
   const picked = selections.map(keyOf).filter((k): k is string => Boolean(k));
   const rules = await rulesForSeries(picked);
-  if (rules.length === 0) return { selections, warnings: [] };
+  if (rules.length === 0) return { selections, warnings: [], folded: [] };
 
-  const resolved = resolvePicks(picked, rules);
+  // A Drop-In only takes in what it includes on its own day (linkRules.PickScope).
+  const occurrenceIds = selections.flatMap((s) => (s.occurrenceEventId ? [s.occurrenceEventId] : []));
+  const startById = new Map<string, string>();
+  if (occurrenceIds.length > 0) {
+    const { data } = await supabase.from('events').select('id, start_time').in('id', occurrenceIds);
+    for (const e of data ?? []) startById.set(e.id, e.start_time);
+  }
+  const scopeByKey = new Map<string, PickScope>();
+  for (const s of selections) {
+    const info = priceMap.get(s.key ?? s.title);
+    if (!info) continue;
+    const dropIn = info.eventType !== 'event' && info.dropIn != null && (s.mode === 'dropin' || info.whole == null);
+    const start = s.occurrenceEventId ? startById.get(s.occurrenceEventId) : undefined;
+    scopeByKey.set(info.seriesKey, dropIn ? (start ? zonedDateKey(start) : '') : null);
+  }
+
+  const resolved = resolvePicks(picked, rules, (k) => scopeByKey.get(k) ?? null);
   const folded = new Set(resolved.folded.map((f) => f.key));
   // A warning can name a class that only came included, so look up its title too.
   const unnamed = [...new Set(resolved.warnings.flatMap((w) => [w.from, w.to]))].filter((k) => !priceMap.has(k));
@@ -347,6 +364,7 @@ async function foldLinkedClasses(
   return {
     selections: selections.filter((s) => !folded.has(keyOf(s) ?? '')),
     warnings: resolved.warnings.map((w: LinkRule) => `${titleOf(w.from)} and ${titleOf(w.to)}`),
+    folded: resolved.folded.map((f) => ({ title: titleOf(f.key), by: titleOf(f.by) })),
   };
 }
 
@@ -580,18 +598,24 @@ export async function replaceClassRegistrations(params: {
   const { data: saved, error: savedError } = await savedQuery;
   if (savedError) throw new Error(`Failed to load existing class registrations: ${savedError.message}`);
 
+  // Checked before anything is cleared: a class another of theirs includes
+  // can't be added on its own, so the edit is refused rather than dropping it.
+  const parsed = resolveClassSelections(params.classRaw, params.classSelectionsRaw);
+  const sanitized = await sanitizeOccurrenceIds(parsed);
+  const priceMap = await lookupClassPrices(sanitized, params.eventType);
+  const linked = await foldLinkedClasses(sanitized, priceMap, params.eventType ?? 'class');
+  if (linked.folded.length > 0) {
+    const f = linked.folded[0];
+    throw new ClassRegistrationInputError(`${f.title} is already included with ${f.by}, so it can't be added separately. Remove one of them and save again.`);
+  }
+
   // Rows in the Recycling Bin aren't the dancer's current classes; leave them for a restore.
   let deleteQuery = supabase.from('class_registrations').delete().eq('submission_id', params.submissionId).is('deleted_at', null);
   deleteQuery = params.dancerIndex == null ? deleteQuery.is('dancer_index', null) : deleteQuery.eq('dancer_index', params.dancerIndex);
   const { error: deleteError } = await deleteQuery;
   if (deleteError) throw new Error(`Failed to clear existing class registrations: ${deleteError.message}`);
-
-  const parsed = resolveClassSelections(params.classRaw, params.classSelectionsRaw);
   if (parsed.length === 0) return;
 
-  const sanitized = await sanitizeOccurrenceIds(parsed);
-  const priceMap = await lookupClassPrices(sanitized, params.eventType);
-  const linked = await foldLinkedClasses(sanitized, priceMap, params.eventType ?? 'class');
   const savedRows = (saved ?? []) as SavedPricing[];
   const [bundleSizes, activeDeals] = await Promise.all([dealBundleSizes(savedRows.flatMap((s) => (s.deal_id ? [s.deal_id] : []))), listActiveDeals()]);
   const rows = applyDealsToRows(
@@ -611,15 +635,16 @@ export async function replaceClassRegistrations(params: {
 export async function renameSignups(seriesKey: string, eventIds: string[], oldTitle: string, newTitle: string): Promise<void> {
   if (!oldTitle || oldTitle === newTitle) return;
   try {
-    const { data: regs, error } = await supabase.from('class_registrations').select('id, class_label').eq('series_key', seriesKey).eq('class_title', oldTitle);
+    const { data: regs, error } = await supabase.from('class_registrations').select('class_label').eq('series_key', seriesKey).eq('class_title', oldTitle);
     if (error) throw new Error(error.message);
-    await Promise.all(
-      (regs ?? []).map(async (r) => {
-        const label = r.class_label?.startsWith(oldTitle) ? newTitle + r.class_label.slice(oldTitle.length) : r.class_label;
-        const { error: updateError } = await supabase.from('class_registrations').update({ class_title: newTitle, class_label: label }).eq('id', r.id);
-        if (updateError) throw new Error(updateError.message);
-      })
-    );
+    // One update per distinct label (a series has a handful), not one per sign-up.
+    for (const oldLabel of new Set((regs ?? []).map((r) => r.class_label as string | null))) {
+      const label = oldLabel?.startsWith(oldTitle) ? newTitle + oldLabel.slice(oldTitle.length) : oldLabel;
+      let update = supabase.from('class_registrations').update({ class_title: newTitle, class_label: label }).eq('series_key', seriesKey).eq('class_title', oldTitle);
+      update = oldLabel == null ? update.is('class_label', null) : update.eq('class_label', oldLabel);
+      const { error: updateError } = await update;
+      if (updateError) throw new Error(updateError.message);
+    }
     if (eventIds.length > 0) {
       const { error: checkinError } = await supabase.from('class_checkins').update({ class_title: newTitle }).in('event_id', eventIds).eq('class_title', oldTitle);
       if (checkinError) throw new Error(checkinError.message);

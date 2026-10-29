@@ -377,9 +377,10 @@ test("the first dancer's fields say what they're for, and missing ones are marke
 test('the payment wording reads properly (it once said "before classbegins")', async ({ page }) => {
   await page.goto('/register');
   await selectSeries(page, wholeOnly.key);
-  await page.locator('.payment-item[data-value="venmo"] .payment-toggle-btn').click();
-  await expect(page.locator('.payment-item[data-value="venmo"] .payment-details')).toContainText('is due before class begins. Scan the code');
-  await expect(page.locator('.dancer-block').first()).toContainText(
-    "* Either phone or email is required. We'll use it to reach you about class changes, cancellations or important announcements."
-  );
+  // Raw textContent, not toContainText, which would hide a doubled space.
+  for (const method of ['cash', 'venmo']) {
+    expect(await page.locator(`.payment-item[data-value="${method}"] .payment-details`).textContent()).toContain('before class begins.');
+  }
+  await expect(page.locator('.dancer-block').first()).toBeVisible();
+  expect(await page.locator('.dancer-block').first().textContent()).toContain('reach you about class changes,');
 });

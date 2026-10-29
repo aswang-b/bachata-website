@@ -41,11 +41,15 @@ function startHistory(box: HTMLElement, stack: string[]): History {
 }
 
 // The box's history, started fresh when its content was replaced from outside
-// (a different class opened in the editor, a reload of the saved text).
+// (a tab's draft put back in the editor). It keeps the old baseline: that's
+// still what was last loaded or saved, so a save still remembers it. (Opening
+// a different class sets its own baseline through offerPrevious.)
 function historyOf(box: HTMLElement): History {
   const h = histories.get(box);
   if (h && (h.pending || h.stack[h.index] === box.innerHTML)) return h;
-  return startHistory(box, [box.innerHTML]);
+  const fresh = startHistory(box, [box.innerHTML]);
+  if (h) fresh.baseline = h.baseline;
+  return fresh;
 }
 
 function commit(box: HTMLElement, h: History) {
