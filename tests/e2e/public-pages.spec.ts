@@ -58,3 +58,14 @@ test("the calendar's heading doesn't call a month \"Upcoming\" (past months can 
   await expect(page.locator('main, body').first()).not.toContainText(/^Upcoming$/m);
   await expect(page.getByText('Classes & Events', { exact: true })).toBeVisible();
 });
+
+test('the header arrives whole: the Site Visibility settings are applied in the page as sent, not after it loads', async ({ request }) => {
+  // The events button used to be added by a script once /api/settings answered, so it popped in after the rest.
+  const { data } = await db.from('site_settings').select('key, enabled');
+  const on = (key: string) => data?.find((r) => r.key === key)?.enabled ?? false;
+  const html = await (await request.get('/')).text();
+  const header = html.slice(html.indexOf('<header'), html.indexOf('</header>'));
+  expect(header.includes('href="/register/events"')).toBe(on('show_register_events_nav'));
+  expect(header.includes('href="/about"')).toBe(!on('hide_about_nav'));
+  expect(header.includes('href="/contact"')).toBe(!on('hide_contact_nav'));
+});

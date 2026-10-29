@@ -201,8 +201,8 @@ test('includes: the subtotal shows the included class the same whether or not it
   await selectSeries(page, base.key);
   await page.locator(`.series-item[data-key="${combo.key}"] .series-toggle-btn`).click();
   await expect.poll(() => page.locator('#subtotal-row').innerText()).toBe(shownAlone);
-  // The base class was folded in: not a separate pick, shown as included, and not charged.
-  await expect(page.locator(`.series-item[data-key="${base.key}"]`)).toHaveAttribute('data-selected', 'false');
+  // The base class stays picked on its card but is folded in: shown as included, and not charged.
+  await expect(page.locator(`.series-item[data-key="${base.key}"]`)).toHaveAttribute('data-selected', 'true');
   await expect(page.locator(`.series-item[data-key="${base.key}"] .series-included-badge`)).toHaveText(`Included with ${combo.title}`);
   await expect(page.locator('#subtotal-value')).toHaveText('$160');
   await expect(page.locator('.included-line')).toContainText(`Includes ${base.title}`);
@@ -557,7 +557,7 @@ test('includes through a class that is not on the page fold the same in the form
   await expect(page.locator(`.series-item[data-key="${middle.key}"]`)).toHaveCount(0);
   await selectSeries(page, top.key);
   await page.locator(`.series-item[data-key="${bottom.key}"] .series-toggle-btn`).click();
-  await expect(page.locator(`.series-item[data-key="${bottom.key}"]`)).toHaveAttribute('data-selected', 'false');
+  await expect(page.locator(`.series-item[data-key="${bottom.key}"]`)).toHaveAttribute('data-selected', 'true');
   await expect(page.locator(`.series-item[data-key="${bottom.key}"] .series-included-badge`)).toHaveText(`Included with ${top.title}`);
   await expect(page.locator('#subtotal-value')).toHaveText('$100');
 });
@@ -642,7 +642,35 @@ test('after a save rebuilds a series, its tab follows the new series: still link
   expect(a.ids).not.toContain(savedIds[1]);
 });
 
-test('includes: a pick folded into the bigger class comes back as it was once the bigger class stops covering it', async ({ page }) => {
+test('includes: an included class can still be picked and unpicked; picked, it stays picked when the bigger class is taken off', async ({ page }) => {
+  const combo = await seedEvent({ name: 'Toggle Combo', priceWhole: 160, occurrences: 2, dayOffset: 67 });
+  const base = await seedEvent({ name: 'Toggle Base', priceWhole: 85, occurrences: 2, dayOffset: 67 });
+  await seedLink(combo, base, { kind: 'a_includes_b' });
+  const baseCard = page.locator(`.series-item[data-key="${base.key}"]`);
+  const baseToggle = baseCard.locator('.series-toggle-btn');
+
+  await page.goto('/register');
+  await selectSeries(page, combo.key);
+  // Picking the included class shows it picked, and changes nothing else.
+  await baseToggle.click();
+  await expect(baseCard).toHaveAttribute('data-selected', 'true');
+  await expect(page.locator('#subtotal-value')).toHaveText('$160');
+  // A second click takes it off, for real.
+  await baseToggle.click();
+  await expect(baseCard).toHaveAttribute('data-selected', 'false');
+  await page.locator(`.series-item[data-key="${combo.key}"] .series-toggle-btn`).click();
+  await expect(baseCard).toHaveAttribute('data-selected', 'false');
+  await expect(page.locator('#class-selections-value')).toHaveValue('[]');
+
+  // Picked again, then the bigger class taken off: it stays, now as its own paid pick.
+  await selectSeries(page, combo.key);
+  await baseToggle.click();
+  await page.locator(`.series-item[data-key="${combo.key}"] .series-toggle-btn`).click();
+  await expect(baseCard).toHaveAttribute('data-selected', 'true');
+  await expect(page.locator('#subtotal-value')).toHaveText('$85');
+});
+
+test('includes: a pick folded into the bigger class counts again once the bigger class stops covering it', async ({ page }) => {
   const combo = await seedEvent({ name: 'Back Combo', priceWhole: 160, priceDropIn: 45, occurrences: 2, dayOffset: 66 });
   const base = await seedEvent({ name: 'Back Base', priceWhole: 85, priceDropIn: 25, occurrences: 2, dayOffset: 66 });
   await seedLink(combo, base, { kind: 'a_includes_b' });
@@ -652,7 +680,7 @@ test('includes: a pick folded into the bigger class comes back as it was once th
   await page.goto('/register');
   await selectSeries(page, base.key);
   await selectSeries(page, combo.key);
-  await expect(baseCard).toHaveAttribute('data-selected', 'false');
+  await expect(baseCard).toHaveAttribute('data-selected', 'true');
   await expect(page.locator('#subtotal-value')).toHaveText('$160');
 
   // The bigger class becomes one Drop-In: the base series is no longer covered, so it's back.
@@ -662,9 +690,9 @@ test('includes: a pick folded into the bigger class comes back as it was once th
   await expect(baseCard.locator('.series-mode-radio[value="whole"]')).toBeChecked();
   await expect(page.locator('#subtotal-value')).toHaveText('$130');
 
-  // Back to the whole bigger series: folded in again. Taking the bigger class off brings it back again.
+  // Back to the whole bigger series: covered again (still picked, not charged). Taking the bigger class off makes it its own pick again.
   await comboCard.locator('.series-mode-radio[value="whole"]').click();
-  await expect(baseCard).toHaveAttribute('data-selected', 'false');
+  await expect(baseCard).toHaveAttribute('data-selected', 'true');
   await comboCard.locator('.series-toggle-btn').click();
   await expect(baseCard).toHaveAttribute('data-selected', 'true');
   await expect(page.locator('#subtotal-value')).toHaveText('$85');

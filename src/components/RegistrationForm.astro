@@ -13,6 +13,7 @@ import { listActiveDeals } from '../lib/dealsStore';
 import { siteFormatter, zonedDateKey } from '../lib/siteTime';
 import { lateRegistrationCutoffIso } from '../lib/eventTimes';
 import { locationHref } from '../lib/locationLink';
+import { PIN_SVG } from '../lib/locationPin';
 import { seriesBounds } from '../lib/flyerBlocks';
 import { rulesForSeries } from '../lib/linksStore';
 
@@ -307,7 +308,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                           onclick="event.stopPropagation()"
                           class="text-xs font-semibold text-accent"
                         >
-                          <span aria-hidden="true">📍</span> <span class="underline">{s.location}</span>
+                          <Fragment set:html={PIN_SVG} /> <span class="underline">{s.location}</span>
                         </a>
                       </>
                     )}
@@ -756,19 +757,19 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   const deals: Deal[] = JSON.parse(document.getElementById('deals-data')?.textContent || '[]');
 
   // ---- Linked classes (linkRules.ts) ----
-  // A pick another pick includes is folded into it (and shown as included at
-  // $0); a "cannot take both" pair gets a warning with a one-click remove.
+  // A pick another pick includes stays picked on its card but is folded into
+  // that pick: shown as included at $0, and neither charged nor sent while
+  // it's covered. Once nothing covers it (the bigger class switched to a
+  // Drop-In on another day, or taken off) it counts as its own pick again.
+  // A "cannot take both" pair gets a warning with a one-click remove.
   // Nothing here ever stops the form from being submitted.
   const linkRules: LinkRule[] = JSON.parse(document.getElementById('link-rules-data')?.textContent || '[]');
   const linkNotes = document.getElementById('link-notes')!;
-  // Takes a card's pick off, or puts a kept one back, without redrawing (filled in for each card below).
+  // Takes a card's pick off without redrawing (filled in for each card below).
   const deselectors = new Map<string, () => void>();
-  const restorers = new Map<string, (sel: ClassSelection) => void>();
-  // Picks folded into another pick, kept as they were (Drop-In date and all),
-  // so one comes back once nothing covers it: the bigger class switched to a
-  // Drop-In on another day, or taken off.
-  const foldedAway = new Map<string, ClassSelection>();
-  let linked: { included: Map<string, string>; warnings: LinkRule[] } = { included: new Map(), warnings: [] };
+  let linked: { included: Map<string, string>; folded: Set<string>; warnings: LinkRule[] } = { included: new Map(), folded: new Set(), warnings: [] };
+  // The picks that are charged and sent: all but those folded into another.
+  const charged = () => [...selections.values()].filter((sel) => !linked.folded.has(sel.key));
 
   // Linked classes that aren't on this page (past or closed), by name.
   const linkTitles: Record<string, string> = JSON.parse(document.getElementById('link-titles-data')?.textContent || '{}');
@@ -785,24 +786,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   function applyLinkRules() {
     if (linkRules.length === 0) return;
     const resolved = resolvePicks([...selections.keys()], linkRules, scopeOf);
-    for (const f of resolved.folded) {
-      const sel = selections.get(f.key);
-      if (sel) foldedAway.set(f.key, { ...sel });
-      deselectors.get(f.key)?.();
-    }
-    for (const [key, kept] of foldedAway) {
-      if (selections.has(key)) {
-        foldedAway.delete(key);
-        continue;
-      }
-      // Would it still be folded in if it were picked again as it was?
-      const stillCovered = resolvePicks([...selections.keys(), key], linkRules, (k) => (k === key ? scopeOf(k, kept) : scopeOf(k))).folded.some((f) => f.key === key);
-      if (stillCovered) continue;
-      foldedAway.delete(key);
-      restorers.get(key)?.(kept);
-    }
-    const after = resolvePicks([...selections.keys()], linkRules, scopeOf);
-    linked = { included: after.included, warnings: after.warnings };
+    linked = { included: resolved.included, folded: new Set(resolved.folded.map((f) => f.key)), warnings: resolved.warnings };
     document.querySelectorAll<HTMLElement>('.series-item').forEach((item) => {
       const by = linked.included.get(item.dataset.key ?? '');
       const badge = item.querySelector<HTMLElement>('.series-included-badge');
@@ -861,7 +845,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   // counts toward a deal; an event ticket and a one-off class do.
   const selectionPrice = (sel: ClassSelection) => (sel.mode === 'dropin' ? sel.priceDropIn : sel.priceWhole);
   function dealItems(): DealItem[] {
-    return Array.from(selections.values()).map((sel) => ({ key: sel.key, price: selectionPrice(sel), eligible: isEvent || sel.mode !== 'dropin' }));
+    return charged().map((sel) => ({ key: sel.key, price: selectionPrice(sel), eligible: isEvent || sel.mode !== 'dropin' }));
   }
 
   // Classes on the page that can be added as a Whole Series / workshop / ticket.
@@ -912,7 +896,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   // Drop-In, which date), and its price per dancer times the dancer count.
   function renderSubtotalItems(dancerCount: number, applied: { dealName: string; amount: number }[]) {
     subtotalItems.replaceChildren();
-    for (const sel of selections.values()) {
+    for (const sel of charged()) {
       const price = selectionPrice(sel);
       let detail = '';
       if (isEvent || !(sel.isSeries || sel.dropInOnly)) {
@@ -998,7 +982,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   function updateSubtotal() {
     const dancerCountNow = dancersContainer.children.length;
     const dealResult = applyDeals(dealItems(), deals);
-    const perDancerTotal = Array.from(selections.values()).reduce((sum, sel) => sum + (selectionPrice(sel) ?? 0), 0) - dealResult.totalDiscount;
+    const perDancerTotal = charged().reduce((sum, sel) => sum + (selectionPrice(sel) ?? 0), 0) - dealResult.totalDiscount;
     const total = Math.round(perDancerTotal * dancerCountNow * 100) / 100;
     subtotalValue.textContent = formatPrice(total);
     if (isEvent) {
@@ -1027,7 +1011,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
   function updateClassValue() {
     applyLinkRules();
-    const values = Array.from(selections.values());
+    const values = charged();
     const parts = values.map((sel) =>
       !isEvent && (sel.isSeries || sel.dropInOnly)
         ? `${sel.title} — ${sel.subLabel} — ${sel.mode === 'dropin' ? 'Drop In' : 'Whole Series'}`
@@ -1144,7 +1128,6 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       showOccurrencePicker(sel.mode === 'dropin' && isSeries);
       occurrenceButtons.forEach((b) => markOccurrence(b, Boolean(sel.occurrenceEventId) && b.dataset.eventId === sel.occurrenceEventId));
     }
-    restorers.set(key, (sel) => showSelected({ ...sel }, sel.mode === 'dropin'));
 
     toggleBtn.addEventListener('click', () => {
       if (selections.has(key)) {
@@ -1328,7 +1311,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   });
 
   function fullRoleConflict(dancers: Dancer[]): string | null {
-    for (const sel of selections.values()) {
+    for (const sel of charged()) {
       const item = document.querySelector<HTMLElement>(`.series-item[data-key="${CSS.escape(sel.key)}"]`);
       // A Drop-In only needs room on its own date; a Whole Series in every class.
       const occurrences: { id: string; fullRoles: string[] }[] = JSON.parse(item?.dataset.occurrences ?? '[]');
@@ -1352,7 +1335,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       hasError = true;
     }
 
-    for (const sel of selections.values()) {
+    for (const sel of charged()) {
       if (sel.mode === 'dropin' && !sel.occurrenceEventId) {
         const item = document.querySelector<HTMLElement>(`.series-item[data-key="${CSS.escape(sel.key)}"]`);
         item?.querySelector('.occurrence-error')?.classList.remove('hidden');

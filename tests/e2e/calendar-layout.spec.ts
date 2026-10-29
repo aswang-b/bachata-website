@@ -162,3 +162,23 @@ test('a busy day on a phone shows its dots in even rows and lists every event wh
   const panel = page.locator('.day-expand-panel');
   for (const s of busy) await expect(panel.getByText(s.title)).toBeVisible();
 });
+
+// The 📍 emoji had a blank margin on its left that differs by emoji font
+// (wide on Android, narrower on Windows), so pins never lined up with the
+// text above them. The drawn pin (lib/locationPin.ts) starts flush.
+for (const width of [390, 1280]) {
+  test(`a location's pin lines up with the text above it at ${width}px wide`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/register');
+    const pin = page.locator(`.series-item[data-key="${series.key}"] a svg`).first();
+    // Measured only where the pin starts a line (on a wide screen it can follow the date on the same line).
+    const gap = await pin.evaluate((svg) => {
+      const box = svg.closest('a')!.parentElement!;
+      const lineStart = box.getBoundingClientRect().left + parseFloat(getComputedStyle(box).paddingLeft);
+      const left = svg.getBoundingClientRect().left;
+      return left - lineStart > 40 ? null : left - lineStart;
+    });
+    if (gap !== null) expect(Math.abs(gap)).toBeLessThan(1);
+    else expect(width).toBeGreaterThan(400);
+  });
+}

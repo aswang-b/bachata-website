@@ -1,11 +1,19 @@
 ---
-const navItems = [
+import { getSiteSettings } from '../lib/siteSettings';
+
+// Site Visibility settings (Admin tab) are read while the page is built, so
+// the header arrives whole: no button or link popping in or out after load.
+const settings = await getSiteSettings();
+const showEventsButton = settings.show_register_events_nav;
+
+const allNavItems = [
   { label: 'Home', href: '/' },
-  { label: 'About', href: '/about', settingsKey: 'hide_about_nav' },
+  { label: 'About', href: '/about', settingsKey: 'hide_about_nav' as const },
   { label: 'Calendar', href: '/calendar' },
-  { label: 'Contact', href: '/contact', settingsKey: 'hide_contact_nav' },
-  { label: 'Check In', href: '/check-in', settingsKey: 'hide_checkin_nav' },
+  { label: 'Contact', href: '/contact', settingsKey: 'hide_contact_nav' as const },
+  { label: 'Check In', href: '/check-in', settingsKey: 'hide_checkin_nav' as const },
 ];
+const navItems = allNavItems.filter((item) => !(item.settingsKey && settings[item.settingsKey]));
 
 const currentPath = Astro.url.pathname;
 const isAdminPage = currentPath === '/admin';
@@ -25,7 +33,6 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
         return (
           <a
             href={item.href}
-            data-settings-key={item.settingsKey}
             class={`text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
               isActive ? 'text-accent' : 'text-ink/70'
             }`}
@@ -53,18 +60,18 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
     </nav>
 
     <div id="header-actions" class="flex items-center justify-end gap-2 md:gap-4">
-      {/* Off until an admin turns it on (Admin → Site Visibility); the `hidden` attribute is removed by the script below. */}
+      {/* Off until an admin turns it on (Admin → Site Visibility). */}
       {/* Both register buttons show on every page (the register pages too) and at every width; the script below swaps in the short label when the full one doesn't fit. */}
-      <a
-        href="/register/events"
-        aria-current={currentPath === '/register/events' ? 'page' : undefined}
-        hidden
-        data-show-settings-key="show_register_events_nav"
-        class={`register-btn flex whitespace-nowrap rounded-md px-2 py-1.5 sm:px-2.5 text-[10px] font-semibold uppercase tracking-wide transition-colors md:px-4 md:text-xs md:tracking-wider ${eventsButtonClass}`}
-      >
-        <span class="register-label-full">Register for Events</span>
-        <span class="register-label-short hidden">Events</span>
-      </a>
+      {showEventsButton && (
+        <a
+          href="/register/events"
+          aria-current={currentPath === '/register/events' ? 'page' : undefined}
+          class={`register-btn flex whitespace-nowrap rounded-md px-2 py-1.5 sm:px-2.5 text-[10px] font-semibold uppercase tracking-wide transition-colors md:px-4 md:text-xs md:tracking-wider ${eventsButtonClass}`}
+        >
+          <span class="register-label-full">Register for Events</span>
+          <span class="register-label-short hidden">Events</span>
+        </a>
+      )}
 
       <a
         href="/register"
@@ -105,7 +112,6 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
     {navItems.map((item) => (
       <a
         href={item.href}
-        data-settings-key={item.settingsKey}
         class="rounded-full px-3 py-2 text-sm font-semibold uppercase tracking-wider text-ink/70 hover:bg-surface hover:text-accent"
       >
         {item.label}
@@ -135,7 +141,7 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
 
   // Register buttons show "Register for Classes/Events" when the header row
   // has room, and just "Classes"/"Events" when it doesn't. Re-run whenever the
-  // row's contents change (resize, the events button or admin links appearing).
+  // row's contents change (resize, or the admin links appearing).
   const headerRow = document.getElementById('header-row');
   const headerActions = document.getElementById('header-actions');
 
@@ -184,21 +190,4 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
   }
 
   revealAdminNavLinkIfAdmin();
-
-  async function hideDisabledNavLinks() {
-    try {
-      const res = await fetch('/api/settings');
-      const settings = await res.json();
-      for (const [key, enabled] of Object.entries(settings)) {
-        if (!enabled) continue;
-        document.querySelectorAll(`[data-settings-key="${key}"]`).forEach((el) => el.classList.add('hidden'));
-        document.querySelectorAll(`[data-show-settings-key="${key}"]`).forEach((el) => el.removeAttribute('hidden'));
-      }
-      fitRegisterLabels();
-    } catch {
-      // If settings can't be fetched, fail open and leave nav links visible.
-    }
-  }
-
-  hideDisabledNavLinks();
 </script>

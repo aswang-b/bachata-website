@@ -20,6 +20,7 @@ import PastFlyersGallery from '../components/PastFlyersGallery.astro';
 import FlyerDialog from '../components/FlyerDialog.astro';
 import { eventSchemas } from '../lib/seoSchema';
 import { locationHref } from '../lib/locationLink';
+import { PIN_SVG } from '../lib/locationPin';
 import { flyerSize, flyerSrcset, scaledImageUrl } from '../lib/eventImages';
 import classPlaceholder from '../assets/stock/class-placeholder.jpg';
 import eventPlaceholder from '../assets/stock/event-placeholder.jpg';
@@ -200,8 +201,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                         </p>
                         {o.location && (
                           <a href={locationHref(o.location)} target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-semibold text-accent hover:opacity-80">
-                            {/* The pin emoji has blank space on its left; pulled back so it lines up with the text above. */}
-                            <span aria-hidden="true" class="-ml-[0.35em]">📍</span> <span class="underline underline-offset-2">{o.location}</span>
+                            <Fragment set:html={PIN_SVG} /> <span class="underline underline-offset-2">{o.location}</span>
                           </a>
                         )}
 
