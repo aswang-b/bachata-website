@@ -46,12 +46,40 @@ const arrowClass =
           })
         )}
       </div>
+      {/* Phones only (where the arrows are hidden): a hint that the row scrolls, gone after the first swipe. */}
+      <div id="past-flyers-hint" aria-hidden="true" class="pointer-events-none absolute inset-x-0 bottom-14 z-[210] flex justify-center transition-opacity duration-500 sm:hidden">
+        <div class="flex items-center gap-2 rounded-full bg-black/55 px-4 py-2 text-sm font-semibold text-white shadow-md backdrop-blur">
+          <svg class="swipe-hint-hand h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8" /><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" /></svg>
+          Swipe to see more
+        </div>
+      </div>
       <button type="button" data-gallery-scroll="1" aria-label="Scroll forward" class={`${arrowClass} right-2`}>
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
       </button>
     </div>
   </section>
 )}
+
+<style>
+  /* The hand glides side to side, like a swipe. */
+  .swipe-hint-hand {
+    animation: swipe-hint 1.6s ease-in-out infinite;
+  }
+  @keyframes swipe-hint {
+    0%,
+    100% {
+      transform: translateX(6px);
+    }
+    50% {
+      transform: translateX(-6px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .swipe-hint-hand {
+      animation: none;
+    }
+  }
+</style>
 
 <script>
   const gallery = document.getElementById('past-flyers');
@@ -101,9 +129,30 @@ const arrowClass =
       if (copy < 1 || copy > copies - 2) gallery.scrollLeft += (middleCopy - copy) * width;
       target = null;
     };
+    // The phone hint goes at the first swipe, and stays gone in this browser.
+    const hint = document.getElementById('past-flyers-hint');
+    const HINT_KEY = 'past-flyers-swiped';
+    try {
+      if (localStorage.getItem(HINT_KEY)) hint?.remove();
+    } catch {
+      // Storage blocked: the hint still goes at the first swipe.
+    }
+    const dismissHint = () => {
+      if (!hint?.isConnected) return;
+      hint.style.opacity = '0';
+      setTimeout(() => hint.remove(), 500);
+      try {
+        localStorage.setItem(HINT_KEY, '1');
+      } catch {
+        // Storage blocked: it shows again next visit.
+      }
+    };
+
     gallery.addEventListener(
       'scroll',
       () => {
+        // Only a scroll someone made (not the row centering itself as images load).
+        if (touched) dismissHint();
         schedule();
         clearTimeout(idle);
         idle = window.setTimeout(recenter, 150);

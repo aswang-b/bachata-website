@@ -218,3 +218,29 @@ test('the past flyers gallery loops forever both ways', async ({ page }) => {
   expect(fastBack.flyer).toBe(fast.flyer);
   expect(fastBack.off).toBeLessThan(2);
 });
+
+test('on a phone, the past flyers show a "Swipe to see more" hint until the first swipe, and not again after', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const gallery = page.locator('#past-flyers');
+  test.skip((await gallery.count()) === 0, 'The gallery is empty right now.');
+  const hint = page.locator('#past-flyers-hint');
+  await expect(hint).toBeVisible();
+  await expect(hint).toHaveText('Swipe to see more');
+  // The row centering itself as its images load isn't a swipe.
+  await page.waitForTimeout(500);
+  await expect(hint).toBeVisible();
+  await gallery.dispatchEvent('touchstart');
+  await gallery.evaluate((g) => g.scrollBy({ left: 200 }));
+  await expect(hint).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('#past-flyers')).toBeVisible();
+  await expect(page.locator('#past-flyers-hint')).toHaveCount(0);
+});
+
+test('on a wider screen the past flyers have arrows, and no swipe hint', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/');
+  test.skip((await page.locator('#past-flyers').count()) === 0, 'The gallery is empty right now.');
+  await expect(page.locator('#past-flyers-hint')).toBeHidden();
+});
