@@ -124,6 +124,41 @@ test('Ctrl+B, I and U format a rich-text box themselves, so a browser shortcut o
   await page.locator('#event-close').click();
 });
 
+test('Undo and Redo in a rich-text box, and Undo after reopening brings back a description a save cleared', async ({ page, adminPage }) => {
+  void adminPage;
+  const own = await seedEvent({ name: 'Undo Class', description: '<p>Original words</p>', dayOffset: 2 });
+  await openEditor(page, own);
+  const description = page.locator('#event-description');
+  const undoBtn = page.locator('[data-rich-history="undo"][data-rich-target="#event-description"]');
+  const redoBtn = page.locator('[data-rich-history="redo"][data-rich-target="#event-description"]');
+
+  // Everything deleted by accident.
+  await description.click();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.press('Delete');
+  await expect(description).not.toContainText('Original words');
+  await undoBtn.click();
+  await expect(description).toContainText('Original words');
+  await redoBtn.click();
+  await expect(description).not.toContainText('Original words');
+  // The keyboard works too, and only in its own box.
+  await description.focus();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(description).toContainText('Original words');
+  await page.keyboard.press('ControlOrMeta+y');
+  await expect(description).not.toContainText('Original words');
+
+  // Saved that way, then reopened: Undo still brings it back.
+  await save(page);
+  const { data } = await db.from('events').select('description').eq('id', own.ids[0]).single();
+  expect(data!.description ?? '').not.toContain('Original words');
+  await openEditor(page, own);
+  await expect(description).not.toContainText('Original words');
+  await undoBtn.click();
+  await expect(description).toContainText('Original words');
+  await page.locator('#event-close').click();
+});
+
 test('desktop: the section menu shows summaries and jumps to a section', async ({ page, adminPage }) => {
   void adminPage;
   await page.setViewportSize({ width: 1280, height: 800 });

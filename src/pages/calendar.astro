@@ -676,7 +676,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                   <button type="button" data-cmd="strikeThrough" class="description-format-btn rounded-lg px-2.5 py-1 text-sm line-through text-ink/70 hover:bg-bg">S</button>
                   <button type="button" data-cmd="insertUnorderedList" class="description-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
                   <button type="button" data-cmd="insertOrderedList" class="description-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
-                  <button type="button" id="event-description-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+                  <button type="button" id="event-description-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button><span class="mx-1 w-px self-stretch bg-border" aria-hidden="true"></span><button type="button" data-rich-history="undo" data-rich-target="#event-description" aria-label="Undo" title="Undo (Ctrl+Z)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8630;</button><button type="button" data-rich-history="redo" data-rich-target="#event-description" aria-label="Redo" title="Redo (Ctrl+Y)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8631;</button>
                 </div>
                 <div
                   id="event-description"
@@ -867,7 +867,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                     <button type="button" data-cmd="underline" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
                     <button type="button" data-cmd="insertUnorderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Bulleted list" title="Bulleted list">&#8226;&nbsp;List</button>
                     <button type="button" data-cmd="insertOrderedList" class="lesson-overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg" aria-label="Numbered list" title="Numbered list">1.&nbsp;List</button>
-                    <button type="button" id="event-lesson-overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+                    <button type="button" id="event-lesson-overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button><span class="mx-1 w-px self-stretch bg-border" aria-hidden="true"></span><button type="button" data-rich-history="undo" data-rich-target="#event-lesson-overview-body" aria-label="Undo" title="Undo (Ctrl+Z)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8630;</button><button type="button" data-rich-history="redo" data-rich-target="#event-lesson-overview-body" aria-label="Redo" title="Redo (Ctrl+Y)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8631;</button>
                   </div>
                   <div
                     id="event-lesson-overview-body"
@@ -979,9 +979,11 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
   import { eventTypeLabel } from '../lib/classSeries';
   import { escapeAttr, locationHref } from '../lib/locationLink';
   import { installRichTextShortcuts } from '../lib/richTextShortcuts';
+  import { installRichTextHistory, offerPrevious, rememberBeforeSave } from '../lib/richTextHistory';
   import { initLinkedEditor } from '../lib/linkedClassesEditor';
 
   installRichTextShortcuts();
+  installRichTextHistory();
 
   // --- Calendar / List view toggle ---
   const viewToggleButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.view-toggle-btn'));
@@ -1599,6 +1601,10 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     lessonOverviewTitleInput.value = event?.lesson_overview_title ?? '';
     lessonOverviewBodyInput.innerHTML = event?.lesson_overview_body ?? '';
     hideLessonOverviewInput.checked = event?.hide_lesson_overview ?? false;
+    // Each box's Undo starts here, or at what the last save here replaced.
+    const historyKey = `event:${mode === 'edit' && event ? event.google_recurring_event_id ?? event.id : 'new'}`;
+    offerPrevious(descriptionInput, `${historyKey}:description`);
+    offerPrevious(lessonOverviewBodyInput, `${historyKey}:overview`);
     syncLessonOverviewFields();
     imageUrlInput.value = event?.image_url ?? '';
     imageError.classList.add('hidden');
@@ -2277,6 +2283,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     if (!editingId && pendingLinkTo) payload.linkTo = pendingLinkTo;
 
     const endpoint = editingId ? '/api/admin/update-event' : '/api/admin/create-event';
+    const historyKey = editingEvent ? `event:${editingEvent.google_recurring_event_id ?? editingEvent.id}` : null;
     closeModal();
     showSync('Syncing to Google Calendar…', false);
 
@@ -2288,6 +2295,11 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
 
     const data = await res.json().catch(() => ({}));
 
+    // So reopening this class offers Undo back to what this save replaced.
+    if (res.ok && historyKey) {
+      rememberBeforeSave(descriptionInput, `${historyKey}:description`);
+      rememberBeforeSave(lessonOverviewBodyInput, `${historyKey}:overview`);
+    }
     if (res.ok && data.linkError) {
       hideSync();
       await showErrorDialog('Saved, but not linked', "The new class is saved, but it couldn't be linked. Link it from its Linked Classes/Events section.", data.linkError);

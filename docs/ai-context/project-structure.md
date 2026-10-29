@@ -61,6 +61,7 @@
 │   │   ├── communityGuidelines.ts       # Community guidelines event registrants agree to; split into FAQ-style items for confirmations
 │   │   ├── deals.ts, dealsStore.ts      # Bundle deals: shared pricing (form + server) and the deals table
 │   │   ├── linkRules.ts, linksStore.ts, linkedClassesEditor.ts  # Linked classes/events: rules (pure), the link tables, the editor section
+│   │   ├── richTextShortcuts.ts, richTextHistory.ts  # Rich-text boxes: Ctrl+B/I/U, undo/redo (also across a save)
 │   │   ├── contactMessages.ts           # Contact form messages (own table, not sign-ups), with double-submit check
 │   │   ├── emailTypos.ts, emailHints.ts, emailDomain.ts  # Mistyped-email suggestions and domain checks on the forms
 │   │   ├── siteErrors.ts                # The dashboard's Errors workqueue: bounces, Google API errors, failed emails and sign-ups

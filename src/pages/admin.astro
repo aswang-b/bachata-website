@@ -181,7 +181,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
               <button type="button" data-cmd="bold" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm font-bold text-ink/70 hover:bg-bg">B</button>
               <button type="button" data-cmd="italic" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
               <button type="button" data-cmd="underline" class="banner-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
-              <button type="button" id="banner-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+              <button type="button" id="banner-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button><span class="mx-1 w-px self-stretch bg-border" aria-hidden="true"></span><button type="button" data-rich-history="undo" data-rich-target="#banner-editor" aria-label="Undo" title="Undo (Ctrl+Z)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8630;</button><button type="button" data-rich-history="redo" data-rich-target="#banner-editor" aria-label="Redo" title="Redo (Ctrl+Y)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8631;</button>
             </div>
             <div
               id="banner-editor"
@@ -210,7 +210,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
             <button type="button" data-cmd="italic" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm italic text-ink/70 hover:bg-bg">I</button>
             <button type="button" data-cmd="underline" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
             <button type="button" data-cmd="insertUnorderedList" class="overview-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">&#8226;&nbsp;List</button>
-            <button type="button" id="overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+            <button type="button" id="overview-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button><span class="mx-1 w-px self-stretch bg-border" aria-hidden="true"></span><button type="button" data-rich-history="undo" data-rich-target="#overview-editor" aria-label="Undo" title="Undo (Ctrl+Z)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8630;</button><button type="button" data-rich-history="redo" data-rich-target="#overview-editor" aria-label="Redo" title="Redo (Ctrl+Y)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8631;</button>
           </div>
           <div
             id="overview-editor"
@@ -275,7 +275,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
             <button type="button" data-cmd="underline" class="guidelines-format-btn rounded-lg px-2.5 py-1 text-sm underline text-ink/70 hover:bg-bg">U</button>
             <button type="button" data-cmd="insertUnorderedList" class="guidelines-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">&#8226;&nbsp;List</button>
             <button type="button" data-cmd="insertOrderedList" class="guidelines-format-btn rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">1.&nbsp;List</button>
-            <button type="button" id="guidelines-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button>
+            <button type="button" id="guidelines-link-btn" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">Link</button><span class="mx-1 w-px self-stretch bg-border" aria-hidden="true"></span><button type="button" data-rich-history="undo" data-rich-target="#guidelines-editor" aria-label="Undo" title="Undo (Ctrl+Z)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8630;</button><button type="button" data-rich-history="redo" data-rich-target="#guidelines-editor" aria-label="Redo" title="Redo (Ctrl+Y)" class="rounded-lg px-2.5 py-1 text-sm text-ink/70 hover:bg-bg">\&#8631;</button>
           </div>
           <div
             id="guidelines-editor"
@@ -455,8 +455,10 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
   import { showErrorDialog } from '../lib/errorDialog';
   import { checkAdminSession } from '../lib/adminSession';
   import { installRichTextShortcuts } from '../lib/richTextShortcuts';
+  import { installRichTextHistory, offerPrevious, rememberBeforeSave } from '../lib/richTextHistory';
 
   installRichTextShortcuts();
+  installRichTextHistory();
 
   const panels = {
     loading: document.getElementById('account-loading')!,
@@ -786,6 +788,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
       const { enabled, content } = await res.json();
       renderBannerToggle(Boolean(enabled));
       (document.getElementById('banner-editor') as HTMLElement).innerHTML = content ?? '';
+      offerPrevious(document.getElementById('banner-editor') as HTMLElement, 'banner');
     } catch {
       // Leave the editor blank and the toggle off if the banner can't load.
     }
@@ -803,6 +806,8 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify(patch),
     });
+    // Kept so the box's Undo can bring back what a save replaced (richTextHistory.ts).
+    if (res.ok && patch.content !== undefined) rememberBeforeSave(document.getElementById('banner-editor') as HTMLElement, 'banner');
 
     statusEl.textContent = res.ok ? 'Saved.' : 'Failed to save — try again.';
     if (res.ok) setTimeout(() => (statusEl.textContent = ''), 1500);
@@ -839,6 +844,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
       const res = await fetch('/api/homepage-content');
       const { lessonOverview } = await res.json();
       (document.getElementById('overview-editor') as HTMLElement).innerHTML = lessonOverview ?? '';
+      offerPrevious(document.getElementById('overview-editor') as HTMLElement, 'overview');
     } catch {
       // Leave the editor blank if it can't load.
     }
@@ -871,6 +877,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ lessonOverview: html }),
     });
+    if (res.ok) rememberBeforeSave(document.getElementById('overview-editor') as HTMLElement, 'overview');
 
     statusEl.textContent = res.ok ? 'Saved.' : 'Failed to save — try again.';
     if (res.ok) setTimeout(() => (statusEl.textContent = ''), 1500);
@@ -889,6 +896,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
       const res = await fetch('/api/admin/guidelines', { headers: { Authorization: `Bearer ${session.access_token}` } });
       const { body } = await res.json();
       guidelinesEditor.innerHTML = body ?? '';
+      offerPrevious(guidelinesEditor, 'guidelines');
     } catch {
       // Leave the editor blank if it can't load.
     }
@@ -926,6 +934,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ body: guidelinesEditor.innerHTML }),
     });
+    if (res.ok) rememberBeforeSave(guidelinesEditor, 'guidelines');
     const data = await res.json().catch(() => ({}));
     statusEl.textContent = res.ok ? 'Saved.' : `Failed to save — ${data.error ?? 'try again.'}`;
     if (res.ok) setTimeout(() => (statusEl.textContent = ''), 1500);
@@ -964,6 +973,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
 
   function buildFaqItem(faq?: FaqRow): HTMLElement {
     const item = document.createElement('div');
+    item.dataset.richScope = '';
     item.className = 'faq-item flex flex-col gap-2 rounded-xl border border-border bg-bg p-3';
     if (faq) item.dataset.id = faq.id;
     item.innerHTML = `
@@ -973,7 +983,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
         <button type="button" data-cmd="italic" class="faq-format-btn rounded-lg px-2 py-1 text-xs italic text-ink/70 hover:bg-surface">I</button>
         <button type="button" data-cmd="underline" class="faq-format-btn rounded-lg px-2 py-1 text-xs underline text-ink/70 hover:bg-surface">U</button>
         <button type="button" data-cmd="insertUnorderedList" class="faq-format-btn rounded-lg px-2 py-1 text-xs text-ink/70 hover:bg-surface">&#8226;&nbsp;List</button>
-        <button type="button" class="faq-link-btn rounded-lg px-2 py-1 text-xs text-ink/70 hover:bg-surface">Link</button>
+        <button type="button" class="faq-link-btn rounded-lg px-2 py-1 text-xs text-ink/70 hover:bg-surface">Link</button><span class="mx-1 w-px self-stretch bg-border" aria-hidden="true"></span><button type="button" data-rich-history="undo" data-rich-target=".faq-answer" aria-label="Undo" title="Undo (Ctrl+Z)" class="rounded-lg px-2 py-1 text-xs text-ink/70 hover:bg-surface">\&#8630;</button><button type="button" data-rich-history="redo" data-rich-target=".faq-answer" aria-label="Redo" title="Redo (Ctrl+Y)" class="rounded-lg px-2 py-1 text-xs text-ink/70 hover:bg-surface">\&#8631;</button>
       </div>
       <div class="faq-answer min-h-16 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none" contenteditable="true">${faq ? faq.answer : ''}</div>
       <label class="flex items-center gap-2 text-xs text-ink/80">
@@ -997,6 +1007,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
     const answerEditor = item.querySelector('.faq-answer') as HTMLElement;
     const includeInConfirmationInput = item.querySelector('.faq-include-in-confirmation') as HTMLInputElement;
     const statusEl = item.querySelector('.faq-item-status') as HTMLElement;
+    if (faq) offerPrevious(answerEditor, `faq:${faq.id}`);
 
     item.querySelectorAll<HTMLButtonElement>('.faq-format-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -1038,6 +1049,7 @@ import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
           const { faq } = await res.json();
           item.dataset.id = faq.id;
         }
+        rememberBeforeSave(answerEditor, `faq:${item.dataset.id}`);
         statusEl.textContent = 'Saved.';
         setTimeout(() => (statusEl.textContent = ''), 1500);
       } else {
