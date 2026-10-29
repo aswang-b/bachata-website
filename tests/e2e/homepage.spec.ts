@@ -300,3 +300,17 @@ test('on a phone, letting go of a swipe on the past flyers settles with the near
   expect(await gallery.evaluate((g) => g.scrollLeft)).not.toBe(startLeft);
   await ctx.close();
 });
+
+test('wider up, the past flyers show only the middle three, also after an arrow click', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/');
+  const gallery = page.locator('#past-flyers');
+  test.skip((await gallery.count()) === 0, 'The gallery is empty right now.');
+  await gallery.scrollIntoViewIfNeeded();
+  const shown = () =>
+    gallery.evaluate((g) => [...g.querySelectorAll<HTMLElement>('[data-gallery-flyer]')].filter((f) => f.style.visibility !== 'hidden' && Number(f.style.opacity || 1) > 0.05).length);
+  await expect.poll(shown).toBe(3);
+  await page.locator('[data-gallery-scroll="1"]').click();
+  await page.waitForTimeout(1200);
+  await expect.poll(shown).toBe(3);
+});

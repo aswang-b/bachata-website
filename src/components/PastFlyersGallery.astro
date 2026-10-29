@@ -125,18 +125,27 @@ const arrowClass =
 
     // Each flyer turns away, drops back and fades the further it is from the
     // middle, like posters on a cylinder that spins as the row scrolls.
+    // Wider up (where the arrows are) only the middle three show: a flyer more
+    // than one flyer away from the middle fades out as it moves off, rather
+    // than showing as a thin, turned-away sliver at the edge.
+    const wide = window.matchMedia('(min-width: 640px)');
     let frame = 0;
     const render = () => {
       frame = 0;
       const half = gallery.clientWidth / 2;
       const center = gallery.scrollLeft + half;
+      const step = copyWidth() / count;
       for (const item of items) {
-        const offset = Math.max(-1.5, Math.min(1.5, (item.offsetLeft + item.offsetWidth / 2 - center) / half));
+        const distance = item.offsetLeft + item.offsetWidth / 2 - center;
+        const offset = Math.max(-1.5, Math.min(1.5, distance / half));
+        const beyondThree = wide.matches && step > 0 ? Math.max(0, Math.min(1, (Math.abs(distance) / step - 1.05) / 0.45)) : 0;
         item.style.transform = `translateZ(${-Math.abs(offset) * 160}px) rotateY(${offset * 45}deg)`;
-        item.style.opacity = String(1 - Math.min(1, Math.abs(offset)) * 0.45);
+        item.style.opacity = String((1 - Math.min(1, Math.abs(offset)) * 0.45) * (1 - beyondThree));
+        item.style.visibility = beyondThree >= 1 ? 'hidden' : '';
         item.style.zIndex = String(100 - Math.round(Math.abs(offset) * 50));
       }
     };
+    wide.addEventListener('change', () => schedule());
     const schedule = () => {
       frame ||= requestAnimationFrame(render);
     };
