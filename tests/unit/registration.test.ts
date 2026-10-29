@@ -370,7 +370,6 @@ describe('an admin edit keeps what unchanged classes were saved at', () => {
     deal_id: null as string | null,
     deal_name: null as string | null,
     deal_discount: null as number | null,
-    included_by: null as string | null,
   });
   const saved = (key: string, price: number, deal?: number) => ({
     series_key: key,

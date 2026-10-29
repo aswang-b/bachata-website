@@ -58,3 +58,9 @@ test("the calendar's heading doesn't call a month \"Upcoming\" (past months can 
   await expect(page.locator('main, body').first()).not.toContainText(/^Upcoming$/m);
   await expect(page.getByText('Classes & Events', { exact: true })).toBeVisible();
 });
+
+test('the footer has a Report a bug link to the contact form', async ({ page }) => {
+  await page.goto('/about');
+  // Checked by its target: the cookie banner sits over the footer until it's answered.
+  await expect(page.locator('footer').getByRole('link', { name: 'Report a bug' })).toHaveAttribute('href', '/contact');
+});

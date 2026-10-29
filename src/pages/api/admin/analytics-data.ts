@@ -4,6 +4,7 @@ import { allVisibilities, hideTestRows } from '../../../lib/testMode';
 import { requireAdmin } from '../../../lib/admin';
 import { buildClassSeriesList } from '../../../lib/classSeries';
 import { isDeletedDancer } from '../../../lib/recyclingBin';
+import { rulesForSeries } from '../../../lib/linksStore';
 
 export const prerender = false;
 
@@ -31,11 +32,14 @@ interface ClassRegistrationRow {
   series_mode: 'whole' | 'dropin' | null;
   price: number | null;
   occurrence_event_id: string | null;
+  series_key: string | null;
 }
 
 export interface ClassRegistrationEntry {
   id: string | null;
   classTitle: string;
+  // The series it's for (google_recurring_event_id ?? id), which outlasts a rename.
+  seriesKey: string | null;
   classLabel: string;
   seriesMode: 'whole' | 'dropin' | null;
   price: number | null;
@@ -65,6 +69,7 @@ interface SignupRow {
 const EMPTY_CLASS_ENTRY: ClassRegistrationEntry = {
   id: null,
   classTitle: '',
+  seriesKey: null,
   classLabel: '',
   seriesMode: null,
   price: null,
@@ -104,7 +109,7 @@ export const GET: APIRoute = async ({ request }) => {
       .in('visibility', allVisibilities())
       .eq('event_type', 'class')
       .order('start_time', { ascending: true }),
-    hideTestRows(supabase.from('class_registrations').select('id, submission_id, dancer_index, class_title, class_label, series_mode, price, occurrence_event_id'))
+    hideTestRows(supabase.from('class_registrations').select('id, submission_id, dancer_index, class_title, class_label, series_mode, price, occurrence_event_id, series_key'))
       .is('deleted_at', null)
       .limit(ANALYTICS_ROW_LIMIT),
     // The Event Registration tab's edit row lets an admin switch a dancer's event.
@@ -127,6 +132,17 @@ export const GET: APIRoute = async ({ request }) => {
 
   const classSeries = buildClassSeriesList(allClassEvents ?? []);
   const eventSeries = buildClassSeriesList(allEventEvents ?? []);
+  // Event (by title, like the tab's filter) -> the events whose sign-ups count
+  // in its headcount (linked, migration 0062), by series key, since a sign-up
+  // keeps the title the event had when it was made. For its "+ N from …" note.
+  const eventTitleByKey = new Map(eventSeries.map((s) => [s.key, s.title]));
+  const headcountFrom: Record<string, { key: string; title: string }[]> = {};
+  for (const r of await rulesForSeries([...eventTitleByKey.keys()])) {
+    const to = eventTitleByKey.get(r.to);
+    const from = eventTitleByKey.get(r.from);
+    if (r.kind !== 'includes' || r.countHeadcount === false || !to || !from) continue;
+    headcountFrom[to] = [...(headcountFrom[to] ?? []), { key: r.from, title: from }];
+  }
 
   // Group each submission's class registrations by dancer (dancer_index, or
   // null for a class-less single-registrant submission), so each dancer row
@@ -147,6 +163,7 @@ export const GET: APIRoute = async ({ request }) => {
     const entry: ClassRegistrationEntry = {
       id: reg.id,
       classTitle: reg.class_title,
+      seriesKey: reg.series_key,
       // Rows written from /register's structured selections before the
       // label included the title hold just the schedule ("Sundays, 1:00 PM…").
       classLabel:
@@ -242,7 +259,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   const classTitles = [...new Set((allClassEvents ?? []).map((e) => e.title))].sort((a, b) => a.localeCompare(b));
 
-  return new Response(JSON.stringify({ signups, eventRegistrations, checkins, classTitles, classSeries, eventSeries, bouncedEmails }), {
+  return new Response(JSON.stringify({ signups, eventRegistrations, checkins, classTitles, classSeries, eventSeries, headcountFrom, bouncedEmails }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });

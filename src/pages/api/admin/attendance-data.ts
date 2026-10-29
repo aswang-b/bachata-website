@@ -3,12 +3,9 @@ import { supabase } from '../../../lib/supabase';
 import { allVisibilities, hideTestRows } from '../../../lib/testMode';
 import { requireAdmin } from '../../../lib/admin';
 import { buildClassSeriesList } from '../../../lib/classSeries';
-import { zonedDateKey } from '../../../lib/siteTime';
 import {
   expandRegistrationsToEntries,
   matchAttendance,
-  settleIncludedClasses,
-  type LinkedRegistrationInfo,
   type AttendanceRegistrationRow,
   type AttendanceCheckinRow,
   type ManualMatch,
@@ -37,7 +34,7 @@ export const GET: APIRoute = async ({ request }) => {
     hideTestRows(
       supabase
         .from('class_registrations')
-        .select('id, submission_id, dancer_index, series_key, included_by, first_name, last_name, email, phone, class_title, series_mode, price, occurrence_event_id, created_at, intake_submissions!inner(registration_type)')
+        .select('id, first_name, last_name, email, phone, class_title, series_mode, price, occurrence_event_id, created_at, intake_submissions!inner(registration_type)')
     )
       .is('deleted_at', null)
       .neq('intake_submissions.registration_type', 'events')
@@ -77,17 +74,12 @@ export const GET: APIRoute = async ({ request }) => {
     occurrenceEventId: r.occurrence_event_id,
   }));
 
-  const { resolved: matched, orphanedCheckins } = matchAttendance(
+  const { resolved, orphanedCheckins } = matchAttendance(
     entries,
     (checkins ?? []) as AttendanceCheckinRow[],
     manualMatches,
     manualNoShows
   );
-  // A class and the linked class it includes take one check-in between them.
-  const linkedInfo = new Map<string, LinkedRegistrationInfo>(
-    (registrations ?? []).map((r) => [r.id, { submissionId: r.submission_id, dancerIndex: r.dancer_index, seriesKey: r.series_key, includedBy: r.included_by }])
-  );
-  const resolved = settleIncludedClasses(matched, linkedInfo, (iso) => zonedDateKey(iso));
 
   return new Response(JSON.stringify({ entries: resolved, orphanedCheckins }), {
     status: 200,

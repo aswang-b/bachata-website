@@ -22,10 +22,15 @@ describe('storing rules', () => {
       const row = ruleToRow(rule);
       expect(row.key_a < row.key_b).toBe(true);
       const back = ruleFromRow(row);
-      if (rule.kind === 'includes') expect(back).toEqual(rule);
+      // countHeadcount defaults to on.
+      if (rule.kind === 'includes') expect(back).toEqual({ ...rule, countHeadcount: true });
       else expect([back.from, back.to].sort()).toEqual([rule.from, rule.to].sort());
     }
   });
+});
+
+it('keeps an includes rule with headcount counting turned off', () => {
+  expect(ruleFromRow(ruleToRow({ ...includes('ws', 'pr'), countHeadcount: false })).countHeadcount).toBe(false);
 });
 
 describe('includes', () => {

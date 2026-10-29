@@ -1,5 +1,5 @@
 import { test, expect, postForm } from './support/fixtures';
-import { db, seedEvent, seedLink, sweepTestData, testTitle, track, type Seeded } from './support/db';
+import { db, seedEvent, seedLink, seedSignup, sweepTestData, testTitle, track, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { randomUUID } from 'node:crypto';
 import type { Page } from '@playwright/test';
@@ -183,17 +183,24 @@ const classFields = (picks: Seeded[], first: string) => ({
   dancers: JSON.stringify([{ firstName: `ZZZ${first}`, lastName: RUN_ID, role: 'leader', phone: '6085550100', email: '' }]),
 });
 const savedRows = async (submissionId: string) =>
-  (await db.from('class_registrations').select('series_key, price, included_by, class_label').eq('submission_id', submissionId).is('deleted_at', null)).data ?? [];
+  (await db.from('class_registrations').select('series_key, price, class_label').eq('submission_id', submissionId).is('deleted_at', null)).data ?? [];
 const submissionOf = (location: string | undefined) => new URL(location ?? '', 'http://x').searchParams.get('id')!;
 
-test('includes: picking the bigger class folds in the included one at $0, and the server saves it that way', async ({ page }) => {
+test('includes: the subtotal shows the included class the same whether or not it was picked, and only the bigger one is saved', async ({ page }) => {
   const combo = await seedEvent({ name: 'Form Combo', priceWhole: 160, occurrences: 2, dayOffset: 60 });
   const base = await seedEvent({ name: 'Form Base', priceWhole: 85, priceDropIn: 25, occurrences: 2, dayOffset: 60 });
   await seedLink(combo, base, { kind: 'a_includes_b' });
 
   await page.goto('/register');
+  // Picked on its own, the bigger class already shows what it includes.
+  await selectSeries(page, combo.key);
+  await expect(page.locator('.included-line')).toContainText(`Includes ${base.title}`);
+  const shownAlone = await page.locator('#subtotal-row').innerText();
+  await page.locator(`.series-item[data-key="${combo.key}"] .series-toggle-btn`).click();
+  // Picked the other way round (the included one first), it ends up exactly the same.
   await selectSeries(page, base.key);
   await page.locator(`.series-item[data-key="${combo.key}"] .series-toggle-btn`).click();
+  await expect.poll(() => page.locator('#subtotal-row').innerText()).toBe(shownAlone);
   // The base class was folded in: not a separate pick, shown as included, and not charged.
   await expect(page.locator(`.series-item[data-key="${base.key}"]`)).toHaveAttribute('data-selected', 'false');
   await expect(page.locator(`.series-item[data-key="${base.key}"] .series-included-badge`)).toHaveText(`Included with ${combo.title}`);
@@ -206,11 +213,11 @@ test('includes: picking the bigger class folds in the included one at $0, and th
   await submitRegistration(page);
   await expect(page).toHaveURL(/\/register\/confirmation/);
   const rows = await savedRows(confirmationId(page.url())!);
-  expect(rows.find((r) => r.series_key === combo.key)).toMatchObject({ price: 160, included_by: null });
-  expect(rows.find((r) => r.series_key === base.key)).toMatchObject({ price: 0, included_by: combo.key, class_label: `${base.title} — included with ${combo.title}` });
+  // Only what they bought: no $0 row for the included class (its headcount comes from the link).
+  expect(rows).toEqual([expect.objectContaining({ series_key: combo.key, price: 160 })]);
 });
 
-test('includes: a sign-up sent with both (an old tab) is saved once, the included class at $0; an admin edit follows the rule', async ({ request, admin }) => {
+test('includes: a sign-up sent with both (an old tab) saves only the bigger class; an admin can still put them on the other one alone', async ({ request, admin }) => {
   const combo = await seedEvent({ name: 'Stale Combo', priceWhole: 160, dayOffset: 61 });
   const base = await seedEvent({ name: 'Stale Base', priceWhole: 85, dayOffset: 61 });
   await seedLink(combo, base, { kind: 'a_includes_b' });
@@ -219,8 +226,7 @@ test('includes: a sign-up sent with both (an old tab) is saved once, the include
   expect(res.status()).toBe(303);
   const submissionId = submissionOf(res.headers().location);
   const rows = await savedRows(submissionId);
-  expect(rows).toHaveLength(2);
-  expect(rows.find((r) => r.series_key === base.key)).toMatchObject({ price: 0, included_by: combo.key });
+  expect(rows).toEqual([expect.objectContaining({ series_key: combo.key, price: 160 })]);
 
   // The admin switches the dancer to just the base class: it's paid for again, on its own.
   const holderId = `e2e-link-${RUN_ID}`;
@@ -249,7 +255,27 @@ test('includes: a sign-up sent with both (an old tab) is saved once, the include
   }
   const after = await savedRows(submissionId);
   expect(after).toHaveLength(1);
-  expect(after[0]).toMatchObject({ series_key: base.key, price: 85, included_by: null });
+  expect(after[0]).toMatchObject({ series_key: base.key, price: 85 });
+});
+
+test('headcount: sign-ups for the bigger class fill the included one (shown full, and enforced), unless that box is unticked', async ({ request }) => {
+  const combo = await seedEvent({ name: 'Count Combo', priceWhole: 160, dayOffset: 63 });
+  const base = await seedEvent({ name: 'Count Base', priceWhole: 85, capacity: 1, showCapacity: true, dayOffset: 63 });
+  await seedLink(combo, base, { kind: 'a_includes_b' });
+
+  expect((await postForm(request, '/api/submit-intake', classFields([combo], 'CountA'))).status()).toBe(303);
+  // The one spot is taken by the bigger class's dancer: the form shows it full...
+  const form = await (await request.get('/register')).text();
+  expect(form).toMatch(new RegExp(`data-key="${base.key}"[\\s\\S]*?Full`));
+  // ...and the server refuses a sign-up for it on its own, and another for the bigger class.
+  const alone = await postForm(request, '/api/submit-intake', classFields([base], 'CountB'));
+  expect(alone.status()).toBe(400);
+  expect(await alone.text()).toContain('full');
+  expect((await postForm(request, '/api/submit-intake', classFields([combo], 'CountC'))).status()).toBe(400);
+
+  // Not counting headcount: the included class has its own spot again.
+  await db.from('event_link_rules').update({ count_headcount: false }).or(`key_a.eq.${combo.key},key_b.eq.${combo.key}`);
+  expect((await postForm(request, '/api/submit-intake', classFields([base], 'CountD'))).status()).toBe(303);
 });
 
 test('cannot take both: a soft warning with a one-click remove; submitting anyway saves both and flags it for the admin', async ({ page }) => {
@@ -363,4 +389,19 @@ test('a class that is not linked has no tabs', async ({ page, adminPage }) => {
   await expect(page.locator('#event-tabs')).toBeHidden();
   await expect(page.locator('#modal-heading')).toBeVisible();
   await expect(page.locator('#event-save-all')).toBeHidden();
+});
+
+test("the Event Registration tab lists an included event in its filter and counts the bigger event's sign-ups, even after a rename", async ({ page, adminPage }) => {
+  void adminPage;
+  const workshop = await seedEvent({ name: 'Count Workshop', type: 'event', priceWhole: 20, dayOffset: 64 });
+  const practica = await seedEvent({ name: 'Count Practica', type: 'event', priceWhole: 10, dayOffset: 64 });
+  await seedLink(workshop, practica, { kind: 'a_includes_b' });
+  await seedSignup(workshop, [{ first: 'CountWorkshopper' }], 'events');
+  // Renamed after the sign-up, which keeps the old title.
+  await db.from('events').update({ title: `${workshop.title} Renamed` }).in('id', workshop.ids);
+
+  await page.goto('/admin/analytics');
+  await page.locator('.tab-btn[data-tab="event-registration"]').click();
+  await page.locator('#event-registrations-event-filter').selectOption(practica.title);
+  await expect(page.locator('#event-registrations-count')).toHaveText(`0 results · +1 from ${workshop.title} Renamed`);
 });

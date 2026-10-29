@@ -28,7 +28,7 @@ function seriesFilter(keys: string[]): string {
 export async function listLinks(): Promise<{ links: SeriesLink[]; rules: LinkRule[] }> {
   const [links, rules] = await Promise.all([
     supabase.from('event_links').select('series_key, link_group_id'),
-    supabase.from('event_link_rules').select('key_a, key_b, kind, reason'),
+    supabase.from('event_link_rules').select('key_a, key_b, kind, reason, count_headcount'),
   ]);
   if (links.error || rules.error) throw new Error(`Failed to load linked classes: ${(links.error ?? rules.error)!.message}`);
   return {
@@ -48,7 +48,7 @@ async function groupOf(key: string): Promise<{ groupId: string | null; keys: str
 }
 
 async function rulesAmong(keys: string[]): Promise<LinkRule[]> {
-  const { data, error } = await supabase.from('event_link_rules').select('key_a, key_b, kind, reason').in('key_a', keys).in('key_b', keys);
+  const { data, error } = await supabase.from('event_link_rules').select('key_a, key_b, kind, reason, count_headcount').in('key_a', keys).in('key_b', keys);
   if (error) throw new Error(`Failed to load link rules: ${error.message}`);
   return ((data ?? []) as LinkRuleRow[]).map(ruleFromRow);
 }
@@ -137,14 +137,15 @@ export async function unlinkSeries(key: string): Promise<void> {
 
 export type RuleChoice = 'both' | 'exclusive' | 'includes';
 
-// Sets the rule between two linked series: 'includes' means `a` includes `b`.
+// Sets the rule between two linked series: 'includes' means `a` includes `b`
+// (and, with countHeadcount, a's sign-ups count in b's headcount).
 // Refused when the result contradicts itself (linkRules.findConflicts).
-export async function setRule(a: string, b: string, choice: RuleChoice, reason: string | null): Promise<LinkRule[]> {
+export async function setRule(a: string, b: string, choice: RuleChoice, reason: string | null, countHeadcount = true): Promise<LinkRule[]> {
   const { keys } = await groupOf(a);
   if (a === b || !keys.includes(b)) throw new LinkInputError('Those two aren\'t linked. Reload the page and try again.');
   const current = await rulesAmong(keys);
   const others = current.filter((r) => !samePair(r, a, b));
-  const next: LinkRule | null = choice === 'both' ? null : { from: a, to: b, kind: choice, reason: reason?.trim() || null };
+  const next: LinkRule | null = choice === 'both' ? null : { from: a, to: b, kind: choice, reason: reason?.trim() || null, countHeadcount };
   const after = next ? [...others, next] : others;
 
   const titles = new Map<string, string>();

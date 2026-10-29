@@ -18,8 +18,18 @@ import {
   type SpotsInfo,
 } from '../../src/lib/capacity';
 
+// Spot counts come from spot_counts_with_linked (migration 0062): here, the
+// seeded event_spot_counts rows as they are (no linked classes), one call per chunk.
+let spotCountCalls = 0;
 beforeEach(() => {
   db.current = new FakeSupabase();
+  spotCountCalls = 0;
+  db.current.rpcHandlers.spot_counts_with_linked = ({ p_event_ids }) => {
+    const failure = db.current.takeFailure('event_spot_counts', 'select');
+    if (failure) throw failure;
+    spotCountCalls += 1;
+    return db.current.rows('event_spot_counts').filter((r) => (p_event_ids as string[]).includes(r.event_id as string));
+  };
 });
 
 describe('spot counts', () => {
@@ -140,7 +150,7 @@ describe('getSpotsByOccurrence with many classes', () => {
     const spots = await getSpotsByOccurrence(events);
     expect(spots.size).toBe(320);
     expect(spots.get('e310')!.total!.remaining).toBe(1);
-    expect(db.current.callsTo('event_spot_counts', 'select')).toHaveLength(3);
+    expect(spotCountCalls).toBe(3);
 
     db.current.failNext.set('event_spot_counts.select', { message: 'boom' });
     await expect(getSpotsByOccurrence(events)).rejects.toThrow('Failed to load spot counts.');
@@ -159,6 +169,6 @@ describe('admin calendar events', () => {
     expect(events).toHaveLength(401);
     expect(events.find((e: { id: string }) => e.id === 'u1').spots_label).toBeTruthy();
     expect(events.find((e: { id: string }) => e.id === 'p0').spots_label).toBeNull();
-    expect(db.current.callsTo('event_spot_counts', 'select')).toHaveLength(1);
+    expect(spotCountCalls).toBe(1);
   });
 });

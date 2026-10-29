@@ -61,6 +61,8 @@ function isFull(s: Omit<SpotsInfo, 'full'>): boolean {
 // Reads the cached counts in event_spot_counts, which database triggers keep
 // current on every sign-up change and which count each person once per class
 // (see migrations 0039 and 0044) — so this never scans the sign-ups themselves.
+// Through spot_counts_with_linked (migration 0062), which adds the sign-ups of
+// a linked class that includes this one and counts its headcount.
 export async function getSpotsByOccurrence(events: CapacityEventRow[]): Promise<Map<string, SpotsInfo>> {
   const limited = events.filter(hasCapacity);
   const result = new Map<string, SpotsInfo>();
@@ -72,7 +74,7 @@ export async function getSpotsByOccurrence(events: CapacityEventRow[]): Promise<
   const CHUNK = 150;
   const chunks = Array.from({ length: Math.ceil(ids.length / CHUNK) }, (_, i) => ids.slice(i * CHUNK, (i + 1) * CHUNK));
   const results = await Promise.all(
-    chunks.map((chunk) => supabase.from('event_spot_counts').select('event_id, taken, leaders_taken, followers_taken').in('event_id', chunk))
+    chunks.map((chunk) => supabase.rpc('spot_counts_with_linked', { p_event_ids: chunk }))
   );
   for (const { data, error } of results) {
     if (error) {

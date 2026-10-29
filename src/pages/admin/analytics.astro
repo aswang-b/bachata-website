@@ -441,6 +441,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   interface ClassRegistrationEntry {
     id: string | null;
     classTitle: string;
+    seriesKey?: string | null;
     classLabel: string;
     seriesMode: 'whole' | 'dropin' | null;
     price: number | null;
@@ -598,6 +599,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   let classSeries: ClassSeriesEntry[] = [];
   // Events, for the Event Registration tab's edit row.
   let eventSeries: ClassSeriesEntry[] = [];
+  // Event title -> events whose sign-ups count in its headcount (linked classes).
+  let headcountFrom: Record<string, { key: string; title: string }[]> = {};
   let attendanceEntries: AttendanceEntry[] = [];
   let attendanceOrphanedCheckins: OrphanedCheckin[] = [];
   // Addresses a site email bounced from (lowercased), with Resend's reason.
@@ -1483,10 +1486,11 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   const eventRegistrationsNameSearch = document.getElementById('event-registrations-name-search') as HTMLInputElement;
   const eventRegistrationsEventFilter = document.getElementById('event-registrations-event-filter') as HTMLSelectElement;
 
-  // The filter lists the events that have registrations, keeping the current pick.
+  // The filter lists the events that have registrations (or headcount from a
+  // linked event, for its "+ N from …" note), keeping the current pick.
   function refreshEventFilterOptions() {
     const current = eventRegistrationsEventFilter.value;
-    const titles = [...new Set(allEventRegistrations.flatMap((s) => s.classRegistrations.map((e) => e.classTitle)).filter(Boolean))].sort((a, b) =>
+    const titles = [...new Set([...allEventRegistrations.flatMap((s) => s.classRegistrations.map((e) => e.classTitle)), ...Object.keys(headcountFrom)].filter(Boolean))].sort((a, b) =>
       a.localeCompare(b)
     );
     eventRegistrationsEventFilter.innerHTML =
@@ -1710,7 +1714,12 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     });
 
     eventRegistrationsEmpty.classList.toggle('hidden', sorted.length > 0);
-    eventRegistrationsCount.textContent = `${sorted.length} ${sorted.length === 1 ? 'result' : 'results'}`;
+    // Filtered to an event that others include: who else counts at its door.
+    const extra = (headcountFrom[eventFilter] ?? [])
+      .map((from) => ({ title: from.title, n: allEventRegistrations.filter((s) => s.classRegistrations.some((e) => e.seriesKey === from.key)).length }))
+      .filter((x) => x.n > 0);
+    eventRegistrationsCount.textContent =
+      `${sorted.length} ${sorted.length === 1 ? 'result' : 'results'}` + extra.map((x) => ` · +${x.n} from ${x.title}`).join('');
     updateSortHeaders('event-registrations', eventRegistrationSort);
   }
 
@@ -2444,7 +2453,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     });
     if (!dataRes.ok) return false;
 
-    const { signups, eventRegistrations, checkins, classTitles, classSeries: series, eventSeries: events, bouncedEmails: bounces } = await dataRes.json();
+    const { signups, eventRegistrations, checkins, classTitles, classSeries: series, eventSeries: events, headcountFrom: linkedHeadcount, bouncedEmails: bounces } = await dataRes.json();
+    headcountFrom = linkedHeadcount ?? {};
     bouncedEmails = new Map(((bounces ?? []) as { email: string; bouncedAt: string; reason: string | null }[]).map((b) => [b.email, b]));
     eventSeries = events ?? [];
     allSignups = (signups as Signup[]).map((s) => ({

@@ -220,6 +220,11 @@ export function initLinkedEditor<E extends LinkableEvent>(hooks: LinkedEditorHoo
           ? `<label class="flex flex-col gap-1"><span class="text-xs text-muted">Note on the registration form (optional)</span>
               <input type="text" class="linked-rule-reason rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-ink placeholder:text-muted/70" maxlength="${REASON_MAX_LENGTH}" value="${esc(rule.reason ?? '')}" placeholder="${esc(placeholder)}" /></label>`
           : ''
+      }${
+        rule?.kind === 'includes'
+          ? `<label class="flex items-center gap-2 text-xs text-ink/80"><input type="checkbox" class="linked-rule-headcount h-4 w-4 rounded border-border"${rule.countHeadcount !== false ? ' checked' : ''} />
+              Count ${esc(titleOf(rule.from))} sign-ups in ${esc(titleOf(rule.to))}'s headcount and spots</label>`
+          : ''
       }`;
     return row;
   }
@@ -239,7 +244,7 @@ export function initLinkedEditor<E extends LinkableEvent>(hooks: LinkedEditorHoo
           .join('')
       : '<li class="text-xs text-muted">Too many linked to list every combination.</li>';
     summaryBox.innerHTML = `<p class="text-xs font-semibold text-muted">What dancers can sign up for</p><ul class="flex flex-wrap gap-1.5">${pills}</ul>
-      <p class="text-[11px] text-muted">Nothing is ever blocked: an included one is added at $0, and a warned combination shows a note before they submit.</p>`;
+      <p class="text-[11px] text-muted">Nothing is ever blocked: an included one is shown in the subtotal at $0 (never saved or charged on its own), and a warned combination shows a note before they submit.</p>`;
   }
 
   rulesBox.addEventListener('change', (e) => {
@@ -262,9 +267,10 @@ export function initLinkedEditor<E extends LinkableEvent>(hooks: LinkedEditorHoo
       showError(conflicts[0]);
       return;
     }
-    // A changed rule starts with the default note.
-    const keepReason = target.classList.contains('linked-rule-reason');
-    post({ action: 'rule', keyA, keyB, choice, reason: keepReason ? reason : '' });
+    // A changed rule starts over with the default note, counting headcount.
+    const sameRule = !target.classList.contains('linked-rule-select');
+    const countHeadcount = sameRule ? (row.querySelector<HTMLInputElement>('.linked-rule-headcount')?.checked ?? true) : true;
+    post({ action: 'rule', keyA, keyB, choice, reason: sameRule ? reason : '', countHeadcount });
   });
 
   list.addEventListener('click', async (e) => {

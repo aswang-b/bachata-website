@@ -5,8 +5,11 @@
 // Classes or events sold off one flyer are linked as whole series (by series
 // key, `google_recurring_event_id ?? id`). Each linked pair can have a rule:
 // can take both (the default, no rule), cannot take both, or one includes the
-// other. Rules never block a sign-up: an included class is folded in at $0,
-// and taking both of a "cannot take both" pair only shows a warning.
+// other. Rules never block a sign-up: a picked class another pick includes
+// is folded into it (never saved or charged on its own), and taking both of a
+// "cannot take both" pair only shows a warning. An includes rule can also
+// count the including class's sign-ups in the included one's headcount
+// (spot_counts_with_linked, migration 0062).
 
 export type LinkRuleKind = 'exclusive' | 'includes';
 
@@ -17,6 +20,8 @@ export interface LinkRule {
   kind: LinkRuleKind;
   // The admin's own wording for the registration form's note; null shows the default.
   reason: string | null;
+  // Includes only: the including class's sign-ups count in the included one's headcount.
+  countHeadcount?: boolean;
 }
 
 // How a rule is stored (event_link_rules): one row per pair, key_a < key_b.
@@ -25,19 +30,21 @@ export interface LinkRuleRow {
   key_b: string;
   kind: 'exclusive' | 'a_includes_b' | 'b_includes_a';
   reason: string | null;
+  count_headcount?: boolean;
 }
 
 export const REASON_MAX_LENGTH = 200;
 
 export function ruleFromRow(r: LinkRuleRow): LinkRule {
-  if (r.kind === 'b_includes_a') return { from: r.key_b, to: r.key_a, kind: 'includes', reason: r.reason };
-  return { from: r.key_a, to: r.key_b, kind: r.kind === 'exclusive' ? 'exclusive' : 'includes', reason: r.reason };
+  const countHeadcount = r.count_headcount !== false;
+  if (r.kind === 'b_includes_a') return { from: r.key_b, to: r.key_a, kind: 'includes', reason: r.reason, countHeadcount };
+  return { from: r.key_a, to: r.key_b, kind: r.kind === 'exclusive' ? 'exclusive' : 'includes', reason: r.reason, countHeadcount };
 }
 
 export function ruleToRow(rule: LinkRule): LinkRuleRow {
   const [keyA, keyB] = rule.from < rule.to ? [rule.from, rule.to] : [rule.to, rule.from];
   const kind = rule.kind === 'exclusive' ? 'exclusive' : rule.from === keyA ? 'a_includes_b' : 'b_includes_a';
-  return { key_a: keyA, key_b: keyB, kind, reason: rule.reason };
+  return { key_a: keyA, key_b: keyB, kind, reason: rule.reason, count_headcount: rule.countHeadcount !== false };
 }
 
 export const samePair = (rule: LinkRule, a: string, b: string) => (rule.from === a && rule.to === b) || (rule.from === b && rule.to === a);

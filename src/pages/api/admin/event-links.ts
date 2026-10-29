@@ -37,7 +37,7 @@ export const POST: APIRoute = async ({ request }) => {
     } else if (action === 'rule' && isSeriesKey(body?.keyA) && isSeriesKey(body?.keyB) && ['both', 'exclusive', 'includes'].includes(body?.choice as string)) {
       const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
       if (reason.length > REASON_MAX_LENGTH) return json({ error: `Keep the note to ${REASON_MAX_LENGTH} characters or fewer.` }, 400);
-      await setRule(body.keyA, body.keyB, body.choice as RuleChoice, reason || null);
+      await setRule(body.keyA, body.keyB, body.choice as RuleChoice, reason || null, body.countHeadcount !== false);
     } else if (action === 'choose-one' && isSeriesKey(body?.seriesKey)) {
       await makeChooseOne(body.seriesKey);
     } else {
