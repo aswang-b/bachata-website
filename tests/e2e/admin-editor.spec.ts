@@ -1,5 +1,5 @@
 import { test, expect } from './support/fixtures';
-import { db, seedEvent, sweepTestData, type Seeded } from './support/db';
+import { db, seedEvent, seedSignup, sweepTestData, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { bearer } from './support/admin';
 import type { Page } from '@playwright/test';
@@ -279,4 +279,22 @@ test.describe('Guidelines tab', () => {
     await page.locator('.admin-tab-btn[data-tab="guidelines"]').click();
     await expect(page.locator('#guidelines-editor h3')).toHaveText('Be kind');
   });
+});
+
+test("renaming a class renames its sign-ups and check-ins, so they're listed and matched under the new name", async ({ page, adminPage }) => {
+  void adminPage;
+  const own = await seedEvent({ name: 'Rename Me', dayOffset: 3 });
+  const submissionId = await seedSignup(own, [{ first: 'Renamed' }]);
+  await db.from('class_registrations').update({ class_label: `${own.title} — Thursdays, 8:00 PM` }).eq('submission_id', submissionId);
+  await db.from('class_checkins').insert({ first_name: 'ZZZRenamed', last_name: RUN_ID, phone: '5550100', class_title: own.title, event_id: own.ids[0] });
+
+  await openEditor(page, own);
+  const renamed = `${own.title} Renamed`;
+  await page.locator('#event-title').fill(renamed);
+  await save(page);
+
+  const { data: regs } = await db.from('class_registrations').select('class_title, class_label').eq('submission_id', submissionId);
+  expect(regs).toEqual([{ class_title: renamed, class_label: `${renamed} — Thursdays, 8:00 PM` }]);
+  const { data: checkins } = await db.from('class_checkins').select('class_title').eq('event_id', own.ids[0]);
+  expect(checkins).toEqual([{ class_title: renamed }]);
 });

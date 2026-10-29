@@ -603,6 +603,32 @@ export async function replaceClassRegistrations(params: {
   if (error) throw new Error(`Failed to insert class registrations: ${error.message}`);
 }
 
+// A renamed class or event: its sign-ups and check-ins take the new name, so
+// the dashboard's filters list it once and attendance (which pairs sign-ups
+// and check-ins by name) keeps them together. A sign-up's label starts with
+// the name ("Title — Mondays, 6 PM"), so that part changes too. Best effort:
+// the rename itself is already saved, so a failure is only logged.
+export async function renameSignups(seriesKey: string, eventIds: string[], oldTitle: string, newTitle: string): Promise<void> {
+  if (!oldTitle || oldTitle === newTitle) return;
+  try {
+    const { data: regs, error } = await supabase.from('class_registrations').select('id, class_label').eq('series_key', seriesKey).eq('class_title', oldTitle);
+    if (error) throw new Error(error.message);
+    await Promise.all(
+      (regs ?? []).map(async (r) => {
+        const label = r.class_label?.startsWith(oldTitle) ? newTitle + r.class_label.slice(oldTitle.length) : r.class_label;
+        const { error: updateError } = await supabase.from('class_registrations').update({ class_title: newTitle, class_label: label }).eq('id', r.id);
+        if (updateError) throw new Error(updateError.message);
+      })
+    );
+    if (eventIds.length > 0) {
+      const { error: checkinError } = await supabase.from('class_checkins').update({ class_title: newTitle }).in('event_id', eventIds).eq('class_title', oldTitle);
+      if (checkinError) throw new Error(checkinError.message);
+    }
+  } catch (err) {
+    console.error(`Failed to rename the sign-ups of "${oldTitle}" to "${newTitle}":`, err);
+  }
+}
+
 // Live rows only: ones in the Recycling Bin aren't the dancer's classes.
 export async function getClassRegistrationsForDancer(submissionId: string, dancerIndex: number | null): Promise<ClassRegistrationRow[]> {
   let query = supabase.from('class_registrations').select('*').eq('submission_id', submissionId).is('deleted_at', null);

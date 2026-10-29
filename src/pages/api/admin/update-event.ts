@@ -20,6 +20,7 @@ import { isValidEventColor } from '../../../lib/eventColors';
 import { seriesAnchorEndDate } from '../../../lib/eventTimes';
 import { zonedDateKey, zonedTimeOfDay } from '../../../lib/siteTime';
 import { applyFlyerToLinked } from '../../../lib/linksStore';
+import { renameSignups } from '../../../lib/classRegistrations';
 
 export const prerender = false;
 
@@ -124,7 +125,7 @@ const handlePost: APIRoute = async ({ request }) => {
 
   const { data: before, error: beforeError } = await supabase
     .from('events')
-    .select('visibility, google_event_id, google_recurring_event_id, flyer_url')
+    .select('title, visibility, google_event_id, google_recurring_event_id, flyer_url')
     .eq('id', id)
     .maybeSingle();
 
@@ -289,6 +290,8 @@ const handlePost: APIRoute = async ({ request }) => {
       const { error: keyError } = await supabase.rpc('remap_series_key', { p_old: before.google_recurring_event_id, p_new: createdMaster.id });
       if (keyError) console.error('Failed to move links and deals to the rebuilt series:', keyError.message);
       await shareFlyer(createdMaster.id);
+      const { data: rebuiltRows } = await supabase.from('events').select('id').eq('google_recurring_event_id', createdMaster.id);
+      await renameSignups(createdMaster.id, (rebuiltRows ?? []).map((r) => r.id), before.title, title);
     } catch (err) {
       console.error('Failed to create rebuilt series:', err);
       const message = err instanceof Error ? err.message : 'Failed to rebuild series.';
@@ -362,6 +365,7 @@ const handlePost: APIRoute = async ({ request }) => {
     }
 
     await shareFlyer(before.google_recurring_event_id);
+    await renameSignups(before.google_recurring_event_id, siblings.map((s) => s.id), before.title, title);
     return new Response(
       JSON.stringify({ ok: true, seriesCount: siblings.length, calendarSyncSkipped, calendarSyncError }),
       { status: 200 }
@@ -423,6 +427,8 @@ const handlePost: APIRoute = async ({ request }) => {
   }
 
   await shareFlyer(before.google_recurring_event_id ?? id);
+  // One class of a series renamed on its own leaves the series' sign-ups as they are.
+  if (!before.google_recurring_event_id) await renameSignups(id, [id], before.title, title);
   return new Response(JSON.stringify({ ok: true, calendarSyncSkipped, calendarSyncError }), { status: 200 });
 };
 
