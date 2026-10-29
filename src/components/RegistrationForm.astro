@@ -223,7 +223,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       <div class="flex flex-col gap-1.5">
         <span class="text-sm font-medium text-ink/80">{isEvent ? 'Events' : 'Classes'}<span class="text-accent"> *</span></span>
         <p class="text-xs text-muted">
-          {isEvent ? "Select any events you'd like to register for." : "Select any classes you'd like to register for — you can pick more than one."}
+          {isEvent ? "Select any events you'd like to register for." : "Select any classes you'd like to register for."}
         </p>
 
         {seriesList.length === 0 ? (
@@ -528,8 +528,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
             </button>
             <div class="payment-details hidden flex-col items-center gap-3 border-t border-border bg-bg p-5 text-center">
               <p class="text-xs text-ink/70">
-                Your subtotal (<span class="payment-amount font-semibold text-ink">$0</span>) is due before {isEvent ? 'the event' : 'class'}
-                begins. Scan the code below or tap to open Venmo.
+                Your subtotal (<span class="payment-amount font-semibold text-ink">$0</span>) is due before {isEvent ? 'the event begins' : 'class begins'}. Scan the code below or tap to open Venmo.
               </p>
               <p class="text-sm font-semibold text-ink">You are paying <span class="text-accent">@amumira</span></p>
               <img src="/venmo-qr.png" alt="Venmo QR code" class="h-40 w-40" />
@@ -660,8 +659,8 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
           <input type="email" class="dancer-email ${inputClass}" ${autocomplete('email')} />
         </label>
       </div>
-      <p class="text-xs text-muted">* Phone or email is required — we'll use it to reach you about ${isEvent ? '' : 'class '}changes or cancellations.</p>
-      <p class="text-xs text-muted">${isEvent ? 'Confirmations' : 'Class confirmations'} are emailed to any email address entered above — you can also print your confirmation after submitting.</p>
+      <p class="text-xs text-muted">* Either phone or email is required. We'll use it to reach you about ${isEvent ? '' : 'class '}changes, cancellations or important announcements.</p>
+      <p class="text-xs text-muted">${isEvent ? 'Confirmations' : 'Class confirmations'} are emailed to any email address entered above. You can also print your confirmation after submitting.</p>
     `;
 
     const roleButtons = Array.from(block.querySelectorAll<HTMLButtonElement>('.dancer-role-btn'));
