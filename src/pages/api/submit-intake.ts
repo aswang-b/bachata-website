@@ -196,6 +196,8 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   const guidelinesLoad = isEvent ? getCommunityGuidelines() : Promise.resolve('');
 
   let registrationRows: RegistrationRow[] = [];
+  // Linked "cannot take both" pairs taken anyway (the form warned; nothing is refused).
+  let linkWarnings: string[] = [];
   if (isRegistration) {
     const selections = resolveClassSelections(className || null, classSelectionsRaw || null);
     const selectionError = await validateClassSelections(selections);
@@ -213,6 +215,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
       return new Response('Please choose a payment method.', { status: 400 });
     }
     registrationRows = prepared.rows;
+    linkWarnings = prepared.linkWarnings;
   }
 
   // Event registrants agree to the community guidelines (when there are any).
@@ -283,6 +286,14 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     const originalId = await flagDuplicateSubmission(submissionId);
     if (originalId) {
       return redirect(`${confirmationBase}?id=${originalId}`, 303);
+    }
+
+    // For the admin to check with them, in the dashboard's Errors list.
+    for (const pair of linkWarnings) {
+      await logSiteError('link_rule', `${firstName} ${lastName} signed up for both ${pair}, which are set as "Cannot take both". Check whether they meant to.`, {
+        details: { submissionId },
+        dedupeKey: `link-rule:${submissionId}:${pair}`,
+      });
     }
   }
   const confirmationUrl = `${confirmationBase}?id=${submissionId}`;

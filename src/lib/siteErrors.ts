@@ -4,7 +4,8 @@ import { supabase } from './supabase';
 // site hit on its own, one line each, for an admin to fix or dismiss. A repeat
 // of an open error with the same dedupeKey counts on its line instead.
 
-export type SiteErrorKind = 'email_bounce' | 'google_api' | 'google_auth' | 'email_send' | 'signup_save';
+// link_rule: a sign-up took both of a "Cannot take both" pair of linked classes (not an error, a check).
+export type SiteErrorKind = 'email_bounce' | 'google_api' | 'google_auth' | 'email_send' | 'signup_save' | 'link_rule';
 
 export interface SiteError {
   id: string;

@@ -14,6 +14,7 @@ import { siteFormatter } from '../lib/siteTime';
 import { lateRegistrationCutoffIso } from '../lib/eventTimes';
 import { locationHref } from '../lib/locationLink';
 import { seriesBounds } from '../lib/flyerBlocks';
+import { rulesForSeries } from '../lib/linksStore';
 
 interface Props {
   kind?: 'class' | 'event';
@@ -178,6 +179,9 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
 // its "add this to get the deal" suggestions (the server prices the same way).
 const pageKeys = new Set(seriesList.map((s) => s.key));
 const pageDeals = activeDeals.filter((d) => d.seriesKeys.some((k) => pageKeys.has(k)));
+// Rules between linked classes on this page (linkRules.ts), for the subtotal's
+// notes; the server applies the same rules to what's saved.
+const pageLinkRules = (await rulesForSeries([...pageKeys])).filter((r) => pageKeys.has(r.from) && pageKeys.has(r.to));
 
 function formatPrice(value: number): string {
   return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
@@ -273,6 +277,8 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                         {s.spotsText}
                       </span>
                     )}
+                    {/* "Included with …" while a linked class that includes this one is picked (set by the script). */}
+                    <span class="series-included-badge hidden rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-300"></span>
                   </div>
                   <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span id={`series-sub-${s.key}`} class="text-xs text-muted">{s.subLabel}</span>
@@ -487,7 +493,10 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
         </div>
         <ul id="deal-suggestions" class="hidden flex-col gap-2 border-t border-border pt-3 text-sm" aria-label="Bundle deals you can add"></ul>
       </div>
+      {/* Linked classes: what's included with a pick (blue) and picks usually taken one or the other (amber). Never blocks submitting. */}
+      <ul id="link-notes" class="hidden flex-col gap-2 text-sm" aria-live="polite"></ul>
       <script type="application/json" id="deals-data" set:html={JSON.stringify(pageDeals).replace(/</g, '\\u003c')} />
+      <script type="application/json" id="link-rules-data" set:html={JSON.stringify(pageLinkRules).replace(/</g, '\\u003c')} />
 
       <div id="payment-section" class="flex flex-col gap-1.5">
         <span class="text-sm font-medium text-ink/80">How will you pay?<span class="text-accent"> *</span></span>
@@ -561,6 +570,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
 <script>
   import { applyDeals, suggestDeals, type Deal, type DealItem } from '../lib/deals';
+  import { reasonText, resolvePicks, type LinkRule } from '../lib/linkRules';
   import { attachEmailHint, emailsReadyToSubmit } from '../lib/emailHints';
 
   interface Dancer {
@@ -730,6 +740,79 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   const dealSuggestions = document.getElementById('deal-suggestions')!;
   const deals: Deal[] = JSON.parse(document.getElementById('deals-data')?.textContent || '[]');
 
+  // ---- Linked classes (linkRules.ts) ----
+  // A pick another pick includes is folded into it (and shown as included at
+  // $0); a "cannot take both" pair gets a warning with a one-click remove.
+  // Nothing here ever stops the form from being submitted.
+  const linkRules: LinkRule[] = JSON.parse(document.getElementById('link-rules-data')?.textContent || '[]');
+  const linkNotes = document.getElementById('link-notes')!;
+  // Takes a card's pick off without redrawing (filled in for each card below).
+  const deselectors = new Map<string, () => void>();
+  let linked: { included: Map<string, string>; warnings: LinkRule[] } = { included: new Map(), warnings: [] };
+
+  const cardOf = (key: string) => document.querySelector<HTMLElement>(`.series-item[data-key="${CSS.escape(key)}"]`);
+  const titleOf = (key: string) => cardOf(key)?.dataset.title ?? 'this class';
+
+  function applyLinkRules() {
+    if (linkRules.length === 0) return;
+    const resolved = resolvePicks([...selections.keys()], linkRules);
+    for (const f of resolved.folded) deselectors.get(f.key)?.();
+    const after = resolvePicks([...selections.keys()], linkRules);
+    linked = { included: after.included, warnings: after.warnings };
+    document.querySelectorAll<HTMLElement>('.series-item').forEach((item) => {
+      const by = linked.included.get(item.dataset.key ?? '');
+      const badge = item.querySelector<HTMLElement>('.series-included-badge');
+      if (!badge) return;
+      badge.textContent = by ? `Included with ${titleOf(by)}` : '';
+      badge.classList.toggle('hidden', !by);
+    });
+  }
+
+  // The rule that put `key` in with `by` (directly, or through something else included).
+  function includeRule(key: string, by: string): LinkRule {
+    return (
+      linkRules.find((r) => r.kind === 'includes' && r.to === key && (r.from === by || linked.included.has(r.from))) ?? {
+        from: by,
+        to: key,
+        kind: 'includes',
+        reason: null,
+      }
+    );
+  }
+
+  function renderLinkNotes() {
+    linkNotes.replaceChildren();
+    const note = (tone: 'info' | 'warn', text: string, remove?: string) => {
+      const li = document.createElement('li');
+      li.className = `link-note link-note-${tone} flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 ${tone === 'info' ? 'bg-sky-500/15 text-sky-200' : 'bg-amber-500/15 text-amber-200'}`;
+      const span = document.createElement('span');
+      span.textContent = text;
+      li.append(span);
+      if (remove) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'link-note-remove shrink-0 text-xs font-bold underline';
+        btn.textContent = `Remove ${titleOf(remove)}`;
+        btn.addEventListener('click', () => {
+          deselectors.get(remove)?.();
+          updateClassValue();
+        });
+        li.append(btn);
+      }
+      linkNotes.append(li);
+    };
+    for (const [key, by] of linked.included) note('info', reasonText(includeRule(key, by), titleOf));
+    for (const w of linked.warnings) {
+      const picked = [...selections.keys()];
+      // The later of the two picks (or the one picked, when the other came included).
+      const remove = [w.from, w.to].filter((k) => selections.has(k)).sort((a, b) => picked.indexOf(b) - picked.indexOf(a))[0];
+      note('warn', `${reasonText(w, titleOf)} Double-check before you submit.`, remove);
+    }
+    const any = linkNotes.children.length > 0;
+    linkNotes.classList.toggle('hidden', !any);
+    linkNotes.classList.toggle('flex', any);
+  }
+
   // What one dancer's picks cost before deals. A single Drop-In date never
   // counts toward a deal; an event ticket and a one-off class do.
   const selectionPrice = (sel: ClassSelection) => (sel.mode === 'dropin' ? sel.priceDropIn : sel.priceWhole);
@@ -822,6 +905,20 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
 
       line.append(what, amount);
       subtotalItems.append(line);
+
+      // What comes with it (linked classes), free.
+      for (const [included, by] of linked.included) {
+        if (by !== sel.key) continue;
+        const sub = document.createElement('li');
+        sub.className = 'included-line flex items-start justify-between gap-3 pl-3 text-xs text-muted';
+        const label = document.createElement('span');
+        label.textContent = `Includes ${titleOf(included)}`;
+        const free = document.createElement('span');
+        free.className = 'shrink-0';
+        free.textContent = '$0';
+        sub.append(label, free);
+        subtotalItems.append(sub);
+      }
     }
     // A deal that applied twice (an "any N" deal) shows once, with its total.
     const byDeal = new Map<string, number>();
@@ -881,9 +978,11 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     document.querySelectorAll('.payment-amount').forEach((el) => (el.textContent = formatPrice(total)));
     renderSubtotalItems(dancerCountNow, dealResult.applied);
     renderDealSuggestions(dancerCountNow);
+    renderLinkNotes();
   }
 
   function updateClassValue() {
+    applyLinkRules();
     const values = Array.from(selections.values());
     const parts = values.map((sel) =>
       !isEvent && (sel.isSeries || sel.dropInOnly)
@@ -969,7 +1068,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       }
     }
 
-    function deselectSeries() {
+    function deselectSeries(update = true) {
       selections.delete(key);
       toggleBtn.setAttribute('aria-pressed', 'false');
       header.classList.remove('bg-bg');
@@ -981,8 +1080,9 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
       dropinNote?.classList.add('hidden');
       showOccurrencePicker(false);
       modeRadios.forEach((r) => (r.checked = false));
-      updateClassValue();
+      if (update) updateClassValue();
     }
+    deselectors.set(key, () => deselectSeries(false));
 
     toggleBtn.addEventListener('click', () => {
       if (selections.has(key)) {

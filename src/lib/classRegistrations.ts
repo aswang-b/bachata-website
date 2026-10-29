@@ -5,6 +5,8 @@ import { buildClassSeriesList } from './classSeries';
 import { applyDeals, type Deal } from './deals';
 import { dealBundleSizes, listActiveDeals } from './dealsStore';
 import { lateRegistrationCutoffIso, registrationOpen } from './eventTimes';
+import { resolvePicks, type LinkRule } from './linkRules';
+import { rulesForSeries } from './linksStore';
 
 export interface ParsedClassSelection {
   label: string;
@@ -317,13 +319,64 @@ function buildRegistrationRows(
       deal_id: null as string | null,
       deal_name: null as string | null,
       deal_discount: null as number | null,
+      // Set by markIncluded: the series that includes this one ($0, migration 0061).
+      included_by: null as string | null,
     };
   });
 }
 
+// Linked classes (linkRules.ts) on one dancer's picks: a class another pick
+// includes is folded into it, and what a pick includes is added (priced at $0
+// by markIncluded). `included` maps each included series to the one that
+// includes it; `warnings` are "cannot take both" pairs they took anyway.
+// Never refuses anything: rules only shape what's saved.
+async function withLinkedClasses(
+  selections: ParsedClassSelection[],
+  priceMap: Map<string, ClassPriceInfo>,
+  eventType: EventType
+): Promise<{ selections: ParsedClassSelection[]; included: Map<string, string>; warnings: LinkRule[] }> {
+  const keyOf = (s: ParsedClassSelection) => priceMap.get(s.key ?? s.title)?.seriesKey;
+  const picked = selections.map(keyOf).filter((k): k is string => Boolean(k));
+  const rules = await rulesForSeries(picked);
+  if (rules.length === 0) return { selections, included: new Map(), warnings: [] };
+
+  const resolved = resolvePicks(picked, rules);
+  const folded = new Set(resolved.folded.map((f) => f.key));
+  const kept = selections.filter((s) => !folded.has(keyOf(s) ?? ''));
+  const missing = [...resolved.included.keys()].filter((k) => !priceMap.has(k));
+  if (missing.length > 0) {
+    const extra = await lookupClassPrices(missing.map((key) => ({ key, title: '', mode: 'whole' as const, label: '' })), eventType);
+    for (const [k, info] of extra) if (!priceMap.has(k)) priceMap.set(k, info);
+  }
+  // Only classes on a class sign-up and events on an event sign-up (linking never mixes them).
+  const included = new Map([...resolved.included].filter(([k]) => priceMap.get(k)?.eventType === eventType));
+  const added = [...included.keys()].map((key) => ({ key, title: priceMap.get(key)!.title, mode: 'whole' as const, label: '' }));
+  return { selections: [...kept, ...added], included, warnings: resolved.warnings };
+}
+
+// The rows of included classes: free, for every class of the series, and labeled with what includes them.
+function markIncluded<T extends ReturnType<typeof buildRegistrationRows>[number]>(rows: T[], included: Map<string, string>, priceMap: Map<string, ClassPriceInfo>): T[] {
+  for (const row of rows) {
+    const by = row.series_key ? included.get(row.series_key) : undefined;
+    if (!by) continue;
+    row.price = 0;
+    row.price_tier = null;
+    row.is_drop_in = false;
+    row.occurrence_event_id = null;
+    row.included_by = by;
+    row.class_label = `${row.class_title} — included with ${priceMap.get(by)?.title ?? 'another class'}`;
+  }
+  return rows;
+}
+
+// "Cannot take both" pairs a sign-up took anyway, as "A and B", for the admin's Errors list.
+function warningPairs(warnings: LinkRule[], priceMap: Map<string, ClassPriceInfo>): string[] {
+  return warnings.map((w) => `${priceMap.get(w.from)?.title ?? w.from} and ${priceMap.get(w.to)?.title ?? w.to}`);
+}
+
 export type RegistrationRow = Omit<ReturnType<typeof buildRegistrationRows>[number], 'submission_id'>;
 
-type DealPricedRow = Pick<RegistrationRow, 'dancer_index' | 'series_key' | 'price' | 'is_drop_in' | 'deal_id' | 'deal_name' | 'deal_discount'>;
+type DealPricedRow = Pick<RegistrationRow, 'dancer_index' | 'series_key' | 'price' | 'is_drop_in' | 'deal_id' | 'deal_name' | 'deal_discount'> & { included_by?: string | null };
 
 // Takes each dancer's bundle deals off their rows' prices (see deals.ts),
 // recording the deal on each discounted row. Rows that already carry a deal
@@ -334,7 +387,7 @@ export function applyDealsToRows<T extends DealPricedRow>(rows: T[], deals: Deal
   for (const row of rows) byDancer.set(row.dancer_index, [...(byDancer.get(row.dancer_index) ?? []), row]);
   for (const dancerRows of byDancer.values()) {
     const { discounts } = applyDeals(
-      dancerRows.map((r) => ({ key: r.series_key ?? '', price: r.price, eligible: !r.is_drop_in && Boolean(r.series_key) && !r.deal_name })),
+      dancerRows.map((r) => ({ key: r.series_key ?? '', price: r.price, eligible: !r.is_drop_in && Boolean(r.series_key) && !r.deal_name && !r.included_by })),
       deals
     );
     dancerRows.forEach((row, i) => {
@@ -407,7 +460,7 @@ export async function prepareRegistrationRows(
   selections: ParsedClassSelection[],
   eventType: EventType,
   dancers: DancerLike[]
-): Promise<{ rows: RegistrationRow[]; hasCost: boolean } | { error: ClassSelectionError }> {
+): Promise<{ rows: RegistrationRow[]; hasCost: boolean; linkWarnings: string[] } | { error: ClassSelectionError }> {
   // Independent reads, loaded together (sanitizing only touches the Drop-In
   // dates, never the keys and titles prices are looked up by).
   const [sanitized, priceMap, deals] = await Promise.all([
@@ -423,19 +476,23 @@ export async function prepareRegistrationRows(
     }
   }
 
-  const perDancer = buildRegistrationRows('', null, {}, sanitized, priceMap);
+  const linked = await withLinkedClasses(sanitized, priceMap, eventType);
+  const perDancer = markIncluded(buildRegistrationRows('', null, {}, linked.selections, priceMap), linked.included, priceMap);
   const undated = eventType === 'class' ? perDancer.find((r) => r.is_drop_in && !r.occurrence_event_id) : undefined;
   if (undated) {
     return { error: { message: `Please pick which "${undated.class_title}" class you're dropping into.`, status: 400 } };
   }
-  const unbookable = await findUnbookable(perDancer);
+  // An included class comes with its pick even if its own registration has closed.
+  const unbookable = await findUnbookable(perDancer.filter((r) => !r.included_by));
   if (unbookable) return { error: unbookable };
 
   const rows = applyDealsToRows(
-    dancers.flatMap((d, i) => buildRegistrationRows('', i, d, sanitized, priceMap).map(({ submission_id: _, ...row }) => row)),
+    dancers.flatMap((d, i) =>
+      markIncluded(buildRegistrationRows('', i, d, linked.selections, priceMap), linked.included, priceMap).map(({ submission_id: _, ...row }) => row)
+    ),
     deals
   );
-  return { rows, hasCost: rows.some((r) => (r.price ?? 0) > 0) };
+  return { rows, hasCost: rows.some((r) => (r.price ?? 0) > 0), linkWarnings: warningPairs(linked.warnings, priceMap) };
 }
 
 export function resolveClassSelections(classRaw: string | null | undefined, classSelectionsRaw: string | null | undefined): ParsedClassSelection[] {
@@ -461,15 +518,18 @@ export async function insertClassRegistrations(params: {
   const parsed = resolveClassSelections(params.classRaw, params.classSelectionsRaw);
   if (parsed.length === 0) return;
 
-  const selections = await sanitizeOccurrenceIds(parsed);
-  const priceMap = await lookupClassPrices(selections, params.eventType);
+  const sanitized = await sanitizeOccurrenceIds(parsed);
+  const priceMap = await lookupClassPrices(sanitized, params.eventType);
+  const linked = await withLinkedClasses(sanitized, priceMap, params.eventType ?? 'class');
   const recipients: DancerLike[] =
     params.dancers && params.dancers.length > 0
       ? params.dancers
       : [{ firstName: params.fallbackFirstName, lastName: params.fallbackLastName, email: params.fallbackEmail ?? undefined, phone: params.fallbackPhone ?? undefined }];
 
   const rows = applyDealsToRows(
-    recipients.flatMap((d, dancerIndex) => buildRegistrationRows(params.submissionId, params.dancers ? dancerIndex : null, d, selections, priceMap)),
+    recipients.flatMap((d, dancerIndex) =>
+      markIncluded(buildRegistrationRows(params.submissionId, params.dancers ? dancerIndex : null, d, linked.selections, priceMap), linked.included, priceMap)
+    ),
     await listActiveDeals()
   );
   if (rows.length === 0) return;
@@ -542,7 +602,7 @@ export async function replaceClassRegistrations(params: {
   // What the dancer's current classes were saved at, so unchanged ones keep it.
   let savedQuery = supabase
     .from('class_registrations')
-    .select('series_key, series_mode, occurrence_event_id, price, price_tier, deal_id, deal_name, deal_discount')
+    .select('series_key, series_mode, occurrence_event_id, price, price_tier, deal_id, deal_name, deal_discount, included_by')
     .eq('submission_id', params.submissionId)
     .is('deleted_at', null);
   savedQuery = params.dancerIndex == null ? savedQuery.is('dancer_index', null) : savedQuery.eq('dancer_index', params.dancerIndex);
@@ -558,12 +618,21 @@ export async function replaceClassRegistrations(params: {
   const parsed = resolveClassSelections(params.classRaw, params.classSelectionsRaw);
   if (parsed.length === 0) return;
 
-  const selections = await sanitizeOccurrenceIds(parsed);
-  const priceMap = await lookupClassPrices(selections, params.eventType);
-  const savedRows = (saved ?? []) as SavedPricing[];
+  const sanitized = await sanitizeOccurrenceIds(parsed);
+  const priceMap = await lookupClassPrices(sanitized, params.eventType);
+  const linked = await withLinkedClasses(sanitized, priceMap, params.eventType ?? 'class');
+  // A class that came free with another was never paid for on its own, so its
+  // $0 isn't carried over: kept on its own, it's priced as it is now.
+  const savedRows = ((saved ?? []) as (SavedPricing & { included_by: string | null })[]).filter((s) => !s.included_by);
   const [bundleSizes, activeDeals] = await Promise.all([dealBundleSizes(savedRows.flatMap((s) => (s.deal_id ? [s.deal_id] : []))), listActiveDeals()]);
+  // Included classes are marked after the carried-over prices, so one that
+  // used to be paid for on its own becomes $0 once something includes it.
   const rows = applyDealsToRows(
-    carryOverPricing(buildRegistrationRows(params.submissionId, params.dancerIndex, params.dancer, selections, priceMap), savedRows, bundleSizes),
+    markIncluded(
+      carryOverPricing(buildRegistrationRows(params.submissionId, params.dancerIndex, params.dancer, linked.selections, priceMap), savedRows, bundleSizes),
+      linked.included,
+      priceMap
+    ),
     activeDeals
   );
 

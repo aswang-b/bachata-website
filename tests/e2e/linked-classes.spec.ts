@@ -1,8 +1,10 @@
-import { test, expect } from './support/fixtures';
+import { test, expect, postForm } from './support/fixtures';
 import { db, seedEvent, seedLink, sweepTestData, testTitle, track, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { randomUUID } from 'node:crypto';
 import type { Page } from '@playwright/test';
+import { bearer } from './support/admin';
+import { confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
 
 // The editor's "Linked Classes/Events" section (src/lib/linkedClassesEditor.ts):
 // linking whole series, the shared flyer, the rules between linked pairs, and
@@ -169,4 +171,112 @@ test('a new flyer on one linked class goes on every linked class', async ({ page
 
   const { data } = await db.from('events').select('flyer_url').in('id', [...a.ids, ...b.ids]);
   expect(data!.map((r) => r.flyer_url)).toEqual([flyer('new'), flyer('new'), flyer('new')]);
+});
+
+// ---- The registration form and what's saved (classes form: no guidelines step) ----
+
+const classFields = (picks: Seeded[], first: string) => ({
+  registration_type: 'group',
+  class: picks.map((p) => p.title).join('; '),
+  payment_method: 'cash',
+  class_selections: JSON.stringify(picks.map((p) => ({ key: p.key, title: p.title, label: '', mode: 'whole' }))),
+  dancers: JSON.stringify([{ firstName: `ZZZ${first}`, lastName: RUN_ID, role: 'leader', phone: '6085550100', email: '' }]),
+});
+const savedRows = async (submissionId: string) =>
+  (await db.from('class_registrations').select('series_key, price, included_by, class_label').eq('submission_id', submissionId).is('deleted_at', null)).data ?? [];
+const submissionOf = (location: string | undefined) => new URL(location ?? '', 'http://x').searchParams.get('id')!;
+
+test('includes: picking the bigger class folds in the included one at $0, and the server saves it that way', async ({ page }) => {
+  const combo = await seedEvent({ name: 'Form Combo', priceWhole: 160, occurrences: 2, dayOffset: 60 });
+  const base = await seedEvent({ name: 'Form Base', priceWhole: 85, priceDropIn: 25, occurrences: 2, dayOffset: 60 });
+  await seedLink(combo, base, { kind: 'a_includes_b' });
+
+  await page.goto('/register');
+  await selectSeries(page, base.key);
+  await page.locator(`.series-item[data-key="${combo.key}"] .series-toggle-btn`).click();
+  // The base class was folded in: not a separate pick, shown as included, and not charged.
+  await expect(page.locator(`.series-item[data-key="${base.key}"]`)).toHaveAttribute('data-selected', 'false');
+  await expect(page.locator(`.series-item[data-key="${base.key}"] .series-included-badge`)).toHaveText(`Included with ${combo.title}`);
+  await expect(page.locator('#subtotal-value')).toHaveText('$160');
+  await expect(page.locator('.included-line')).toContainText(`Includes ${base.title}`);
+  await expect(page.locator('.link-note-info')).toHaveText(`${base.title} is included with ${combo.title}, so you won't be charged for it twice.`);
+
+  await fillDancer(page, 0, { first: 'Combo', role: 'leader' });
+  await payCash(page);
+  await submitRegistration(page);
+  await expect(page).toHaveURL(/\/register\/confirmation/);
+  const rows = await savedRows(confirmationId(page.url())!);
+  expect(rows.find((r) => r.series_key === combo.key)).toMatchObject({ price: 160, included_by: null });
+  expect(rows.find((r) => r.series_key === base.key)).toMatchObject({ price: 0, included_by: combo.key, class_label: `${base.title} — included with ${combo.title}` });
+});
+
+test('includes: a sign-up sent with both (an old tab) is saved once, the included class at $0; an admin edit follows the rule', async ({ request, admin }) => {
+  const combo = await seedEvent({ name: 'Stale Combo', priceWhole: 160, dayOffset: 61 });
+  const base = await seedEvent({ name: 'Stale Base', priceWhole: 85, dayOffset: 61 });
+  await seedLink(combo, base, { kind: 'a_includes_b' });
+
+  const res = await postForm(request, '/api/submit-intake', classFields([base, combo], 'Stale'));
+  expect(res.status()).toBe(303);
+  const submissionId = submissionOf(res.headers().location);
+  const rows = await savedRows(submissionId);
+  expect(rows).toHaveLength(2);
+  expect(rows.find((r) => r.series_key === base.key)).toMatchObject({ price: 0, included_by: combo.key });
+
+  // The admin switches the dancer to just the base class: it's paid for again, on its own.
+  const holderId = `e2e-link-${RUN_ID}`;
+  expect((await request.post('/api/admin/acquire-lock', { headers: bearer(admin), data: { resource: 'signups', holderId } })).ok()).toBe(true);
+  try {
+    const edit = await request.post('/api/admin/edit-signup', {
+      headers: bearer(admin),
+      data: {
+        action: 'update',
+        holderId,
+        submissionId,
+        dancerIndex: 0,
+        firstName: 'ZZZStale',
+        lastName: RUN_ID,
+        email: '',
+        phone: '6085550100',
+        role: 'leader',
+        paymentMethod: 'cash',
+        paid: false,
+        classSelections: [{ key: base.key, title: base.title, label: '', mode: 'whole' }],
+      },
+    });
+    expect(edit.status(), await edit.text()).toBe(200);
+  } finally {
+    await request.post('/api/admin/release-lock', { headers: bearer(admin), data: { resource: 'signups', holderId } });
+  }
+  const after = await savedRows(submissionId);
+  expect(after).toHaveLength(1);
+  expect(after[0]).toMatchObject({ series_key: base.key, price: 85, included_by: null });
+});
+
+test('cannot take both: a soft warning with a one-click remove; submitting anyway saves both and flags it for the admin', async ({ page }) => {
+  const a = await seedEvent({ name: 'Either A', priceWhole: 45, dayOffset: 62 });
+  const b = await seedEvent({ name: 'Either B', priceWhole: 45, dayOffset: 62 });
+  await seedLink(a, b, { kind: 'exclusive', reason: 'They run at the same time.' });
+
+  await page.goto('/register');
+  await selectSeries(page, a.key);
+  await selectSeries(page, b.key);
+  const warning = page.locator('.link-note-warn');
+  await expect(warning).toContainText('They run at the same time. Double-check before you submit.');
+  await warning.locator('.link-note-remove').click();
+  await expect(page.locator(`.series-item[data-key="${b.key}"]`)).toHaveAttribute('data-selected', 'false');
+  await expect(warning).toHaveCount(0);
+
+  // Picked again and submitted anyway: nothing blocks it.
+  await selectSeries(page, b.key);
+  await expect(page.locator('#subtotal-value')).toHaveText('$90');
+  await fillDancer(page, 0, { first: 'Either', role: 'follower' });
+  await payCash(page);
+  await submitRegistration(page);
+  await expect(page).toHaveURL(/\/register\/confirmation/);
+  const submissionId = confirmationId(page.url())!;
+  expect(await savedRows(submissionId)).toHaveLength(2);
+  const { data: flagged } = await db.from('site_errors').select('kind, message, status').eq('kind', 'link_rule').like('message', `%ZZZEither ${RUN_ID}%`);
+  expect(flagged).toHaveLength(1);
+  expect(flagged![0].message).toContain(a.title);
+  expect(flagged![0].message).toContain(b.title);
 });

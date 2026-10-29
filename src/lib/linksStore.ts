@@ -53,6 +53,31 @@ async function rulesAmong(keys: string[]): Promise<LinkRule[]> {
   return ((data ?? []) as LinkRuleRow[]).map(ruleFromRow);
 }
 
+// Every rule among the series linked with any of `keys`, for pricing a
+// sign-up. A failed read means no rules (logged): rules never block a sign-up.
+export async function rulesForSeries(keys: string[]): Promise<LinkRule[]> {
+  const unique = [...new Set(keys)].filter(isSeriesKey);
+  if (unique.length === 0) return [];
+  const { data: own, error } = await supabase.from('event_links').select('link_group_id').in('series_key', unique);
+  if (error) {
+    console.error('Failed to load linked classes:', error.message);
+    return [];
+  }
+  const groupIds = [...new Set((own ?? []).map((l) => l.link_group_id))];
+  if (groupIds.length === 0) return [];
+  const { data: members, error: membersError } = await supabase.from('event_links').select('series_key').in('link_group_id', groupIds);
+  if (membersError) {
+    console.error('Failed to load linked classes:', membersError.message);
+    return [];
+  }
+  try {
+    return await rulesAmong((members ?? []).map((m) => m.series_key));
+  } catch (err) {
+    console.error(err);
+    return [];
+  }
+}
+
 // One occurrence of a series, for its type, title and flyer.
 async function seriesInfo(key: string): Promise<{ title: string; eventType: string; flyerUrl: string | null } | null> {
   const { data, error } = await supabase
