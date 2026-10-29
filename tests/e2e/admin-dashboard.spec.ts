@@ -1,5 +1,5 @@
 import { test, expect } from './support/fixtures';
-import { seedEvent, seedSignup, sweepTestData, type Seeded } from './support/db';
+import { db, seedEvent, seedSignup, sweepTestData, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { bearer } from './support/admin';
 
@@ -9,6 +9,7 @@ test.afterAll(sweepTestData);
 
 let klass: Seeded;
 let event: Seeded;
+let guestSubmission: string;
 
 test.beforeAll(async () => {
   klass = await seedEvent({ name: 'Dashboard Class', occurrences: 2 });
@@ -17,7 +18,7 @@ test.beforeAll(async () => {
     { first: 'DashFollow', role: 'follower' },
   ]);
   event = await seedEvent({ name: 'Dashboard Event', type: 'event', dayOffset: 1 });
-  await seedSignup(event, [{ first: 'DashGuest' }], 'events');
+  guestSubmission = await seedSignup(event, [{ first: 'DashGuest' }], 'events');
 });
 
 test('the dashboard data lists each dancer with their role and class, and keeps events in their own tab', async ({ request, admin }) => {
@@ -41,6 +42,94 @@ test('the dashboard page loads for an admin without script errors', async ({ pag
   await page.goto('/admin/analytics');
   await expect(page.locator('body')).toContainText('ZZZDashLead', { timeout: 30_000 });
   expect(pageErrors).toEqual([]);
+});
+
+// On a phone the tables scrolled sideways, so matching an action to its
+// dancer meant reading across a row wider than the screen. Below lg each row
+// is a card: the name on top, every other column labelled beneath it.
+for (const [width, cards] of [
+  [390, true],
+  [820, true],
+  [1280, false],
+] as const) {
+  test(`the sign-ups ${cards ? 'show as cards' : 'stay a table'} at ${width}px wide`, async ({ page, adminPage }) => {
+    void adminPage;
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/admin/analytics');
+    const row = page.locator('#signups-body tr', { hasText: 'ZZZDashLead' });
+    await expect(row).toBeVisible({ timeout: 30_000 });
+    expect(await row.evaluate((tr) => getComputedStyle(tr).display)).toBe(cards ? 'flex' : 'table-row');
+    if (!cards) return;
+    // The whole card fits on screen, with nothing to scroll sideways to.
+    const box = (await row.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    // The name leads, and the other columns carry their header as a label.
+    const first = row.locator('td').first();
+    expect(await first.evaluate((td) => getComputedStyle(td, '::before').content)).toBe('none');
+    const classCell = row.locator('td[data-label="Class"]');
+    await expect(classCell).toContainText(klass.title);
+    expect(await classCell.evaluate((td) => getComputedStyle(td, '::before').content)).toBe('"Class"');
+    expect((await first.boundingBox())!.y).toBeLessThan((await classCell.boundingBox())!.y);
+  });
+}
+
+test.describe('with the Event Registration lock taken', () => {
+  // Let go of the tab's edit lock (even if the test fails), so the real
+  // dashboard isn't locked out for 10 minutes.
+  let takenLock: string | null = null;
+  test.afterAll(async () => {
+    if (takenLock) await db.from('edit_locks').delete().eq('resource', 'analytics-event-registrations').eq('locked_by', takenLock);
+  });
+
+  test("on a phone a dancer's action buttons sit beside their name, and their second event joins their card", async ({ page, adminPage }) => {
+    void adminPage;
+    const second = await seedEvent({ name: 'Dashboard Event Two', type: 'event', dayOffset: 2 });
+    const { error } = await db.from('class_registrations').insert({
+      submission_id: guestSubmission,
+      dancer_index: 0,
+      first_name: 'ZZZDashGuest',
+      last_name: RUN_ID,
+      phone: '5550100',
+      class_title: second.title,
+      class_label: second.title,
+      series_key: second.key,
+      price: 10,
+    });
+    expect(error).toBeNull();
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/admin/analytics?tab=event-registration');
+    await page.locator('.tab-btn[data-tab="event-registration"]').click();
+    await page.locator('#event-registrations-lock-btn').click();
+    await expect(page.locator('#add-event-registration-btn')).toBeVisible();
+    const { data: lock } = await db.from('edit_locks').select('locked_by').eq('resource', 'analytics-event-registrations').maybeSingle();
+    takenLock = lock?.locked_by ?? null;
+
+    const card = page.locator('#event-registrations-body tr', { hasText: 'ZZZDashGuest' });
+    const edit = card.locator('.edit-event-registration-btn');
+    await expect(edit).toBeVisible();
+    const cardBox = (await card.boundingBox())!;
+    const editBox = (await edit.boundingBox())!;
+    const nameBox = (await card.locator('td').first().boundingBox())!;
+    // Inside the card, on the name's line.
+    expect(editBox.x + editBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width);
+    expect(editBox.y + editBox.height / 2).toBeGreaterThan(nameBox.y);
+    expect(editBox.y + editBox.height / 2).toBeLessThan(nameBox.y + nameBox.height);
+    // The second event's row carries on straight below, as part of the same card.
+    const more = card.locator('xpath=following-sibling::tr[1]');
+    await expect(more).toHaveAttribute('data-card-continued', '');
+    await expect(more).toContainText(second.title);
+    expect(Math.abs((await more.boundingBox())!.y - (cardBox.y + cardBox.height))).toBeLessThan(1);
+
+    // Editing keeps Save on screen too.
+    await edit.click();
+    const save = page.locator('#event-registrations-body .save-event-registration-btn');
+    await expect(save).toBeVisible();
+    const saveBox = (await save.boundingBox())!;
+    expect(saveBox.x + saveBox.width).toBeLessThanOrEqual(390);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
 });
 
 test('the check-in QR tool makes a QR for a class', async ({ request, admin }) => {

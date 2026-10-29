@@ -27,23 +27,23 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
 
     <div id="dashboard" class="mt-8 hidden flex-col gap-6">
       <div class="themed-scrollbar flex gap-1 overflow-x-auto border-b border-border" role="tablist">
-        <button type="button" data-tab="signups" class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+        <button type="button" data-tab="signups" class="tab-btn whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Sign-Ups
         </button>
-        <button type="button" data-tab="checkins" class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+        <button type="button" data-tab="checkins" class="tab-btn whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Check-Ins
         </button>
-        <button type="button" data-tab="attendance" class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+        <button type="button" data-tab="attendance" class="tab-btn whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Attendance
         </button>
-        <button type="button" data-tab="event-registration" class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+        <button type="button" data-tab="event-registration" class="tab-btn whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Event Registration
         </button>
-        <button type="button" data-tab="recycling" class="tab-btn flex items-center gap-1.5 border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+        <button type="button" data-tab="recycling" class="tab-btn whitespace-nowrap flex items-center gap-1.5 border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Recycling Bin
           <span id="recycling-tab-count" class="hidden rounded-full bg-accent px-1.5 text-[10px] leading-4 text-white"></span>
         </button>
-        <button type="button" data-tab="errors" class="tab-btn flex items-center gap-1.5 border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
+        <button type="button" data-tab="errors" class="tab-btn whitespace-nowrap flex items-center gap-1.5 border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink">
           Errors
           <span id="errors-tab-count" class="hidden rounded-full bg-red-600 px-1.5 text-[10px] leading-4 text-white"></span>
         </button>
@@ -52,7 +52,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       <!-- ==================== SIGN-UPS TAB ==================== -->
       <section id="tab-panel-signups" class="tab-panel flex flex-col gap-6">
         <div class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-end">
-          <label class="flex flex-1 flex-col gap-1.5">
+          <label class="flex min-w-0 flex-1 flex-col gap-1.5">
             <span class="text-xs font-semibold uppercase tracking-wider text-muted">Search by dancer name</span>
             <input
               id="signups-name-search"
@@ -61,7 +61,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
               class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
             />
           </label>
-          <div class="flex flex-[2] flex-col gap-1.5">
+          <div class="flex min-w-0 flex-[2] flex-col gap-1.5">
             <span class="text-xs font-semibold uppercase tracking-wider text-muted">Filter by class</span>
             <div id="signups-class-filters" class="flex flex-col gap-2"></div>
           </div>
@@ -97,19 +97,19 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
             </button>
           </div>
 
-          <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
-            <table class="w-full min-w-[860px] text-left text-sm">
+          <div class="mt-3 overflow-x-auto rounded-2xl border border-border max-lg:overflow-visible max-lg:rounded-none max-lg:border-0">
+            <table class="card-table w-full min-w-[860px] text-left text-sm">
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="firstName">First Name</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="lastName">Last Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="firstName" data-card-title>First Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="lastName" data-card-title>Last Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="email">Contact Info</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[220px]" data-table="signups" data-column="class">Class</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="seriesSort">Series</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paymentSort">Payment</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paid">Paid</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="createdAt">Registered</th>
-                  <th class="signups-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
+                  <th data-card-actions class="signups-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
                 </tr>
               </thead>
               <tbody id="signups-body"></tbody>
@@ -123,7 +123,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       <!-- Event sign-ups only (registration type "events"): kept out of Sign-Ups and Attendance since nobody checks in to events; this tab is for tracking payment. -->
       <section id="tab-panel-event-registration" class="tab-panel hidden flex-col gap-6">
         <div class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-end">
-          <label class="flex flex-1 flex-col gap-1.5">
+          <label class="flex min-w-0 flex-1 flex-col gap-1.5">
             <span class="text-xs font-semibold uppercase tracking-wider text-muted">Search by dancer name</span>
             <input
               id="event-registrations-name-search"
@@ -132,7 +132,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
               class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
             />
           </label>
-          <label class="flex flex-1 flex-col gap-1.5">
+          <label class="flex min-w-0 flex-1 flex-col gap-1.5">
             <span class="text-xs font-semibold uppercase tracking-wider text-muted">Filter by event</span>
             <select
               id="event-registrations-event-filter"
@@ -173,18 +173,18 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
             </button>
           </div>
 
-          <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
-            <table class="w-full min-w-[760px] text-left text-sm">
+          <div class="mt-3 overflow-x-auto rounded-2xl border border-border max-lg:overflow-visible max-lg:rounded-none max-lg:border-0">
+            <table class="card-table w-full min-w-[760px] text-left text-sm">
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="firstName">First Name</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="lastName">Last Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="firstName" data-card-title>First Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="lastName" data-card-title>Last Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="email">Contact Info</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[200px]" data-table="event-registrations" data-column="class">Event</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paymentSort">Payment</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paid">Paid</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="createdAt">Registered</th>
-                  <th class="event-registrations-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
+                  <th data-card-actions class="event-registrations-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
                 </tr>
               </thead>
               <tbody id="event-registrations-body"></tbody>
@@ -197,7 +197,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       <!-- ==================== CHECK-INS TAB ==================== -->
       <section id="tab-panel-checkins" class="tab-panel hidden flex-col gap-6">
         <div class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-end">
-          <label class="flex flex-1 flex-col gap-1.5">
+          <label class="flex min-w-0 flex-1 flex-col gap-1.5">
             <span class="text-xs font-semibold uppercase tracking-wider text-muted">Search by dancer name</span>
             <input
               id="checkins-name-search"
@@ -206,7 +206,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
               class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
             />
           </label>
-          <div class="flex flex-[2] flex-col gap-1.5">
+          <div class="flex min-w-0 flex-[2] flex-col gap-1.5">
             <span class="text-xs font-semibold uppercase tracking-wider text-muted">Filter by class</span>
             <div id="checkins-class-filters" class="flex flex-col gap-2"></div>
           </div>
@@ -242,17 +242,17 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
             </button>
           </div>
 
-          <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
-            <table class="w-full min-w-[560px] text-left text-sm">
+          <div class="mt-3 overflow-x-auto rounded-2xl border border-border max-lg:overflow-visible max-lg:rounded-none max-lg:border-0">
+            <table class="card-table w-full min-w-[560px] text-left text-sm">
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="firstName">First Name</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="lastName">Last Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="firstName" data-card-title>First Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="lastName" data-card-title>Last Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="phone">Phone</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classTitle">Class</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classDate">Class Date</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="createdAt">Checked In At</th>
-                  <th class="checkins-actions-header hidden px-4 py-3">Actions</th>
+                  <th data-card-actions class="checkins-actions-header hidden px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody id="checkins-body"></tbody>
@@ -265,7 +265,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       <!-- ==================== ATTENDANCE TAB ==================== -->
       <section id="tab-panel-attendance" class="tab-panel hidden flex-col gap-6">
         <div class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-end">
-          <label class="flex flex-1 flex-col gap-1.5">
+          <label class="flex min-w-0 flex-1 flex-col gap-1.5">
             <span class="text-xs font-semibold uppercase tracking-wider text-muted">Search by dancer name</span>
             <input
               id="attendance-name-search"
@@ -274,7 +274,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
               class="rounded-xl border border-border bg-bg px-3 py-2 text-ink focus:border-accent focus:outline-none"
             />
           </label>
-          <div class="flex flex-[2] flex-col gap-1.5">
+          <div class="flex min-w-0 flex-[2] flex-col gap-1.5">
             <span class="text-xs font-semibold uppercase tracking-wider text-muted">Filter by class</span>
             <div id="attendance-class-filters" class="flex flex-col gap-2"></div>
           </div>
@@ -306,11 +306,11 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                 <h3 class="text-sm font-bold text-ink">Orphaned Sign-Ups</h3>
                 <p id="orphaned-signups-count" class="text-xs text-muted"></p>
               </div>
-              <div class="mt-2 overflow-x-auto rounded-2xl border border-border">
-                <table class="w-full min-w-[680px] text-left text-sm">
+              <div class="mt-2 overflow-x-auto rounded-2xl border border-border max-lg:overflow-visible max-lg:rounded-none max-lg:border-0">
+                <table class="card-table w-full min-w-[680px] text-left text-sm">
                   <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                     <tr>
-                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="lastName">Dancer</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="lastName" data-card-title>Dancer</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="phone">Phone</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="email">Email</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="classTitle">Class</th>
@@ -329,11 +329,11 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                 <h3 class="text-sm font-bold text-ink">Orphaned Check-Ins</h3>
                 <p id="orphaned-checkins-count" class="text-xs text-muted"></p>
               </div>
-              <div class="mt-2 overflow-x-auto rounded-2xl border border-border">
-                <table class="w-full min-w-[560px] text-left text-sm">
+              <div class="mt-2 overflow-x-auto rounded-2xl border border-border max-lg:overflow-visible max-lg:rounded-none max-lg:border-0">
+                <table class="card-table w-full min-w-[560px] text-left text-sm">
                   <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                     <tr>
-                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="last_name">Dancer</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="last_name" data-card-title>Dancer</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="phone">Phone</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="email">Email</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="class_title">Class</th>
@@ -354,11 +354,11 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
             <h2 class="font-display text-xl font-bold text-ink">Matches</h2>
             <p id="attendance-matches-count" class="text-xs text-muted"></p>
           </div>
-          <div class="mt-2 overflow-x-auto rounded-2xl border border-border">
-            <table class="w-full min-w-[880px] text-left text-sm">
+          <div class="mt-2 overflow-x-auto rounded-2xl border border-border max-lg:overflow-visible max-lg:rounded-none max-lg:border-0">
+            <table class="card-table w-full min-w-[880px] text-left text-sm">
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="lastName">Dancer</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="lastName" data-card-title>Dancer</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="phone">Phone</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="email">Email</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="classTitle">Class</th>
@@ -403,11 +403,11 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
             </button>
           </div>
 
-          <div class="mt-3 overflow-x-auto rounded-2xl border border-border">
-            <table class="w-full min-w-[760px] text-left text-sm">
+          <div class="mt-3 overflow-x-auto rounded-2xl border border-border max-lg:overflow-visible max-lg:rounded-none max-lg:border-0">
+            <table class="card-table w-full min-w-[760px] text-left text-sm">
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="name">Name</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="name" data-card-title>Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="kindLabel">What</th>
                   <th class="px-4 py-3">Class</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="deletedAt">Deleted</th>
@@ -1258,7 +1258,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
             const paymentSubtotalLabel =
               paymentLabel === '—' && entry.price == null ? '—' : `${paymentLabel}${entry.price != null ? ` — ${formatPrice(entry.price)}` : ''}`;
             return `
-          <tr class="${isFirst ? 'border-t border-border' : 'border-t-0'}">
+          <tr class="${isFirst ? 'border-t border-border' : 'border-t-0'}"${isFirst ? '' : ' data-card-continued'}>
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.firstName) : ''}</td>
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.lastName) : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? contactCell(s.email, s.phone) : ''}</td>
@@ -1563,7 +1563,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
           const paymentSubtotalLabel =
             paymentLabel === '—' && entry.price == null ? '—' : `${paymentLabel}${entry.price != null ? ` — ${formatPrice(entry.price)}` : ''}`;
           return `
-          <tr class="${isFirst ? 'border-t border-border' : 'border-t-0'}">
+          <tr class="${isFirst ? 'border-t border-border' : 'border-t-0'}"${isFirst ? '' : ' data-card-continued'}>
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.firstName) : ''}</td>
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.lastName) : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? contactCell(s.email, s.phone) : ''}</td>
@@ -2546,5 +2546,151 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     await lockControllersByTab[activeTab]?.resumeHeartbeat();
   }
 
+  // Below lg every table shows as one card per row (the style block below),
+  // each cell labelled with its column's header. The rows are rebuilt on
+  // every render, so the labels are copied over whenever a body changes.
+  document.querySelectorAll<HTMLTableElement>('table.card-table').forEach((table) => {
+    const body = table.tBodies[0];
+    const label = () => {
+      const headers = Array.from(table.tHead!.rows[0].cells);
+      for (const row of Array.from(body.rows)) {
+        Array.from(row.cells).forEach((cell, i) => {
+          const th = headers[i];
+          if (!th) return;
+          cell.dataset.label = th.textContent!.trim().replace(/ [↑↓]$/, '');
+          cell.toggleAttribute('data-card-title', th.hasAttribute('data-card-title'));
+          cell.toggleAttribute('data-card-actions', th.hasAttribute('data-card-actions'));
+        });
+      }
+    };
+    new MutationObserver(label).observe(body, { childList: true });
+    label();
+  });
+
   init();
 </script>
+
+<style is:global>
+  /* Phones and tablets: a table's rows become cards, so every action sits
+     in the same card as the dancer it acts on (no sideways scrolling). The
+     name leads the card with the edit / resend / delete icons beside it,
+     and the other columns stack beneath as label + value. A dancer's extra
+     classes (data-card-continued rows) join the card above them. The header
+     row stays as a row of sort buttons. */
+  @media (max-width: 1023.98px) {
+    table.card-table {
+      display: block;
+      min-width: 0;
+    }
+    table.card-table thead {
+      display: block;
+      border-radius: 1rem;
+    }
+    table.card-table thead tr {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.5rem 0.75rem;
+    }
+    table.card-table thead tr::before {
+      content: 'Sort by';
+      margin-right: 0.25rem;
+      text-transform: none;
+      letter-spacing: normal;
+    }
+    table.card-table thead th {
+      min-width: 0;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      border: 1px solid var(--color-border);
+      white-space: nowrap;
+    }
+    table.card-table thead th:not(.sort-header) {
+      display: none;
+    }
+    table.card-table tbody {
+      display: block;
+    }
+    table.card-table tbody tr {
+      display: flex;
+      flex-wrap: wrap;
+      column-gap: 0.35em;
+      margin-top: 0.75rem;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--color-border);
+      border-radius: 1rem;
+    }
+    table.card-table tbody tr[data-card-continued] {
+      margin-top: 0;
+      border-top: 1px dashed color-mix(in srgb, var(--color-border) 60%, transparent);
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+    }
+    table.card-table tbody tr:has(+ tr[data-card-continued]) {
+      border-bottom: 0;
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+    table.card-table tbody td {
+      display: grid;
+      grid-template-columns: 6.5rem minmax(0, 1fr);
+      gap: 0.15rem 0.75rem;
+      flex-basis: 100%;
+      padding: 0.2rem 0;
+      overflow-wrap: anywhere;
+    }
+    table.card-table tbody td::before {
+      content: attr(data-label);
+      padding-top: 0.15rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-muted);
+    }
+    /* A value in several parts (email over phone, a drop-in's date under it)
+       stays in the value column, one part per line. */
+    table.card-table tbody td > * {
+      grid-column: 2;
+    }
+    table.card-table tbody td[data-card-title] {
+      display: block;
+      flex-basis: auto;
+      padding-bottom: 0.35rem;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    table.card-table tbody td[data-card-title]::before {
+      content: none;
+    }
+    table.card-table tbody td[data-card-title] {
+      order: -2;
+    }
+    /* A shown row's action icons share the name's line, at its right (or
+       the next line, for a long name); an edit row's Save / Cancel stay at
+       the bottom, below its inputs. */
+    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] {
+      order: -1;
+      display: block;
+      flex-basis: auto;
+      margin: -0.4rem -0.4rem 0 auto;
+      padding: 0;
+    }
+    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions]::before {
+      content: none;
+    }
+    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] > div {
+      gap: 0.25rem;
+    }
+    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] button {
+      padding: 0.4rem;
+    }
+    /* Last, so it outranks the display rules above: blank cells (a dancer's
+       name on their second class, say) take no room. */
+    table.card-table tbody tr td:empty,
+    table.card-table tbody td > div:empty {
+      display: none;
+    }
+  }
+</style>

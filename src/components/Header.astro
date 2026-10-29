@@ -21,13 +21,13 @@ const isAdminPage = currentPath === '/admin';
 const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-violet-300 hover:border-violet-300/70 hover:bg-violet-300/20';
 ---
 
-<header class="border-b border-border bg-bg/90 backdrop-blur print:hidden">
+<header id="site-header" class="border-b border-border bg-bg/90 backdrop-blur print:hidden">
   <div id="header-row" class="mx-auto grid max-w-6xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 sm:gap-4 sm:px-6">
     <a href="/" class="whitespace-nowrap font-display text-lg font-extrabold tracking-tight text-ink sm:text-xl">
       Dance with <span class="text-gradient-accent inline-block align-baseline">B</span>
     </a>
 
-    <nav class="hidden items-center justify-center gap-8 md:flex">
+    <nav id="desktop-nav" class="hidden items-center justify-center gap-8 md:flex">
       {navItems.map((item) => {
         const isActive = currentPath === item.href;
         return (
@@ -132,6 +132,19 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
   </nav>
 </header>
 
+<style>
+  /* Compact (set by fitRegisterLabels): the phone layout at any width. */
+  #site-header[data-compact] #desktop-nav {
+    display: none;
+  }
+  #site-header[data-compact] #nav-toggle {
+    display: block;
+  }
+  #site-header[data-compact] #mobile-nav.flex {
+    display: flex;
+  }
+</style>
+
 <script>
   import { checkAdminSession } from '../lib/adminSession';
   import { isPreviewingAsPublic } from '../lib/previewMode';
@@ -140,8 +153,11 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
   const mobileNav = document.getElementById('mobile-nav');
 
   // Register buttons show "Register for Classes/Events" when the header row
-  // has room, and just "Classes"/"Events" when it doesn't. Re-run whenever the
-  // row's contents change (resize, or the admin links appearing).
+  // has room, and just "Classes"/"Events" when it doesn't. If even that
+  // overflows (a tablet with the admin links showing), the links move into
+  // the menu, as on a phone. Re-run whenever the row's contents change
+  // (resize, or the admin links appearing).
+  const siteHeader = document.getElementById('site-header');
   const headerRow = document.getElementById('header-row');
   const headerActions = document.getElementById('header-actions');
 
@@ -152,9 +168,15 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
 
   function fitRegisterLabels() {
     if (!headerRow || !headerActions) return;
+    const overflowing = () => headerRow.scrollWidth > headerRow.clientWidth || headerActions.scrollWidth > headerActions.clientWidth;
+    siteHeader?.toggleAttribute('data-compact', false);
     setShortLabels(false);
-    const overflowing = headerRow.scrollWidth > headerRow.clientWidth || headerActions.scrollWidth > headerActions.clientWidth;
-    if (overflowing) setShortLabels(true);
+    if (!overflowing()) return;
+    setShortLabels(true);
+    if (!overflowing()) return;
+    siteHeader?.toggleAttribute('data-compact', true);
+    setShortLabels(false);
+    if (overflowing()) setShortLabels(true);
   }
 
   if (headerRow) new ResizeObserver(fitRegisterLabels).observe(headerRow);
