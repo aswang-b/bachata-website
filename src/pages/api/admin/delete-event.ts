@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { getGoogleAccessToken, deleteCalendarEvent } from '../../../lib/googleCalendar';
+import { unlinkSeries } from '../../../lib/linksStore';
 
 export const prerender = false;
 
@@ -68,6 +69,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (deleteError) {
       return new Response(JSON.stringify({ error: 'Failed to delete series.' }), { status: 500 });
     }
+    await unlinkSeries(row.google_recurring_event_id).catch((err) => console.error(err));
 
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }
@@ -87,6 +89,8 @@ export const POST: APIRoute = async ({ request }) => {
   if (deleteError) {
     return new Response(JSON.stringify({ error: 'Failed to delete event.' }), { status: 500 });
   }
+  // A one-off's links go with it; one class of a series leaves the series linked.
+  if (!row.google_recurring_event_id) await unlinkSeries(row.id).catch((err) => console.error(err));
 
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 };

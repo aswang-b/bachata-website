@@ -87,7 +87,7 @@ describe('pulling from Google', () => {
     expect(db.current.rows('events')[0].title).toBe('Renamed');
   });
 
-  it("carries a series' site-only settings (type, prices, caps by role) onto an instance Google regenerated", async () => {
+  it("carries a series' site-only settings (type, prices, caps by role, flyer) onto an instance Google regenerated", async () => {
     const { row } = linkedPair('a', {
       google_recurring_event_id: 'R',
       price_whole_series: 80,
@@ -96,6 +96,7 @@ describe('pulling from Google', () => {
       leader_capacity: 8,
       follower_capacity: 9,
       show_capacity: true,
+      flyer_url: 'https://x/flyer.png',
     });
     db.current.seed('events', [row]);
     google.events.public = [
@@ -104,7 +105,7 @@ describe('pulling from Google', () => {
     ];
     await runCalendarSync();
     const created = db.current.rows('events').find((r) => r.google_event_id === 'g-regenerated')!;
-    expect(created).toMatchObject({ event_type: 'class', price_whole_series: 80, capacity_by_role: true, leader_capacity: 8, follower_capacity: 9, show_capacity: true });
+    expect(created).toMatchObject({ event_type: 'class', price_whole_series: 80, capacity_by_role: true, leader_capacity: 8, follower_capacity: 9, show_capacity: true, flyer_url: 'https://x/flyer.png' });
   });
 
   it('pulls an edit made on Google when Google is newer and something mirrored changed', async () => {

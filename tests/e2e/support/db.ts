@@ -112,8 +112,36 @@ export async function endTestScope(): Promise<void> {
     await db.from('intake_submissions').delete().in('id', submissionIds).like('first_name', `${TEST_PREFIX}%`);
   }
   await db.from('class_checkins').delete().in('event_id', ids).like('first_name', `${TEST_PREFIX}%`);
+  await deleteLinksFor(keys);
   const { error } = await db.from('events').delete().in('id', ids).like('title', `${TEST_PREFIX}%`);
   if (error) console.warn(`Couldn't delete a test's own classes (the file's sweep will): ${error.message}`);
+}
+
+// Links and link rules (migration 0061) are keyed by series, not by a ZZZ
+// name, so they're removed by the test classes' series keys.
+async function deleteLinksFor(keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+  const list = keys.join(',');
+  const results = await Promise.all([
+    db.from('event_link_rules').delete().or(`key_a.in.(${list}),key_b.in.(${list})`),
+    db.from('event_links').delete().in('series_key', keys),
+  ]);
+  for (const r of results) if (r.error) throw new Error(`Cleanup failed: ${r.error.message}`);
+}
+
+// Two test classes linked as whole series, optionally with a rule.
+export async function seedLink(a: Seeded, b: Seeded, rule?: { kind: 'exclusive' | 'a_includes_b' | 'b_includes_a'; reason?: string }): Promise<void> {
+  const groupId = randomUUID();
+  const { error } = await db.from('event_links').upsert([a, b].map((s) => ({ series_key: s.key, link_group_id: groupId })));
+  if (error) throw new Error(`Seeding a link failed: ${error.message}`);
+  if (!rule) return;
+  // Stored with key_a < key_b; an includes rule is given as "a includes b".
+  const swap = a.key > b.key;
+  const kind = rule.kind === 'exclusive' || !swap ? rule.kind : rule.kind === 'a_includes_b' ? 'b_includes_a' : 'a_includes_b';
+  const { error: ruleError } = await db
+    .from('event_link_rules')
+    .insert({ key_a: swap ? b.key : a.key, key_b: swap ? a.key : b.key, kind, reason: rule.reason ?? null });
+  if (ruleError) throw new Error(`Seeding a link rule failed: ${ruleError.message}`);
 }
 
 export interface SeedDancer {
@@ -196,6 +224,9 @@ export async function sweepTestData(): Promise<void> {
     db.from('email_bounces').delete().ilike('email', like),
     db.from('site_errors').delete().ilike('message', `%${TEST_PREFIX}%`),
   ]);
+  const { data: testEvents, error: testEventsError } = await db.from('events').select('id, google_recurring_event_id').like('title', like);
+  if (testEventsError) throw new Error(`Cleanup failed: ${testEventsError.message}`);
+  await deleteLinksFor([...new Set((testEvents ?? []).map((e) => (e.google_recurring_event_id as string | null) ?? (e.id as string)))]);
   // Sign-ups first: class registrations point at the events' occurrences.
   const events = await db.from('events').delete().like('title', like);
   for (const r of [...results, events]) if (r.error) throw new Error(`Cleanup failed: ${r.error.message}`);

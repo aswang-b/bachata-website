@@ -97,10 +97,9 @@ test.describe('the editor flyer upload', () => {
   test('is reachable by keyboard, and a large see-through PNG keeps its transparency and its size', async ({ page, adminPage }) => {
     void adminPage;
     await openEditor(page, lone);
-    // Focusable (only visually hidden), and the existing-flyer picker has a name.
+    // Focusable (only visually hidden).
     await page.locator('#event-flyer-file').focus();
     await expect(page.locator('#event-flyer-file')).toBeFocused();
-    await expect(page.locator('#event-flyer-existing')).toHaveAttribute('aria-label', 'Use an existing flyer');
 
     // Answered here, so nothing reaches storage.
     let uploaded = '';

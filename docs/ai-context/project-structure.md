@@ -32,7 +32,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0060); a new table must be granted to service_role in its migration (see 0045)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0061); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting)
@@ -60,6 +60,7 @@
 │   │   ├── env.ts                       # Env var access/validation
 │   │   ├── communityGuidelines.ts       # Community guidelines event registrants agree to; split into FAQ-style items for confirmations
 │   │   ├── deals.ts, dealsStore.ts      # Bundle deals: shared pricing (form + server) and the deals table
+│   │   ├── linkRules.ts, linksStore.ts, linkedClassesEditor.ts  # Linked classes/events: rules (pure), the link tables, the editor section
 │   │   ├── contactMessages.ts           # Contact form messages (own table, not sign-ups), with double-submit check
 │   │   ├── emailTypos.ts, emailHints.ts, emailDomain.ts  # Mistyped-email suggestions and domain checks on the forms
 │   │   ├── siteErrors.ts                # The dashboard's Errors workqueue: bounces, Google API errors, failed emails and sign-ups

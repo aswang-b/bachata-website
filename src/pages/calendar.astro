@@ -562,14 +562,15 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
             ['registration', 'Registration'],
             ['pricing', 'Pricing'],
             ['homepage', 'Homepage card'],
-          ].map(([id, label]) => (
+            ['linked', 'Linked Classes/Events', 'Linked'],
+          ].map(([id, label, short]) => (
             <button
               type="button"
               data-section={id}
               aria-current="false"
               class="event-nav-btn shrink-0 snap-start rounded-full border border-border px-4 py-2 text-left text-sm font-semibold text-ink/70 transition-colors aria-[current=true]:border-accent aria-[current=true]:bg-surface aria-[current=true]:text-ink md:rounded-lg md:border-transparent md:px-3 md:aria-[current=true]:border-transparent"
             >
-              <span class="block whitespace-nowrap md:whitespace-normal">{id === 'details' ? <><span class="md:hidden">Details</span><span class="hidden md:inline">{label}</span></> : label}</span>
+              <span class="block whitespace-nowrap md:whitespace-normal">{id === 'details' || short ? <><span class="md:hidden">{short ?? 'Details'}</span><span class="hidden md:inline">{label}</span></> : label}</span>
               <span data-summary={id} class="hidden truncate text-xs font-normal text-muted md:block"></span>
             </button>
           ))}
@@ -827,7 +828,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                 <p id="event-image-error" class="hidden text-xs font-semibold text-red-600"></p>
               </div>
 
-              {/* Shown whole (never cropped) on the flyer homepage. Classes on one flyer share it, so pick it again from "Use an existing flyer". */}
+              {/* Shown whole (never cropped) on the flyer homepage. Linked classes share it (see Linked Classes/Events). */}
               <div class="flex flex-col gap-2 border-t border-border pt-3">
                 <span class="text-xs font-semibold text-muted">Flyer (optional)</span>
                 <input id="event-flyer-url" type="hidden" />
@@ -840,9 +841,6 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                   </label>
                   <button type="button" id="event-flyer-remove" class="hidden text-xs font-semibold text-red-600 hover:underline">Remove</button>
                 </div>
-                <select id="event-flyer-existing" aria-label="Use an existing flyer" class="hidden rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink">
-                  <option value="">Use an existing flyer&hellip;</option>
-                </select>
                 <p id="event-flyer-error" class="hidden text-xs font-semibold text-red-600"></p>
               </div>
 
@@ -884,6 +882,31 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
               </div>
             </div>
           </details>
+
+          {/* Classes or events sold off one flyer, linked as whole series, and
+              the rule for each linked pair (src/lib/linkRules.ts). Changes here
+              save right away, not with the Save button. */}
+          <details id="sec-linked" class="event-section group/sec scroll-mt-3 rounded-2xl border border-border open:border-accent/60">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <span class="min-w-0"><span class="font-display font-bold text-ink">Linked Classes/Events</span><span data-summary="linked" class="block truncate text-xs text-muted md:hidden"></span></span>
+              <svg class="h-5 w-5 shrink-0 text-muted transition-transform group-open/sec:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+            </summary>
+            <div class="flex flex-col gap-3 border-t border-border p-4">
+              <p id="linked-intro" class="text-xs text-muted"></p>
+              <ul id="linked-list" class="flex flex-col gap-2"></ul>
+              <div id="linked-rules" class="flex flex-col gap-3"></div>
+              <div id="linked-summary" class="hidden flex-col gap-1.5 border-t border-border pt-3"></div>
+              <p id="linked-error" role="alert" class="hidden rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600"></p>
+              <div class="flex flex-wrap items-center gap-2">
+                <button type="button" id="linked-add-btn" class="rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white">
+                  + Link class/event
+                </button>
+                <button type="button" id="linked-choose-one-btn" class="hidden rounded-full border border-border px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-ink/70 transition-colors hover:bg-surface">
+                  Make these a choose-one group
+                </button>
+              </div>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -899,6 +922,36 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
           <button id="event-save" class="gradient-accent rounded-full px-5 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90">
             Save
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {/* Picks a class or event to link (one row per series). Past ones are only
+      listed once their tab is opened. */}
+  <div id="link-picker" class="fixed inset-0 z-[60] hidden items-stretch justify-center bg-black/50 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="link-picker-title">
+    <div class="flex h-full w-full flex-col bg-bg shadow-2xl sm:h-auto sm:max-h-[80vh] sm:max-w-lg sm:rounded-2xl">
+      <div class="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <h3 id="link-picker-title" class="font-display text-lg font-bold text-ink">Link a class</h3>
+        <button type="button" id="link-picker-close" aria-label="Close" class="flex h-9 w-9 items-center justify-center rounded-full text-ink/70 hover:bg-surface">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+        </button>
+      </div>
+      <div id="link-picker-browse" class="flex min-h-0 flex-1 flex-col">
+        <div role="tablist" aria-label="Which classes" class="flex gap-1 border-b border-border px-4">
+          <button type="button" role="tab" data-tab="upcoming" aria-selected="true" class="link-picker-tab border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-ink/60 aria-selected:border-accent aria-selected:text-ink">Upcoming</button>
+          <button type="button" role="tab" data-tab="past" aria-selected="false" class="link-picker-tab border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-ink/60 aria-selected:border-accent aria-selected:text-ink">Past</button>
+        </div>
+        <div class="px-4 pt-3">
+          <input id="link-picker-search" type="search" placeholder="Search by name" aria-label="Search by name" class="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none" />
+        </div>
+        <ul id="link-picker-list" class="themed-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-3"></ul>
+      </div>
+      <div id="link-picker-confirm" class="hidden flex-col gap-3 p-4">
+        <p id="link-picker-confirm-text" class="text-sm text-ink/80"></p>
+        <div class="flex justify-end gap-2">
+          <button type="button" id="link-picker-back" class="rounded-full border border-border px-4 py-2 text-sm font-semibold text-ink/70 hover:bg-surface">Back</button>
+          <button type="button" id="link-picker-confirm-btn" class="gradient-accent rounded-full px-5 py-2 text-sm font-bold text-white hover:opacity-90">Link</button>
         </div>
       </div>
     </div>
@@ -926,6 +979,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
   import { eventTypeLabel } from '../lib/classSeries';
   import { escapeAttr, locationHref } from '../lib/locationLink';
   import { installRichTextShortcuts } from '../lib/richTextShortcuts';
+  import { initLinkedEditor } from '../lib/linkedClassesEditor';
 
   installRichTextShortcuts();
 
@@ -1089,6 +1143,25 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
   let adminEventsReady: Promise<void> = Promise.resolve();
   let editingRecurringId: string | null = null;
   let originalPattern: { byDay: string[]; count: number; interval: number } | null = null;
+  // The occurrence open in the editor (null while adding), and for a "New
+  // linked class" copy, the series it gets linked to when saved.
+  let editingEvent: SiteEvent | null = null;
+  let pendingLinkTo: string | null = null;
+
+  const linkedEditor = initLinkedEditor<SiteEvent>({
+    events: () => cachedAllEvents,
+    current: () => ({ event: editingEvent, pendingLinkTo, eventType: selectedType }),
+    authHeaders: withAuthHeader,
+    openEvent: (event) => openModal('edit', event),
+    newLinked: openNewLinked,
+    flyerShared(flyerUrl, seriesKeys) {
+      const keys = new Set(seriesKeys);
+      for (const e of cachedAllEvents) if (keys.has(e.google_recurring_event_id ?? e.id)) e.flyer_url = flyerUrl;
+      flyerUrlInput.value = flyerUrl;
+      updateFlyerPreview();
+      updateEditorSummaries();
+    },
+  });
 
 
   declare const google: any;
@@ -1503,8 +1576,10 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
   }
 
   function openModal(mode: 'add' | 'edit', event?: SiteEvent, presetDate?: string) {
-    editingId = event?.id ?? null;
+    editingId = event?.id || null;
     editingRecurringId = event?.google_recurring_event_id ?? null;
+    editingEvent = mode === 'edit' ? event ?? null : null;
+    pendingLinkTo = null;
     modalHeading.textContent = mode === 'add' ? 'Add Event' : 'Edit Event';
     titleInput.value = event?.title ?? '';
     descriptionInput.innerHTML = event?.description ?? '';
@@ -1530,7 +1605,6 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     updateImagePreview();
     flyerUrlInput.value = event?.flyer_url ?? '';
     flyerError.classList.add('hidden');
-    fillExistingFlyers();
     updateFlyerPreview();
     selectedType = event?.event_type === 'event' ? 'event' : 'class';
     // A new event starts with the most recently used color.
@@ -1613,6 +1687,32 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     modal.classList.add('hidden');
     modal.classList.remove('flex');
     editingId = null;
+    editingEvent = null;
+    pendingLinkTo = null;
+  }
+
+  // "New linked class": a copy of `source` with a blank title and
+  // description, starting at its series' next class with the same pattern,
+  // linked to it when saved.
+  function openNewLinked(source: SiteEvent) {
+    const key = source.google_recurring_event_id ?? source.id;
+    const occurrences = cachedAllEvents.filter((e) => (e.google_recurring_event_id ?? e.id) === key).sort((a, b) => a.start_time.localeCompare(b.start_time));
+    const start = occurrences.find((o) => Date.parse(o.start_time) >= Date.now()) ?? source;
+    const remaining = occurrences.filter((o) => o.start_time >= start.start_time);
+    openModal('add', { ...start, id: '', title: '', description: null, google_recurring_event_id: null });
+    pendingLinkTo = key;
+    if (source.google_recurring_event_id && remaining.length > 1) {
+      repeatInput.checked = true;
+      repeatOptions.classList.remove('hidden');
+      repeatOptions.classList.add('flex');
+      selectedRepeatDays = new Set(remaining.map((o) => WEEKDAY_CODES[zonedParts(o.start_time).weekday]));
+      repeatCountInput.value = String(remaining.length);
+      renderRepeatDayButtons();
+    }
+    modalHeading.textContent = `New linked ${selectedType}`;
+    updateEditorSummaries();
+    linkedEditor.render();
+    titleInput.focus();
   }
 
   // ---- Editor sections: the section menu, summaries and status ----
@@ -1692,6 +1792,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
       registration: [registrationClosedInput.checked ? 'Closed' : 'Open', privateInput.checked ? 'Private' : '', capacityText].filter(Boolean).join(' · '),
       pricing: prices.length ? prices.join(' · ') : isEvent ? 'Free' : 'No prices',
       homepage: [imageUrlInput.value ? 'Image set' : 'No image', ...(flyerUrlInput.value ? ['flyer set'] : []), hideLessonOverviewInput.checked ? 'overview hidden' : overviewSet ? 'custom overview' : 'default overview'].join(' · '),
+      linked: linkedEditor.summary(),
     };
     document.querySelectorAll<HTMLElement>('#event-modal [data-summary]').forEach((el) => {
       el.textContent = summaries[el.dataset.summary ?? ''] ?? '';
@@ -1731,6 +1832,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     const total = editingRecurringId ? cachedAllEvents.filter((e) => e.google_recurring_event_id === editingRecurringId).length : 0;
     modalHeading.textContent =
       mode === 'add' ? 'New event' : event?.weekNumber && total > 1 ? `Edit ${typeLabel} · Week ${event.weekNumber} of ${total}` : `Edit ${typeLabel}`;
+    linkedEditor.render();
     updateEditorSummaries();
     updateSeriesBanner();
   }
@@ -1805,7 +1907,6 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
   const flyerPreview = document.getElementById('event-flyer-preview') as HTMLImageElement;
   const flyerUploadLabel = document.getElementById('event-flyer-upload-label')!;
   const flyerRemoveBtn = document.getElementById('event-flyer-remove') as HTMLButtonElement;
-  const flyerExisting = document.getElementById('event-flyer-existing') as HTMLSelectElement;
   const flyerError = document.getElementById('event-flyer-error')!;
 
   function updateFlyerPreview() {
@@ -1815,27 +1916,6 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     if (url) flyerPreview.src = url;
     else flyerPreview.removeAttribute('src');
     flyerUploadLabel.textContent = url ? 'Replace Flyer' : 'Upload Flyer';
-    flyerExisting.value = '';
-  }
-
-  // Flyers already on other classes/events, newest first, labeled by what uses them.
-  function fillExistingFlyers() {
-    const titlesByUrl = new Map<string, Set<string>>();
-    const latestByUrl = new Map<string, string>();
-    for (const e of cachedAllEvents) {
-      if (!e.flyer_url) continue;
-      titlesByUrl.set(e.flyer_url, (titlesByUrl.get(e.flyer_url) ?? new Set()).add(e.title));
-      if ((latestByUrl.get(e.flyer_url) ?? '') < e.start_time) latestByUrl.set(e.flyer_url, e.start_time);
-    }
-    const urls = [...latestByUrl.keys()].sort((a, b) => latestByUrl.get(b)!.localeCompare(latestByUrl.get(a)!));
-    flyerExisting.replaceChildren(flyerExisting.options[0]);
-    for (const url of urls) {
-      const option = document.createElement('option');
-      option.value = url;
-      option.textContent = [...titlesByUrl.get(url)!].join(' + ');
-      flyerExisting.append(option);
-    }
-    flyerExisting.classList.toggle('hidden', urls.length === 0);
   }
 
   // Flyers upload uncropped, scaled down so the long side is at most 2000px,
@@ -1887,12 +1967,6 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     } finally {
       updateFlyerPreview();
     }
-  });
-
-  flyerExisting.addEventListener('change', () => {
-    if (!flyerExisting.value) return;
-    flyerUrlInput.value = flyerExisting.value;
-    updateFlyerPreview();
   });
 
   flyerRemoveBtn.addEventListener('click', () => {
@@ -1958,6 +2032,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     btn.addEventListener('click', () => {
       selectedType = btn.dataset.type as 'class' | 'event';
       renderTypeButtons();
+      linkedEditor.render();
     })
   );
 
@@ -2199,6 +2274,8 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
       }
     }
 
+    if (!editingId && pendingLinkTo) payload.linkTo = pendingLinkTo;
+
     const endpoint = editingId ? '/api/admin/update-event' : '/api/admin/create-event';
     closeModal();
     showSync('Syncing to Google Calendar…', false);
@@ -2211,6 +2288,10 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
 
     const data = await res.json().catch(() => ({}));
 
+    if (res.ok && data.linkError) {
+      hideSync();
+      await showErrorDialog('Saved, but not linked', "The new class is saved, but it couldn't be linked. Link it from its Linked Classes/Events section.", data.linkError);
+    }
     if (res.ok && data.calendarSyncSkipped) {
       hideSync();
       await showErrorDialog(
@@ -2452,9 +2533,8 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     document.getElementById('add-event-btn')?.classList.remove('hidden');
 
     adminEventsReady = (async () => {
-      const allEventsRes = await fetch('/api/admin/all-events', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      const headers = { Authorization: `Bearer ${session.access_token}` };
+      const [allEventsRes] = await Promise.all([fetch('/api/admin/all-events', { headers }), linkedEditor.load(headers)]);
       if (allEventsRes.ok) {
         const { events } = await allEventsRes.json();
         cachedAllEvents = events;

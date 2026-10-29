@@ -16,6 +16,7 @@ import { sanitizeEventDescriptionHtml } from '../../../lib/richText';
 import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
 import { capacityColumns } from '../../../lib/capacity';
 import { isValidEventColor } from '../../../lib/eventColors';
+import { isSeriesKey, linkSeries } from '../../../lib/linksStore';
 
 export const prerender = false;
 
@@ -56,6 +57,7 @@ const handlePost: APIRoute = async ({ request }) => {
     lessonOverviewTitle,
     lessonOverviewBody,
     hideLessonOverview,
+    linkTo,
   } = body ?? {};
 
   if (!title || !startTime || !endTime) {
@@ -97,6 +99,20 @@ const handlePost: APIRoute = async ({ request }) => {
   const rowDescription = description ? sanitizeEventDescriptionHtml(description) : null;
 
   const isSeries = recurrence && Array.isArray(recurrence.byDay) && recurrence.byDay.length > 0;
+
+  // "New linked class" in the editor: the new series joins the one it was
+  // copied from. The class itself is already saved by then, so a failure
+  // here is reported, not fatal.
+  let linkError: string | null = null;
+  const linkNew = async (newKey: string) => {
+    if (!isSeriesKey(linkTo)) return;
+    try {
+      await linkSeries(linkTo, newKey);
+    } catch (err) {
+      console.error('Failed to link the new class:', err);
+      linkError = err instanceof Error ? err.message : String(err);
+    }
+  };
 
   if (isSeries) {
     // Set when the series reached Google but pulling its occurrences back
@@ -151,6 +167,7 @@ const handlePost: APIRoute = async ({ request }) => {
           ...rowCapacityColumns,
         })
         .eq('google_recurring_event_id', createdMaster.id);
+      await linkNew(createdMaster.id);
     } catch (err) {
       console.error('Failed to create recurring event:', err);
       const message = err instanceof Error ? err.message : 'Failed to create series.';
@@ -158,7 +175,7 @@ const handlePost: APIRoute = async ({ request }) => {
     }
 
     return new Response(
-      JSON.stringify({ ok: true, calendarSyncSkipped: calendarSyncError !== null, calendarSyncError }),
+      JSON.stringify({ ok: true, calendarSyncSkipped: calendarSyncError !== null, calendarSyncError, linkError }),
       { status: 200 }
     );
   }
@@ -200,6 +217,8 @@ const handlePost: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'Failed to create event.' }), { status: 500 });
   }
 
+  await linkNew(row.id);
+
   let calendarSyncError: string | null = null;
   if (rowVisibility !== 'test') try {
     const accessToken = await getGoogleAccessToken();
@@ -222,7 +241,7 @@ const handlePost: APIRoute = async ({ request }) => {
   }
 
   return new Response(
-    JSON.stringify({ ok: true, id: row.id, calendarSyncSkipped: calendarSyncError !== null, calendarSyncError }),
+    JSON.stringify({ ok: true, id: row.id, calendarSyncSkipped: calendarSyncError !== null, calendarSyncError, linkError }),
     { status: 200 }
   );
 };
