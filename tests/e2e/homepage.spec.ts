@@ -262,3 +262,41 @@ test('on a narrow phone, "Registration closed" leaves room for a three-digit pri
   expect(result?.text).toBe('Series: $160');
   expect(result!.height).toBeLessThan(result!.lineHeight * 1.5);
 });
+
+test('on a phone, letting go of a swipe on the past flyers settles with the nearest flyer centered', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  await page.goto(`${BASE_URL}/`);
+  const gallery = page.locator('#past-flyers');
+  test.skip((await gallery.count()) === 0, 'The gallery is empty right now.');
+  await gallery.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(800);
+  const box = (await gallery.boundingBox())!;
+  const y = Math.round(box.y + box.height / 2);
+  // A short, slow drag that lets go between two flyers.
+  const startLeft = await gallery.evaluate((g) => g.scrollLeft);
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y }] });
+  for (let x = 290; x >= 230; x -= 10) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
+    await page.waitForTimeout(40);
+  }
+  await page.waitForTimeout(200);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  // How far the nearest flyer is from the middle, measured with the turn of
+  // each flyer (its 3D transform) briefly switched off.
+  const offCenter = () =>
+    gallery.evaluate((g) => {
+      const middle = g.getBoundingClientRect().left + g.clientWidth / 2;
+      const flyers = [...g.querySelectorAll<HTMLElement>('[data-gallery-flyer]')];
+      const turns = flyers.map((f) => f.style.transform);
+      flyers.forEach((f) => (f.style.transform = 'none'));
+      const gap = Math.min(...flyers.map((f) => Math.abs(f.getBoundingClientRect().left + f.offsetWidth / 2 - middle)));
+      flyers.forEach((f, i) => (f.style.transform = turns[i]));
+      return gap;
+    });
+  await expect.poll(offCenter, { timeout: 5000 }).toBeLessThan(2);
+  // And it did move: the drag wasn't too short to count.
+  expect(await gallery.evaluate((g) => g.scrollLeft)).not.toBe(startLeft);
+  await ctx.close();
+});

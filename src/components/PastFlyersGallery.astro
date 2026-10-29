@@ -3,6 +3,7 @@
 // gallery (admin → Homepage), in a sideways row that turns like a cylinder as it
 // scrolls and loops forever both ways. A flyer opens full size through the
 // homepage's flyer dialog (data-flyer-open).
+// On phones a swipe settles with the nearest flyer centered (CSS scroll snap).
 interface Props {
   flyers: string[];
 }
@@ -25,7 +26,7 @@ const arrowClass =
       <button type="button" data-gallery-scroll="-1" aria-label="Scroll back" class={`${arrowClass} left-2`}>
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
       </button>
-      <div id="past-flyers" data-copies={copies} data-count={flyers.length} class="flex items-center gap-10 overflow-x-auto overscroll-x-contain py-8 [perspective:1100px] [scrollbar-width:none] sm:gap-14 [&::-webkit-scrollbar]:hidden">
+      <div id="past-flyers" data-copies={copies} data-count={flyers.length} class="flex items-center gap-10 overflow-x-auto overscroll-x-contain py-8 max-sm:snap-x max-sm:snap-mandatory [perspective:1100px] [scrollbar-width:none] sm:gap-14 [&::-webkit-scrollbar]:hidden">
         {Array.from({ length: copies }, (_, copy) =>
           flyers.map((url) => {
             // Only the middle copy is for screen readers and the keyboard; the rest are its look-alikes.
@@ -35,7 +36,7 @@ const arrowClass =
                 type="button"
                 data-flyer-open={url}
                 data-gallery-flyer
-                class="shrink-0 will-change-transform"
+                class="shrink-0 will-change-transform max-sm:snap-center"
                 aria-label={real ? 'View this past flyer full size' : undefined}
                 aria-hidden={real ? undefined : 'true'}
                 tabindex={real ? undefined : -1}
