@@ -244,3 +244,21 @@ test('on a wider screen the past flyers have arrows, and no swipe hint', async (
   test.skip((await page.locator('#past-flyers').count()) === 0, 'The gallery is empty right now.');
   await expect(page.locator('#past-flyers-hint')).toBeHidden();
 });
+
+test('on a narrow phone, "Registration closed" leaves room for a three-digit price on one line', async ({ page }) => {
+  const closed = await seedEvent({ name: 'Closed Wide Price', occurrences: 2, priceWhole: 160, registrationClosed: true, dayOffset: 43 });
+  await page.setViewportSize({ width: 352, height: 800 });
+  await page.goto('/');
+  const result = await page.evaluate((title) => {
+    const heading = [...document.querySelectorAll('main h3, main h4, main p, main span')].find((el) => el.textContent?.trim() === title);
+    let row: Element | null = null;
+    for (let el = heading?.parentElement; el && !row; el = el.parentElement) {
+      row = [...el.querySelectorAll('span')].find((s) => /^registration closed$/i.test(s.textContent?.trim() ?? ''))?.parentElement ?? null;
+    }
+    const price = row?.querySelector('p > span');
+    if (!price) return null;
+    return { text: price.textContent?.replace(/\s+/g, ' ').trim(), height: price.getBoundingClientRect().height, lineHeight: parseFloat(getComputedStyle(price).lineHeight) };
+  }, closed.title);
+  expect(result?.text).toBe('Series: $160');
+  expect(result!.height).toBeLessThan(result!.lineHeight * 1.5);
+});
