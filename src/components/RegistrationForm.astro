@@ -761,8 +761,13 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   // Nothing here ever stops the form from being submitted.
   const linkRules: LinkRule[] = JSON.parse(document.getElementById('link-rules-data')?.textContent || '[]');
   const linkNotes = document.getElementById('link-notes')!;
-  // Takes a card's pick off without redrawing (filled in for each card below).
+  // Takes a card's pick off, or puts a kept one back, without redrawing (filled in for each card below).
   const deselectors = new Map<string, () => void>();
+  const restorers = new Map<string, (sel: ClassSelection) => void>();
+  // Picks folded into another pick, kept as they were (Drop-In date and all),
+  // so one comes back once nothing covers it: the bigger class switched to a
+  // Drop-In on another day, or taken off.
+  const foldedAway = new Map<string, ClassSelection>();
   let linked: { included: Map<string, string>; warnings: LinkRule[] } = { included: new Map(), warnings: [] };
 
   // Linked classes that aren't on this page (past or closed), by name.
@@ -771,8 +776,7 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   const titleOf = (key: string) => cardOf(key)?.dataset.title ?? linkTitles[key] ?? 'this class';
 
   // What a pick covers (linkRules.PickScope): a whole series, or its Drop-In's day.
-  function scopeOf(key: string): PickScope {
-    const sel = selections.get(key);
+  function scopeOf(key: string, sel = selections.get(key)): PickScope {
     if (!sel || sel.mode !== 'dropin') return null;
     const occurrences: { id: string; day: string }[] = JSON.parse(cardOf(key)?.dataset.occurrences ?? '[]');
     return occurrences.find((o) => o.id === sel.occurrenceEventId)?.day ?? '';
@@ -781,7 +785,22 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   function applyLinkRules() {
     if (linkRules.length === 0) return;
     const resolved = resolvePicks([...selections.keys()], linkRules, scopeOf);
-    for (const f of resolved.folded) deselectors.get(f.key)?.();
+    for (const f of resolved.folded) {
+      const sel = selections.get(f.key);
+      if (sel) foldedAway.set(f.key, { ...sel });
+      deselectors.get(f.key)?.();
+    }
+    for (const [key, kept] of foldedAway) {
+      if (selections.has(key)) {
+        foldedAway.delete(key);
+        continue;
+      }
+      // Would it still be folded in if it were picked again as it was?
+      const stillCovered = resolvePicks([...selections.keys(), key], linkRules, (k) => (k === key ? scopeOf(k, kept) : scopeOf(k))).folded.some((f) => f.key === key);
+      if (stillCovered) continue;
+      foldedAway.delete(key);
+      restorers.get(key)?.(kept);
+    }
     const after = resolvePicks([...selections.keys()], linkRules, scopeOf);
     linked = { included: after.included, warnings: after.warnings };
     document.querySelectorAll<HTMLElement>('.series-item').forEach((item) => {
@@ -1109,33 +1128,43 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
     }
     deselectors.set(key, () => deselectSeries(false));
 
+    // Shows the card as picked with this selection (its option and, for a Drop-In, its date).
+    function showSelected(sel: ClassSelection, dropinNoteShown: boolean) {
+      selections.set(key, sel);
+      modeRadios.forEach((r) => (r.checked = r.value === sel.mode));
+      toggleBtn.setAttribute('aria-pressed', 'true');
+      header.classList.add('bg-bg');
+      item.dataset.selected = 'true';
+      subchoice?.classList.remove('hidden');
+      subchoice?.classList.add('flex');
+      details?.classList.remove('hidden');
+      details?.classList.add('flex');
+      dropinNote?.classList.toggle('hidden', !dropinNoteShown);
+      // A drop-in-only series still needs to know which class they're dropping into.
+      showOccurrencePicker(sel.mode === 'dropin' && isSeries);
+      occurrenceButtons.forEach((b) => markOccurrence(b, Boolean(sel.occurrenceEventId) && b.dataset.eventId === sel.occurrenceEventId));
+    }
+    restorers.set(key, (sel) => showSelected({ ...sel }, sel.mode === 'dropin'));
+
     toggleBtn.addEventListener('click', () => {
       if (selections.has(key)) {
         deselectSeries();
       } else {
         const startMode = dropInOnly || wholeFull ? 'dropin' : 'whole';
-        modeRadios.forEach((r) => (r.checked = r.value === startMode));
-        selections.set(key, {
-          key,
-          title,
-          subLabel,
-          isSeries,
-          dropInOnly,
-          mode: startMode,
-          priceWhole,
-          priceDropIn,
-          occurrenceEventId: dropInOnly ? singleOccurrenceId : null,
-        });
-        toggleBtn.setAttribute('aria-pressed', 'true');
-        header.classList.add('bg-bg');
-        item.dataset.selected = 'true';
-        subchoice?.classList.remove('hidden');
-        subchoice?.classList.add('flex');
-        details?.classList.remove('hidden');
-        details?.classList.add('flex');
-        dropinNote?.classList.toggle('hidden', !wholeFull);
-        // A drop-in-only series still needs to know which class they're dropping into.
-        showOccurrencePicker(startMode === 'dropin' && isSeries);
+        showSelected(
+          {
+            key,
+            title,
+            subLabel,
+            isSeries,
+            dropInOnly,
+            mode: startMode,
+            priceWhole,
+            priceDropIn,
+            occurrenceEventId: dropInOnly ? singleOccurrenceId : null,
+          },
+          wholeFull
+        );
         updateClassValue();
       }
     });

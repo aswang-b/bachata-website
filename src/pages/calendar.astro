@@ -2396,7 +2396,21 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
 
   // Save: just the open tab. While other tabs have unsaved changes the editor
   // stays open for them; otherwise it closes and the page reloads.
-  document.getElementById('event-save')?.addEventListener('click', async () => {
+  // One save at a time: another click while one runs (and the editor reloads
+  // after it) does nothing, so a quick second Save can't go to a class the
+  // first one replaced.
+  let saving = false;
+  const oneSaveAtATime = (run: () => Promise<void>) => async () => {
+    if (saving) return;
+    saving = true;
+    try {
+      await run();
+    } finally {
+      saving = false;
+    }
+  };
+
+  document.getElementById('event-save')?.addEventListener('click', oneSaveAtATime(async () => {
     const headers = await withAuthHeader();
     if (!headers) return;
     const req = buildSaveRequest();
@@ -2413,10 +2427,11 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
       await finishSaves([{ title: req.title, data: result.data }]);
       return;
     }
+    // Shown until the editor has reloaded what's saved.
     showSync('Saving…', false);
     const result = await sendSave(req, headers);
-    hideSync();
     if (!result.ok) {
+      hideSync();
       await showErrorDialog('Save failed', `The server returned ${result.status}.`, result.data.error ?? 'unknown error');
       return;
     }
@@ -2427,11 +2442,11 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     editorTabs[activeTab].draft = null;
     showTab(activeTab);
     showSync('Saved', true);
-  });
+  }));
 
   // Save all: every tab with changes, one after another. One that can't be
   // saved stops there, on its tab, with the ones before it saved.
-  document.getElementById('event-save-all')?.addEventListener('click', async () => {
+  document.getElementById('event-save-all')?.addEventListener('click', oneSaveAtATime(async () => {
     const headers = await withAuthHeader();
     if (!headers) return;
     stashActiveDraft();
@@ -2459,7 +2474,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     }
     closeModal();
     if (saved.length > 0) await finishSaves(saved);
-  });
+  }));
 
   // Some tabs saved before one couldn't be: they show what's now saved, and
   // the open tab keeps what's being fixed.

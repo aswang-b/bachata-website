@@ -578,3 +578,94 @@ test('the Event Registration tab\'s "+N from" leaves out an including event that
   // The later event doesn't overlap the gala, so nothing counts toward it: it isn't even offered as a filter.
   await expect(page.locator('#event-registrations-event-filter option', { hasText: later.title })).toHaveCount(0);
 });
+
+// A save that changes a series' repeat pattern rebuilds it on Google: its
+// classes are replaced by new ones under a new series key, and its links move
+// with it (update-event.ts). Google is off for the test server, so the test
+// does the database half of a rebuild itself and answers the save as the
+// server would; what's checked is the editor following the rebuilt series.
+test('after a save rebuilds a series, its tab follows the new series: still linked, and the next save goes to a new class', async ({ page, adminPage }) => {
+  void adminPage;
+  const a = await seedEvent({ name: 'Rebuild A', occurrences: 2, dayOffset: 90 });
+  const b = await seedEvent({ name: 'Rebuild B', occurrences: 2, dayOffset: 90 });
+  await seedLink(a, b);
+
+  const newKey = `zzz-e2e-series-${randomUUID()}`;
+  const newIds: string[] = [];
+  const savedIds: string[] = [];
+  await page.route('**/api/admin/update-event', async (route) => {
+    const body = route.request().postDataJSON();
+    savedIds.push(body.id);
+    if (savedIds.length > 1) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, calendarSyncSkipped: false }) });
+      return;
+    }
+    // The rebuild: A's classes replaced by new ones under a new key, links moved.
+    const { data: old } = await db.from('events').select('*').in('id', a.ids);
+    const { data: rebuilt } = await db
+      .from('events')
+      .insert(old!.map(({ id: _id, created_at: _c, updated_at: _u, ...row }) => ({ ...row, google_recurring_event_id: newKey, google_event_id: `zzz-e2e-${randomUUID()}` })))
+      .select('id');
+    newIds.push(...rebuilt!.map((r) => r.id as string));
+    track({ title: a.title, key: newKey, ids: newIds });
+    await db.from('events').delete().in('id', a.ids);
+    await db.rpc('remap_series_key', { p_old: a.key, p_new: newKey });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, rebuilt: true, seriesKey: newKey, calendarSyncSkipped: false }) });
+  });
+
+  await openEditor(page, a);
+  // A change waiting on B keeps the editor open after A's save.
+  await tab(page, b).click();
+  await page.locator('#event-location').fill('ZZZ Rebuild Hall');
+  await tab(page, a).click();
+  await page.locator('#event-location').fill('ZZZ Rebuilt Studio');
+  // A quick second click while it saves (and the editor reloads) does nothing.
+  await page.locator('#event-save').click();
+  await page.locator('#event-save').click();
+  await expect(page.locator('#sync-indicator-text')).toHaveText('Saved');
+  expect(savedIds).toHaveLength(1);
+  expect(newIds).toHaveLength(2);
+  await expect(page.locator('#event-modal')).toBeVisible();
+  await expect(tab(page, a)).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#event-title')).toHaveValue(a.title);
+  // Still linked: B's tab is there and keeps its change.
+  await expect(page.locator('.event-tab')).toHaveCount(2);
+  await expect(tab(page, b).locator('.event-tab-dot')).toBeVisible();
+  await page.locator('.event-nav-btn[data-section="linked"]').click();
+  await expect(page.locator('#linked-list')).toContainText(b.title);
+
+  // The next save of A is of one of its new classes, not a deleted one.
+  await page.locator('#event-location').fill('ZZZ Rebuilt Studio 2');
+  await page.locator('#event-save').click();
+  await expect.poll(() => savedIds.length).toBe(2);
+  expect(newIds).toContain(savedIds[1]);
+  expect(a.ids).not.toContain(savedIds[1]);
+});
+
+test('includes: a pick folded into the bigger class comes back as it was once the bigger class stops covering it', async ({ page }) => {
+  const combo = await seedEvent({ name: 'Back Combo', priceWhole: 160, priceDropIn: 45, occurrences: 2, dayOffset: 66 });
+  const base = await seedEvent({ name: 'Back Base', priceWhole: 85, priceDropIn: 25, occurrences: 2, dayOffset: 66 });
+  await seedLink(combo, base, { kind: 'a_includes_b' });
+  const baseCard = page.locator(`.series-item[data-key="${base.key}"]`);
+  const comboCard = page.locator(`.series-item[data-key="${combo.key}"]`);
+
+  await page.goto('/register');
+  await selectSeries(page, base.key);
+  await selectSeries(page, combo.key);
+  await expect(baseCard).toHaveAttribute('data-selected', 'false');
+  await expect(page.locator('#subtotal-value')).toHaveText('$160');
+
+  // The bigger class becomes one Drop-In: the base series is no longer covered, so it's back.
+  await comboCard.locator('.series-mode-radio[value="dropin"]').click();
+  await comboCard.locator('.occurrence-btn').first().click();
+  await expect(baseCard).toHaveAttribute('data-selected', 'true');
+  await expect(baseCard.locator('.series-mode-radio[value="whole"]')).toBeChecked();
+  await expect(page.locator('#subtotal-value')).toHaveText('$130');
+
+  // Back to the whole bigger series: folded in again. Taking the bigger class off brings it back again.
+  await comboCard.locator('.series-mode-radio[value="whole"]').click();
+  await expect(baseCard).toHaveAttribute('data-selected', 'false');
+  await comboCard.locator('.series-toggle-btn').click();
+  await expect(baseCard).toHaveAttribute('data-selected', 'true');
+  await expect(page.locator('#subtotal-value')).toHaveText('$85');
+});
