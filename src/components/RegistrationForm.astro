@@ -306,9 +306,9 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                           target="_blank"
                           rel="noopener noreferrer"
                           onclick="event.stopPropagation()"
-                          class="text-xs font-semibold text-accent"
+                          class="pin-link text-xs font-semibold text-accent"
                         >
-                          <Fragment set:html={PIN_SVG} /> <span class="underline">{s.location}</span>
+                          <Fragment set:html={PIN_SVG} /><span class="underline">{s.location}</span>
                         </a>
                       </>
                     )}

@@ -316,10 +316,10 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                               href={locationHref(event.location)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              class="pointer-events-auto mt-1 block text-xs font-semibold text-accent"
+                              class="pin-link pointer-events-auto mt-1 block text-xs font-semibold text-accent"
                               onclick="event.stopPropagation()"
                             >
-                              <Fragment set:html={PIN_SVG} /> <span class="underline">{event.location}</span>
+                              <Fragment set:html={PIN_SVG} /><span class="underline">{event.location}</span>
                             </a>
                           )}
                         </div>
@@ -362,7 +362,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
               href="#"
               target="_blank"
               rel="noopener noreferrer"
-              class="hidden text-sm font-semibold text-accent"
+              class="pin-link hidden text-sm font-semibold text-accent"
             ></a>
             <div class="mt-1 flex flex-wrap items-center gap-2">
               <a
@@ -440,8 +440,8 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                     <>
                       {' '}
                       &middot;{' '}
-                      <a href={locationHref(event.location)} target="_blank" rel="noopener noreferrer" class="text-accent">
-                        <Fragment set:html={PIN_SVG} /> <span class="underline">{event.location}</span>
+                      <a href={locationHref(event.location)} target="_blank" rel="noopener noreferrer" class="pin-link text-accent">
+                        <Fragment set:html={PIN_SVG} /><span class="underline">{event.location}</span>
                       </a>
                     </>
                   )}
@@ -1581,14 +1581,14 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
 
     if (event.location) {
       detailLocation.href = locationHref(event.location);
-      // Only the location name is underlined, not the pin or the space after it.
+      // Only the location name is underlined, not the pin.
       const pin = document.createElement('span');
       pin.setAttribute('aria-hidden', 'true');
       pin.innerHTML = PIN_SVG;
       const label = document.createElement('span');
       label.className = 'underline';
       label.textContent = event.location;
-      detailLocation.replaceChildren(pin, ' ', label);
+      detailLocation.replaceChildren(pin, label);
       detailLocation.classList.remove('hidden');
     } else {
       detailLocation.classList.add('hidden');
@@ -2669,7 +2669,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
           ${spotsText(event) ? `<p class="mt-1 text-xs font-bold text-accent">${spotsText(event)}</p>` : ''}
           ${
             event.location
-              ? `<a href="${escapeAttr(locationHref(event.location))}" target="_blank" rel="noopener noreferrer" class="pointer-events-auto mt-1 block text-xs font-semibold text-accent" onclick="event.stopPropagation()">${PIN_SVG} <span class="underline">${escapeHtml(event.location)}</span></a>`
+              ? `<a href="${escapeAttr(locationHref(event.location))}" target="_blank" rel="noopener noreferrer" class="pin-link pointer-events-auto mt-1 block text-xs font-semibold text-accent" onclick="event.stopPropagation()">${PIN_SVG}<span class="underline">${escapeHtml(event.location)}</span></a>`
               : ''
           }
         </div>

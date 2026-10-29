@@ -200,8 +200,8 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                           {adminOnly && <span data-admin-spots-key={o.key} class="ml-2 hidden rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent"></span>}
                         </p>
                         {o.location && (
-                          <a href={locationHref(o.location)} target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-semibold text-accent hover:opacity-80">
-                            <Fragment set:html={PIN_SVG} /> <span class="underline underline-offset-2">{o.location}</span>
+                          <a href={locationHref(o.location)} target="_blank" rel="noopener noreferrer" class="pin-link mt-1 text-sm font-semibold text-accent hover:opacity-80">
+                            <Fragment set:html={PIN_SVG} /><span class="underline underline-offset-2">{o.location}</span>
                           </a>
                         )}
 

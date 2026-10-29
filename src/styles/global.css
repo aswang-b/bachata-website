@@ -72,3 +72,15 @@ body {
 .text-gradient-accent {
   color: var(--color-accent);
 }
+
+/* A location with its pin (lib/locationPin.ts): the pin hangs to the left, so
+   a name that wraps lines up under its first word, not under the pin. The
+   indent is the pin's width plus its gap (0.625em + 0.3em). In the components
+   layer so a link's own block / hidden classes still win. */
+@layer components {
+  .pin-link {
+    display: inline-block;
+    padding-left: 0.925em;
+    text-indent: -0.925em;
+  }
+}

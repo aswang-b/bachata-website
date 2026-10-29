@@ -182,3 +182,14 @@ for (const width of [390, 1280]) {
     else expect(width).toBeGreaterThan(400);
   });
 }
+
+test("a location that wraps lines up its second line under the first word, not under the pin", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/register');
+  const link = page.locator(`.series-item[data-key="${series.key}"] a.pin-link`).first();
+  // Narrow enough to wrap the test studio's name.
+  await link.evaluate((a) => ((a as HTMLElement).style.maxWidth = '6em'));
+  const lines = await link.evaluate((a) => Array.from(a.querySelector('span')!.getClientRects()).map((r) => r.left));
+  expect(lines.length).toBeGreaterThan(1);
+  expect(Math.abs(lines[1] - lines[0])).toBeLessThan(1);
+});
