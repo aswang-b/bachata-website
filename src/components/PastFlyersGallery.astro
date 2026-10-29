@@ -49,7 +49,12 @@ const arrowClass =
       {/* Phones only (where the arrows are hidden): a hint that the row scrolls, gone after the first swipe. */}
       <div id="past-flyers-hint" aria-hidden="true" class="pointer-events-none absolute inset-x-0 bottom-14 z-[210] flex justify-center transition-opacity duration-500 sm:hidden">
         <div class="flex items-center gap-2 rounded-full bg-black/55 px-4 py-2 text-sm font-semibold text-white shadow-md backdrop-blur">
-          <svg class="swipe-hint-hand h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8" /><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" /></svg>
+          <span class="relative h-6 w-10 shrink-0">
+            <span class="swipe-hint-gesture absolute left-0 top-0 h-6 w-6">
+              <span class="swipe-hint-trail absolute left-[7px] top-[1px] h-[3px] rounded-full bg-linear-to-r from-white/80 to-white/0"></span>
+              <svg class="relative h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 14a8 8 0 0 1-8 8" /><path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2" /><path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1" /><path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10" /><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" /></svg>
+            </span>
+          </span>
           Swipe to see more
         </div>
       </div>
@@ -61,21 +66,47 @@ const arrowClass =
 )}
 
 <style>
-  /* The hand glides side to side, like a swipe. */
-  .swipe-hint-hand {
-    animation: swipe-hint 1.6s ease-in-out infinite;
+  /* One finger swipes right to left, leaving a short trail, then fades and
+     starts again. The trail grows as far as the finger moves, so its far end
+     stays where the swipe began. */
+  .swipe-hint-gesture {
+    animation: swipe-hint-finger 1.8s ease-out infinite;
   }
-  @keyframes swipe-hint {
-    0%,
-    100% {
-      transform: translateX(6px);
+  .swipe-hint-trail {
+    animation: swipe-hint-trail 1.8s ease-out infinite;
+  }
+  @keyframes swipe-hint-finger {
+    0% {
+      transform: translateX(16px);
+      opacity: 0;
     }
-    50% {
-      transform: translateX(-6px);
+    8% {
+      transform: translateX(16px);
+      opacity: 1;
+    }
+    55% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    80%,
+    100% {
+      transform: translateX(0);
+      opacity: 0;
+    }
+  }
+  @keyframes swipe-hint-trail {
+    0%,
+    8% {
+      width: 0;
+    }
+    55%,
+    100% {
+      width: 16px;
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .swipe-hint-hand {
+    .swipe-hint-gesture,
+    .swipe-hint-trail {
       animation: none;
     }
   }
