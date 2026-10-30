@@ -110,32 +110,15 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
   image={shareImage}
   structuredData={structuredData}
 >
-  {/* The deal icons a price shows beside it on a phone, drawn once and reused: a bird with a clock (Early Bird) and a price tag with a lightning bolt (Flash Sale). */}
+  {/* The deal icons a price shows beside it on a phone, drawn once and reused: a clock (Early Bird) and a lightning bolt (Flash Sale). */}
   <svg width="0" height="0" class="absolute" aria-hidden="true">
-    <defs>
-      <mask id="early-bird-gap">
-        <rect width="24" height="24" fill="#fff" />
-        <circle cx="17.6" cy="17.6" r="6" fill="#000" />
-        <circle cx="15.9" cy="6.4" r=".85" fill="#000" />
-      </mask>
-      <symbol id="icon-early-bird" viewBox="0 0 24 24">
-        <g mask="url(#early-bird-gap)" fill="currentColor">
-          <path d="M22 6.4l-2.8-.5C18.5 4.7 17.3 4 15.8 4c-2.5 0-4.4 1.9-4.8 4.4l-.9 4.2C7.3 13.7 4.6 15.4 2 17.8c1.7-.4 3.2-.4 4.6 0l-.6 2.6 3.4-2.4c2.9.4 5.9-.5 8-2.6 2-2 3.1-4.6 3.1-7.2z" />
-          <path d="M2.6 4.6c3.1.2 6 .9 8.6 2.2l-1.3 4.8C6 10.6 3.6 8.4 2.6 4.6z" />
-        </g>
-        <circle cx="17.6" cy="17.6" r="4.3" fill="none" stroke="currentColor" stroke-width="1.6" />
-        <path d="M17.6 15.5v2.3l1.6 1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-      </symbol>
-      <mask id="flash-sale-gap">
-        <rect width="24" height="24" fill="#fff" />
-        <path d="M13.6 7.4 8.2 12.4h3.1l-1.9 4.4 5.4-5h-3.1z" fill="#000" />
-      </mask>
-      <symbol id="icon-flash-sale" viewBox="0 0 24 24">
-        <g mask="url(#flash-sale-gap)">
-          <path transform="rotate(-45 12 12)" fill="currentColor" d="M2.5 12 8.4 5.6H20a1.6 1.6 0 0 1 1.6 1.6v9.6a1.6 1.6 0 0 1-1.6 1.6H8.4z" />
-        </g>
-      </symbol>
-    </defs>
+    <symbol id="icon-early-bird" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </symbol>
+    <symbol id="icon-flash-sale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round">
+      <path d="M13.5 2.5 5 13.5h6.5l-1 8 8.5-11h-6.5z" />
+    </symbol>
   </svg>
   <section class="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
     {/* For search engines and screen readers only; the page itself leads with the flyers. */}
@@ -243,13 +226,12 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                                   {p.label}:{' '}
                                   {p.was != null && <s class="text-muted">{formatPrice(p.was)}</s>}{' '}
                                   <strong class="font-bold">{formatPrice(p.price)}</strong>{p.suffix}
-                                  {/* A pill wider up; on a phone, where a pill wrapped onto two lines, an icon. */}
+                                  {/* A pill wider up; on a phone, where a pill wrapped onto two lines, an icon in a little tinted circle. */}
                                   {p.tag && <span data-price-tag class:list={[PRICE_TAG, 'ml-1 hidden -translate-y-px align-middle sm:inline-flex']}>{p.tag}</span>}
                                   {p.tag && (
-                                    <svg data-price-icon role="img" aria-label={p.tag} class="ml-1 inline-block h-[18px] w-[18px] -translate-y-px align-middle text-accent sm:hidden">
-                                      <title>{p.tag}</title>
-                                      <use href={p.tag === 'Flash Sale' ? '#icon-flash-sale' : '#icon-early-bird'} />
-                                    </svg>
+                                    <span data-price-icon role="img" aria-label={p.tag} title={p.tag} class="ml-1 inline-flex h-5 w-5 -translate-y-px items-center justify-center rounded-full bg-accent/15 align-middle text-accent sm:hidden">
+                                      <svg class="h-3 w-3" aria-hidden="true"><use href={p.tag === 'Flash Sale' ? '#icon-flash-sale' : '#icon-early-bird'} /></svg>
+                                    </span>
                                   )}
                                 </span>
                               ))}
