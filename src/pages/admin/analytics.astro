@@ -182,7 +182,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="email">Contact Info</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[200px]" data-table="event-registrations" data-column="class" data-card-default>Event</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paymentSort" data-card-inline>Payment</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paid" data-card-inline="lead">Paid</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paid" data-card-inline="end">Paid</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="createdAt">Registered</th>
                   <th data-card-actions class="event-registrations-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
                 </tr>
@@ -408,11 +408,11 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="name" data-card-title>Name</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="kindLabel" data-card-default>What</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="kindLabel" data-card-inline>What</th>
                   <th class="px-4 py-3">Class</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="deletedAt" data-card-default>Deleted</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="deletedAt">Deleted</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="deletedBy">By</th>
-                  <th data-card-actions class="px-4 py-3">Restore</th>
+                  <th data-card-actions="top" class="px-4 py-3">Restore</th>
                 </tr>
               </thead>
               <tbody id="recycling-body"></tbody>
@@ -1145,7 +1145,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
         <td class="px-2 py-2 signup-class-cell">${signupClassPickerHtml(originalClass)}${existingDropInDatesHtml(s.classRegistrations)}</td>
         <td class="px-2 py-2">${s.dancerIndex != null ? roleSelectHtml(s.role ?? '') : '<span class="text-xs text-muted">—</span>'}</td>
         <td class="px-2 py-2 payment-select-cell">${paymentSelectHtml(s.paymentMethod ?? null)}</td>
-        <td class="px-2 py-2"><input type="checkbox" class="edit-input paid h-4 w-4" ${s.paid ? 'checked' : ''} /></td>
+        <td class="px-2 py-2"><input type="checkbox" role="switch" aria-label="Paid" class="edit-input paid paid-toggle" ${s.paid ? 'checked' : ''} /></td>
         <td class="px-2 py-2 text-xs text-muted">—</td>
         <td class="px-2 py-2">
           <div class="flex gap-2">
@@ -1273,7 +1273,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                 : ''
             }</td>
             <td class="px-4 py-2.5 text-ink/70">${paymentSubtotalLabel}</td>
-            <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" class="paid-checkbox h-4 w-4" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
+            <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" role="switch" aria-label="Paid" class="paid-checkbox paid-toggle" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? dateFormatter.format(new Date(s.createdAt)) : ''}</td>
             ${
               isLockedByMe
@@ -1527,7 +1527,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
           ${mode === 'edit' ? `<p class="mt-1 w-48 truncate text-[10px] text-muted" title="${escapeAttr(current)}">Current: ${escapeHtml(current || '—')}</p>` : ''}
         </td>
         <td class="px-2 py-2 payment-select-cell">${paymentSelectHtml(s.paymentMethod ?? null)}</td>
-        <td class="px-2 py-2"><input type="checkbox" class="edit-input paid h-4 w-4" ${s.paid ? 'checked' : ''} /></td>
+        <td class="px-2 py-2"><input type="checkbox" role="switch" aria-label="Paid" class="edit-input paid paid-toggle" ${s.paid ? 'checked' : ''} /></td>
         <td class="px-2 py-2 text-xs text-muted">—</td>
         <td class="px-2 py-2">
           <div class="flex gap-2">
@@ -1573,7 +1573,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? contactCell(s.email, s.phone) : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.classTitle || '—')}</td>
             <td class="px-4 py-2.5 text-ink/70">${paymentSubtotalLabel}</td>
-            <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" class="event-paid-checkbox h-4 w-4" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
+            <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" role="switch" aria-label="Paid" class="event-paid-checkbox paid-toggle" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? dateFormatter.format(new Date(s.createdAt)) : ''}</td>
             ${
               isLockedByMe
@@ -2552,9 +2552,10 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
 
   // Below lg every table shows as a list of compact rows (the style block
   // below): a paid dot or attendance mark, the name (and any data-card-inline
-  // columns, like a sign-up's type of registration; "lead" ones first), then
-  // a line of the fields the admin picked ("Fields on each row", remembered per table in
-  // this browser) with the row's action icons at its end. Tapping a row
+  // columns, like a sign-up's type of registration; an "end" one sits at the
+  // line's right), then a line of the fields the admin picked ("Fields on each row", remembered per table in
+  // this browser) with the row's action icons at its end (or on the first
+  // line, for data-card-actions="top"). Tapping a row
   // opens every column, labelled. The rows are
   // rebuilt on every render, so they're marked up again whenever a body
   // changes (or a Paid box is ticked, for the dot).
@@ -2586,7 +2587,9 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
           if (!th) return;
           cell.dataset.label = nameOf(th);
           cell.toggleAttribute('data-card-title', th.hasAttribute('data-card-title'));
-          cell.toggleAttribute('data-card-actions', th.hasAttribute('data-card-actions'));
+          const actions = th.getAttribute('data-card-actions');
+          if (actions === null) cell.removeAttribute('data-card-actions');
+          else cell.setAttribute('data-card-actions', actions);
           const inline = th.getAttribute('data-card-inline');
           if (inline === null) cell.removeAttribute('data-card-inline');
           else cell.setAttribute('data-card-inline', inline);
@@ -2661,6 +2664,32 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
 </script>
 
 <style is:global>
+  /* The Paid boxes, at every width: a switch whose knob shows a red ✗
+     (unpaid, left) or a green ✓ (paid, right). Still a checkbox underneath,
+     so ticking and the lock work as before. */
+  .paid-toggle {
+    appearance: none;
+    flex: none;
+    width: 2.5rem;
+    height: 1.375rem;
+    margin: 0;
+    border-radius: 9999px;
+    background: no-repeat center / 100% 100%
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 22'%3E%3Crect width='40' height='22' rx='11' fill='%23dc2626' fill-opacity='.25'/%3E%3Ccircle cx='11' cy='11' r='9' fill='%23dc2626'/%3E%3Cpath d='M7.5 7.5l7 7m0-7l-7 7' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+    vertical-align: middle;
+    cursor: pointer;
+  }
+  .paid-toggle:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 22'%3E%3Crect width='40' height='22' rx='11' fill='%2316a34a' fill-opacity='.25'/%3E%3Ccircle cx='29' cy='11' r='9' fill='%2316a34a'/%3E%3Cpath d='M24.8 11.2l2.9 2.9 5.5-5.6' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+  .paid-toggle:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  .paid-toggle:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
   /* Phones and tablets (see the script above): each row is compact, a paid
      dot, the name, and a line of the chosen fields ending in the action icons,
      opening to every column, labelled. A dancer's extra classes
@@ -2786,6 +2815,9 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       margin: -0.4rem -0.4rem -0.4rem auto;
       padding: 0;
     }
+    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions][data-card-actions='top'] {
+      order: -2;
+    }
     table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] > div {
       gap: 0.25rem;
     }
@@ -2793,7 +2825,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       padding: 0.4rem;
     }
     /* Shut: inline columns follow the name, small, giving way (cut short)
-       before the action icons would have to drop to a line of their own... */
+       rather than pushing what ends the line onto a line of its own... */
     table.card-table tbody tr:not([data-card-open]) > td[data-card-inline] {
       order: -3;
       flex: 1 1 0;
@@ -2806,16 +2838,19 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    table.card-table tbody tr:not([data-card-open]) > td[data-card-inline='lead'] {
-      order: -4;
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-inline='end'] {
+      order: -2;
       flex: none;
+      max-width: none;
+      margin-left: auto;
       overflow: visible;
-      padding-left: 0.35rem;
+      padding-left: 0.5rem;
     }
-    table.card-table tbody tr:not([data-card-open]) > td[data-card-inline='lead'] input {
-      vertical-align: -0.15em;
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-inline='end'] input {
+      display: inline-block;
+      vertical-align: middle;
     }
-    table.card-table tbody tr:not([data-card-open]) > td[data-card-inline] * {
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-inline] *:not(.paid-toggle) {
       display: inline;
       margin: 0;
     }

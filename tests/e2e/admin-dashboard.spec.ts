@@ -146,21 +146,30 @@ test.describe('with the Event Registration lock taken', () => {
     expect(editBox.x + editBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width);
     expect(editBox.x).toBeGreaterThan(eventBox.x + eventBox.width - 1);
     expect(Math.abs(editBox.y + editBox.height / 2 - (eventBox.y + eventBox.height / 2))).toBeLessThan(5);
-    // The Paid box (for a quick tick) and then the payment follow the name on its line; the event is below.
+    // The payment follows the name on its line, with the Paid switch at the line's far right; the event is below.
     const midY = (b: { y: number; height: number }) => b.y + b.height / 2;
     const paidBox = (await card.locator('.event-paid-checkbox').boundingBox())!;
     const paymentBox = (await card.locator('td[data-label="Payment"]').boundingBox())!;
     expect(Math.abs(midY(paidBox) - midY(nameBox))).toBeLessThan(5);
     expect(Math.abs(midY(paymentBox) - midY(nameBox))).toBeLessThan(5);
-    expect(paidBox.x).toBeGreaterThan(nameBox.x + nameBox.width - 1);
-    expect(paidBox.x + paidBox.width).toBeLessThanOrEqual(paymentBox.x);
+    expect(paymentBox.x).toBeGreaterThan(nameBox.x + nameBox.width - 1);
+    expect(paidBox.x).toBeGreaterThanOrEqual(paymentBox.x + paymentBox.width);
+    expect(cardBox.x + cardBox.width - (paidBox.x + paidBox.width)).toBeLessThan(20);
     expect((await card.locator('td[data-label="Event"]').boundingBox())!.y).toBeGreaterThan(nameBox.y + nameBox.height - 1);
-    await expect(card.locator('.event-paid-checkbox')).toBeEnabled();
+    // It's a switch (✗ / ✓) that marks the registration paid straight from the row.
+    const paidSwitch = card.getByRole('switch', { name: 'Paid' });
+    await expect(paidSwitch).not.toBeChecked();
+    await page.evaluate(() => document.getElementById('cookie-consent')?.remove());
+    await paidSwitch.click();
+    await expect(paidSwitch).toBeChecked();
+    await expect(paidSwitch).toBeEnabled();
+    await expect.poll(async () => (await db.from('intake_submissions').select('paid').eq('id', guestSubmission).single()).data?.paid).toBe(true);
     // The second event's row carries on straight below, as part of the same card.
     const more = card.locator('xpath=following-sibling::tr[1]');
     await expect(more).toHaveAttribute('data-card-continued', '');
     await expect(more).toContainText(second.title);
-    expect(Math.abs((await more.boundingBox())!.y - (cardBox.y + cardBox.height))).toBeLessThan(1);
+    const cardNow = (await card.boundingBox())!;
+    expect(Math.abs((await more.boundingBox())!.y - (cardNow.y + cardNow.height))).toBeLessThan(1);
 
     // Editing keeps Save on screen too.
     await edit.click();
