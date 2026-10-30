@@ -212,12 +212,6 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                         <div class="mt-2 flex items-center justify-between gap-2 sm:gap-3">
                           {prices.length > 0 ? (
                             <p class="flex min-w-0 flex-1 flex-col gap-y-0.5 text-sm text-ink sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-1">
-                              {/* On a phone the deal tags sit once above the prices, as plain text rather than pills wrapping beside them; wider up each price keeps its pill. */}
-                              {tags.length > 0 && (
-                                <span data-price-tags class="flex flex-wrap gap-x-3 text-[10px] font-bold uppercase leading-4 tracking-wider text-accent sm:hidden">
-                                  {tags.map((tag) => <span>{tag}</span>)}
-                                </span>
-                              )}
                               {prices.map((p) => (
                                 <span>
                                   {p.label}:{' '}
@@ -232,7 +226,15 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                           {o.registrationClosed || full ? (
                             <span class="shrink-0 rounded-full bg-border px-3 py-2 text-xs font-bold uppercase tracking-normal text-ink/60 sm:px-5 sm:tracking-wider">{o.registrationClosed ? 'Registration closed' : 'Full'}</span>
                           ) : (
-                            <a href={registerHref(o)} class="gradient-accent shrink-0 rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Register</a>
+                            <div class="flex shrink-0 flex-col items-center gap-1">
+                              <a href={registerHref(o)} class="gradient-accent rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Register</a>
+                              {/* On a phone the deal tags sit once under Register, as plain text rather than pills wrapping beside the prices; wider up each price keeps its pill. */}
+                              {tags.length > 0 && (
+                                <span data-price-tags class="flex flex-wrap justify-center gap-x-3 text-[10px] font-bold uppercase leading-4 tracking-wider text-accent sm:hidden">
+                                  {tags.map((tag) => <span>{tag}</span>)}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
 

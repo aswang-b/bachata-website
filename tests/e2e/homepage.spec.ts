@@ -63,7 +63,7 @@ test('classes sharing a flyer form one block, each with its own tags, prices and
   expect(pageErrors).toEqual([]);
 });
 
-test('a deal tag sits once above the prices on a phone as plain text, and beside its price, centered, wider up', async ({ page }) => {
+test('a deal tag sits once under Register on a phone as plain text, and beside its price, centered, wider up', async ({ page }) => {
   // On a phone a pill beside the price wrapped onto two lines.
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto('/');
@@ -73,10 +73,12 @@ test('a deal tag sits once above the prices on a phone as plain text, and beside
   // Plain text there, not a pill.
   await expect(tags).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(s.locator('[data-price-tag]')).toBeHidden();
-  const price = s.locator('p > span', { hasText: 'Series:' });
-  const [tagBox, priceBox] = [await tags.boundingBox(), await price.boundingBox()];
+  const register = s.locator('a', { hasText: 'Register' });
+  const [tagBox, registerBox] = [await tags.boundingBox(), await register.boundingBox()];
   expect(tagBox!.height).toBeLessThan(24);
-  expect(tagBox!.y + tagBox!.height).toBeLessThanOrEqual(priceBox!.y + 1);
+  expect(tagBox!.y).toBeGreaterThanOrEqual(registerBox!.y + registerBox!.height);
+  expect(tagBox!.x).toBeGreaterThanOrEqual(registerBox!.x - 1);
+  expect(tagBox!.x + tagBox!.width).toBeLessThanOrEqual(registerBox!.x + registerBox!.width + 1);
 
   // Wider up the pill is on the price's line, its middle level with the price's capitals.
   await page.setViewportSize({ width: 1280, height: 800 });
