@@ -510,10 +510,10 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
   window.addEventListener('resize', queueMeasure);
   measurePreviews();
 
-  // A deal's bubble (when it ends) opens on hover where there's a mouse, and on
-  // a tap or keyboard focus anywhere. It's nudged sideways to stay inside its
-  // flyer block, its arrow still pointing at the deal; tapping anywhere else,
-  // or Escape, closes it.
+  // A deal's bubble (when it ends) opens on hover where there's a mouse, on a
+  // tap where there isn't, and on keyboard focus. It's nudged sideways to stay
+  // inside its flyer block (again if the window changes), its arrow still
+  // pointing at the deal; tapping anywhere else, or Escape, closes it.
   const deals = Array.from(document.querySelectorAll<HTMLElement>('[data-deal]'));
   const fitBubble = (deal: HTMLElement) => {
     const bubble = deal.querySelector<HTMLElement>('[data-deal-bubble]')!;
@@ -525,12 +525,17 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
     bubble.style.marginLeft = `${shift}px`;
     arrow.style.marginLeft = `${-shift}px`;
   };
+  const hover = window.matchMedia('(hover: hover)');
   const closeDeals = () => deals.forEach((deal) => delete deal.dataset.open);
   for (const deal of deals) {
     deal.addEventListener('pointerenter', () => fitBubble(deal));
     deal.addEventListener('focus', () => fitBubble(deal));
+    // Escape hides a focused deal's bubble until focus leaves it.
+    deal.addEventListener('blur', () => delete deal.dataset.dismissed);
     deal.addEventListener('click', (event) => {
       event.stopPropagation();
+      // With a mouse the bubble follows the pointer, so a click doesn't pin it open.
+      if (hover.matches) return;
       const open = deal.dataset.open === undefined;
       closeDeals();
       if (open) {
@@ -540,12 +545,18 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
     });
   }
   document.addEventListener('click', closeDeals);
-  document.addEventListener('keydown', (event) => event.key === 'Escape' && closeDeals());
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    closeDeals();
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && focused.matches('[data-deal]')) focused.dataset.dismissed = '';
+  });
+  window.addEventListener('resize', () => deals.filter((deal) => deal.dataset.open !== undefined || deal.matches(':focus-visible')).forEach(fitBubble));
 </script>
 
 <style>
   [data-deal][data-open] [data-deal-bubble],
-  [data-deal]:focus-visible [data-deal-bubble] {
+  [data-deal]:focus-visible:not([data-dismissed]) [data-deal-bubble] {
     visibility: visible;
     opacity: 1;
     translate: -50% 0;

@@ -63,11 +63,12 @@ test('classes sharing a flyer form one block, each with its own tags, prices and
   expect(pageErrors).toEqual([]);
 });
 
-test('a deal shows its icon beside its price (and wider up when it ends), with the full end in a bubble on tap or hover', async ({ page }) => {
+test('a deal shows its icon beside its price (and wider up when it ends), with the full end in a bubble on tap or hover', async ({ page, browser }) => {
   // On a phone a pill beside the price wrapped onto two lines; now it's an icon, and a tap shows when the deal ends.
-  await page.setViewportSize({ width: 390, height: 800 });
-  await page.goto('/');
-  const s = row(page, series);
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const tapPage = await phone.newPage();
+  await tapPage.goto(`${BASE_URL}/`);
+  const s = row(tapPage, series);
   const deal = s.locator('[data-deal]');
   const bubble = deal.locator('[data-deal-bubble]');
   await expect(deal).toHaveCount(1);
@@ -81,25 +82,48 @@ test('a deal shows its icon beside its price (and wider up when it ends), with t
   expect(dealBox!.y + dealBox!.height).toBeLessThanOrEqual(priceBox!.y + priceBox!.height + 1);
 
   await expect(bubble).toBeHidden();
-  await deal.click();
+  await deal.tap();
   await expect(bubble).toBeVisible();
   await expect(bubble).toContainText('Early Bird');
   await expect(bubble).toContainText(/Ends [A-Z][a-z]{2} \d{1,2} at \d{1,2}:\d\d [AP]M/);
-  // It stays inside the flyer block.
-  const [bubbleBox, blockBox] = [await bubble.boundingBox(), await block(page, series).boundingBox()];
-  expect(bubbleBox!.x).toBeGreaterThanOrEqual(blockBox!.x);
-  expect(bubbleBox!.x + bubbleBox!.width).toBeLessThanOrEqual(blockBox!.x + blockBox!.width);
+  // It stays inside the flyer block, also once the screen changes size while it's open.
+  const inside = async () => {
+    const [bubbleBox, blockBox] = [await bubble.boundingBox(), await block(tapPage, series).boundingBox()];
+    return bubbleBox!.x >= blockBox!.x && bubbleBox!.x + bubbleBox!.width <= blockBox!.x + blockBox!.width;
+  };
+  expect(await inside()).toBe(true);
+  await tapPage.setViewportSize({ width: 330, height: 844 });
+  await expect(bubble).toBeVisible();
+  await expect.poll(inside).toBe(true);
   // Tapping anywhere else closes it.
-  await s.locator('h3').click();
+  await s.locator('h3').tap();
   await expect(bubble).toBeHidden();
+  await phone.close();
 
   // Wider up the note says when it ends (seeded 30 days out), and hovering shows the bubble.
   await page.setViewportSize({ width: 1280, height: 800 });
-  await expect(deal.locator('[data-deal-note]')).toHaveText(/^ends [A-Z][a-z]{2} \d{1,2}$/);
-  await deal.hover();
-  await expect(bubble).toBeVisible();
+  await page.goto('/');
+  const wideDeal = row(page, series).locator('[data-deal]');
+  const wideBubble = wideDeal.locator('[data-deal-bubble]');
+  await expect(wideDeal.locator('[data-deal-note]')).toHaveText(/^ends [A-Z][a-z]{2} \d{1,2}$/);
+  await wideDeal.hover();
+  await expect(wideBubble).toBeVisible();
   await page.mouse.move(0, 0);
-  await expect(bubble).toBeHidden();
+  await expect(wideBubble).toBeHidden();
+  // A click with the mouse doesn't pin it open once the pointer leaves.
+  await wideDeal.click();
+  await page.mouse.move(0, 0);
+  await expect(wideBubble).toBeHidden();
+  // From the keyboard it shows on focus, and Escape hides it until focus comes back.
+  await page.keyboard.press('Shift');
+  await wideDeal.focus();
+  await expect(wideBubble).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(wideBubble).toBeHidden();
+  await wideDeal.blur();
+  await page.keyboard.press('Shift');
+  await wideDeal.focus();
+  await expect(wideBubble).toBeVisible();
 });
 
 test('a lone class shows its details beside the flyer, and the flyer opens full size', async ({ page }) => {
@@ -424,4 +448,78 @@ test('on a phone, a quick flick of the past flyers glides on and settles centere
   expect(travelled).toBeGreaterThan(20);
   expect(travelled).toBeLessThan(copy - 20);
   await ctx.close();
+});
+
+// The past flyers' phone gestures, in a touch phone context with the gallery in view.
+async function phoneGallery(browser: import('@playwright/test').Browser, options: { reducedMotion?: 'reduce' } = {}) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, ...options });
+  const page = await ctx.newPage();
+  await page.goto(`${BASE_URL}/`);
+  const gallery = page.locator('#past-flyers');
+  const empty = (await gallery.count()) === 0;
+  if (!empty) {
+    await gallery.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(800);
+  }
+  const box = empty ? null : await gallery.boundingBox();
+  const y = box ? Math.round(box.y + box.height / 2) : 0;
+  const cdp = await ctx.newCDPSession(page);
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x?: number) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: x == null ? [] : [{ x, y }] });
+  const flick = async () => {
+    await touch('touchStart', 320);
+    for (let x = 300; x >= 220; x -= 20) {
+      await touch('touchMove', x);
+      await page.waitForTimeout(10);
+    }
+    await touch('touchEnd');
+  };
+  // How far the nearest flyer is from the middle, with the flyers' turn briefly switched off.
+  const offCenter = () =>
+    gallery.evaluate((g) => {
+      const middle = g.getBoundingClientRect().left + g.clientWidth / 2;
+      const flyers = [...g.querySelectorAll<HTMLElement>('[data-gallery-flyer]')];
+      const turns = flyers.map((f) => f.style.transform);
+      flyers.forEach((f) => (f.style.transform = 'none'));
+      const gap = Math.min(...flyers.map((f) => Math.abs(f.getBoundingClientRect().left + f.offsetWidth / 2 - middle)));
+      flyers.forEach((f, i) => (f.style.transform = turns[i]));
+      return gap;
+    });
+  return { ctx, page, gallery, touch, flick, offCenter, empty };
+}
+
+test('on a phone, a tap that catches the past flyers mid-glide settles them centered and opens nothing', async ({ browser }) => {
+  const g = await phoneGallery(browser);
+  test.skip(g.empty, 'The gallery is empty right now.');
+  await g.flick();
+  await g.page.waitForTimeout(80);
+  await g.touch('touchStart', 200);
+  await g.touch('touchEnd');
+  await expect.poll(g.offCenter, { timeout: 5000 }).toBeLessThan(2);
+  expect(await g.page.locator('#flyer-dialog').evaluate((d) => (d as HTMLDialogElement).open)).toBe(false);
+  await g.ctx.close();
+});
+
+test('on a phone, the past flyers start following the finger without a jump', async ({ browser }) => {
+  const g = await phoneGallery(browser);
+  test.skip(g.empty, 'The gallery is empty right now.');
+  const before = await g.gallery.evaluate((el) => el.scrollLeft);
+  await g.touch('touchStart', 300);
+  await g.touch('touchMove', 290);
+  await g.touch('touchMove', 288);
+  // 12px of finger, the first 10 before the drag counts: the row moves by the rest, not all 12.
+  const moved = (await g.gallery.evaluate((el) => el.scrollLeft)) - before;
+  expect(moved).toBeGreaterThan(0);
+  expect(moved).toBeLessThan(6);
+  await g.touch('touchEnd');
+  await g.ctx.close();
+});
+
+test('on a phone with reduced motion, a flick of the past flyers settles at once', async ({ browser }) => {
+  const g = await phoneGallery(browser, { reducedMotion: 'reduce' });
+  test.skip(g.empty, 'The gallery is empty right now.');
+  await g.flick();
+  await g.page.waitForTimeout(60);
+  expect(await g.offCenter()).toBeLessThan(2);
+  await g.ctx.close();
 });

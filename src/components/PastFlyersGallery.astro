@@ -255,9 +255,10 @@ const arrowClass =
     // Phones: the row follows the finger itself (rather than scroll snapping,
     // which on some phones waits for the coast to stop and then jumps). Let
     // go, it glides on as far as the flick would carry it and eases to a stop
-    // with the nearest flyer centered.
-    const phone = window.matchMedia('(max-width: 639.98px)');
-    let drag: { id: number; x: number; left: number; moved: boolean; samples: { t: number; x: number }[] } | null = null;
+    // with the nearest flyer centered (at once, for reduced motion). Phones
+    // are where the arrows aren't: below `wide`.
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let drag: { id: number; x: number; left: number; moved: boolean; caught: boolean; samples: { t: number; x: number }[] } | null = null;
     let glide = 0;
     let dragged = false;
     const settleAt = (left: number) => {
@@ -267,6 +268,10 @@ const arrowClass =
       );
       const from = gallery.scrollLeft;
       const to = nearest.offsetLeft + nearest.offsetWidth / 2 - gallery.clientWidth / 2;
+      if (reducedMotion.matches) {
+        gallery.scrollLeft = to;
+        return;
+      }
       const duration = Math.min(900, Math.max(300, 250 + Math.abs(to - from) * 0.6));
       const start = performance.now();
       const step = (now: number) => {
@@ -277,26 +282,36 @@ const arrowClass =
       glide = requestAnimationFrame(step);
     };
     gallery.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'touch' || !phone.matches) return;
+      if (e.pointerType !== 'touch' || wide.matches) return;
+      // A finger put down mid-glide catches the row.
+      const caught = glide !== 0;
       cancelAnimationFrame(glide);
-      drag = { id: e.pointerId, x: e.clientX, left: gallery.scrollLeft, moved: false, samples: [{ t: e.timeStamp, x: e.clientX }] };
+      glide = 0;
+      drag = { id: e.pointerId, x: e.clientX, left: gallery.scrollLeft, moved: false, caught, samples: [{ t: e.timeStamp, x: e.clientX }] };
     });
     gallery.addEventListener('pointermove', (e) => {
       if (!drag || e.pointerId !== drag.id) return;
       const dx = e.clientX - drag.x;
       if (!drag.moved && Math.abs(dx) < 8) return;
       if (!drag.moved) {
+        // The row moves from here on, without first jumping by the threshold.
         drag.moved = true;
+        drag.x = e.clientX;
         gallery.setPointerCapture(e.pointerId);
       }
-      gallery.scrollLeft = drag.left - dx;
+      gallery.scrollLeft = drag.left - (e.clientX - drag.x);
       drag.samples.push({ t: e.timeStamp, x: e.clientX });
       if (drag.samples.length > 6) drag.samples.shift();
     });
     const release = (e: PointerEvent) => {
       if (!drag || e.pointerId !== drag.id) return;
-      const { moved, samples } = drag;
+      const { moved, caught, samples } = drag;
       drag = null;
+      // A tap that caught the glide settles where it stopped, and doesn't open a flyer.
+      if (!moved && caught) {
+        dragged = true;
+        settleAt(gallery.scrollLeft);
+      }
       if (!moved) return;
       dragged = true;
       // The finger's speed over its last tenth of a second (none if it had stopped).
@@ -308,7 +323,7 @@ const arrowClass =
     };
     gallery.addEventListener('pointerup', release);
     gallery.addEventListener('pointercancel', release);
-    // A drag that ends on a flyer doesn't open it.
+    // A drag (or a catch) that ends on a flyer doesn't open it.
     gallery.addEventListener(
       'click',
       (e) => {
