@@ -63,6 +63,36 @@ test('classes sharing a flyer form one block, each with its own tags, prices and
   expect(pageErrors).toEqual([]);
 });
 
+test('a deal tag sits once above the prices on a phone, and beside its price, centered, wider up', async ({ page }) => {
+  // On a phone a pill beside the price wrapped onto two lines.
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto('/');
+  const s = row(page, series);
+  const tags = s.locator('[data-price-tags]');
+  await expect(tags).toHaveText('Early Bird');
+  await expect(s.locator('[data-price-tag]')).toBeHidden();
+  const price = s.locator('p > span', { hasText: 'Series:' });
+  const [tagBox, priceBox] = [await tags.boundingBox(), await price.boundingBox()];
+  expect(tagBox!.height).toBeLessThan(24);
+  expect(tagBox!.y + tagBox!.height).toBeLessThanOrEqual(priceBox!.y + 1);
+
+  // Wider up the pill is on the price's line, its middle level with the price's capitals.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(tags).toBeHidden();
+  const offset = await s.locator('[data-price-tag]').evaluate((pill) => {
+    const amount = pill.parentElement!.querySelector('strong')!;
+    const probe = document.createElement('span');
+    probe.style.cssText = 'display:inline-block;width:0;height:0';
+    amount.after(probe);
+    const baseline = probe.getBoundingClientRect().top;
+    probe.remove();
+    const capMiddle = baseline - (0.72 * parseFloat(getComputedStyle(amount).fontSize)) / 2;
+    const r = pill.getBoundingClientRect();
+    return (r.top + r.bottom) / 2 - capMiddle;
+  });
+  expect(Math.abs(offset)).toBeLessThan(1);
+});
+
 test('a lone class shows its details beside the flyer, and the flyer opens full size', async ({ page }) => {
   await page.goto('/');
   const b = block(page, lone);

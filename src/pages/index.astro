@@ -99,6 +99,8 @@ const typeLabel = (o: ClassSeriesEntry) => (o.eventType === 'event' ? '' : o.isS
 const fullOccurrences = new Set([...spotsByOccurrence].filter(([, s]) => s.full).map(([id]) => id));
 const structuredData = eventSchemas(events ?? [], now, fullOccurrences);
 const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyerUrl ?? undefined;
+// The Early Bird / Flash Sale pill beside (or, on a phone, above) a price.
+const PRICE_TAG = 'items-center rounded-full bg-accent/15 px-1.5 py-1 text-[10px] font-bold uppercase leading-none tracking-wide text-accent';
 const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/register/events' : '/register'}?series=${encodeURIComponent(o.key)}`;
 ---
 
@@ -177,6 +179,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                   {block.offerings.map((o) => {
                     const { full, label, adminOnly } = spotsFor(o);
                     const prices = priceOptions(o, now);
+                    const tags = [...new Set(prices.map((p) => p.tag).filter(Boolean))];
                     const overviewBody = o.lessonOverviewBody ?? lessonOverview;
                     const showOverview = Boolean(overviewBody) && !o.hideLessonOverview;
                     // A flyer with one class/event: its description, then About This Class Format, shown in the panel beside the flyer.
@@ -209,12 +212,18 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                         <div class="mt-2 flex items-center justify-between gap-2 sm:gap-3">
                           {prices.length > 0 ? (
                             <p class="flex min-w-0 flex-1 flex-col gap-y-0.5 text-sm text-ink sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-1">
+                              {/* On a phone the deal tags sit once above the prices rather than wrapping beside them; wider up each price keeps its own. */}
+                              {tags.length > 0 && (
+                                <span data-price-tags class="mb-0.5 flex flex-wrap gap-1 sm:hidden">
+                                  {tags.map((tag) => <span class={PRICE_TAG}>{tag}</span>)}
+                                </span>
+                              )}
                               {prices.map((p) => (
                                 <span>
                                   {p.label}:{' '}
                                   {p.was != null && <s class="text-muted">{formatPrice(p.was)}</s>}{' '}
                                   <strong class="font-bold">{formatPrice(p.price)}</strong>{p.suffix}
-                                  {p.tag && <span class="ml-1 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">{p.tag}</span>}
+                                  {p.tag && <span data-price-tag class:list={[PRICE_TAG, 'ml-1 hidden -translate-y-px align-middle sm:inline-flex']}>{p.tag}</span>}
                                 </span>
                               ))}
                             </p>
