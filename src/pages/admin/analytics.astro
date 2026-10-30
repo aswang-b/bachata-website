@@ -105,7 +105,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="lastName" data-card-title>Last Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="email">Contact Info</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[220px]" data-table="signups" data-column="class" data-card-default>Class</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="seriesSort" data-card-default>Series</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="seriesSort" data-card-inline>Type of Registration</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paymentSort">Payment</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paid" data-card-dot>Paid</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="createdAt">Registered</th>
@@ -1127,7 +1127,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       ['leader', 'Leader'],
       ['follower', 'Follower'],
     ];
-    // Shown in the Series column, which an edit row doesn't otherwise use.
+    // Shown in the Type of Registration column, which an edit row doesn't otherwise use.
     return `<label class="flex flex-col gap-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">Role<select class="edit-input role w-24 rounded-lg border border-border bg-bg px-2 py-1 text-xs font-normal normal-case tracking-normal text-ink">${role ? '' : '<option value="" selected>No role</option>'}${opts
       .map(([value, label]) => `<option value="${value}" ${role === value ? 'selected' : ''}>${label}</option>`)
       .join('')}</select></label>`;
@@ -1248,7 +1248,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
           // One row per class the dancer is registered for, so multiple
           // classes (or dancers) never get crammed into a single cell.
           // Continuation rows for the same dancer repeat only the Class /
-          // Series columns and butt up against the row above them. Each
+          // Type of Registration columns and butt up against the row above them. Each
           // row carries its own real price (snapshotted at registration
           // time in class_registrations), so unlike the old text-parsing
           // approach the price is never blank past the first class.
@@ -1262,7 +1262,11 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.firstName) : ''}</td>
             <td class="px-4 py-2.5 text-ink">${isFirst ? escapeHtml(s.lastName) : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? contactCell(s.email, s.phone) : ''}</td>
-            <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.classLabel ? `${entry.classLabel}${roleLabel ? ` - ${roleLabel}` : ''}` : '—')}</td>
+            <td class="px-4 py-2.5 text-ink/70">${
+              entry.classLabel
+                ? `<span class="class-name">${escapeHtml(entry.classLabel)}</span>${roleLabel ? `<span class="class-role"> - ${roleLabel}</span>` : ''}`
+                : '—'
+            }</td>
             <td class="px-4 py-2.5 text-ink/70">${modeLabel}${
               entry.seriesMode === 'dropin'
                 ? `<div class="mt-0.5 text-xs ${entry.occurrenceLabel ? 'text-ink' : 'text-muted'}">${escapeHtml(entry.occurrenceLabel ?? 'Date not recorded')}</div>`
@@ -2547,7 +2551,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   }
 
   // Below lg every table shows as a list of compact rows (the style block
-  // below): a paid dot, the name and its action icons, then a line of the
+  // below): a paid dot, the name (and a data-card-inline column, like a
+  // sign-up's type of registration) and its action icons, then a line of the
   // fields the admin picked ("Fields on each row", remembered per table in
   // this browser). Tapping a row opens every column, labelled. The rows are
   // rebuilt on every render, so they're marked up again whenever a body
@@ -2558,7 +2563,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     const body = table.tBodies[0];
     const headers = Array.from(table.tHead!.rows[0].cells);
     const nameOf = (th: HTMLTableCellElement) => th.textContent!.trim().replace(/ [↑↓]$/, '');
-    const isField = (th: HTMLTableCellElement) => !th.matches('[data-card-title], [data-card-actions], [data-card-dot]');
+    const isField = (th: HTMLTableCellElement) => !th.matches('[data-card-title], [data-card-actions], [data-card-dot], [data-card-inline]');
     const fields = headers.filter(isField).map(nameOf);
     const storageKey = `dashboard-row-fields:${body.id}`;
     let shown = new Set(headers.filter((th) => isField(th) && th.hasAttribute('data-card-default')).map(nameOf));
@@ -2580,6 +2585,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
           cell.dataset.label = nameOf(th);
           cell.toggleAttribute('data-card-title', th.hasAttribute('data-card-title'));
           cell.toggleAttribute('data-card-actions', th.hasAttribute('data-card-actions'));
+          cell.toggleAttribute('data-card-inline', th.hasAttribute('data-card-inline'));
           cell.toggleAttribute('data-card-show', isField(th) && shown.has(nameOf(th)));
           cell.removeAttribute('data-card-chevron');
           if (th.hasAttribute('data-card-title')) lastTitle = cell;
@@ -2761,9 +2767,28 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] button {
       padding: 0.4rem;
     }
-    /* Shut: only the chosen fields, small, separated by dots, sharing one
+    /* Shut: the inline column follows the name, small... */
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-inline] {
+      order: -3;
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      padding: 0 0 0 0.2rem;
+      font-size: 0.8rem;
+      color: var(--color-muted);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-inline] * {
+      display: inline;
+      margin: 0;
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-inline] > *::before {
+      content: ' ';
+    }
+    /* ...and below, only the chosen fields, small, separated by dots, sharing one
        line: a short field shows whole and a long one is cut short. */
-    table.card-table tbody tr:not([data-card-open]) > td:not([data-card-title]):not([data-card-actions]):not([data-card-show]) {
+    table.card-table tbody tr:not([data-card-open]) > td:not([data-card-title]):not([data-card-actions]):not([data-card-inline]):not([data-card-show]) {
       display: none;
     }
     table.card-table tbody tr:not([data-card-open]) > td[data-card-show] {
@@ -2786,6 +2811,31 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     }
     table.card-table tbody tr:not([data-card-open]) > td[data-card-show] ~ td[data-card-show]::before {
       content: '· ';
+    }
+    /* A long class name is cut short in the middle, so its Leader /
+       Follower still shows at the end. */
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-show]:has(> .class-role) {
+      display: flex;
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-show] > .class-name {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-show] > .class-role {
+      flex: none;
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-show] > .class-role::before {
+      content: none;
+    }
+    /* In a flex row the spaces at their edges would collapse. */
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-show] > .class-role {
+      padding-left: 0.25em;
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-show]:has(> .class-role) ~ td[data-card-show]::before,
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-show] ~ td[data-card-show]:has(> .class-role)::before {
+      margin-right: 0.25em;
     }
     /* Open: every column, as label and value. */
     table.card-table tbody tr[data-card-open] > td:not([data-card-title]):not([data-card-actions]),

@@ -74,6 +74,17 @@ for (const [width, compact] of [
     await expect(row).toHaveAttribute('data-card-paid', 'no');
     await expect(row.locator('td[data-label="Class"]')).toBeVisible();
     await expect(row.locator('td[data-label="Contact Info"]')).toBeHidden();
+    // A long class name is cut short in the middle, keeping the role at the end.
+    await row.locator('.class-name').evaluate((el) => (el.textContent += ' with a very long name'.repeat(8)));
+    const roleBox = (await row.locator('.class-role').boundingBox())!;
+    await expect(row.locator('.class-role')).toHaveText(' - Leader');
+    expect(roleBox.x + roleBox.width).toBeLessThanOrEqual(box.x + box.width);
+    expect(await row.locator('.class-name').evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    // The type of registration sits on the name's line, the class below it.
+    const nameBox = (await row.locator('td').first().boundingBox())!;
+    const typeBox = (await row.locator('td[data-label="Type of Registration"]').boundingBox())!;
+    expect(Math.abs(typeBox.y + typeBox.height / 2 - (nameBox.y + nameBox.height / 2))).toBeLessThan(4);
+    expect((await row.locator('td[data-label="Class"]').boundingBox())!.y).toBeGreaterThan(nameBox.y + nameBox.height - 1);
     await expect(row.locator('td[data-label="Payment"]')).toBeHidden();
 
     // A tap opens every column, labelled.
