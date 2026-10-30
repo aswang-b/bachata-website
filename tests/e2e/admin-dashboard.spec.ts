@@ -75,11 +75,13 @@ for (const [width, compact] of [
     await expect(row.locator('td[data-label="Class"]')).toBeVisible();
     await expect(row.locator('td[data-label="Contact Info"]')).toBeHidden();
     // A long class name is cut short in the middle, keeping the role at the end.
+    const className = (await row.locator('.class-name').textContent())!;
     await row.locator('.class-name').evaluate((el) => (el.textContent += ' with a very long name'.repeat(8)));
     const roleBox = (await row.locator('.class-role').boundingBox())!;
     await expect(row.locator('.class-role')).toHaveText(' - Leader');
     expect(roleBox.x + roleBox.width).toBeLessThanOrEqual(box.x + box.width);
     expect(await row.locator('.class-name').evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    await row.locator('.class-name').evaluate((el, name) => (el.textContent = name), className);
     // The type of registration sits on the name's line, the class below it.
     const nameBox = (await row.locator('td').first().boundingBox())!;
     const typeBox = (await row.locator('td[data-label="Type of Registration"]').boundingBox())!;
@@ -91,6 +93,9 @@ for (const [width, compact] of [
     await row.locator('td').first().click();
     await expect(row.locator('td[data-label="Contact Info"]')).toBeVisible();
     expect(await row.locator('td[data-label="Class"]').evaluate((td) => getComputedStyle(td, '::before').content)).toBe('"Class"');
+    // It stays open when the list is drawn again (a sort here; the lock's heartbeat does the same).
+    await page.locator('th[data-table="signups"][data-column="firstName"]').click();
+    await expect(row.locator('td[data-label="Contact Info"]')).toBeVisible();
     await row.locator('td').first().click();
     await expect(row.locator('td[data-label="Contact Info"]')).toBeHidden();
 
@@ -99,6 +104,8 @@ for (const [width, compact] of [
     await picker.locator('summary').click();
     await picker.getByRole('button', { name: 'Payment' }).click();
     await expect(row.locator('td[data-label="Payment"]')).toBeVisible();
+    // Saved by column, so renaming a header doesn't lose it.
+    expect(await page.evaluate(() => localStorage.getItem('dashboard-row-fields:signups-body'))).toContain('paymentSort');
     await page.reload();
     await expect(page.locator('#signups-body tr', { hasText: 'ZZZDashLead' }).locator('td[data-label="Payment"]')).toBeVisible({ timeout: 30_000 });
   });
@@ -181,6 +188,36 @@ test.describe('with the Event Registration lock taken', () => {
     const saveBox = (await save.boundingBox())!;
     expect(saveBox.x + saveBox.width).toBeLessThanOrEqual(390);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+});
+
+test.describe('with the Sign-Ups lock taken', () => {
+  let taken: { resource: string; locked_by: string } | null = null;
+  test.afterAll(async () => {
+    if (taken) await db.from('edit_locks').delete().eq('resource', taken.resource).eq('locked_by', taken.locked_by);
+  });
+
+  // A failed save set the switch back from code, which fires no change event,
+  // so the row's paid dot kept showing the change that didn't save.
+  test("on a phone a Paid change that doesn't save leaves the row's dot unpaid", async ({ page, adminPage }) => {
+    void adminPage;
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.route('**/api/admin/update-signup', (route) => route.fulfill({ status: 500, body: '{}' }));
+    await page.goto('/admin/analytics');
+    await page.locator('#signups-lock-btn').click();
+    await expect(page.locator('#signups-lock-btn')).toHaveText(/Release/i, { timeout: 30_000 });
+    const { data: lock } = await db.from('edit_locks').select('resource, locked_by').ilike('resource', '%signups%').maybeSingle();
+    taken = lock;
+    await page.evaluate(() => document.getElementById('cookie-consent')?.remove());
+    const row = page.locator('#signups-body tr', { hasText: 'ZZZDashLead' });
+    await expect(row).toHaveAttribute('data-card-paid', 'no');
+    await row.locator('td').first().click();
+    const paid = row.getByRole('switch', { name: 'Paid' });
+    await paid.click();
+    await expect(paid).not.toBeChecked();
+    await expect(paid).toBeEnabled();
+    await expect(row).toHaveAttribute('data-card-paid', 'no');
+    await page.locator('#signups-lock-btn').click();
   });
 });
 

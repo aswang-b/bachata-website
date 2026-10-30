@@ -9,7 +9,7 @@ import { getSiteSettings } from '../lib/siteSettings';
 import { siteFormatter } from '../lib/siteTime';
 import { verifyCheckinRegisterToken } from '../lib/checkinToken';
 
-const { disable_checkin_page: checkinDisabled } = await getSiteSettings();
+const { disable_checkin_page: checkinDisabled } = Astro.locals.siteSettings ?? (await getSiteSettings());
 
 // An admin-generated QR for several classes links here as
 // `?events=<id>,<id>` (with `&register=<id>.<token>,…` when attendees should

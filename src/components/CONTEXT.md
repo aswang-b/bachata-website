@@ -10,7 +10,7 @@ Reusable UI pieces included by pages in `src/pages/`. All are `.astro` component
 
 | File | Purpose |
 | --- | --- |
-| `Header.astro` | Sticky site nav; nav items can be hidden per `siteSettings` keys (`hide_about_nav`, etc.); highlights the admin page differently. The Register for Classes / Events buttons stay in the header row at every width (switching to short "Classes"/"Events" labels when space runs out), so the phone menu doesn't repeat them. If the row still overflows (a tablet with the admin links showing), the header goes compact (`data-compact`): the nav links move into the menu, as on a phone |
+| `Header.astro` | Sticky site nav; nav items can be hidden per `siteSettings` keys (`hide_about_nav`, etc.; read from `Astro.locals.siteSettings`, which middleware.ts loads alongside the time zone); highlights the admin page differently. The Register for Classes / Events buttons stay in the header row at every width (switching to short "Classes"/"Events" labels when space runs out), so the phone menu doesn't repeat them. If the row still overflows (a tablet with the admin links showing), the header goes compact (`data-compact`): the nav links move into the menu, as on a phone |
 | `Footer.astro` | Site footer with social links |
 | `AnnouncementBanner.astro` | Fetches `/api/banner` and shows the site-wide banner (pink-to-red, ~5:1 with its white text), stuck to the top with the nav header in `BaseLayout`'s `#site-top` wrapper. Closing it hides it for the current page only; it's back on the next load |
 | `PreviewBanner.astro` | Shown when an admin is previewing the site as a public visitor (`lib/previewMode.ts`); lets them exit preview |

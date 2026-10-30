@@ -141,7 +141,8 @@ const arrowClass =
         const beyondThree = wide.matches && step > 0 ? Math.max(0, Math.min(1, (Math.abs(distance) / step - 1.05) / 0.45)) : 0;
         item.style.transform = `translateZ(${-Math.abs(offset) * 160}px) rotateY(${offset * 45}deg)`;
         item.style.opacity = String((1 - Math.min(1, Math.abs(offset)) * 0.45) * (1 - beyondThree));
-        item.style.visibility = beyondThree >= 1 ? 'hidden' : '';
+        // Out of sight, it can't be clicked, but Tab still reaches it (and centers it, below).
+        item.style.pointerEvents = beyondThree > 0.9 ? 'none' : '';
         item.style.zIndex = String(100 - Math.round(Math.abs(offset) * 50));
       }
     };
@@ -237,6 +238,19 @@ const arrowClass =
         const item = items[target];
         gallery.scrollTo({ left: item.offsetLeft + item.offsetWidth / 2 - gallery.clientWidth / 2, behavior: 'smooth' });
       });
+    });
+    // Tabbing to a flyer brings it to the middle, so a keyboard reaches every
+    // one (wider up, those beyond the middle three are faded out of sight).
+    gallery.addEventListener('focusin', (e) => {
+      const item = (e.target as Element).closest<HTMLElement>('[data-gallery-flyer]');
+      if (!item) return;
+      touched = true;
+      target = null;
+      const center = (behavior: ScrollBehavior) => gallery.scrollTo({ left: item.offsetLeft + item.offsetWidth / 2 - gallery.clientWidth / 2, behavior });
+      center('smooth');
+      // A flyer whose image is still loading changes width once it arrives.
+      const img = item.querySelector('img');
+      if (img && !img.complete) img.addEventListener('load', () => document.activeElement === item && center('auto'), { once: true });
     });
     // Swiping or the wheel takes over from an arrow's glide.
     for (const type of ['pointerdown', 'wheel', 'touchstart'] as const) gallery.addEventListener(type, () => (target = null), { passive: true });

@@ -1,9 +1,9 @@
 ---
 import { getSiteSettings } from '../lib/siteSettings';
 
-// Site Visibility settings (Admin tab) are read while the page is built, so
-// the header arrives whole: no button or link popping in or out after load.
-const settings = await getSiteSettings();
+// Site Visibility settings (Admin tab), loaded for each page by middleware.ts,
+// so the header arrives whole: no button or link popping in or out after load.
+const settings = Astro.locals.siteSettings ?? (await getSiteSettings());
 const showEventsButton = settings.show_register_events_nav;
 
 const allNavItems = [

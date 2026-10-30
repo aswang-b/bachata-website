@@ -36,7 +36,7 @@
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting)
-│   ├── middleware.ts                    # Loads the site time zone for each request (checks nothing else)
+│   ├── middleware.ts                    # Loads the site time zone (and, for pages, Site Visibility settings into locals) per request; checks nothing
 │   ├── layouts/
 │   │   └── BaseLayout.astro             # Page shell; banner + header share one sticky #site-top (height in --site-top-h)
 │   ├── lib/                             # Server-side helpers

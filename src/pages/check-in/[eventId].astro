@@ -10,7 +10,7 @@ import { verifyCheckinRegisterToken } from '../../lib/checkinToken';
 
 const { eventId } = Astro.params;
 
-const { disable_checkin_page: checkinDisabled } = await getSiteSettings();
+const { disable_checkin_page: checkinDisabled } = Astro.locals.siteSettings ?? (await getSiteSettings());
 
 const { data: event } = checkinDisabled
   ? { data: null }

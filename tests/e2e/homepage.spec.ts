@@ -308,9 +308,26 @@ test('wider up, the past flyers show only the middle three, also after an arrow 
   test.skip((await gallery.count()) === 0, 'The gallery is empty right now.');
   await gallery.scrollIntoViewIfNeeded();
   const shown = () =>
-    gallery.evaluate((g) => [...g.querySelectorAll<HTMLElement>('[data-gallery-flyer]')].filter((f) => f.style.visibility !== 'hidden' && Number(f.style.opacity || 1) > 0.05).length);
+    gallery.evaluate((g) => [...g.querySelectorAll<HTMLElement>('[data-gallery-flyer]')].filter((f) => Number(f.style.opacity || 1) > 0.05).length);
   await expect.poll(shown).toBe(3);
   await page.locator('[data-gallery-scroll="1"]').click();
   await page.waitForTimeout(1200);
   await expect.poll(shown).toBe(3);
+});
+
+// Hiding the flyers beyond the middle three (visibility: hidden) took them out
+// of the tab order, so a keyboard could reach only the ones in view.
+test('wider up, tabbing to a past flyer out of view brings it to the middle', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/');
+  const real = page.locator('#past-flyers [data-gallery-flyer]:not([aria-hidden])');
+  test.skip((await real.count()) < 3, 'Too few flyers to have one out of view.');
+  await page.locator('#past-flyers').scrollIntoViewIfNeeded();
+  const far = real.last();
+  // Out of view to start with: faded right out, and not clickable.
+  await expect.poll(() => far.evaluate((el) => Number(el.style.opacity || 1))).toBeLessThan(0.05);
+  expect(await far.evaluate((el) => el.style.pointerEvents)).toBe('none');
+  await far.focus();
+  await expect(far).toBeFocused();
+  await expect.poll(() => far.evaluate((el) => Number(el.style.opacity || 1)), { timeout: 5000 }).toBeGreaterThan(0.9);
 });

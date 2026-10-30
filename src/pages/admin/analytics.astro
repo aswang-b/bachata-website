@@ -1203,6 +1203,12 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       </tr>`;
   }
 
+  // A Paid switch set back from code (its save failed) fires no change
+  // event, so this tells its row's phone layout to show the real state.
+  function revertedPaid(checkbox: HTMLInputElement) {
+    checkbox.dispatchEvent(new Event('paid-reverted', { bubbles: true }));
+  }
+
   async function withAuthHeader(): Promise<Record<string, string> | null> {
     const {
       data: { session },
@@ -1298,23 +1304,21 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
         checkbox.disabled = true;
 
         const headers = await withAuthHeader();
-        if (!headers) {
-          checkbox.disabled = false;
-          return;
-        }
+        const res = headers
+          ? await fetch('/api/admin/update-signup', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ submissionId, paid, holderId }),
+            })
+          : null;
 
-        const res = await fetch('/api/admin/update-signup', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ submissionId, paid, holderId }),
-        });
-
-        if (res.ok) {
+        if (res?.ok) {
           allSignups.forEach((s) => {
             if (s.submissionId === submissionId) s.paid = paid;
           });
         } else {
           checkbox.checked = !paid;
+          revertedPaid(checkbox);
         }
         checkbox.disabled = false;
       });
@@ -1712,6 +1716,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
           renderEventRegistrations();
         } else {
           checkbox.checked = !paid;
+          revertedPaid(checkbox);
           checkbox.disabled = false;
         }
       });
@@ -2562,12 +2567,12 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   // Below lg every table shows as a list of compact rows (the style block
   // below): a paid dot or attendance mark, the name (and any data-card-inline
   // columns, like a sign-up's type of registration; an "end" one sits at the
-  // line's right), then a line of the fields the admin picked ("Fields on each row", remembered per table in
-  // this browser) with the row's action icons at its end (or on the first
-  // line, for data-card-actions="top"). Tapping a row
-  // opens every column, labelled. The rows are
-  // rebuilt on every render, so they're marked up again whenever a body
-  // changes (or a Paid box is ticked, for the dot).
+  // line's right), then a line of the fields the admin picked ("Fields on each
+  // row", remembered per table in this browser) with the row's action icons
+  // at its end (or on the first line, for data-card-actions="top"). Tapping a
+  // row opens every column, labelled. The rows are rebuilt on every render,
+  // so they're marked up again whenever a body changes, and the ones that were
+  // open (found again by their contents) open again.
   const cardMode = window.matchMedia('(max-width: 1023.98px)');
   // An edit row (always open) is one with text boxes; a Resolve cell's
   // dropdowns don't make one.
@@ -2576,44 +2581,65 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     const body = table.tBodies[0];
     const headers = Array.from(table.tHead!.rows[0].cells);
     const nameOf = (th: HTMLTableCellElement) => th.textContent!.trim().replace(/ [↑↓]$/, '');
+    // A column is remembered by its sort key, which outlasts a renamed header.
+    const idOf = (th: HTMLTableCellElement) => th.dataset.column ?? nameOf(th);
     const isField = (th: HTMLTableCellElement) => !th.matches('[data-card-title], [data-card-actions], [data-card-dot], [data-card-inline], [data-card-status], [data-card-panel]');
-    const fields = headers.filter(isField).map(nameOf);
+    const fields = headers.filter(isField).map((th) => ({ id: idOf(th), name: nameOf(th) }));
     const storageKey = `dashboard-row-fields:${body.id}`;
-    let shown = new Set(headers.filter((th) => isField(th) && th.hasAttribute('data-card-default')).map(nameOf));
+    let shown = new Set(headers.filter((th) => isField(th) && th.hasAttribute('data-card-default')).map(idOf));
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
-      if (Array.isArray(saved)) shown = new Set(saved.filter((name) => fields.includes(name)));
+      // Saved by column; older saves used the header's text.
+      if (Array.isArray(saved)) shown = new Set(fields.filter((f) => saved.includes(f.id) || saved.includes(f.name)).map((f) => f.id));
     } catch {
       // Storage blocked: the defaults it is.
     }
 
+    // The rows that are open, by what they show (not their buttons or panels),
+    // so a redraw (a sort, the lock's heartbeat) leaves them open.
+    const openRows = new Set<string>();
+    const rowKey = (row: HTMLTableRowElement) =>
+      Array.from(row.cells)
+        .filter((_, i) => headers[i] && !headers[i].matches('[data-card-actions], [data-card-panel]'))
+        .map((cell) => cell.textContent!.trim())
+        .join('|');
+    const groupOf = (head: HTMLTableRowElement) => {
+      const rows = [head];
+      for (let r = head.nextElementSibling; r?.hasAttribute('data-card-continued'); r = r.nextElementSibling) rows.push(r as HTMLTableRowElement);
+      return rows;
+    };
+
+    const labelRow = (row: HTMLTableRowElement) => {
+      if (isEditRow(row)) row.setAttribute('data-card-open', '');
+      delete row.dataset.cardPaid;
+      delete row.dataset.cardStatus;
+      let lastTitle: HTMLTableCellElement | undefined;
+      Array.from(row.cells).forEach((cell, i) => {
+        const th = headers[i];
+        if (!th) return;
+        cell.dataset.label = nameOf(th);
+        cell.toggleAttribute('data-card-title', th.hasAttribute('data-card-title'));
+        const actions = th.getAttribute('data-card-actions');
+        if (actions === null) cell.removeAttribute('data-card-actions');
+        else cell.setAttribute('data-card-actions', actions);
+        const inline = th.getAttribute('data-card-inline');
+        if (inline === null) cell.removeAttribute('data-card-inline');
+        else cell.setAttribute('data-card-inline', inline);
+        cell.toggleAttribute('data-card-show', isField(th) && shown.has(idOf(th)));
+        cell.toggleAttribute('data-card-panel', th.hasAttribute('data-card-panel'));
+        cell.removeAttribute('data-card-chevron');
+        if (th.hasAttribute('data-card-title')) lastTitle = cell;
+        const paid = th.hasAttribute('data-card-dot') ? cell.querySelector<HTMLInputElement>('input[type="checkbox"]') : null;
+        if (paid) row.dataset.cardPaid = paid.checked ? 'yes' : 'no';
+        const status = th.hasAttribute('data-card-status') ? cell.querySelector<HTMLElement>('[data-status]') : null;
+        if (status) row.dataset.cardStatus = status.dataset.status;
+      });
+      lastTitle?.setAttribute('data-card-chevron', '');
+    };
     const label = () => {
       for (const row of Array.from(body.rows)) {
-        if (isEditRow(row)) row.setAttribute('data-card-open', '');
-        delete row.dataset.cardPaid;
-        delete row.dataset.cardStatus;
-        let lastTitle: HTMLTableCellElement | undefined;
-        Array.from(row.cells).forEach((cell, i) => {
-          const th = headers[i];
-          if (!th) return;
-          cell.dataset.label = nameOf(th);
-          cell.toggleAttribute('data-card-title', th.hasAttribute('data-card-title'));
-          const actions = th.getAttribute('data-card-actions');
-          if (actions === null) cell.removeAttribute('data-card-actions');
-          else cell.setAttribute('data-card-actions', actions);
-          const inline = th.getAttribute('data-card-inline');
-          if (inline === null) cell.removeAttribute('data-card-inline');
-          else cell.setAttribute('data-card-inline', inline);
-          cell.toggleAttribute('data-card-show', isField(th) && shown.has(nameOf(th)));
-          cell.toggleAttribute('data-card-panel', th.hasAttribute('data-card-panel'));
-          cell.removeAttribute('data-card-chevron');
-          if (th.hasAttribute('data-card-title')) lastTitle = cell;
-          const paid = th.hasAttribute('data-card-dot') ? cell.querySelector<HTMLInputElement>('input[type="checkbox"]') : null;
-          if (paid) row.dataset.cardPaid = paid.checked ? 'yes' : 'no';
-          const status = th.hasAttribute('data-card-status') ? cell.querySelector<HTMLElement>('[data-status]') : null;
-          if (status) row.dataset.cardStatus = status.dataset.status;
-        });
-        lastTitle?.setAttribute('data-card-chevron', '');
+        labelRow(row);
+        if (!row.hasAttribute('data-card-continued') && openRows.has(rowKey(row))) groupOf(row).forEach((r) => r.setAttribute('data-card-open', ''));
       }
     };
 
@@ -2624,21 +2650,25 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       '<summary class="cursor-pointer select-none font-semibold text-muted">Fields on each row: <span class="row-fields-summary text-ink/80"></span></summary><div class="mt-2 flex flex-wrap gap-1.5"></div>';
     const chips = picker.querySelector('div')!;
     const syncPicker = () => {
-      picker.querySelector('.row-fields-summary')!.textContent = fields.filter((name) => shown.has(name)).join(' · ') || 'none';
+      picker.querySelector('.row-fields-summary')!.textContent =
+        fields
+          .filter((f) => shown.has(f.id))
+          .map((f) => f.name)
+          .join(' · ') || 'none';
       chips.querySelectorAll<HTMLButtonElement>('button').forEach((chip) => {
         const on = shown.has(chip.dataset.field!);
         chip.setAttribute('aria-pressed', String(on));
         chip.className = `rounded-full border px-2.5 py-1 font-semibold ${on ? 'border-accent bg-accent/15 text-accent' : 'border-border text-ink/70'}`;
       });
     };
-    for (const name of fields) {
+    for (const field of fields) {
       const chip = document.createElement('button');
       chip.type = 'button';
-      chip.dataset.field = name;
-      chip.textContent = name;
+      chip.dataset.field = field.id;
+      chip.textContent = field.name;
       chip.addEventListener('click', () => {
-        if (shown.has(name)) shown.delete(name);
-        else shown.add(name);
+        if (shown.has(field.id)) shown.delete(field.id);
+        else shown.add(field.id);
         try {
           localStorage.setItem(storageKey, JSON.stringify([...shown]));
         } catch {
@@ -2662,12 +2692,17 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       if (!row || row.parentElement !== body || isEditRow(row)) return;
       while (row.hasAttribute('data-card-continued') && row.previousElementSibling) row = row.previousElementSibling as HTMLTableRowElement;
       const open = !row.hasAttribute('data-card-open');
-      for (let r: Element | null = row; r; r = r.nextElementSibling) {
-        if (r !== row && !r.hasAttribute('data-card-continued')) break;
-        r.toggleAttribute('data-card-open', open);
-      }
+      if (open) openRows.add(rowKey(row));
+      else openRows.delete(rowKey(row));
+      groupOf(row).forEach((r) => r.toggleAttribute('data-card-open', open));
     });
-    body.addEventListener('change', label);
+    // A Paid switch changed (or set back after a failed save): only its row's dot.
+    const relabelRow = (e: Event) => {
+      const row = (e.target as Element).closest('tr');
+      if (row?.parentElement === body) labelRow(row);
+    };
+    body.addEventListener('change', relabelRow);
+    body.addEventListener('paid-reverted', relabelRow);
     new MutationObserver(label).observe(body, { childList: true });
     label();
   });
