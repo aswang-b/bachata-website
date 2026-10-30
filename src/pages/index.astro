@@ -110,7 +110,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
   image={shareImage}
   structuredData={structuredData}
 >
-  {/* The deal icons a price shows beside it on a phone, drawn once and reused: a bird with a clock (Early Bird) and a lightning bolt (Flash Sale). */}
+  {/* The deal icons a price shows beside it on a phone, drawn once and reused: a bird with a clock (Early Bird) and a price tag with a lightning bolt (Flash Sale). */}
   <svg width="0" height="0" class="absolute" aria-hidden="true">
     <defs>
       <mask id="early-bird-gap">
@@ -126,8 +126,14 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
         <circle cx="17.6" cy="17.6" r="4.3" fill="none" stroke="currentColor" stroke-width="1.6" />
         <path d="M17.6 15.5v2.3l1.6 1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
       </symbol>
+      <mask id="flash-sale-gap">
+        <rect width="24" height="24" fill="#fff" />
+        <path d="M13.6 7.4 8.2 12.4h3.1l-1.9 4.4 5.4-5h-3.1z" fill="#000" />
+      </mask>
       <symbol id="icon-flash-sale" viewBox="0 0 24 24">
-        <path fill="currentColor" d="M13.5 2 4.5 13.6h6.2L9.8 22l9.7-12.1h-6.4z" />
+        <g mask="url(#flash-sale-gap)">
+          <path transform="rotate(-45 12 12)" fill="currentColor" d="M2.5 12 8.4 5.6H20a1.6 1.6 0 0 1 1.6 1.6v9.6a1.6 1.6 0 0 1-1.6 1.6H8.4z" />
+        </g>
       </symbol>
     </defs>
   </svg>
