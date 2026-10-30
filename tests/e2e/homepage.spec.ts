@@ -219,7 +219,7 @@ test('the past flyers gallery loops forever both ways', async ({ page }) => {
   expect(fastBack.off).toBeLessThan(2);
 });
 
-test('on a phone, the past flyers show a "Swipe to see more" hint until the first swipe, and not again after', async ({ page }) => {
+test('on a phone, the past flyers show a "Swipe to see more" hint until the first swipe, and not again that browser session', async ({ page, browser }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   const gallery = page.locator('#past-flyers');
@@ -236,6 +236,15 @@ test('on a phone, the past flyers show a "Swipe to see more" hint until the firs
   await page.reload();
   await expect(page.locator('#past-flyers')).toBeVisible();
   await expect(page.locator('#past-flyers-hint')).toHaveCount(0);
+  // Remembered only for the session: a cookie with no expiry date.
+  const cookie = (await page.context().cookies()).find((c) => c.name === 'past-flyers-swiped');
+  expect(cookie?.expires).toBe(-1);
+  // A new session (another browser profile here) sees it again.
+  const fresh = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const again = await fresh.newPage();
+  await again.goto(`${BASE_URL}/`);
+  await expect(again.locator('#past-flyers-hint')).toBeVisible();
+  await fresh.close();
 });
 
 test('on a wider screen the past flyers have arrows, and no swipe hint', async ({ page }) => {

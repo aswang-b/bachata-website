@@ -177,23 +177,17 @@ const arrowClass =
       }
       target = null;
     };
-    // The phone hint goes at the first swipe, and stays gone in this browser.
+    // The phone hint goes at the first swipe, and stays gone for the rest of
+    // the browser session: a session cookie (no expiry), so every tab shares
+    // it and it's cleared once the browser closes.
     const hint = document.getElementById('past-flyers-hint');
-    const HINT_KEY = 'past-flyers-swiped';
-    try {
-      if (localStorage.getItem(HINT_KEY)) hint?.remove();
-    } catch {
-      // Storage blocked: the hint still goes at the first swipe.
-    }
+    const HINT_COOKIE = 'past-flyers-swiped';
+    if (document.cookie.split('; ').includes(`${HINT_COOKIE}=1`)) hint?.remove();
     const dismissHint = () => {
       if (!hint?.isConnected) return;
       hint.style.opacity = '0';
       setTimeout(() => hint.remove(), 500);
-      try {
-        localStorage.setItem(HINT_KEY, '1');
-      } catch {
-        // Storage blocked: it shows again next visit.
-      }
+      document.cookie = `${HINT_COOKIE}=1; path=/; SameSite=Lax`;
     };
 
     gallery.addEventListener(
