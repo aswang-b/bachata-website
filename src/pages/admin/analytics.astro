@@ -181,8 +181,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="lastName" data-card-title>Last Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="email">Contact Info</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[200px]" data-table="event-registrations" data-column="class" data-card-default>Event</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paymentSort" data-card-default>Payment</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paid" data-card-dot>Paid</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paymentSort" data-card-inline>Payment</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paid" data-card-inline="lead">Paid</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="createdAt">Registered</th>
                   <th data-card-actions class="event-registrations-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
                 </tr>
@@ -250,7 +250,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="lastName" data-card-title>Last Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="phone">Phone</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classTitle" data-card-default>Class</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classDate" data-card-default>Class Date</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classDate" data-card-inline>Class Date</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="createdAt">Checked In At</th>
                   <th data-card-actions class="checkins-actions-header hidden px-4 py-3">Actions</th>
                 </tr>
@@ -362,8 +362,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="phone">Phone</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="email">Email</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="classTitle" data-card-default>Class</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="occurrenceDate" data-card-default>Date</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="status" data-card-default>Status</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="occurrenceDate" data-card-inline>Date</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="status" data-card-status>Status</th>
                 </tr>
               </thead>
               <tbody id="attendance-matches-body"></tbody>
@@ -2189,10 +2189,10 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
 
     const statusLabel = (status: AttendanceEntry['status']) =>
       status === 'matched'
-        ? '<span class="font-bold text-green-600">Matched ✓</span>'
+        ? '<span data-status="matched" class="font-bold text-green-600">Matched ✓</span>'
         : status === 'no_show'
-          ? '<span class="font-bold text-red-600">No-Show ✗</span>'
-          : '<span class="text-ink/40">Upcoming —</span>';
+          ? '<span data-status="no-show" class="font-bold text-red-600">No-Show ✗</span>'
+          : '<span data-status="upcoming" class="text-ink/40">Upcoming —</span>';
 
     attendanceMatchesBody.innerHTML = otherEntries
       .map(
@@ -2551,10 +2551,11 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   }
 
   // Below lg every table shows as a list of compact rows (the style block
-  // below): a paid dot, the name (and a data-card-inline column, like a
-  // sign-up's type of registration) and its action icons, then a line of the
-  // fields the admin picked ("Fields on each row", remembered per table in
-  // this browser). Tapping a row opens every column, labelled. The rows are
+  // below): a paid dot or attendance mark, the name (and any data-card-inline
+  // columns, like a sign-up's type of registration; "lead" ones first), then
+  // a line of the fields the admin picked ("Fields on each row", remembered per table in
+  // this browser) with the row's action icons at its end. Tapping a row
+  // opens every column, labelled. The rows are
   // rebuilt on every render, so they're marked up again whenever a body
   // changes (or a Paid box is ticked, for the dot).
   const cardMode = window.matchMedia('(max-width: 1023.98px)');
@@ -2563,7 +2564,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     const body = table.tBodies[0];
     const headers = Array.from(table.tHead!.rows[0].cells);
     const nameOf = (th: HTMLTableCellElement) => th.textContent!.trim().replace(/ [↑↓]$/, '');
-    const isField = (th: HTMLTableCellElement) => !th.matches('[data-card-title], [data-card-actions], [data-card-dot], [data-card-inline]');
+    const isField = (th: HTMLTableCellElement) => !th.matches('[data-card-title], [data-card-actions], [data-card-dot], [data-card-inline], [data-card-status]');
     const fields = headers.filter(isField).map(nameOf);
     const storageKey = `dashboard-row-fields:${body.id}`;
     let shown = new Set(headers.filter((th) => isField(th) && th.hasAttribute('data-card-default')).map(nameOf));
@@ -2578,6 +2579,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       for (const row of Array.from(body.rows)) {
         if (isEditRow(row)) row.setAttribute('data-card-open', '');
         delete row.dataset.cardPaid;
+        delete row.dataset.cardStatus;
         let lastTitle: HTMLTableCellElement | undefined;
         Array.from(row.cells).forEach((cell, i) => {
           const th = headers[i];
@@ -2585,12 +2587,16 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
           cell.dataset.label = nameOf(th);
           cell.toggleAttribute('data-card-title', th.hasAttribute('data-card-title'));
           cell.toggleAttribute('data-card-actions', th.hasAttribute('data-card-actions'));
-          cell.toggleAttribute('data-card-inline', th.hasAttribute('data-card-inline'));
+          const inline = th.getAttribute('data-card-inline');
+          if (inline === null) cell.removeAttribute('data-card-inline');
+          else cell.setAttribute('data-card-inline', inline);
           cell.toggleAttribute('data-card-show', isField(th) && shown.has(nameOf(th)));
           cell.removeAttribute('data-card-chevron');
           if (th.hasAttribute('data-card-title')) lastTitle = cell;
           const paid = th.hasAttribute('data-card-dot') ? cell.querySelector<HTMLInputElement>('input[type="checkbox"]') : null;
           if (paid) row.dataset.cardPaid = paid.checked ? 'yes' : 'no';
+          const status = th.hasAttribute('data-card-status') ? cell.querySelector<HTMLElement>('[data-status]') : null;
+          if (status) row.dataset.cardStatus = status.dataset.status;
         });
         lastTitle?.setAttribute('data-card-chevron', '');
       }
@@ -2656,7 +2662,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
 
 <style is:global>
   /* Phones and tablets (see the script above): each row is compact, a paid
-     dot, the name with its action icons, and a line of the chosen fields,
+     dot, the name, and a line of the chosen fields ending in the action icons,
      opening to every column, labelled. A dancer's extra classes
      (data-card-continued rows) add their own line to the same box. The
      header row stays as a row of sort buttons. */
@@ -2726,7 +2732,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       border-bottom-right-radius: 0;
     }
     table.card-table tbody td[data-card-title] {
-      order: -3;
+      order: -5;
       display: block;
       padding: 0;
       font-size: 1rem;
@@ -2745,6 +2751,25 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     table.card-table tbody tr[data-card-paid='no'] > td[data-card-title]:first-child::before {
       background: #f59e0b;
     }
+    /* An attendance match's status: ✓ matched, ✗ no-show, – upcoming. */
+    table.card-table tbody tr[data-card-status] > td[data-card-title]:first-child::before {
+      display: inline-block;
+      width: 1.1em;
+      margin-right: 0.15em;
+      font-weight: 700;
+    }
+    table.card-table tbody tr[data-card-status='matched'] > td[data-card-title]:first-child::before {
+      content: '✓';
+      color: #16a34a;
+    }
+    table.card-table tbody tr[data-card-status='no-show'] > td[data-card-title]:first-child::before {
+      content: '✗';
+      color: #dc2626;
+    }
+    table.card-table tbody tr[data-card-status='upcoming'] > td[data-card-title]:first-child::before {
+      content: '–';
+      color: var(--color-muted);
+    }
     table.card-table tbody td[data-card-chevron]::after {
       content: '▾';
       display: inline-block;
@@ -2756,7 +2781,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       transform: rotate(180deg);
     }
     table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] {
-      order: -2;
+      order: 1;
       display: block;
       margin: -0.4rem -0.4rem -0.4rem auto;
       padding: 0;
@@ -2767,10 +2792,12 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] button {
       padding: 0.4rem;
     }
-    /* Shut: the inline column follows the name, small... */
+    /* Shut: inline columns follow the name, small, giving way (cut short)
+       before the action icons would have to drop to a line of their own... */
     table.card-table tbody tr:not([data-card-open]) > td[data-card-inline] {
       order: -3;
-      flex: 0 1 auto;
+      flex: 1 1 0;
+      max-width: max-content;
       min-width: 0;
       overflow: hidden;
       padding: 0 0 0 0.2rem;
@@ -2778,6 +2805,15 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       color: var(--color-muted);
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-inline='lead'] {
+      order: -4;
+      flex: none;
+      overflow: visible;
+      padding-left: 0.35rem;
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-inline='lead'] input {
+      vertical-align: -0.15em;
     }
     table.card-table tbody tr:not([data-card-open]) > td[data-card-inline] * {
       display: inline;

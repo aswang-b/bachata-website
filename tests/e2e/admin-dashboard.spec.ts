@@ -112,7 +112,7 @@ test.describe('with the Event Registration lock taken', () => {
     if (takenLock) await db.from('edit_locks').delete().eq('resource', 'analytics-event-registrations').eq('locked_by', takenLock);
   });
 
-  test("on a phone a dancer's action buttons sit beside their name, and their second event joins their card", async ({ page, adminPage }) => {
+  test("on a phone a dancer's row keeps their name, Paid box, payment and action buttons together, and their second event joins it", async ({ page, adminPage }) => {
     void adminPage;
     const second = await seedEvent({ name: 'Dashboard Event Two', type: 'event', dayOffset: 2 });
     const { error } = await db.from('class_registrations').insert({
@@ -141,10 +141,21 @@ test.describe('with the Event Registration lock taken', () => {
     const cardBox = (await card.boundingBox())!;
     const editBox = (await edit.boundingBox())!;
     const nameBox = (await card.locator('td').first().boundingBox())!;
-    // Inside the card, on the name's line.
+    // Inside the row, at the end of its second line (the event's).
+    const eventBox = (await card.locator('td[data-label="Event"]').boundingBox())!;
     expect(editBox.x + editBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width);
-    expect(editBox.y + editBox.height / 2).toBeGreaterThan(nameBox.y);
-    expect(editBox.y + editBox.height / 2).toBeLessThan(nameBox.y + nameBox.height);
+    expect(editBox.x).toBeGreaterThan(eventBox.x + eventBox.width - 1);
+    expect(Math.abs(editBox.y + editBox.height / 2 - (eventBox.y + eventBox.height / 2))).toBeLessThan(5);
+    // The Paid box (for a quick tick) and then the payment follow the name on its line; the event is below.
+    const midY = (b: { y: number; height: number }) => b.y + b.height / 2;
+    const paidBox = (await card.locator('.event-paid-checkbox').boundingBox())!;
+    const paymentBox = (await card.locator('td[data-label="Payment"]').boundingBox())!;
+    expect(Math.abs(midY(paidBox) - midY(nameBox))).toBeLessThan(5);
+    expect(Math.abs(midY(paymentBox) - midY(nameBox))).toBeLessThan(5);
+    expect(paidBox.x).toBeGreaterThan(nameBox.x + nameBox.width - 1);
+    expect(paidBox.x + paidBox.width).toBeLessThanOrEqual(paymentBox.x);
+    expect((await card.locator('td[data-label="Event"]').boundingBox())!.y).toBeGreaterThan(nameBox.y + nameBox.height - 1);
+    await expect(card.locator('.event-paid-checkbox')).toBeEnabled();
     // The second event's row carries on straight below, as part of the same card.
     const more = card.locator('xpath=following-sibling::tr[1]');
     await expect(more).toHaveAttribute('data-card-continued', '');
