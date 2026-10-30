@@ -99,8 +99,6 @@ const typeLabel = (o: ClassSeriesEntry) => (o.eventType === 'event' ? '' : o.isS
 const fullOccurrences = new Set([...spotsByOccurrence].filter(([, s]) => s.full).map(([id]) => id));
 const structuredData = eventSchemas(events ?? [], now, fullOccurrences);
 const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyerUrl ?? undefined;
-// The Early Bird / Flash Sale pill beside a price wider up.
-const PRICE_TAG = 'items-center rounded-full bg-accent/15 px-1.5 py-1 text-[10px] font-bold uppercase leading-none tracking-wide text-accent';
 const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/register/events' : '/register'}?series=${encodeURIComponent(o.key)}`;
 ---
 
@@ -110,7 +108,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
   image={shareImage}
   structuredData={structuredData}
 >
-  {/* The deal icons a price shows beside it on a phone, drawn once and reused: a clock (Early Bird) and a lightning bolt (Flash Sale). */}
+  {/* The deal icons a price shows beside it, drawn once and reused: a clock (Early Bird) and a lightning bolt (Flash Sale). */}
   <svg width="0" height="0" class="absolute" aria-hidden="true">
     <symbol id="icon-early-bird" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="8.5" />
@@ -226,12 +224,19 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                                   {p.label}:{' '}
                                   {p.was != null && <s class="text-muted">{formatPrice(p.was)}</s>}{' '}
                                   <strong class="font-bold">{formatPrice(p.price)}</strong>{p.suffix}
-                                  {/* A pill wider up; on a phone, where a pill wrapped onto two lines, an icon in a little tinted circle. */}
-                                  {p.tag && <span data-price-tag class:list={[PRICE_TAG, 'ml-1 hidden -translate-y-px align-middle sm:inline-flex']}>{p.tag}</span>}
-                                  {p.tag && (
-                                    <span data-price-icon role="img" aria-label={p.tag} title={p.tag} class="ml-1 inline-flex h-5 w-5 -translate-y-px items-center justify-center rounded-full bg-accent/15 align-middle text-accent sm:hidden">
-                                      <svg class="h-3 w-3" aria-hidden="true"><use href={p.tag === 'Flash Sale' ? '#icon-flash-sale' : '#icon-early-bird'} /></svg>
-                                    </span>
+                                  {/* A deal: its icon, and wider up when it ends; hovering (or tapping, on a phone) shows the full end in a bubble. */}
+                                  {p.ends && (
+                                    <button type="button" data-deal aria-label={p.ends.detail} class="relative ml-1 inline-flex -translate-y-px cursor-default items-center gap-1 rounded-full align-middle text-accent before:absolute before:-inset-2.5 before:content-['']">
+                                      <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent/15">
+                                        <svg class="h-3 w-3" aria-hidden="true"><use href={p.tag === 'Flash Sale' ? '#icon-flash-sale' : '#icon-early-bird'} /></svg>
+                                      </span>
+                                      <span data-deal-note class="hidden text-xs font-bold sm:inline">{p.ends.short}</span>
+                                      <span data-deal-bubble aria-hidden="true" class="pointer-events-none invisible absolute bottom-full left-1/2 z-20 mb-2.5 w-max max-w-[16rem] -translate-x-1/2 translate-y-1 rounded-2xl border border-border bg-surface px-3.5 py-2 text-left opacity-0 shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition duration-150">
+                                        <span class="block text-[10px] font-bold uppercase tracking-wide text-accent">{p.tag}</span>
+                                        <span class="block whitespace-nowrap text-sm font-normal text-ink">Ends {p.ends.when}</span>
+                                        <span class="absolute left-1/2 top-full -mt-[5px] h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-b border-r border-border bg-surface"></span>
+                                      </span>
+                                    </button>
                                   )}
                                 </span>
                               ))}
@@ -504,4 +509,52 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
   document.querySelectorAll<HTMLImageElement>('[data-flyer-open] img').forEach((img) => img.addEventListener('load', queueMeasure));
   window.addEventListener('resize', queueMeasure);
   measurePreviews();
+
+  // A deal's bubble (when it ends) opens on hover where there's a mouse, and on
+  // a tap or keyboard focus anywhere. It's nudged sideways to stay inside its
+  // flyer block, its arrow still pointing at the deal; tapping anywhere else,
+  // or Escape, closes it.
+  const deals = Array.from(document.querySelectorAll<HTMLElement>('[data-deal]'));
+  const fitBubble = (deal: HTMLElement) => {
+    const bubble = deal.querySelector<HTMLElement>('[data-deal-bubble]')!;
+    const arrow = bubble.lastElementChild as HTMLElement;
+    bubble.style.marginLeft = arrow.style.marginLeft = '';
+    const box = (deal.closest('article') ?? document.body).getBoundingClientRect();
+    const r = bubble.getBoundingClientRect();
+    const shift = Math.max(box.left + 8 - r.left, 0) + Math.min(box.right - 8 - r.right, 0);
+    bubble.style.marginLeft = `${shift}px`;
+    arrow.style.marginLeft = `${-shift}px`;
+  };
+  const closeDeals = () => deals.forEach((deal) => delete deal.dataset.open);
+  for (const deal of deals) {
+    deal.addEventListener('pointerenter', () => fitBubble(deal));
+    deal.addEventListener('focus', () => fitBubble(deal));
+    deal.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const open = deal.dataset.open === undefined;
+      closeDeals();
+      if (open) {
+        fitBubble(deal);
+        deal.dataset.open = '';
+      }
+    });
+  }
+  document.addEventListener('click', closeDeals);
+  document.addEventListener('keydown', (event) => event.key === 'Escape' && closeDeals());
 </script>
+
+<style>
+  [data-deal][data-open] [data-deal-bubble],
+  [data-deal]:focus-visible [data-deal-bubble] {
+    visibility: visible;
+    opacity: 1;
+    translate: -50% 0;
+  }
+  @media (hover: hover) {
+    [data-deal]:hover [data-deal-bubble] {
+      visibility: visible;
+      opacity: 1;
+      translate: -50% 0;
+    }
+  }
+</style>

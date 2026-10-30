@@ -63,38 +63,43 @@ test('classes sharing a flyer form one block, each with its own tags, prices and
   expect(pageErrors).toEqual([]);
 });
 
-test('a deal shows as an icon beside its price on a phone, and as a pill beside it, centered, wider up', async ({ page }) => {
-  // On a phone a pill beside the price wrapped onto two lines.
+test('a deal shows its icon beside its price (and wider up when it ends), with the full end in a bubble on tap or hover', async ({ page }) => {
+  // On a phone a pill beside the price wrapped onto two lines; now it's an icon, and a tap shows when the deal ends.
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto('/');
   const s = row(page, series);
-  const icon = s.locator('[data-price-icon]');
-  await expect(icon).toHaveCount(1);
-  await expect(icon).toBeVisible();
-  await expect(icon).toHaveAttribute('aria-label', 'Early Bird');
-  await expect(s.locator('[data-price-tag]')).toBeHidden();
+  const deal = s.locator('[data-deal]');
+  const bubble = deal.locator('[data-deal-bubble]');
+  await expect(deal).toHaveCount(1);
+  await expect(deal).toHaveAttribute('aria-label', /^Early Bird ends [A-Z][a-z]{2} \d{1,2} at \d{1,2}:\d\d [AP]M$/);
+  await expect(deal.locator('[data-deal-note]')).toBeHidden();
   // On the Series price's own line, which stays one line.
   const price = s.locator('p > span', { hasText: 'Series:' });
-  const [iconBox, priceBox] = [await icon.boundingBox(), await price.boundingBox()];
+  const [dealBox, priceBox] = [await deal.boundingBox(), await price.boundingBox()];
   expect(priceBox!.height).toBeLessThan(24);
-  expect(iconBox!.y).toBeGreaterThanOrEqual(priceBox!.y - 1);
-  expect(iconBox!.y + iconBox!.height).toBeLessThanOrEqual(priceBox!.y + priceBox!.height + 1);
+  expect(dealBox!.y).toBeGreaterThanOrEqual(priceBox!.y - 1);
+  expect(dealBox!.y + dealBox!.height).toBeLessThanOrEqual(priceBox!.y + priceBox!.height + 1);
 
-  // Wider up the pill is on the price's line, its middle level with the price's capitals.
+  await expect(bubble).toBeHidden();
+  await deal.click();
+  await expect(bubble).toBeVisible();
+  await expect(bubble).toContainText('Early Bird');
+  await expect(bubble).toContainText(/Ends [A-Z][a-z]{2} \d{1,2} at \d{1,2}:\d\d [AP]M/);
+  // It stays inside the flyer block.
+  const [bubbleBox, blockBox] = [await bubble.boundingBox(), await block(page, series).boundingBox()];
+  expect(bubbleBox!.x).toBeGreaterThanOrEqual(blockBox!.x);
+  expect(bubbleBox!.x + bubbleBox!.width).toBeLessThanOrEqual(blockBox!.x + blockBox!.width);
+  // Tapping anywhere else closes it.
+  await s.locator('h3').click();
+  await expect(bubble).toBeHidden();
+
+  // Wider up the note says when it ends (seeded 30 days out), and hovering shows the bubble.
   await page.setViewportSize({ width: 1280, height: 800 });
-  await expect(icon).toBeHidden();
-  const offset = await s.locator('[data-price-tag]').evaluate((pill) => {
-    const amount = pill.parentElement!.querySelector('strong')!;
-    const probe = document.createElement('span');
-    probe.style.cssText = 'display:inline-block;width:0;height:0';
-    amount.after(probe);
-    const baseline = probe.getBoundingClientRect().top;
-    probe.remove();
-    const capMiddle = baseline - (0.72 * parseFloat(getComputedStyle(amount).fontSize)) / 2;
-    const r = pill.getBoundingClientRect();
-    return (r.top + r.bottom) / 2 - capMiddle;
-  });
-  expect(Math.abs(offset)).toBeLessThan(1);
+  await expect(deal.locator('[data-deal-note]')).toHaveText(/^ends [A-Z][a-z]{2} \d{1,2}$/);
+  await deal.hover();
+  await expect(bubble).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect(bubble).toBeHidden();
 });
 
 test('a lone class shows its details beside the flyer, and the flyer opens full size', async ({ page }) => {

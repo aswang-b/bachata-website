@@ -1,7 +1,7 @@
 import type { ClassSeriesEntry } from './classSeries';
 import { getActivePrice, priceTierLabel } from './pricing';
 import { dealHomepageDefault, type Deal } from './deals';
-import { siteFormatter } from './siteTime';
+import { siteFormatter, zonedDateKey, zonedTimeOfDay } from './siteTime';
 
 // The flyer homepage (/test while it's being tried out): offerings advertised
 // on the same flyer (the same flyer_url, migration 0055) share one block, with
@@ -55,6 +55,30 @@ export interface PriceOption {
   was: number | null;
   tag: string;
   suffix: string;
+  // When the deal ends, for a deal that's on (dealEnds).
+  ends: DealEnds | null;
+}
+
+export interface DealEnds {
+  // Beside the price: "ends Nov 3", or in its last week "3 days left",
+  // "ends tomorrow" or "ends today".
+  short: string;
+  // In the bubble over it, "Nov 3 at 11:59 PM", and as one sentence for
+  // screen readers: "Early Bird ends Nov 3 at 11:59 PM".
+  when: string;
+  detail: string;
+}
+
+export function dealEnds(tag: string, until: string, now: Date): DealEnds {
+  // A deal until midnight lasts through the day before: shown as ending at 11:59 PM.
+  const end = new Date(Date.parse(until) - (zonedTimeOfDay(until) === '00:00' ? 60000 : 0));
+  const day = siteFormatter({ month: 'short', day: 'numeric' }).format(end);
+  const time = siteFormatter({ hour: 'numeric', minute: '2-digit' }).format(end);
+  // Calendar days in the site's zone, so "tomorrow" means the next date there.
+  const days = Math.round((Date.parse(zonedDateKey(end)) - Date.parse(zonedDateKey(now))) / 86400000);
+  const short = days <= 0 ? 'ends today' : days === 1 ? 'ends tomorrow' : days <= 7 ? `${days} days left` : `ends ${day}`;
+  const when = `${day} at ${time}`;
+  return { short, when, detail: `${tag} ends ${when}` };
 }
 
 // Today's prices for one offering, the same choices the old homepage cards
@@ -65,7 +89,9 @@ export function priceOptions(offering: ClassSeriesEntry, now: Date): PriceOption
     if (input.base == null) return null;
     const result = getActivePrice(now, input);
     const discounted = result.display === 'discounted';
-    return { label, price: result.activePrice!, was: discounted ? result.originalPrice : null, tag: discounted ? priceTierLabel(result.tag) : '', suffix };
+    const tag = discounted ? priceTierLabel(result.tag) : '';
+    const until = result.tag === 'flash_sale' ? input.flashSaleUntil : input.earlyBirdUntil;
+    return { label, price: result.activePrice!, was: discounted ? result.originalPrice : null, tag, suffix, ends: discounted && until ? dealEnds(tag, until, now) : null };
   };
   if (offering.eventType === 'event') return [option('Ticket', 'whole')].filter((o): o is PriceOption => o != null);
   const perClass = '/class';
