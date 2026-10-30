@@ -3,7 +3,8 @@
 // gallery (admin → Homepage), in a sideways row that turns like a cylinder as it
 // scrolls and loops forever both ways. A flyer opens full size through the
 // homepage's flyer dialog (data-flyer-open).
-// On phones a swipe settles with the nearest flyer centered (CSS scroll snap).
+// On phones the row follows the finger and, let go, glides on and settles
+// with the nearest flyer centered (the script below).
 interface Props {
   flyers: string[];
 }
@@ -26,7 +27,7 @@ const arrowClass =
       <button type="button" data-gallery-scroll="-1" aria-label="Scroll back" class={`${arrowClass} left-2`}>
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
       </button>
-      <div id="past-flyers" data-copies={copies} data-count={flyers.length} class="flex items-center gap-10 overflow-x-auto overscroll-x-contain py-8 max-sm:snap-x max-sm:snap-mandatory [perspective:1100px] [scrollbar-width:none] sm:gap-14 [&::-webkit-scrollbar]:hidden">
+      <div id="past-flyers" data-copies={copies} data-count={flyers.length} class="flex items-center gap-10 overflow-x-auto overscroll-x-contain py-8 max-sm:touch-pan-y [perspective:1100px] [scrollbar-width:none] sm:gap-14 [&::-webkit-scrollbar]:hidden">
         {Array.from({ length: copies }, (_, copy) =>
           flyers.map((url) => {
             // Only the middle copy is for screen readers and the keyboard; the rest are its look-alikes.
@@ -36,7 +37,7 @@ const arrowClass =
                 type="button"
                 data-flyer-open={url}
                 data-gallery-flyer
-                class="shrink-0 will-change-transform max-sm:snap-center"
+                class="shrink-0 will-change-transform"
                 aria-label={real ? 'View this past flyer full size' : undefined}
                 aria-hidden={real ? undefined : 'true'}
                 tabindex={real ? undefined : -1}
@@ -49,11 +50,11 @@ const arrowClass =
       </div>
       {/* Phones only (where the arrows are hidden): a hint that the row scrolls, gone after the first swipe. */}
       <div id="past-flyers-hint" aria-hidden="true" class="pointer-events-none absolute inset-x-0 bottom-14 z-[210] flex justify-center transition-opacity duration-500 sm:hidden">
-        <div class="flex items-center gap-2 rounded-full bg-black/55 px-4 py-2 text-sm font-semibold text-white shadow-md backdrop-blur">
-          <span class="relative h-6 w-10 shrink-0">
-            <span class="swipe-hint-gesture absolute left-0 top-0 h-6 w-6">
-              <span class="swipe-hint-trail absolute left-[7px] top-[1px] h-[3px] rounded-full bg-linear-to-r from-white/80 to-white/0"></span>
-              <svg class="relative h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 14a8 8 0 0 1-8 8" /><path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2" /><path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1" /><path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10" /><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" /></svg>
+        <div class="flex items-center gap-1.5 rounded-full bg-black/30 px-2.5 py-1 text-[11px] font-medium tracking-wide text-white/90 backdrop-blur-sm">
+          <span class="relative h-4 w-7 shrink-0">
+            <span class="swipe-hint-gesture absolute left-0 top-0 h-4 w-4">
+              <span class="swipe-hint-trail absolute left-[5px] top-[1px] h-[2px] rounded-full bg-linear-to-r from-white/70 to-white/0"></span>
+              <svg class="relative h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 14a8 8 0 0 1-8 8" /><path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2" /><path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1" /><path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10" /><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" /></svg>
             </span>
           </span>
           Swipe to see more
@@ -78,11 +79,11 @@ const arrowClass =
   }
   @keyframes swipe-hint-finger {
     0% {
-      transform: translateX(16px);
+      transform: translateX(12px);
       opacity: 0;
     }
     8% {
-      transform: translateX(16px);
+      transform: translateX(12px);
       opacity: 1;
     }
     55% {
@@ -102,7 +103,7 @@ const arrowClass =
     }
     55%,
     100% {
-      width: 16px;
+      width: 12px;
     }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -168,7 +169,12 @@ const arrowClass =
       const width = copyWidth();
       if (width <= 0) return;
       const copy = Math.floor((gallery.scrollLeft + gallery.clientWidth / 2 - items[0].offsetLeft) / width);
-      if (copy < 1 || copy > copies - 2) gallery.scrollLeft += (middleCopy - copy) * width;
+      if (copy < 1 || copy > copies - 2) {
+        const shift = (middleCopy - copy) * width;
+        gallery.scrollLeft += shift;
+        // A finger held still mid-drag carries on from the same view.
+        if (drag) drag.left += shift;
+      }
       target = null;
     };
     // The phone hint goes at the first swipe, and stays gone in this browser.
@@ -252,6 +258,75 @@ const arrowClass =
       const img = item.querySelector('img');
       if (img && !img.complete) img.addEventListener('load', () => document.activeElement === item && center('auto'), { once: true });
     });
+    // Phones: the row follows the finger itself (rather than scroll snapping,
+    // which on some phones waits for the coast to stop and then jumps). Let
+    // go, it glides on as far as the flick would carry it and eases to a stop
+    // with the nearest flyer centered.
+    const phone = window.matchMedia('(max-width: 639.98px)');
+    let drag: { id: number; x: number; left: number; moved: boolean; samples: { t: number; x: number }[] } | null = null;
+    let glide = 0;
+    let dragged = false;
+    const settleAt = (left: number) => {
+      const middle = left + gallery.clientWidth / 2;
+      const nearest = items.reduce((best, item) =>
+        Math.abs(item.offsetLeft + item.offsetWidth / 2 - middle) < Math.abs(best.offsetLeft + best.offsetWidth / 2 - middle) ? item : best
+      );
+      const from = gallery.scrollLeft;
+      const to = nearest.offsetLeft + nearest.offsetWidth / 2 - gallery.clientWidth / 2;
+      const duration = Math.min(900, Math.max(300, 250 + Math.abs(to - from) * 0.6));
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        gallery.scrollLeft = from + (to - from) * (1 - Math.pow(1 - t, 3));
+        glide = t < 1 ? requestAnimationFrame(step) : 0;
+      };
+      glide = requestAnimationFrame(step);
+    };
+    gallery.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch' || !phone.matches) return;
+      cancelAnimationFrame(glide);
+      drag = { id: e.pointerId, x: e.clientX, left: gallery.scrollLeft, moved: false, samples: [{ t: e.timeStamp, x: e.clientX }] };
+    });
+    gallery.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dx = e.clientX - drag.x;
+      if (!drag.moved && Math.abs(dx) < 8) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        gallery.setPointerCapture(e.pointerId);
+      }
+      gallery.scrollLeft = drag.left - dx;
+      drag.samples.push({ t: e.timeStamp, x: e.clientX });
+      if (drag.samples.length > 6) drag.samples.shift();
+    });
+    const release = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const { moved, samples } = drag;
+      drag = null;
+      if (!moved) return;
+      dragged = true;
+      // The finger's speed over its last tenth of a second (none if it had stopped).
+      const last = samples[samples.length - 1];
+      const recent = samples.filter((p) => e.timeStamp - p.t < 100 && p.t <= last.t);
+      const first = recent[0];
+      const speed = first && last.t > first.t ? (last.x - first.x) / (last.t - first.t) : 0;
+      settleAt(gallery.scrollLeft - speed * 300);
+    };
+    gallery.addEventListener('pointerup', release);
+    gallery.addEventListener('pointercancel', release);
+    // A drag that ends on a flyer doesn't open it.
+    gallery.addEventListener(
+      'click',
+      (e) => {
+        if (!dragged) return;
+        dragged = false;
+        e.preventDefault();
+        e.stopPropagation();
+      },
+      true
+    );
+    gallery.addEventListener('pointerdown', () => (dragged = false));
+
     // Swiping or the wheel takes over from an arrow's glide.
     for (const type of ['pointerdown', 'wheel', 'touchstart'] as const) gallery.addEventListener(type, () => (target = null), { passive: true });
   }

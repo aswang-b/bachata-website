@@ -273,11 +273,11 @@ test('on a phone, letting go of a swipe on the past flyers settles with the near
   await page.waitForTimeout(800);
   const box = (await gallery.boundingBox())!;
   const y = Math.round(box.y + box.height / 2);
-  // A short, slow drag that lets go between two flyers.
+  // A slow drag, most of a flyer long, that stops and lets go between two flyers.
   const startLeft = await gallery.evaluate((g) => g.scrollLeft);
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y }] });
-  for (let x = 290; x >= 230; x -= 10) {
+  for (let x = 290; x >= 130; x -= 10) {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
     await page.waitForTimeout(40);
   }
@@ -330,4 +330,50 @@ test('wider up, tabbing to a past flyer out of view brings it to the middle', as
   await far.focus();
   await expect(far).toBeFocused();
   await expect.poll(() => far.evaluate((el) => Number(el.style.opacity || 1)), { timeout: 5000 }).toBeGreaterThan(0.9);
+});
+
+// Scroll snapping waited (on some phones) for the coast to stop, then jumped
+// to a flyer. Now a flick carries the row on past where the finger let go and
+// eases to a stop with a flyer centered, all in one glide.
+test('on a phone, a quick flick of the past flyers glides on and settles centered', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  await page.goto(`${BASE_URL}/`);
+  const gallery = page.locator('#past-flyers');
+  test.skip((await gallery.count()) === 0, 'The gallery is empty right now.');
+  await gallery.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(800);
+  const box = (await gallery.boundingBox())!;
+  const y = Math.round(box.y + box.height / 2);
+  const startLeft = await gallery.evaluate((g) => g.scrollLeft);
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 320, y }] });
+  for (let x = 300; x >= 220; x -= 20) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
+    await page.waitForTimeout(10);
+  }
+  const released = await gallery.evaluate((g) => g.scrollLeft);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  const offCenter = () =>
+    gallery.evaluate((g) => {
+      const middle = g.getBoundingClientRect().left + g.clientWidth / 2;
+      const flyers = [...g.querySelectorAll<HTMLElement>('[data-gallery-flyer]')];
+      const turns = flyers.map((f) => f.style.transform);
+      flyers.forEach((f) => (f.style.transform = 'none'));
+      const gap = Math.min(...flyers.map((f) => Math.abs(f.getBoundingClientRect().left + f.offsetWidth / 2 - middle)));
+      flyers.forEach((f, i) => (f.style.transform = turns[i]));
+      return gap;
+    });
+  await expect.poll(offCenter, { timeout: 5000 }).toBeLessThan(2);
+  // It followed the finger, then carried on beyond where the finger let go
+  // (allowing for the loop's invisible jump back by whole copies).
+  expect(released).toBeGreaterThan(startLeft + 60);
+  const copy = await gallery.evaluate((g) => {
+    const items = [...g.querySelectorAll<HTMLElement>('[data-gallery-flyer]')];
+    return items[Number(g.dataset.count)].offsetLeft - items[0].offsetLeft;
+  });
+  const travelled = (((await gallery.evaluate((g) => g.scrollLeft)) - released) % copy + copy) % copy;
+  expect(travelled).toBeGreaterThan(20);
+  expect(travelled).toBeLessThan(copy - 20);
+  await ctx.close();
 });
