@@ -60,6 +60,23 @@ for (const [width, compact] of [
     await expect(row).toBeVisible({ timeout: 30_000 });
     expect(await row.evaluate((tr) => getComputedStyle(tr).display)).toBe(compact ? 'flex' : 'table-row');
     const picker = page.locator('#tab-panel-signups details', { hasText: 'Fields on each row' });
+    // Phones and tablets get sort buttons only for the columns that get sorted there.
+    const contactSort = page.locator('th[data-table="signups"][data-column="email"]');
+    if (compact) {
+      await expect(contactSort).toBeHidden();
+      await expect(page.locator('th[data-table="signups"][data-column="seriesSort"]')).toBeHidden();
+      await expect(page.locator('th[data-table="signups"][data-column="lastName"]')).toBeVisible();
+    } else await expect(contactSort).toBeVisible();
+
+    // Picking a class keeps the very dropdown it was picked in (Firefox on
+    // Android dropped the choice when that dropdown was swapped for a new one).
+    const classSelect = page.locator('#signups-class-filters select').first();
+    await classSelect.evaluate((el) => ((el as HTMLSelectElement & { keep?: boolean }).keep = true));
+    await classSelect.selectOption(klass.title);
+    await expect(page.locator('#signups-body tr', { hasText: 'ZZZDashLead' })).toBeVisible();
+    expect(await page.locator('#signups-class-filters select').first().evaluate((el) => (el as HTMLSelectElement & { keep?: boolean }).keep)).toBe(true);
+    await page.locator('#signups-clear-filters').click();
+
     if (!compact) {
       await expect(picker).toBeHidden();
       return;

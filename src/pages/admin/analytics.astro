@@ -103,10 +103,10 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                 <tr>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="firstName" data-card-title>First Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="lastName" data-card-title>Last Name</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="email">Contact Info</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="email" data-card-nosort>Contact Info</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[220px]" data-table="signups" data-column="class" data-card-default>Class</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="seriesSort" data-card-inline>Type of Registration</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paymentSort">Payment</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="seriesSort" data-card-nosort data-card-inline>Type of Registration</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paymentSort" data-card-nosort>Payment</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paid" data-card-dot>Paid</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="createdAt">Registered</th>
                   <th data-card-actions class="signups-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
@@ -179,9 +179,9 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                 <tr>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="firstName" data-card-title>First Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="lastName" data-card-title>Last Name</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="email">Contact Info</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="email" data-card-nosort>Contact Info</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[200px]" data-table="event-registrations" data-column="class" data-card-default>Event</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paymentSort" data-card-inline>Payment</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paymentSort" data-card-nosort data-card-inline>Payment</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paid" data-card-inline="end">Paid</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="createdAt">Registered</th>
                   <th data-card-actions class="event-registrations-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
@@ -248,7 +248,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                 <tr>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="firstName" data-card-title>First Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="lastName" data-card-title>Last Name</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="phone">Phone</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="phone" data-card-nosort>Phone</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classTitle" data-card-default>Class</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classDate" data-card-inline>Class Date</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="createdAt">Checked In At</th>
@@ -311,8 +311,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                   <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                     <tr>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="lastName" data-card-title>Dancer</th>
-                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="phone">Phone</th>
-                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="email">Email</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="phone" data-card-nosort>Phone</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="email" data-card-nosort>Email</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="classTitle" data-card-default>Class</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="occurrenceDate" data-card-inline>Date</th>
                       <th data-card-panel class="orphaned-signups-actions-header hidden px-3 py-2.5">Resolve</th>
@@ -334,8 +334,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                   <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                     <tr>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="last_name" data-card-title>Dancer</th>
-                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="phone">Phone</th>
-                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="email">Email</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="phone" data-card-nosort>Phone</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="email" data-card-nosort>Email</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="class_title" data-card-default>Class</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="created_at" data-card-inline>Checked In</th>
                       <th data-card-panel class="orphaned-signups-actions-header hidden px-3 py-2.5">Resolve</th>
@@ -359,8 +359,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="lastName" data-card-title>Dancer</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="phone">Phone</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="email">Email</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="phone" data-card-nosort>Phone</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="email" data-card-nosort>Email</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="classTitle" data-card-default>Class</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="occurrenceDate" data-card-inline>Date</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="status" data-card-status>Status</th>
@@ -2771,7 +2771,9 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       border: 1px solid var(--color-border);
       white-space: nowrap;
     }
-    table.card-table thead th:not(.sort-header) {
+    /* Only the sorts used on a phone get a button (desktop's headers sort by every column). */
+    table.card-table thead th:not(.sort-header),
+    table.card-table thead th[data-card-nosort] {
       display: none;
     }
     table.card-table tbody {

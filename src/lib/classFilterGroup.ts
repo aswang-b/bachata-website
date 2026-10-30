@@ -39,6 +39,61 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
     return el;
   }
 
+  // A row's controls after its class: the date picker (for a real
+  // multi-date series), remove (once there's more than one row) and, on the
+  // last row, add.
+  function rowControls(index: number): HTMLElement[] {
+    const filter = filters[index];
+    const controls: HTMLElement[] = [];
+    const series = getSeries().find((s) => s.title === filter.classTitle && s.isSeries);
+    if (series) {
+      const occurrenceSelect = document.createElement('select');
+      occurrenceSelect.className = SELECT_CLASS;
+      occurrenceSelect.setAttribute('aria-label', 'Date');
+      occurrenceSelect.dataset.focusKey = `date-${index}`;
+      occurrenceSelect.append(
+        option('', 'All dates', !filter.occurrenceId),
+        ...series.occurrences.map((o) => option(o.id, o.label, o.id === filter.occurrenceId))
+      );
+      occurrenceSelect.addEventListener('change', () => {
+        filters[index] = { ...filters[index], occurrenceId: occurrenceSelect.value };
+        onChange();
+      });
+      controls.push(occurrenceSelect);
+    }
+
+    if (filters.length > 1) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = ICON_BUTTON_CLASS;
+      remove.textContent = '×';
+      remove.setAttribute('aria-label', 'Remove this class filter');
+      remove.addEventListener('click', () => {
+        filters.splice(index, 1);
+        render(`class-${Math.max(0, index - 1)}`);
+        onChange();
+      });
+      controls.push(remove);
+    }
+
+    if (index === filters.length - 1) {
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = ICON_BUTTON_CLASS;
+      add.textContent = '+';
+      add.setAttribute('aria-label', 'Add another class filter');
+      add.title = filter.classTitle ? 'Also show another class' : 'Pick a class first';
+      add.disabled = !filter.classTitle;
+      add.dataset.focusKey = 'add';
+      add.addEventListener('click', () => {
+        filters.push(emptyFilter());
+        render(`class-${filters.length - 1}`);
+      });
+      controls.push(add);
+    }
+    return controls;
+  }
+
   // Rebuilds every row. Keyboard focus goes to the control named by
   // `focusKey`, or else stays on whichever control (by row and role) had it,
   // so changing a filter never drops focus back to the top of the page.
@@ -48,7 +103,7 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
     container.replaceChildren();
     const titles = getClassTitles();
 
-    filters.forEach((filter, index) => {
+    filters.forEach((_, index) => {
       const row = document.createElement('div');
       row.className = 'flex items-center gap-2';
 
@@ -56,62 +111,15 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
       classSelect.className = SELECT_CLASS;
       classSelect.setAttribute('aria-label', 'Class');
       classSelect.dataset.focusKey = `class-${index}`;
-      classSelect.append(option('', 'All classes', !filter.classTitle), ...titles.map((t) => option(t, t, t === filter.classTitle)));
+      classSelect.append(option('', 'All classes', !filters[index].classTitle), ...titles.map((t) => option(t, t, t === filters[index].classTitle)));
       classSelect.addEventListener('change', () => {
         filters[index] = { classTitle: classSelect.value, occurrenceId: '' };
-        render(`class-${index}`);
+        // Only the rest of the row is redrawn: Firefox on Android drops the
+        // choice when the dropdown it was picked in is swapped for a new one.
+        row.replaceChildren(classSelect, ...rowControls(index));
         onChange();
       });
-      row.append(classSelect);
-
-      // Only a real multi-date series has dates worth narrowing down to.
-      const series = getSeries().find((s) => s.title === filter.classTitle && s.isSeries);
-      if (series) {
-        const occurrenceSelect = document.createElement('select');
-        occurrenceSelect.className = SELECT_CLASS;
-        occurrenceSelect.setAttribute('aria-label', 'Date');
-        occurrenceSelect.dataset.focusKey = `date-${index}`;
-        occurrenceSelect.append(
-          option('', 'All dates', !filter.occurrenceId),
-          ...series.occurrences.map((o) => option(o.id, o.label, o.id === filter.occurrenceId))
-        );
-        occurrenceSelect.addEventListener('change', () => {
-          filters[index] = { ...filters[index], occurrenceId: occurrenceSelect.value };
-          onChange();
-        });
-        row.append(occurrenceSelect);
-      }
-
-      if (filters.length > 1) {
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = ICON_BUTTON_CLASS;
-        remove.textContent = '×';
-        remove.setAttribute('aria-label', 'Remove this class filter');
-        remove.addEventListener('click', () => {
-          filters.splice(index, 1);
-          render(`class-${Math.max(0, index - 1)}`);
-          onChange();
-        });
-        row.append(remove);
-      }
-
-      if (index === filters.length - 1) {
-        const add = document.createElement('button');
-        add.type = 'button';
-        add.className = ICON_BUTTON_CLASS;
-        add.textContent = '+';
-        add.setAttribute('aria-label', 'Add another class filter');
-        add.title = filter.classTitle ? 'Also show another class' : 'Pick a class first';
-        add.disabled = !filter.classTitle;
-        add.dataset.focusKey = 'add';
-        add.addEventListener('click', () => {
-          filters.push(emptyFilter());
-          render(`class-${filters.length - 1}`);
-        });
-        row.append(add);
-      }
-
+      row.append(classSelect, ...rowControls(index));
       container.append(row);
     });
 
