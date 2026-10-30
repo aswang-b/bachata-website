@@ -110,6 +110,27 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
   image={shareImage}
   structuredData={structuredData}
 >
+  {/* The deal icons a price shows beside it on a phone, drawn once and reused: a bird with a clock (Early Bird) and a lightning bolt (Flash Sale). */}
+  <svg width="0" height="0" class="absolute" aria-hidden="true">
+    <defs>
+      <mask id="early-bird-gap">
+        <rect width="24" height="24" fill="#fff" />
+        <circle cx="17.6" cy="17.6" r="6" fill="#000" />
+        <circle cx="15.9" cy="6.4" r=".85" fill="#000" />
+      </mask>
+      <symbol id="icon-early-bird" viewBox="0 0 24 24">
+        <g mask="url(#early-bird-gap)" fill="currentColor">
+          <path d="M22 6.4l-2.8-.5C18.5 4.7 17.3 4 15.8 4c-2.5 0-4.4 1.9-4.8 4.4l-.9 4.2C7.3 13.7 4.6 15.4 2 17.8c1.7-.4 3.2-.4 4.6 0l-.6 2.6 3.4-2.4c2.9.4 5.9-.5 8-2.6 2-2 3.1-4.6 3.1-7.2z" />
+          <path d="M2.6 4.6c3.1.2 6 .9 8.6 2.2l-1.3 4.8C6 10.6 3.6 8.4 2.6 4.6z" />
+        </g>
+        <circle cx="17.6" cy="17.6" r="4.3" fill="none" stroke="currentColor" stroke-width="1.6" />
+        <path d="M17.6 15.5v2.3l1.6 1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+      </symbol>
+      <symbol id="icon-flash-sale" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M13.5 2 4.5 13.6h6.2L9.8 22l9.7-12.1h-6.4z" />
+      </symbol>
+    </defs>
+  </svg>
   <section class="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
     {/* For search engines and screen readers only; the page itself leads with the flyers. */}
     <h1 class="sr-only">Bachata classes and social dance events in Madison, WI with B Li (Belinda Li)</h1>
@@ -179,7 +200,6 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                   {block.offerings.map((o) => {
                     const { full, label, adminOnly } = spotsFor(o);
                     const prices = priceOptions(o, now);
-                    const tags = [...new Set(prices.map((p) => p.tag).filter(Boolean))];
                     const overviewBody = o.lessonOverviewBody ?? lessonOverview;
                     const showOverview = Boolean(overviewBody) && !o.hideLessonOverview;
                     // A flyer with one class/event: its description, then About This Class Format, shown in the panel beside the flyer.
@@ -217,7 +237,14 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                                   {p.label}:{' '}
                                   {p.was != null && <s class="text-muted">{formatPrice(p.was)}</s>}{' '}
                                   <strong class="font-bold">{formatPrice(p.price)}</strong>{p.suffix}
+                                  {/* A pill wider up; on a phone, where a pill wrapped onto two lines, an icon. */}
                                   {p.tag && <span data-price-tag class:list={[PRICE_TAG, 'ml-1 hidden -translate-y-px align-middle sm:inline-flex']}>{p.tag}</span>}
+                                  {p.tag && (
+                                    <svg data-price-icon role="img" aria-label={p.tag} class="ml-1 inline-block h-[18px] w-[18px] -translate-y-px align-middle text-accent sm:hidden">
+                                      <title>{p.tag}</title>
+                                      <use href={p.tag === 'Flash Sale' ? '#icon-flash-sale' : '#icon-early-bird'} />
+                                    </svg>
+                                  )}
                                 </span>
                               ))}
                             </p>
@@ -226,15 +253,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                           {o.registrationClosed || full ? (
                             <span class="shrink-0 rounded-full bg-border px-3 py-2 text-xs font-bold uppercase tracking-normal text-ink/60 sm:px-5 sm:tracking-wider">{o.registrationClosed ? 'Registration closed' : 'Full'}</span>
                           ) : (
-                            <div class="flex shrink-0 flex-col items-center gap-1">
-                              <a href={registerHref(o)} class="gradient-accent rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Register</a>
-                              {/* On a phone the deal tags sit once under Register, as plain text rather than pills wrapping beside the prices; wider up each price keeps its pill. */}
-                              {tags.length > 0 && (
-                                <span data-price-tags class="flex flex-wrap justify-center gap-x-3 text-[10px] font-bold uppercase leading-4 tracking-wider text-accent sm:hidden">
-                                  {tags.map((tag) => <span>{tag}</span>)}
-                                </span>
-                              )}
-                            </div>
+                            <a href={registerHref(o)} class="gradient-accent shrink-0 rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Register</a>
                           )}
                         </div>
 
