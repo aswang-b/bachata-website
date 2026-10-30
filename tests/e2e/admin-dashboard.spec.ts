@@ -167,7 +167,10 @@ test.describe('with the Event Registration lock taken', () => {
     // The second event's row carries on straight below, as part of the same card.
     const more = card.locator('xpath=following-sibling::tr[1]');
     await expect(more).toHaveAttribute('data-card-continued', '');
-    await expect(more).toContainText(second.title);
+    // The two events can come back in either order.
+    const both = `${await card.textContent()} ${await more.textContent()}`;
+    expect(both).toContain(event.title);
+    expect(both).toContain(second.title);
     const cardNow = (await card.boundingBox())!;
     expect(Math.abs((await more.boundingBox())!.y - (cardNow.y + cardNow.height))).toBeLessThan(1);
 
@@ -178,6 +181,57 @@ test.describe('with the Event Registration lock taken', () => {
     const saveBox = (await save.boundingBox())!;
     expect(saveBox.x + saveBox.width).toBeLessThanOrEqual(390);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+});
+
+test.describe('with the Attendance lock taken', () => {
+  let taken: { resource: string; locked_by: string } | null = null;
+  test.afterAll(async () => {
+    if (taken) await db.from('edit_locks').delete().eq('resource', taken.resource).eq('locked_by', taken.locked_by);
+  });
+
+  test("on a phone an orphan's row opens to its Resolve buttons, in rows, with no label", async ({ page, adminPage }) => {
+    void adminPage;
+    // A class whose first date has passed: a sign-up with no check-in, and a check-in with no sign-up.
+    const past = await seedEvent({ name: 'Orphan Class', occurrences: 2, dayOffset: 3 });
+    const ago = (days: number, hour: number) => new Date(Date.now() - days * 86_400_000 + hour * 3_600_000).toISOString();
+    await db.from('events').update({ start_time: ago(3, 0), end_time: ago(3, 1) }).eq('id', past.ids[0]);
+    await seedSignup(past, [{ first: 'OrphanSign' }]);
+    await db.from('class_checkins').insert({ first_name: 'ZZZOrphanCheck', last_name: RUN_ID, phone: '5550199', class_title: past.title, event_id: past.ids[0] });
+
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/admin/analytics');
+    await page.locator('.tab-btn[data-tab="attendance"]').click();
+    await page.locator('#attendance-lock-btn').click();
+    await expect(page.locator('#attendance-lock-btn')).toHaveText(/Release/i, { timeout: 30_000 });
+    const { data: lock } = await db.from('edit_locks').select('resource, locked_by').ilike('resource', '%attendance%').maybeSingle();
+    taken = lock;
+    await page.evaluate(() => document.getElementById('cookie-consent')?.remove());
+
+    for (const [body, name, buttons] of [
+      ['#orphaned-signups-body', 'ZZZOrphanSign', ['Create Check-In', 'Mark No-Show']],
+      ['#orphaned-checkins-body', 'ZZZOrphanCheck', ['Create Sign-Up']],
+    ] as const) {
+      const row = page.locator(`${body} tr`, { hasText: name });
+      await expect(row).toBeVisible({ timeout: 30_000 });
+      // Shut: its controls stay out of the way, even with the lock taken.
+      const resolve = row.locator('td[data-label="Resolve"]');
+      await expect(resolve).toBeHidden();
+      expect((await row.boundingBox())!.height).toBeLessThan(80);
+      await row.locator('td').first().click();
+      await expect(resolve).toBeVisible();
+      expect(await resolve.evaluate((td) => getComputedStyle(td, '::before').content)).toBe('none');
+      // Long dropdown options don't push anything past the screen's edge.
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+      const del = (await resolve.getByRole('button', { name: 'Delete' }).boundingBox())!;
+      const boxes = await Promise.all(buttons.map(async (label) => (await resolve.getByRole('button', { name: label }).boundingBox())!));
+      // Create and No-Show share a row; Delete has one of its own, below.
+      for (const b of boxes) {
+        expect(Math.abs(b.y - boxes[0].y)).toBeLessThan(2);
+        expect(del.y).toBeGreaterThan(b.y + b.height - 1);
+      }
+    }
+    await page.locator('#attendance-lock-btn').click();
   });
 });
 
