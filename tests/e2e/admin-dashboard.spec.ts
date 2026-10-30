@@ -46,32 +46,50 @@ test('the dashboard page loads for an admin without script errors', async ({ pag
 
 // On a phone the tables scrolled sideways, so matching an action to its
 // dancer meant reading across a row wider than the screen. Below lg each row
-// is a card: the name on top, every other column labelled beneath it.
-for (const [width, cards] of [
+// is compact (paid dot, name, a line of chosen fields) and opens on a tap.
+for (const [width, compact] of [
   [390, true],
   [820, true],
   [1280, false],
 ] as const) {
-  test(`the sign-ups ${cards ? 'show as cards' : 'stay a table'} at ${width}px wide`, async ({ page, adminPage }) => {
+  test(`the sign-ups ${compact ? 'show as compact rows' : 'stay a table'} at ${width}px wide`, async ({ page, adminPage }) => {
     void adminPage;
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/admin/analytics');
     const row = page.locator('#signups-body tr', { hasText: 'ZZZDashLead' });
     await expect(row).toBeVisible({ timeout: 30_000 });
-    expect(await row.evaluate((tr) => getComputedStyle(tr).display)).toBe(cards ? 'flex' : 'table-row');
-    if (!cards) return;
-    // The whole card fits on screen, with nothing to scroll sideways to.
+    expect(await row.evaluate((tr) => getComputedStyle(tr).display)).toBe(compact ? 'flex' : 'table-row');
+    const picker = page.locator('#tab-panel-signups details', { hasText: 'Fields on each row' });
+    if (!compact) {
+      await expect(picker).toBeHidden();
+      return;
+    }
+    // It fits on screen, with nothing to scroll sideways to.
     const box = (await row.boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(width);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-    // The name leads, and the other columns carry their header as a label.
-    const first = row.locator('td').first();
-    expect(await first.evaluate((td) => getComputedStyle(td, '::before').content)).toBe('none');
-    const classCell = row.locator('td[data-label="Class"]');
-    await expect(classCell).toContainText(klass.title);
-    expect(await classCell.evaluate((td) => getComputedStyle(td, '::before').content)).toBe('"Class"');
-    expect((await first.boundingBox())!.y).toBeLessThan((await classCell.boundingBox())!.y);
+    // Shut: two short lines, the name (with an unpaid dot) over the chosen fields.
+    expect(box.height).toBeLessThan(80);
+    await expect(row).toHaveAttribute('data-card-paid', 'no');
+    await expect(row.locator('td[data-label="Class"]')).toBeVisible();
+    await expect(row.locator('td[data-label="Contact Info"]')).toBeHidden();
+    await expect(row.locator('td[data-label="Payment"]')).toBeHidden();
+
+    // A tap opens every column, labelled.
+    await row.locator('td').first().click();
+    await expect(row.locator('td[data-label="Contact Info"]')).toBeVisible();
+    expect(await row.locator('td[data-label="Class"]').evaluate((td) => getComputedStyle(td, '::before').content)).toBe('"Class"');
+    await row.locator('td').first().click();
+    await expect(row.locator('td[data-label="Contact Info"]')).toBeHidden();
+
+    // The picker (shut until asked for) adds a field to every row, and it's remembered.
+    await expect(picker.getByRole('button', { name: 'Payment' })).toBeHidden();
+    await picker.locator('summary').click();
+    await picker.getByRole('button', { name: 'Payment' }).click();
+    await expect(row.locator('td[data-label="Payment"]')).toBeVisible();
+    await page.reload();
+    await expect(page.locator('#signups-body tr', { hasText: 'ZZZDashLead' }).locator('td[data-label="Payment"]')).toBeVisible({ timeout: 30_000 });
   });
 }
 

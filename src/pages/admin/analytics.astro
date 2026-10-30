@@ -104,10 +104,10 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="firstName" data-card-title>First Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="lastName" data-card-title>Last Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="email">Contact Info</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[220px]" data-table="signups" data-column="class">Class</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="seriesSort">Series</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[220px]" data-table="signups" data-column="class" data-card-default>Class</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="seriesSort" data-card-default>Series</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paymentSort">Payment</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paid">Paid</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="paid" data-card-dot>Paid</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="signups" data-column="createdAt">Registered</th>
                   <th data-card-actions class="signups-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
                 </tr>
@@ -180,9 +180,9 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="firstName" data-card-title>First Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="lastName" data-card-title>Last Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="email">Contact Info</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[200px]" data-table="event-registrations" data-column="class">Event</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paymentSort">Payment</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paid">Paid</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3 min-w-[200px]" data-table="event-registrations" data-column="class" data-card-default>Event</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paymentSort" data-card-default>Payment</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="paid" data-card-dot>Paid</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="event-registrations" data-column="createdAt">Registered</th>
                   <th data-card-actions class="event-registrations-actions-header hidden px-4 py-3 min-w-[96px]">Actions</th>
                 </tr>
@@ -249,8 +249,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="firstName" data-card-title>First Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="lastName" data-card-title>Last Name</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="phone">Phone</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classTitle">Class</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classDate">Class Date</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classTitle" data-card-default>Class</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="classDate" data-card-default>Class Date</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="checkins" data-column="createdAt">Checked In At</th>
                   <th data-card-actions class="checkins-actions-header hidden px-4 py-3">Actions</th>
                 </tr>
@@ -313,8 +313,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="lastName" data-card-title>Dancer</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="phone">Phone</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="email">Email</th>
-                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="classTitle">Class</th>
-                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="occurrenceDate">Date</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="classTitle" data-card-default>Class</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-signups" data-column="occurrenceDate" data-card-default>Date</th>
                       <th class="orphaned-signups-actions-header hidden px-3 py-2.5">Resolve</th>
                     </tr>
                   </thead>
@@ -336,8 +336,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="last_name" data-card-title>Dancer</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="phone">Phone</th>
                       <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="email">Email</th>
-                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="class_title">Class</th>
-                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="created_at">Checked In</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="class_title" data-card-default>Class</th>
+                      <th class="sort-header cursor-pointer select-none px-3 py-2.5" data-table="attendance-orphaned-checkins" data-column="created_at" data-card-default>Checked In</th>
                       <th class="orphaned-signups-actions-header hidden px-3 py-2.5">Resolve</th>
                     </tr>
                   </thead>
@@ -361,9 +361,9 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="lastName" data-card-title>Dancer</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="phone">Phone</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="email">Email</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="classTitle">Class</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="occurrenceDate">Date</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="status">Status</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="classTitle" data-card-default>Class</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="occurrenceDate" data-card-default>Date</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="attendance-matches" data-column="status" data-card-default>Status</th>
                 </tr>
               </thead>
               <tbody id="attendance-matches-body"></tbody>
@@ -408,11 +408,11 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
               <thead class="bg-surface text-xs font-semibold uppercase tracking-wider text-muted">
                 <tr>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="name" data-card-title>Name</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="kindLabel">What</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="kindLabel" data-card-default>What</th>
                   <th class="px-4 py-3">Class</th>
-                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="deletedAt">Deleted</th>
+                  <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="deletedAt" data-card-default>Deleted</th>
                   <th class="sort-header cursor-pointer select-none px-4 py-3" data-table="recycling" data-column="deletedBy">By</th>
-                  <th class="px-4 py-3">Restore</th>
+                  <th data-card-actions class="px-4 py-3">Restore</th>
                 </tr>
               </thead>
               <tbody id="recycling-body"></tbody>
@@ -2546,23 +2546,101 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     await lockControllersByTab[activeTab]?.resumeHeartbeat();
   }
 
-  // Below lg every table shows as one card per row (the style block below),
-  // each cell labelled with its column's header. The rows are rebuilt on
-  // every render, so the labels are copied over whenever a body changes.
+  // Below lg every table shows as a list of compact rows (the style block
+  // below): a paid dot, the name and its action icons, then a line of the
+  // fields the admin picked ("Fields on each row", remembered per table in
+  // this browser). Tapping a row opens every column, labelled. The rows are
+  // rebuilt on every render, so they're marked up again whenever a body
+  // changes (or a Paid box is ticked, for the dot).
+  const cardMode = window.matchMedia('(max-width: 1023.98px)');
+  const isEditRow = (row: Element) => row.querySelector('input:not([type="checkbox"]), select, textarea') !== null;
   document.querySelectorAll<HTMLTableElement>('table.card-table').forEach((table) => {
     const body = table.tBodies[0];
+    const headers = Array.from(table.tHead!.rows[0].cells);
+    const nameOf = (th: HTMLTableCellElement) => th.textContent!.trim().replace(/ [↑↓]$/, '');
+    const isField = (th: HTMLTableCellElement) => !th.matches('[data-card-title], [data-card-actions], [data-card-dot]');
+    const fields = headers.filter(isField).map(nameOf);
+    const storageKey = `dashboard-row-fields:${body.id}`;
+    let shown = new Set(headers.filter((th) => isField(th) && th.hasAttribute('data-card-default')).map(nameOf));
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+      if (Array.isArray(saved)) shown = new Set(saved.filter((name) => fields.includes(name)));
+    } catch {
+      // Storage blocked: the defaults it is.
+    }
+
     const label = () => {
-      const headers = Array.from(table.tHead!.rows[0].cells);
       for (const row of Array.from(body.rows)) {
+        if (isEditRow(row)) row.setAttribute('data-card-open', '');
+        delete row.dataset.cardPaid;
+        let lastTitle: HTMLTableCellElement | undefined;
         Array.from(row.cells).forEach((cell, i) => {
           const th = headers[i];
           if (!th) return;
-          cell.dataset.label = th.textContent!.trim().replace(/ [↑↓]$/, '');
+          cell.dataset.label = nameOf(th);
           cell.toggleAttribute('data-card-title', th.hasAttribute('data-card-title'));
           cell.toggleAttribute('data-card-actions', th.hasAttribute('data-card-actions'));
+          cell.toggleAttribute('data-card-show', isField(th) && shown.has(nameOf(th)));
+          cell.removeAttribute('data-card-chevron');
+          if (th.hasAttribute('data-card-title')) lastTitle = cell;
+          const paid = th.hasAttribute('data-card-dot') ? cell.querySelector<HTMLInputElement>('input[type="checkbox"]') : null;
+          if (paid) row.dataset.cardPaid = paid.checked ? 'yes' : 'no';
         });
+        lastTitle?.setAttribute('data-card-chevron', '');
       }
     };
+
+    // The field picker: tucked away, since sorting is what gets used most.
+    const picker = document.createElement('details');
+    picker.className = 'mb-2 text-xs lg:hidden';
+    picker.innerHTML =
+      '<summary class="cursor-pointer select-none font-semibold text-muted">Fields on each row: <span class="row-fields-summary text-ink/80"></span></summary><div class="mt-2 flex flex-wrap gap-1.5"></div>';
+    const chips = picker.querySelector('div')!;
+    const syncPicker = () => {
+      picker.querySelector('.row-fields-summary')!.textContent = fields.filter((name) => shown.has(name)).join(' · ') || 'none';
+      chips.querySelectorAll<HTMLButtonElement>('button').forEach((chip) => {
+        const on = shown.has(chip.dataset.field!);
+        chip.setAttribute('aria-pressed', String(on));
+        chip.className = `rounded-full border px-2.5 py-1 font-semibold ${on ? 'border-accent bg-accent/15 text-accent' : 'border-border text-ink/70'}`;
+      });
+    };
+    for (const name of fields) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.dataset.field = name;
+      chip.textContent = name;
+      chip.addEventListener('click', () => {
+        if (shown.has(name)) shown.delete(name);
+        else shown.add(name);
+        try {
+          localStorage.setItem(storageKey, JSON.stringify([...shown]));
+        } catch {
+          // Storage blocked: the choice lasts until the page reloads.
+        }
+        syncPicker();
+        label();
+      });
+      chips.append(chip);
+    }
+    table.before(picker);
+    syncPicker();
+
+    // A tap on a row (not on one of its buttons or boxes) opens or closes it,
+    // along with the rest of that dancer's classes.
+    body.addEventListener('click', (e) => {
+      if (!cardMode.matches) return;
+      const target = e.target as Element;
+      if (target.closest('button, a, input, select, textarea, label')) return;
+      let row = target.closest('tr');
+      if (!row || row.parentElement !== body || isEditRow(row)) return;
+      while (row.hasAttribute('data-card-continued') && row.previousElementSibling) row = row.previousElementSibling as HTMLTableRowElement;
+      const open = !row.hasAttribute('data-card-open');
+      for (let r: Element | null = row; r; r = r.nextElementSibling) {
+        if (r !== row && !r.hasAttribute('data-card-continued')) break;
+        r.toggleAttribute('data-card-open', open);
+      }
+    });
+    body.addEventListener('change', label);
     new MutationObserver(label).observe(body, { childList: true });
     label();
   });
@@ -2571,12 +2649,11 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
 </script>
 
 <style is:global>
-  /* Phones and tablets: a table's rows become cards, so every action sits
-     in the same card as the dancer it acts on (no sideways scrolling). The
-     name leads the card with the edit / resend / delete icons beside it,
-     and the other columns stack beneath as label + value. A dancer's extra
-     classes (data-card-continued rows) join the card above them. The header
-     row stays as a row of sort buttons. */
+  /* Phones and tablets (see the script above): each row is compact, a paid
+     dot, the name with its action icons, and a line of the chosen fields,
+     opening to every column, labelled. A dancer's extra classes
+     (data-card-continued rows) add their own line to the same box. The
+     header row stays as a row of sort buttons. */
   @media (max-width: 1023.98px) {
     table.card-table {
       display: block;
@@ -2615,32 +2692,114 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     table.card-table tbody tr {
       display: flex;
       flex-wrap: wrap;
+      align-items: center;
       column-gap: 0.35em;
-      margin-top: 0.75rem;
-      padding: 0.75rem 1rem;
+      margin-top: 0.5rem;
+      padding: 0.5rem 0.75rem;
       border: 1px solid var(--color-border);
-      border-radius: 1rem;
+      border-radius: 0.75rem;
+      cursor: pointer;
+    }
+    /* Ends the name line: everything after it starts a line of its own. */
+    table.card-table tbody tr::before {
+      content: '';
+      order: -1;
+      flex-basis: 100%;
     }
     table.card-table tbody tr[data-card-continued] {
       margin-top: 0;
+      padding-top: 0.3rem;
       border-top: 1px dashed color-mix(in srgb, var(--color-border) 60%, transparent);
       border-top-left-radius: 0;
       border-top-right-radius: 0;
     }
     table.card-table tbody tr:has(+ tr[data-card-continued]) {
+      padding-bottom: 0.3rem;
       border-bottom: 0;
       border-bottom-left-radius: 0;
       border-bottom-right-radius: 0;
     }
-    table.card-table tbody td {
+    table.card-table tbody td[data-card-title] {
+      order: -3;
+      display: block;
+      padding: 0;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    table.card-table tbody tr[data-card-paid] > td[data-card-title]:first-child::before {
+      content: '';
+      display: inline-block;
+      width: 0.55rem;
+      height: 0.55rem;
+      margin-right: 0.45rem;
+      border-radius: 9999px;
+      vertical-align: 0.1em;
+      background: #22c55e;
+    }
+    table.card-table tbody tr[data-card-paid='no'] > td[data-card-title]:first-child::before {
+      background: #f59e0b;
+    }
+    table.card-table tbody td[data-card-chevron]::after {
+      content: '▾';
+      display: inline-block;
+      margin-left: 0.35rem;
+      font-size: 0.8em;
+      color: var(--color-muted);
+    }
+    table.card-table tbody tr[data-card-open] > td[data-card-chevron]::after {
+      transform: rotate(180deg);
+    }
+    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] {
+      order: -2;
+      display: block;
+      margin: -0.4rem -0.4rem -0.4rem auto;
+      padding: 0;
+    }
+    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] > div {
+      gap: 0.25rem;
+    }
+    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] button {
+      padding: 0.4rem;
+    }
+    /* Shut: only the chosen fields, small, separated by dots, sharing one
+       line: a short field shows whole and a long one is cut short. */
+    table.card-table tbody tr:not([data-card-open]) > td:not([data-card-title]):not([data-card-actions]):not([data-card-show]) {
+      display: none;
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-show] {
+      flex: 1 1 0;
+      min-width: 0;
+      max-width: max-content;
+      overflow: hidden;
+      padding: 0;
+      font-size: 0.8rem;
+      color: var(--color-muted);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-show] * {
+      display: inline;
+      margin: 0;
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-show] > *::before {
+      content: ' ';
+    }
+    table.card-table tbody tr:not([data-card-open]) > td[data-card-show] ~ td[data-card-show]::before {
+      content: '· ';
+    }
+    /* Open: every column, as label and value. */
+    table.card-table tbody tr[data-card-open] > td:not([data-card-title]):not([data-card-actions]),
+    table.card-table tbody tr[data-card-open]:has(input:not([type='checkbox']), select, textarea) > td[data-card-actions] {
       display: grid;
       grid-template-columns: 6.5rem minmax(0, 1fr);
       gap: 0.15rem 0.75rem;
       flex-basis: 100%;
       padding: 0.2rem 0;
       overflow-wrap: anywhere;
+      cursor: auto;
     }
-    table.card-table tbody td::before {
+    table.card-table tbody tr[data-card-open] > td:not([data-card-title]):not([data-card-actions])::before,
+    table.card-table tbody tr[data-card-open]:has(input:not([type='checkbox']), select, textarea) > td[data-card-actions]::before {
       content: attr(data-label);
       padding-top: 0.15rem;
       font-size: 0.68rem;
@@ -2649,48 +2808,13 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       letter-spacing: 0.05em;
       color: var(--color-muted);
     }
-    /* A value in several parts (email over phone, a drop-in's date under it)
-       stays in the value column, one part per line. */
-    table.card-table tbody td > * {
+    table.card-table tbody tr[data-card-open] > td > * {
       grid-column: 2;
     }
-    table.card-table tbody td[data-card-title] {
-      display: block;
-      flex-basis: auto;
-      padding-bottom: 0.35rem;
-      font-size: 1rem;
-      font-weight: 700;
-    }
-    table.card-table tbody td[data-card-title]::before {
-      content: none;
-    }
-    table.card-table tbody td[data-card-title] {
-      order: -2;
-    }
-    /* A shown row's action icons share the name's line, at its right (or
-       the next line, for a long name); an edit row's Save / Cancel stay at
-       the bottom, below its inputs. */
-    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] {
-      order: -1;
-      display: block;
-      flex-basis: auto;
-      margin: -0.4rem -0.4rem 0 auto;
-      padding: 0;
-    }
-    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions]::before {
-      content: none;
-    }
-    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] > div {
-      gap: 0.25rem;
-    }
-    table.card-table tbody tr:not(:has(input:not([type='checkbox']), select, textarea)) > td[data-card-actions] button {
-      padding: 0.4rem;
-    }
-    /* Last, so it outranks the display rules above: blank cells (a dancer's
-       name on their second class, say) take no room. */
-    table.card-table tbody tr td:empty,
+    /* Blank cells (a dancer's name on their second class, say) take no room. */
+    table.card-table tbody td:empty,
     table.card-table tbody td > div:empty {
-      display: none;
+      display: none !important;
     }
   }
 </style>
