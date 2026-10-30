@@ -99,7 +99,7 @@ const typeLabel = (o: ClassSeriesEntry) => (o.eventType === 'event' ? '' : o.isS
 const fullOccurrences = new Set([...spotsByOccurrence].filter(([, s]) => s.full).map(([id]) => id));
 const structuredData = eventSchemas(events ?? [], now, fullOccurrences);
 const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyerUrl ?? undefined;
-// The Early Bird / Flash Sale pill beside (or, on a phone, above) a price.
+// The Early Bird / Flash Sale pill beside a price wider up.
 const PRICE_TAG = 'items-center rounded-full bg-accent/15 px-1.5 py-1 text-[10px] font-bold uppercase leading-none tracking-wide text-accent';
 const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/register/events' : '/register'}?series=${encodeURIComponent(o.key)}`;
 ---
@@ -212,10 +212,10 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                         <div class="mt-2 flex items-center justify-between gap-2 sm:gap-3">
                           {prices.length > 0 ? (
                             <p class="flex min-w-0 flex-1 flex-col gap-y-0.5 text-sm text-ink sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-1">
-                              {/* On a phone the deal tags sit once above the prices rather than wrapping beside them; wider up each price keeps its own. */}
+                              {/* On a phone the deal tags sit once above the prices, as plain text rather than pills wrapping beside them; wider up each price keeps its pill. */}
                               {tags.length > 0 && (
-                                <span data-price-tags class="mb-0.5 flex flex-wrap gap-1 sm:hidden">
-                                  {tags.map((tag) => <span class={PRICE_TAG}>{tag}</span>)}
+                                <span data-price-tags class="flex flex-wrap gap-x-3 text-[10px] font-bold uppercase leading-4 tracking-wider text-accent sm:hidden">
+                                  {tags.map((tag) => <span>{tag}</span>)}
                                 </span>
                               )}
                               {prices.map((p) => (

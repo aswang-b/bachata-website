@@ -63,13 +63,15 @@ test('classes sharing a flyer form one block, each with its own tags, prices and
   expect(pageErrors).toEqual([]);
 });
 
-test('a deal tag sits once above the prices on a phone, and beside its price, centered, wider up', async ({ page }) => {
+test('a deal tag sits once above the prices on a phone as plain text, and beside its price, centered, wider up', async ({ page }) => {
   // On a phone a pill beside the price wrapped onto two lines.
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto('/');
   const s = row(page, series);
   const tags = s.locator('[data-price-tags]');
   await expect(tags).toHaveText('Early Bird');
+  // Plain text there, not a pill.
+  await expect(tags).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(s.locator('[data-price-tag]')).toBeHidden();
   const price = s.locator('p > span', { hasText: 'Series:' });
   const [tagBox, priceBox] = [await tags.boundingBox(), await price.boundingBox()];
