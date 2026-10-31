@@ -261,11 +261,25 @@ const arrowClass =
     let drag: { id: number; x: number; left: number; moved: boolean; caught: boolean; samples: { t: number; x: number }[] } | null = null;
     let glide = 0;
     let dragged = false;
+    // Flick after flick never lets scrolling stop for the jump back to the
+    // middle copies, so each glide starts there itself: it goes at most a copy
+    // and a half, toward the landing flyer's twin in the middle copy, from the
+    // matching view (whole copies away, so nothing on screen changes). It once
+    // ran into the end of the row, where the flyer couldn't be centered, and
+    // stopped between two.
     const settleAt = (left: number) => {
+      const width = copyWidth();
+      if (width > 0) left = Math.max(gallery.scrollLeft - 1.5 * width, Math.min(gallery.scrollLeft + 1.5 * width, left));
       const middle = left + gallery.clientWidth / 2;
-      const nearest = items.reduce((best, item) =>
+      let nearest = items.reduce((best, item) =>
         Math.abs(item.offsetLeft + item.offsetWidth / 2 - middle) < Math.abs(best.offsetLeft + best.offsetWidth / 2 - middle) ? item : best
       );
+      if (width > 0) {
+        const index = items.indexOf(nearest);
+        const shift = middleCopy - Math.floor(index / count);
+        gallery.scrollLeft += shift * width;
+        nearest = items[index + shift * count];
+      }
       const from = gallery.scrollLeft;
       const to = nearest.offsetLeft + nearest.offsetWidth / 2 - gallery.clientWidth / 2;
       if (reducedMotion.matches) {
@@ -300,6 +314,8 @@ const arrowClass =
         gallery.setPointerCapture(e.pointerId);
       }
       gallery.scrollLeft = drag.left - (e.clientX - drag.x);
+      // A long drag goes back to the middle copies as it nears an end, finger still down.
+      recenter();
       drag.samples.push({ t: e.timeStamp, x: e.clientX });
       if (drag.samples.length > 6) drag.samples.shift();
     });

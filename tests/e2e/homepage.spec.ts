@@ -579,3 +579,20 @@ test('on a phone with reduced motion, a flick of the past flyers settles at once
   expect(await g.offCenter()).toBeLessThan(2);
   await g.ctx.close();
 });
+
+test('on a phone, spinning the past flyers hard again and again still settles centered (it once stuck between two at the end of the row)', async ({ browser }) => {
+  const g = await phoneGallery(browser);
+  test.skip(g.empty, 'The gallery is empty right now.');
+  // Each hard flick catches the last one's glide, so the row never stops to loop back on its own.
+  const hardFlick = async () => {
+    await g.touch('touchStart', 370);
+    for (let x = 330; x >= 50; x -= 70) await g.touch('touchMove', x);
+    await g.touch('touchEnd');
+  };
+  for (let i = 0; i < 12; i++) {
+    await hardFlick();
+    await g.page.waitForTimeout(40);
+  }
+  await expect.poll(g.offCenter, { timeout: 5000 }).toBeLessThan(2);
+  await g.ctx.close();
+});
