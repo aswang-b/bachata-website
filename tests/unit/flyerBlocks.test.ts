@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildClassSeriesList, type ClassOccurrenceRow } from '../../src/lib/classSeries';
 import { blockDeals, dateRange, dealEnds, groupByFlyer, priceOptions, seriesBounds } from '../../src/lib/flyerBlocks';
 import type { Deal } from '../../src/lib/deals';
+import { countdown } from '../../src/lib/countdown';
 
 const now = new Date('2026-10-20T12:00:00Z');
 const FLYER = 'https://example.com/foundations.jpg';
@@ -39,7 +40,7 @@ describe('flyer homepage blocks', () => {
 
   it('shows a running early bird crossed out', () => {
     const [o] = buildClassSeriesList(series('sensual', { price_whole_series: 80, price_whole_series_early_bird: 65, early_bird_until: '2026-10-22T05:00:00Z' }));
-    expect(priceOptions(o, now)[0]).toEqual({ label: 'Series', price: 65, was: 80, tag: 'Early Bird', suffix: '', ends: { short: 'ends tomorrow', when: 'Oct 21 at 11:59 PM', detail: 'Early Bird ends Oct 21 at 11:59 PM' } });
+    expect(priceOptions(o, now)[0]).toEqual({ label: 'Series', price: 65, was: 80, tag: 'Early Bird', suffix: '', ends: { at: '2026-10-22T05:00:00Z', short: 'ends tomorrow', counting: false, when: 'Oct 21 at 11:59 PM', detail: 'Early Bird ends Oct 21 at 11:59 PM', after: { price: 80, was: null } } });
   });
 
   it("only names a deal whose end the event editor switched off", () => {
@@ -51,10 +52,26 @@ describe('flyer homepage blocks', () => {
 
   it('says when a deal ends: its date, or how soon in its last week, in the site time zone', () => {
     // now is Oct 20, 7 AM Central.
-    expect(dealEnds('Flash Sale', '2026-10-21T04:59:00Z', now)).toEqual({ short: 'ends today', when: 'Oct 20 at 11:59 PM', detail: 'Flash Sale ends Oct 20 at 11:59 PM' });
+    expect(dealEnds('Flash Sale', '2026-10-21T04:59:00Z', now)).toEqual({ at: '2026-10-21T04:59:00Z', short: 'ends today', counting: false, when: 'Oct 20 at 11:59 PM', detail: 'Flash Sale ends Oct 20 at 11:59 PM' });
     expect(dealEnds('Early Bird', '2026-10-23T04:59:00Z', now).short).toBe('2 days left');
     expect(dealEnds('Early Bird', '2026-10-28T04:59:00Z', now).short).toBe('7 days left');
-    expect(dealEnds('Early Bird', '2026-10-29T04:59:00Z', now)).toEqual({ short: 'ends Oct 28', when: 'Oct 28 at 11:59 PM', detail: 'Early Bird ends Oct 28 at 11:59 PM' });
+    expect(dealEnds('Early Bird', '2026-10-29T04:59:00Z', now)).toEqual({ at: '2026-10-29T04:59:00Z', short: 'ends Oct 28', counting: false, when: 'Oct 28 at 11:59 PM', detail: 'Early Bird ends Oct 28 at 11:59 PM' });
+  });
+
+  it("counts down to the second in a deal's last 12 hours", () => {
+    expect(dealEnds('Flash Sale', '2026-10-20T17:03:09Z', now)).toMatchObject({ short: '5:03:09 left', counting: true });
+    expect(dealEnds('Flash Sale', '2026-10-21T00:00:00Z', now)).toMatchObject({ short: '12:00:00 left', counting: true });
+    expect(dealEnds('Flash Sale', '2026-10-21T00:00:01Z', now)).toMatchObject({ short: 'ends today', counting: false });
+    // A part of a second still shows as one, so it never reads 0:00:00 before it ends.
+    expect(countdown(400)).toBe('0:00:01 left');
+    expect(countdown(0)).toBe('0:00:00 left');
+  });
+
+  it('knows the price once a deal ends: the regular one, or another deal still on', () => {
+    const [o] = buildClassSeriesList(
+      series('sensual', { price_whole_series: 80, price_whole_series_early_bird: 65, early_bird_until: '2026-10-28T05:00:00Z', price_whole_series_flash_sale: 50, flash_sale_until: '2026-10-20T15:00:00Z' })
+    );
+    expect(priceOptions(o, now)[0]).toMatchObject({ price: 50, was: 80, tag: 'Flash Sale', ends: { short: '3:00:00 left', after: { price: 65, was: 80 } } });
   });
 
   it("an event's ticket, and the date range of a series", () => {

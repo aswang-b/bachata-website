@@ -73,6 +73,7 @@
 │   │   ├── googleCalendar.ts            # Google Calendar API client
 │   │   ├── eventImages.ts               # The event-images bucket: allowed image/flyer URLs, flyer sizes in file names, scaled srcset
 │   │   ├── flyerBlocks.ts               # Homepage flyer blocks: grouping by flyer, today's prices, deal notes, series dates
+│   │   ├── countdown.ts                 # A deal's last-12-hours countdown text (shared by the server and the homepage script)
 │   │   ├── homepageContent.ts           # Homepage copy, card/section order, past flyers gallery
 │   │   ├── imageCropper.ts              # Browser-only crop dialog for event images (locked 16:3 banner, 1536x288 JPEG)
 │   │   ├── notificationSettings.ts      # Admin-editable notification recipients + per-IP email caps

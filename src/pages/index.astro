@@ -222,19 +222,21 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                               {prices.map((p) => (
                                 <span>
                                   {p.label}:{' '}
-                                  {p.was != null && <s class="text-muted">{formatPrice(p.was)}</s>}{' '}
-                                  <strong class="font-bold">{formatPrice(p.price)}</strong>{p.suffix}
+                                  {p.was != null && <s data-was class="text-muted">{formatPrice(p.was)}</s>}{' '}
+                                  <strong data-price class="font-bold">{formatPrice(p.price)}</strong>{p.suffix}
                                   {/* A deal: its icon, and wider up when it ends; hovering (or tapping, on a phone) shows the full end in a bubble.
+                                      In its last 12 hours the note (and on a phone the bubble) counts down, and at zero the price becomes the one after it (the script below).
                                       With its end switched off in the event editor, wider up the note just names the deal (no bubble), and on a phone the bubble does. */}
                                   {p.tag && (
-                                    <button type="button" data-deal aria-label={p.ends?.detail ?? p.tag} class="relative ml-1 inline-flex -translate-y-px cursor-default items-center gap-1 rounded-full align-middle text-accent before:absolute before:-inset-2.5 before:content-['']">
+                                    <button type="button" data-deal aria-label={p.ends?.detail ?? p.tag} data-deal-end={p.ends?.at} data-now={p.ends && now.getTime()} data-after-price={p.ends && formatPrice(p.ends.after.price)} data-after-was={p.ends?.after.was != null ? formatPrice(p.ends.after.was) : undefined} class="relative ml-1 inline-flex -translate-y-px cursor-default items-center gap-1 rounded-full align-middle text-accent before:absolute before:-inset-2.5 before:content-[''] data-ended:text-muted">
                                       <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent/15">
                                         <svg class="h-3 w-3" aria-hidden="true"><use href={p.tag === 'Flash Sale' ? '#icon-flash-sale' : '#icon-early-bird'} /></svg>
                                       </span>
-                                      <span data-deal-note class="hidden text-xs font-bold sm:inline">{p.ends?.short ?? p.tag}</span>
+                                      <span data-deal-note class="hidden text-xs font-bold tabular-nums sm:inline">{p.ends?.short ?? p.tag}</span>
                                       <span data-deal-bubble aria-hidden="true" class:list={['pointer-events-none invisible absolute bottom-full left-1/2 z-20 mb-2.5 w-max max-w-[16rem] -translate-x-1/2 translate-y-1 rounded-2xl border border-border bg-surface px-3.5 py-2 text-left opacity-0 shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition duration-150', !p.ends && 'sm:hidden']}>
                                         <span class="block text-[10px] font-bold uppercase tracking-wide text-accent">{p.tag}</span>
-                                        {p.ends && <span class="block whitespace-nowrap text-sm font-normal text-ink">Ends {p.ends.when}</span>}
+                                        {p.ends && <span data-deal-when class="block whitespace-nowrap text-sm font-normal text-ink">Ends {p.ends.when}</span>}
+                                        {p.ends && <span data-deal-countdown class="block text-sm font-bold tabular-nums text-accent empty:hidden sm:hidden">{p.ends.counting ? p.ends.short : ''}</span>}
                                         <span class="absolute left-1/2 top-full -mt-[5px] h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-b border-r border-border bg-surface"></span>
                                       </span>
                                     </button>
@@ -332,6 +334,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
   import { supabaseBrowser } from '../lib/supabaseBrowser';
   import { checkAdminSession } from '../lib/adminSession';
   import { isPreviewingAsPublic } from '../lib/previewMode';
+  import { COUNTDOWN_MS, countdown } from '../lib/countdown';
 
   // Admins also see the spots left on classes whose count is hidden from the public.
   async function revealAdminSpots() {
@@ -553,6 +556,52 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
     if (focused instanceof HTMLElement && focused.matches('[data-deal]')) focused.dataset.dismissed = '';
   });
   window.addEventListener('resize', () => deals.filter((deal) => deal.dataset.open !== undefined || deal.matches(':focus-visible')).forEach(fitBubble));
+
+  // In a deal's last 12 hours its note (and on a phone its bubble) counts down
+  // each second, by the server's clock rather than the visitor's. At zero it
+  // says so, and the price becomes the one from then on (also for a tab that
+  // was in the background, where timers slow down).
+  let counted = deals.filter((deal) => deal.dataset.dealEnd);
+  const skew = counted.length > 0 ? Number(counted[0].dataset.now) - Date.now() : 0;
+  const endDeal = (deal: HTMLElement) => {
+    deal.dataset.ended = '';
+    deal.querySelector('[data-deal-note]')!.textContent = 'Deal ended';
+    deal.querySelector('[data-deal-countdown]')!.textContent = '';
+    const when = deal.querySelector('[data-deal-when]')!;
+    when.textContent = when.textContent!.replace(/^Ends/, 'Ended');
+    deal.setAttribute('aria-label', deal.getAttribute('aria-label')!.replace(' ends ', ' ended '));
+    const line = deal.parentElement!;
+    line.querySelector('[data-price]')!.textContent = deal.dataset.afterPrice!;
+    const was = line.querySelector('[data-was]');
+    if (deal.dataset.afterWas) was!.textContent = deal.dataset.afterWas;
+    else was?.remove();
+  };
+  let timer = 0;
+  const tick = () => {
+    clearTimeout(timer);
+    const now = Date.now() + skew;
+    // Wakes just after the next whole second a countdown shows, or when the
+    // next one starts (checking at least hourly).
+    let wait = 3600000;
+    counted = counted.filter((deal) => {
+      const left = Date.parse(deal.dataset.dealEnd!) - now;
+      if (left <= 0) {
+        endDeal(deal);
+        return false;
+      }
+      if (left > COUNTDOWN_MS) wait = Math.min(wait, left - COUNTDOWN_MS);
+      else {
+        deal.querySelector('[data-deal-note]')!.textContent = deal.querySelector('[data-deal-countdown]')!.textContent = countdown(left);
+        wait = Math.min(wait, (left % 1000) + 20);
+      }
+      return true;
+    });
+    if (counted.length > 0) timer = window.setTimeout(tick, wait);
+  };
+  if (counted.length > 0) tick();
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && counted.length > 0) tick();
+  });
 </script>
 
 <style>

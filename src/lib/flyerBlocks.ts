@@ -2,6 +2,7 @@ import type { ClassSeriesEntry } from './classSeries';
 import { getActivePrice, priceTierLabel } from './pricing';
 import { dealHomepageDefault, type Deal } from './deals';
 import { siteFormatter, zonedDateKey, zonedTimeOfDay } from './siteTime';
+import { COUNTDOWN_MS, countdown } from './countdown';
 
 // The flyer homepage (/test while it's being tried out): offerings advertised
 // on the same flyer (the same flyer_url, migration 0055) share one block, with
@@ -56,14 +57,19 @@ export interface PriceOption {
   tag: string;
   suffix: string;
   // When the deal ends, for a deal that's on (dealEnds), unless the event
-  // editor switched its end off.
-  ends: DealEnds | null;
+  // editor switched its end off; with the price once it has (the page's
+  // countdown swaps it in at zero).
+  ends: (DealEnds & { after: { price: number; was: number | null } }) | null;
 }
 
 export interface DealEnds {
+  // The end itself, for the page's countdown.
+  at: string;
   // Beside the price: "ends Nov 3", or in its last week "3 days left",
-  // "ends tomorrow" or "ends today".
+  // "ends tomorrow" or "ends today", and in its last 12 hours a countdown
+  // ("5:03:09 left", `counting`).
   short: string;
+  counting: boolean;
   // In the bubble over it, "Nov 3 at 11:59 PM", and as one sentence for
   // screen readers: "Early Bird ends Nov 3 at 11:59 PM".
   when: string;
@@ -77,9 +83,11 @@ export function dealEnds(tag: string, until: string, now: Date): DealEnds {
   const time = siteFormatter({ hour: 'numeric', minute: '2-digit' }).format(end);
   // Calendar days in the site's zone, so "tomorrow" means the next date there.
   const days = Math.round((Date.parse(zonedDateKey(end)) - Date.parse(zonedDateKey(now))) / 86400000);
-  const short = days <= 0 ? 'ends today' : days === 1 ? 'ends tomorrow' : days <= 7 ? `${days} days left` : `ends ${day}`;
+  const left = Date.parse(until) - now.getTime();
+  const counting = left <= COUNTDOWN_MS;
+  const short = counting ? countdown(left) : days <= 0 ? 'ends today' : days === 1 ? 'ends tomorrow' : days <= 7 ? `${days} days left` : `ends ${day}`;
   const when = `${day} at ${time}`;
-  return { short, when, detail: `${tag} ends ${when}` };
+  return { at: until, short, counting, when, detail: `${tag} ends ${when}` };
 }
 
 // Today's prices for one offering, the same choices the old homepage cards
@@ -95,7 +103,13 @@ export function priceOptions(offering: ClassSeriesEntry, now: Date): PriceOption
     const until = flash ? input.flashSaleUntil : input.earlyBirdUntil;
     // The event editor can keep the end to itself: the deal is then only named.
     const showEnd = flash ? offering.showFlashSaleEnd : offering.showEarlyBirdEnd;
-    return { label, price: result.activePrice!, was: discounted ? result.originalPrice : null, tag, suffix, ends: discounted && until && showEnd ? dealEnds(tag, until, now) : null };
+    let ends: PriceOption['ends'] = null;
+    if (discounted && until && showEnd) {
+      // The price from the moment it ends: the regular one, or another deal still on.
+      const next = getActivePrice(new Date(until), input);
+      ends = { ...dealEnds(tag, until, now), after: { price: next.activePrice!, was: next.display === 'discounted' ? next.originalPrice : null } };
+    }
+    return { label, price: result.activePrice!, was: discounted ? result.originalPrice : null, tag, suffix, ends };
   };
   if (offering.eventType === 'event') return [option('Ticket', 'whole')].filter((o): o is PriceOption => o != null);
   const perClass = '/class';

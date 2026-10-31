@@ -148,6 +148,40 @@ test("a deal whose end is switched off is only named: as the note wider up (no b
   await phone.close();
 });
 
+test("in a deal's last 12 hours it counts down to the second, and at zero the price after it takes over", async ({ page, browser }) => {
+  const soon = await seedEvent({ name: 'Flyer Last Hour', flyerUrl: flyer('last-hour'), priceWhole: 50, priceEarlyBird: 40, earlyBirdDays: 1 / 24, dayOffset: 49 });
+  await page.clock.install();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/');
+  const deal = row(page, soon).locator('[data-deal]');
+  const note = deal.locator('[data-deal-note]');
+  const line = deal.locator('..');
+  await expect(note).toHaveText(/^0:5\d:\d\d left$/);
+  const before = await note.textContent();
+  await page.clock.runFor(2000);
+  await expect(note).not.toHaveText(before!);
+  await expect(line.locator('[data-price]')).toHaveText('$40');
+  await expect(line.locator('[data-was]')).toHaveText('$50');
+
+  await page.clock.fastForward('01:00:00');
+  await expect(note).toHaveText('Deal ended');
+  await expect(line.locator('[data-price]')).toHaveText('$50');
+  await expect(line.locator('[data-was]')).toHaveCount(0);
+  await expect(deal).toHaveAttribute('aria-label', /^Early Bird ended /);
+  await deal.hover();
+  await expect(deal.locator('[data-deal-when]')).toHaveText(/^Ended /);
+
+  // On a phone the note is hidden, so the bubble counts down.
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const tapPage = await phone.newPage();
+  await tapPage.goto(`${BASE_URL}/`);
+  const phoneDeal = row(tapPage, soon).locator('[data-deal]');
+  await phoneDeal.tap();
+  await expect(phoneDeal.locator('[data-deal-countdown]')).toBeVisible();
+  await expect(phoneDeal.locator('[data-deal-countdown]')).toHaveText(/^0:5\d:\d\d left$/);
+  await phone.close();
+});
+
 test('a lone class shows its details beside the flyer, and the flyer opens full size', async ({ page }) => {
   await page.goto('/');
   const b = block(page, lone);

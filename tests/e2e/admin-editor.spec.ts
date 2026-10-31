@@ -307,6 +307,11 @@ test("pricing: a deal's end can be kept off the homepage, and the switch is save
   const flashSaleEnd = page.locator('#event-show-flash-sale-end');
   await expect(earlyBirdEnd).toBeChecked();
   await expect(flashSaleEnd).toBeChecked();
+  // On a phone the switch goes under the date, which it once squeezed until the date was cut off.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const pricing = page.locator('#event-modal').getByRole('button', { name: /^Pricing/ });
+  if (await pricing.isVisible()) await pricing.click();
+  expect((await page.locator('#event-early-bird-until').boundingBox())!.width).toBeGreaterThan(160);
   await earlyBirdEnd.evaluate((el) => (el as HTMLInputElement).click());
   await save(page);
   const { data } = await db.from('events').select('show_early_bird_end, show_flash_sale_end').eq('id', own.ids[0]).single();
