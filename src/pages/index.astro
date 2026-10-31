@@ -32,7 +32,7 @@ const [{ lessonOverview, cardOrder, sectionOrder, galleryFlyers }, faqs, { data:
   supabase
     .from('events')
     .select(
-      'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, flyer_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
+      'id, title, description, location, start_time, end_time, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, flyer_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, show_early_bird_end, show_flash_sale_end, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
     )
     .in('visibility', publicVisibilities())
     .in('event_type', ['class', 'event'])
@@ -224,16 +224,17 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                                   {p.label}:{' '}
                                   {p.was != null && <s class="text-muted">{formatPrice(p.was)}</s>}{' '}
                                   <strong class="font-bold">{formatPrice(p.price)}</strong>{p.suffix}
-                                  {/* A deal: its icon, and wider up when it ends; hovering (or tapping, on a phone) shows the full end in a bubble. */}
-                                  {p.ends && (
-                                    <button type="button" data-deal aria-label={p.ends.detail} class="relative ml-1 inline-flex -translate-y-px cursor-default items-center gap-1 rounded-full align-middle text-accent before:absolute before:-inset-2.5 before:content-['']">
+                                  {/* A deal: its icon, and wider up when it ends; hovering (or tapping, on a phone) shows the full end in a bubble.
+                                      With its end switched off in the event editor, wider up the note just names the deal (no bubble), and on a phone the bubble does. */}
+                                  {p.tag && (
+                                    <button type="button" data-deal aria-label={p.ends?.detail ?? p.tag} class="relative ml-1 inline-flex -translate-y-px cursor-default items-center gap-1 rounded-full align-middle text-accent before:absolute before:-inset-2.5 before:content-['']">
                                       <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent/15">
                                         <svg class="h-3 w-3" aria-hidden="true"><use href={p.tag === 'Flash Sale' ? '#icon-flash-sale' : '#icon-early-bird'} /></svg>
                                       </span>
-                                      <span data-deal-note class="hidden text-xs font-bold sm:inline">{p.ends.short}</span>
-                                      <span data-deal-bubble aria-hidden="true" class="pointer-events-none invisible absolute bottom-full left-1/2 z-20 mb-2.5 w-max max-w-[16rem] -translate-x-1/2 translate-y-1 rounded-2xl border border-border bg-surface px-3.5 py-2 text-left opacity-0 shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition duration-150">
+                                      <span data-deal-note class="hidden text-xs font-bold sm:inline">{p.ends?.short ?? p.tag}</span>
+                                      <span data-deal-bubble aria-hidden="true" class:list={['pointer-events-none invisible absolute bottom-full left-1/2 z-20 mb-2.5 w-max max-w-[16rem] -translate-x-1/2 translate-y-1 rounded-2xl border border-border bg-surface px-3.5 py-2 text-left opacity-0 shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition duration-150', !p.ends && 'sm:hidden']}>
                                         <span class="block text-[10px] font-bold uppercase tracking-wide text-accent">{p.tag}</span>
-                                        <span class="block whitespace-nowrap text-sm font-normal text-ink">Ends {p.ends.when}</span>
+                                        {p.ends && <span class="block whitespace-nowrap text-sm font-normal text-ink">Ends {p.ends.when}</span>}
                                         <span class="absolute left-1/2 top-full -mt-[5px] h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-b border-r border-border bg-surface"></span>
                                       </span>
                                     </button>

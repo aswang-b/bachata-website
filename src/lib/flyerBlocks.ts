@@ -55,7 +55,8 @@ export interface PriceOption {
   was: number | null;
   tag: string;
   suffix: string;
-  // When the deal ends, for a deal that's on (dealEnds).
+  // When the deal ends, for a deal that's on (dealEnds), unless the event
+  // editor switched its end off.
   ends: DealEnds | null;
 }
 
@@ -90,8 +91,11 @@ export function priceOptions(offering: ClassSeriesEntry, now: Date): PriceOption
     const result = getActivePrice(now, input);
     const discounted = result.display === 'discounted';
     const tag = discounted ? priceTierLabel(result.tag) : '';
-    const until = result.tag === 'flash_sale' ? input.flashSaleUntil : input.earlyBirdUntil;
-    return { label, price: result.activePrice!, was: discounted ? result.originalPrice : null, tag, suffix, ends: discounted && until ? dealEnds(tag, until, now) : null };
+    const flash = result.tag === 'flash_sale';
+    const until = flash ? input.flashSaleUntil : input.earlyBirdUntil;
+    // The event editor can keep the end to itself: the deal is then only named.
+    const showEnd = flash ? offering.showFlashSaleEnd : offering.showEarlyBirdEnd;
+    return { label, price: result.activePrice!, was: discounted ? result.originalPrice : null, tag, suffix, ends: discounted && until && showEnd ? dealEnds(tag, until, now) : null };
   };
   if (offering.eventType === 'event') return [option('Ticket', 'whole')].filter((o): o is PriceOption => o != null);
   const perClass = '/class';

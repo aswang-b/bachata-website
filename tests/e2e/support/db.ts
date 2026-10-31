@@ -36,6 +36,8 @@ export interface SeedOptions {
   priceEarlyBird?: number;
   // Days from now the early bird runs until (negative: it has ended).
   earlyBirdDays?: number;
+  // Whether the homepage says when the early bird ends (the column's default: yes).
+  showEarlyBirdEnd?: boolean;
   hideLessonOverview?: boolean;
 }
 
@@ -73,6 +75,7 @@ export async function seedEvent(o: SeedOptions): Promise<Seeded> {
     flyer_url: o.flyerUrl ?? null,
     price_whole_series_early_bird: o.priceEarlyBird ?? null,
     early_bird_until: o.earlyBirdDays === undefined ? null : new Date(Date.now() + o.earlyBirdDays * DAY).toISOString(),
+    ...(o.showEarlyBirdEnd === undefined ? {} : { show_early_bird_end: o.showEarlyBirdEnd }),
     hide_lesson_overview: o.hideLessonOverview ?? false,
   }));
   const { data, error } = await db.from('events').insert(rows).select('id, start_time').order('start_time');

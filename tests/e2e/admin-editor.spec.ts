@@ -298,3 +298,17 @@ test("renaming a class renames its sign-ups and check-ins, so they're listed and
   const { data: checkins } = await db.from('class_checkins').select('class_title').eq('event_id', own.ids[0]);
   expect(checkins).toEqual([{ class_title: renamed }]);
 });
+
+test("pricing: a deal's end can be kept off the homepage, and the switch is saved", async ({ page, adminPage }) => {
+  void adminPage;
+  const own = await seedEvent({ name: 'Editor Deal End', priceWhole: 50, priceEarlyBird: 40, earlyBirdDays: 10, dayOffset: 2 });
+  await openEditor(page, own);
+  const earlyBirdEnd = page.locator('#event-show-early-bird-end');
+  const flashSaleEnd = page.locator('#event-show-flash-sale-end');
+  await expect(earlyBirdEnd).toBeChecked();
+  await expect(flashSaleEnd).toBeChecked();
+  await earlyBirdEnd.evaluate((el) => (el as HTMLInputElement).click());
+  await save(page);
+  const { data } = await db.from('events').select('show_early_bird_end, show_flash_sale_end').eq('id', own.ids[0]).single();
+  expect(data).toEqual({ show_early_bird_end: false, show_flash_sale_end: true });
+});

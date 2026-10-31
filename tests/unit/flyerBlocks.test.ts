@@ -42,6 +42,13 @@ describe('flyer homepage blocks', () => {
     expect(priceOptions(o, now)[0]).toEqual({ label: 'Series', price: 65, was: 80, tag: 'Early Bird', suffix: '', ends: { short: 'ends tomorrow', when: 'Oct 21 at 11:59 PM', detail: 'Early Bird ends Oct 21 at 11:59 PM' } });
   });
 
+  it("only names a deal whose end the event editor switched off", () => {
+    const [o] = buildClassSeriesList(
+      series('sensual', { price_whole_series: 80, price_whole_series_early_bird: 65, early_bird_until: '2026-10-22T05:00:00Z', show_early_bird_end: false })
+    );
+    expect(priceOptions(o, now)[0]).toEqual({ label: 'Series', price: 65, was: 80, tag: 'Early Bird', suffix: '', ends: null });
+  });
+
   it('says when a deal ends: its date, or how soon in its last week, in the site time zone', () => {
     // now is Oct 20, 7 AM Central.
     expect(dealEnds('Flash Sale', '2026-10-21T04:59:00Z', now)).toEqual({ short: 'ends today', when: 'Oct 20 at 11:59 PM', detail: 'Flash Sale ends Oct 20 at 11:59 PM' });

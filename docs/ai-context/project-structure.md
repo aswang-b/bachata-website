@@ -32,7 +32,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0062); a new table must be granted to service_role in its migration (see 0045)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0063); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting)

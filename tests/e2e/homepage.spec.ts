@@ -126,6 +126,28 @@ test('a deal shows its icon beside its price (and wider up when it ends), with t
   await expect(wideBubble).toBeVisible();
 });
 
+test("a deal whose end is switched off is only named: as the note wider up (no bubble), and in the bubble on a phone", async ({ page, browser }) => {
+  const quiet = await seedEvent({ name: 'Flyer Quiet Deal', flyerUrl: flyer('quiet'), priceWhole: 50, priceEarlyBird: 40, earlyBirdDays: 30, showEarlyBirdEnd: false, dayOffset: 47 });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/');
+  const deal = row(page, quiet).locator('[data-deal]');
+  const bubble = deal.locator('[data-deal-bubble]');
+  await expect(deal.locator('[data-deal-note]')).toHaveText('Early Bird');
+  await expect(deal).toHaveAttribute('aria-label', 'Early Bird');
+  await deal.hover();
+  await expect(bubble).toBeHidden();
+
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const tapPage = await phone.newPage();
+  await tapPage.goto(`${BASE_URL}/`);
+  const phoneDeal = row(tapPage, quiet).locator('[data-deal]');
+  await phoneDeal.tap();
+  const phoneBubble = phoneDeal.locator('[data-deal-bubble]');
+  await expect(phoneBubble).toBeVisible();
+  await expect(phoneBubble).toHaveText('Early Bird');
+  await phone.close();
+});
+
 test('a lone class shows its details beside the flyer, and the flyer opens full size', async ({ page }) => {
   await page.goto('/');
   const b = block(page, lone);

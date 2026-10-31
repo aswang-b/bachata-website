@@ -46,7 +46,7 @@ const monthStart = zonedToInstant(`${monthKey(year, month)}-01`);
 const monthEnd = zonedToInstant(`${nextMonthParam}-01`);
 
 const EVENT_COLUMNS =
-  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, flyer_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity';
+  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, flyer_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, show_early_bird_end, show_flash_sale_end, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity';
 
 const { data: monthEvents, error: monthError } = await supabase
   .from('events')
@@ -798,20 +798,32 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                 <input id="event-price-drop-in-early-bird" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
                 <input id="event-price-student-early-bird" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
               </div>
-              <label class="flex items-center gap-2 pl-[5.5rem] sm:pl-[6.5rem]">
-                <span class="text-xs text-muted">Until</span>
-                <input id="event-early-bird-until" type="datetime-local" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none" />
-              </label>
+              <div class="flex items-center gap-3 pl-[5.5rem] sm:pl-[6.5rem]">
+                <label class="flex w-0 flex-1 items-center gap-2">
+                  <span class="text-xs text-muted">Until</span>
+                  <input id="event-early-bird-until" type="datetime-local" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none" />
+                </label>
+                <label class="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted" title="Show on the homepage when the early bird ends (off: it just says Early Bird)">
+                  <input id="event-show-early-bird-end" type="checkbox" role="switch" class="relative h-4 w-7 shrink-0 cursor-pointer appearance-none rounded-full bg-border transition-colors before:absolute before:left-0.5 before:top-0.5 before:h-3 before:w-3 before:rounded-full before:bg-white before:transition-transform before:content-[''] checked:bg-accent checked:before:translate-x-3" />
+                  Show end
+                </label>
+              </div>
               <div class="flex items-center gap-2">
                 <span class="w-20 shrink-0 text-xs font-semibold text-accent sm:w-24">Flash sale</span>
                 <input id="event-price-whole-series-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
                 <input id="event-price-drop-in-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
                 <input id="event-price-student-flash-sale" type="number" min="0" step="0.01" placeholder="$" class="class-only-price w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
               </div>
-              <label class="flex items-center gap-2 pl-[5.5rem] sm:pl-[6.5rem]">
-                <span class="text-xs text-muted">Until</span>
-                <input id="event-flash-sale-until" type="datetime-local" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none" />
-              </label>
+              <div class="flex items-center gap-3 pl-[5.5rem] sm:pl-[6.5rem]">
+                <label class="flex w-0 flex-1 items-center gap-2">
+                  <span class="text-xs text-muted">Until</span>
+                  <input id="event-flash-sale-until" type="datetime-local" class="w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none" />
+                </label>
+                <label class="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted" title="Show on the homepage when the flash sale ends (off: it just says Flash Sale)">
+                  <input id="event-show-flash-sale-end" type="checkbox" role="switch" class="relative h-4 w-7 shrink-0 cursor-pointer appearance-none rounded-full bg-border transition-colors before:absolute before:left-0.5 before:top-0.5 before:h-3 before:w-3 before:rounded-full before:bg-white before:transition-transform before:content-[''] checked:bg-accent checked:before:translate-x-3" />
+                  Show end
+                </label>
+              </div>
               <p class="text-xs text-muted">Leave a price blank to hide that option. Discounts apply automatically until their end time.</p>
             </div>
           </details>
@@ -1131,6 +1143,8 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     price_drop_in_flash_sale: number | null;
     price_student_flash_sale: number | null;
     flash_sale_until: string | null;
+    show_early_bird_end?: boolean;
+    show_flash_sale_end?: boolean;
     lesson_overview_title: string | null;
     lesson_overview_body: string | null;
     hide_lesson_overview: boolean;
@@ -1324,6 +1338,9 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
   const priceDropInFlashSaleInput = document.getElementById('event-price-drop-in-flash-sale') as HTMLInputElement;
   const priceStudentFlashSaleInput = document.getElementById('event-price-student-flash-sale') as HTMLInputElement;
   const flashSaleUntilInput = document.getElementById('event-flash-sale-until') as HTMLInputElement;
+  // Whether the homepage says when each deal ends (on), or just names it.
+  const showEarlyBirdEndInput = document.getElementById('event-show-early-bird-end') as HTMLInputElement;
+  const showFlashSaleEndInput = document.getElementById('event-show-flash-sale-end') as HTMLInputElement;
   const registrationClosedInput = document.getElementById('event-registration-closed') as HTMLInputElement;
   const lessonOverviewTitleInput = document.getElementById('event-lesson-overview-title') as HTMLInputElement;
   const lessonOverviewBodyInput = document.getElementById('event-lesson-overview-body') as HTMLElement;
@@ -1633,6 +1650,8 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
     priceDropInFlashSaleInput.value = event?.price_drop_in_flash_sale != null ? String(event.price_drop_in_flash_sale) : '';
     priceStudentFlashSaleInput.value = event?.price_student_flash_sale != null ? String(event.price_student_flash_sale) : '';
     flashSaleUntilInput.value = toLocalDateTimeValue(event?.flash_sale_until);
+    showEarlyBirdEndInput.checked = event?.show_early_bird_end ?? true;
+    showFlashSaleEndInput.checked = event?.show_flash_sale_end ?? true;
     registrationClosedInput.checked = event?.registration_closed ?? false;
     lessonOverviewTitleInput.value = event?.lesson_overview_title ?? '';
     lessonOverviewBodyInput.innerHTML = event?.lesson_overview_body ?? '';
@@ -2270,6 +2289,8 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
       priceDropInFlashSale: priceDropInFlashSaleInput.value.trim(),
       priceStudentFlashSale: priceStudentFlashSaleInput.value.trim(),
       flashSaleUntil: fromLocalDateTimeValue(flashSaleUntilInput.value),
+      showEarlyBirdEnd: showEarlyBirdEndInput.checked,
+      showFlashSaleEnd: showFlashSaleEndInput.checked,
       registrationClosed: registrationClosedInput.checked,
       lessonOverviewTitle: lessonOverviewTitleInput.value.trim(),
       lessonOverviewBody: lessonOverviewBodyInput.innerHTML.trim(),

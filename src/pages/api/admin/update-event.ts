@@ -110,6 +110,8 @@ const handlePost: APIRoute = async ({ request }) => {
     lessonOverviewTitle,
     lessonOverviewBody,
     hideLessonOverview,
+    showEarlyBirdEnd,
+    showFlashSaleEnd,
   } = body ?? {};
 
   if (!id || !title || !startTime || !endTime) {
@@ -162,6 +164,8 @@ const handlePost: APIRoute = async ({ request }) => {
   const rowFlyerColumns = flyerUrl === undefined ? {} : { flyer_url: typeof flyerUrl === 'string' && flyerUrl ? flyerUrl : null };
   const rowLessonOverview = normalizeLessonOverviewOverride(lessonOverviewTitle, lessonOverviewBody);
   const rowHideLessonOverview = Boolean(hideLessonOverview);
+  // On unless switched off (an older editor doesn't send them).
+  const rowDealEnds = { show_early_bird_end: showEarlyBirdEnd !== false, show_flash_sale_end: showFlashSaleEnd !== false };
   const rowCapacityColumns = capacityColumns(body ?? {}, rowEventType);
   const rowDescription = description ? sanitizeEventDescriptionHtml(description) : null;
 
@@ -277,6 +281,7 @@ const handlePost: APIRoute = async ({ request }) => {
           lesson_overview_title: rowLessonOverview.title,
           lesson_overview_body: rowLessonOverview.body,
           hide_lesson_overview: rowHideLessonOverview,
+          ...rowDealEnds,
           ...rowCapacityColumns,
         })
         .eq('google_recurring_event_id', createdMaster.id);
@@ -344,6 +349,7 @@ const handlePost: APIRoute = async ({ request }) => {
           lesson_overview_title: rowLessonOverview.title,
           lesson_overview_body: rowLessonOverview.body,
           hide_lesson_overview: rowHideLessonOverview,
+          ...rowDealEnds,
           ...rowCapacityColumns,
         })
         .eq('id', sibling.id)
@@ -402,6 +408,7 @@ const handlePost: APIRoute = async ({ request }) => {
       lesson_overview_title: rowLessonOverview.title,
       lesson_overview_body: rowLessonOverview.body,
       hide_lesson_overview: rowHideLessonOverview,
+      ...rowDealEnds,
       ...rowCapacityColumns,
     })
     .eq('id', id)

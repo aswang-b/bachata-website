@@ -87,7 +87,7 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
   const { data: existingRows, error: rowsError } = await supabase
     .from('events')
     .select(
-      'id, title, description, location, color, event_type, start_time, end_time, google_event_id, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, lesson_overview_title, lesson_overview_body, hide_lesson_overview, flyer_url, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity, updated_at'
+      'id, title, description, location, color, event_type, start_time, end_time, google_event_id, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, show_early_bird_end, show_flash_sale_end, lesson_overview_title, lesson_overview_body, hide_lesson_overview, flyer_url, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity, updated_at'
     )
     .eq('visibility', visibility)
     // The same window Google was asked for: a linked row past it would look
@@ -124,6 +124,8 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
       priceDropInFlashSale: number | null;
       priceStudentFlashSale: number | null;
       flashSaleUntil: string | null;
+      showEarlyBirdEnd: boolean;
+      showFlashSaleEnd: boolean;
       lessonOverviewTitle: string | null;
       lessonOverviewBody: string | null;
       hideLessonOverview: boolean;
@@ -152,6 +154,8 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
         priceDropInFlashSale: r.price_drop_in_flash_sale,
         priceStudentFlashSale: r.price_student_flash_sale,
         flashSaleUntil: r.flash_sale_until,
+        showEarlyBirdEnd: r.show_early_bird_end,
+        showFlashSaleEnd: r.show_flash_sale_end,
         lessonOverviewTitle: r.lesson_overview_title,
         lessonOverviewBody: r.lesson_overview_body,
         hideLessonOverview: r.hide_lesson_overview,
@@ -226,6 +230,8 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
           price_drop_in_flash_sale: seriesMeta?.priceDropInFlashSale ?? null,
           price_student_flash_sale: seriesMeta?.priceStudentFlashSale ?? null,
           flash_sale_until: seriesMeta?.flashSaleUntil ?? null,
+          show_early_bird_end: seriesMeta?.showEarlyBirdEnd ?? true,
+          show_flash_sale_end: seriesMeta?.showFlashSaleEnd ?? true,
           lesson_overview_title: seriesMeta?.lessonOverviewTitle ?? null,
           lesson_overview_body: seriesMeta?.lessonOverviewBody ?? null,
           hide_lesson_overview: seriesMeta?.hideLessonOverview ?? false,

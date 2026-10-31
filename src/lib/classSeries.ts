@@ -24,6 +24,8 @@ export interface ClassOccurrenceRow {
   price_drop_in_flash_sale?: number | null;
   price_student_flash_sale?: number | null;
   flash_sale_until?: string | null;
+  show_early_bird_end?: boolean;
+  show_flash_sale_end?: boolean;
   lesson_overview_title?: string | null;
   lesson_overview_body?: string | null;
   hide_lesson_overview?: boolean;
@@ -72,6 +74,9 @@ export interface ClassSeriesEntry {
   priceDropInFlashSale: number | null;
   priceStudentFlashSale: number | null;
   flashSaleUntil: string | null;
+  // Whether the homepage says when each deal ends, or just names it.
+  showEarlyBirdEnd: boolean;
+  showFlashSaleEnd: boolean;
   // Per-class override of the homepage card's "About This Class Format"
   // section: custom header/body (null = use the default), or hide it entirely.
   lessonOverviewTitle: string | null;
@@ -152,6 +157,8 @@ export function buildClassSeriesList(events: ClassOccurrenceRow[], allEventsForT
       priceDropInFlashSale: first.price_drop_in_flash_sale ?? null,
       priceStudentFlashSale: first.price_student_flash_sale ?? null,
       flashSaleUntil: first.flash_sale_until ?? null,
+      showEarlyBirdEnd: first.show_early_bird_end ?? true,
+      showFlashSaleEnd: first.show_flash_sale_end ?? true,
       lessonOverviewTitle: first.lesson_overview_title ?? null,
       lessonOverviewBody: first.lesson_overview_body ?? null,
       hideLessonOverview: first.hide_lesson_overview ?? false,
