@@ -1,6 +1,6 @@
 # src/pages/api/admin Context
 
-> Tier 3 — referenced from [docs-overview.md](../../../../docs/ai-context/docs-overview.md). Admin-only JSON API routes backing `/admin`, `/admin/analytics`, `/admin/checkin-qr`, `/admin/inbox`, `/admin/feedback`.
+> Tier 3 — referenced from [docs-overview.md](../../../../docs/ai-context/docs-overview.md). Admin-only JSON API routes backing `/admin`, `/admin/analytics`, `/admin/qr`, `/admin/inbox`, `/admin/feedback`.
 
 ## Purpose
 
@@ -22,6 +22,7 @@ One file per endpoint (Astro API routes, `export const GET`/`POST`). Every route
 | **Errors** | `site-errors.ts` (GET/POST) | The Errors workqueue (`lib/siteErrors.ts`): list, dismiss, and for a bounce update the email / resend the confirmation with admin BCC. Update email writes the dancers list back only if it's unchanged since read (`.eq('dancers', …)`, up to 3 tries), so a concurrent Recycling Bin move isn't undone, and refuses a binned dancer |
 | **Time zone** | `time-zone.ts` (GET/POST) | The site time zone setting (`lib/siteConfig.ts`) |
 | **Confirmations** | `resend-confirmation.ts` (POST) | Resends a sign-up's confirmation email to its dancers' current addresses (counts toward the daily confirmation cap, no admin BCC) |
+| **Door sign** | `qr-studio.ts` (GET, POST) | GET the sign's state (connection, short link with scans and destination, saved branded codes, Venmo accounts), `?svg=<id>` one of the link's branded codes; POST `create-link`, `choose-code`, `point` (409 `{ pointedLabel }` when repointing within 6 hours of another pointing, unless `confirm`; without a short link it only returns the check-in address), `venmo-find`, `venmo-save`, `venmo-remove`, `venmo-default`. Check-in addresses use the live site (`SITE`), since phones can't open a dev server. See lib `brandedQr.ts`, `venmo.ts`, `qrStudioStore.ts` |
 | **Inbox** | `inbox-data.ts` (GET), `unseen-count.ts` (GET) | Contact form messages (`contact_messages` table, not sign-ups): GET the ones not replied to, `?archive=replied` for the replied archive (loaded only when the inbox opens it); POST `{ id, replied }` marks one replied or moves it back (migration 0054); `unseen-count.ts` backs the nav badge in `Header.astro` |
 | **Feedback** | `feedback.ts` (GET, POST), `feedback-questionnaires.ts` (GET, POST) | `feedback.ts`: GET `?view=options` what can be asked about, GET with a class or event who'd be asked, GET every request with its results (never who answered); POST `create` (a listed class's ticked dancers, or scope `general` with a typed `className` and `people`, checked by `cleanTypedPeople`), `email` (both resolve to `{ emailed, held }`: held waits for tomorrow's feedback email limit), `whatsapp` (only the wa.me link), `whatsapp-sent` (the admin says it went), `close`/`reopen`, `delete`. `feedback-questionnaires.ts`: list, save (refused if someone else saved since it was opened, by `updated_at`), duplicate, delete or hide one already used. See [lib CONTEXT.md](../../../lib/CONTEXT.md) |
 | **Recycling Bin** | `recycling-bin.ts` (GET, POST) | Lists everything flagged as deleted on the dashboard; POST `restore` (by `deletionId`) or `empty`, under the `recycling` edit lock |

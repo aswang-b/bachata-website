@@ -28,6 +28,13 @@ export function usageCountersDisabled(): boolean {
   return flag('E2E_SKIP_USAGE_COUNTERS') === '1';
 }
 
+// Stand-ins for qr.dancewithb.fun and Venmo (lib/brandedQr.ts, lib/venmo.ts), so the
+// suite never repoints the real check-in link or looks anyone up on Venmo; the
+// door sign's saved settings are kept in memory instead of the database.
+export function fakeQrServices(): boolean {
+  return flag('E2E_FAKE_QR') === '1';
+}
+
 // The suite's own classes and events are saved with visibility 'test'
 // (migration 0060). Only the test server shows them, as if public; the live
 // site, and any other dev server, never does, so a run never shows on it.

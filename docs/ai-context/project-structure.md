@@ -32,7 +32,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0067); a new table must be granted to service_role in its migration (see 0045)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0068); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting)
@@ -47,6 +47,7 @@
 │   │   ├── calendarSync.ts              # Google Calendar sync logic
 │   │   ├── capacity.ts                  # Per-series capacity: spots remaining per occurrence (a general cap, or separate Leader/Follower caps for classes), from the trigger-maintained event_spot_counts cache; server-side full check
 │   │   ├── attendanceMatching.ts        # Matches sign-ups to check-ins per dancer, expanding series sign-ups into per-occurrence entries
+│   │   ├── checkinLink.ts, brandedQr.ts, venmo.ts, qrStudioStore.ts, qrSign.ts, classPicker.ts  # The door sign: check-in addresses, qr.dancewithb.fun, Venmo codes, the sign
 │   │   ├── checkinToken.ts              # Signed per-event token authorizing check-in auto-registration (QR link)
 │   │   ├── classRegistrations.ts        # One-row-per-(dancer,class) registration records with snapshotted prices
 │   │   ├── classFilterGroup.ts          # Browser-only multi-row class filter for the dancer dashboard
@@ -92,7 +93,7 @@
 │       ├── index.astro (flyer blocks: each flyer beside its classes' live details), about.astro, contact.astro, contact/confirmation.astro, privacy-policy.astro, calendar.astro
 │       ├── register.astro, register/events.astro, register/confirmation.astro
 │       ├── check-in.astro, check-in/[eventId].astro, check-in/confirmation.astro, feedback/[token].astro (a feedback link: a dancer's own or the shared one)
-│       ├── admin.astro, admin/analytics.astro, admin/checkin-qr.astro, admin/inbox.astro, admin/feedback.astro
+│       ├── admin.astro, admin/analytics.astro, admin/qr.astro (door sign; admin/checkin-qr.astro forwards to it), admin/inbox.astro, admin/feedback.astro
 │       └── api/
 │           ├── banner.ts, faqs.ts, homepage-content.ts, settings.ts, submit-checkin.ts, submit-intake.ts, test-mode.ts (dev-only)
 │           └── admin/                    # Admin-only API routes (events, signups, sync, lock, uploads, FAQs, homepage content, inbox)
