@@ -130,7 +130,6 @@ interface InviteRow {
 
 interface CampaignRow {
   id: string;
-  title: string;
   class_title: string;
   items: FeedbackItem[];
   contact_box: boolean;
@@ -140,7 +139,6 @@ interface CampaignRow {
 export interface FeedbackPage {
   mode: 'invite' | 'shared';
   campaignId: string;
-  title: string;
   className: string;
   items: FeedbackItem[];
   contactBox: boolean;
@@ -157,7 +155,7 @@ export interface FeedbackPage {
   responseKey: string | null;
 }
 
-const CAMPAIGN_COLUMNS = 'id, title, class_title, items, contact_box, closed_at';
+const CAMPAIGN_COLUMNS = 'id, class_title, items, contact_box, closed_at';
 
 // What the feedback page shows for a link; null when the link isn't one.
 // `sharedSecret` reads the browser's cookie, for a shared link.
@@ -190,7 +188,6 @@ export async function loadFeedbackPage(token: string, sharedSecret: (campaignId:
   return {
     mode: invite ? 'invite' : 'shared',
     campaignId: campaign.id,
-    title: campaign.title,
     className: campaign.class_title,
     items: campaign.items,
     contactBox: campaign.contact_box,
@@ -230,7 +227,7 @@ function contactColumns(page: FeedbackPage, contact: { share: boolean; name: str
 
 // Saves everything on the form, replacing what this link saved before. The
 // first answer through any of a dancer's links claims their invite, so each
-// dancer is counted once. Done (`finish`) also needs the required questions;
+// dancer is counted once. Submit (`finish`) also needs the required questions;
 // what was given is saved either way.
 export async function saveAnswers(
   page: FeedbackPage,

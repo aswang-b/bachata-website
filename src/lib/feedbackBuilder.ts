@@ -39,7 +39,13 @@ function button(className: string, text: string, onClick: () => void): HTMLButto
 
 const newOption = (label: string) => ({ id: crypto.randomUUID(), label });
 
-export function createBuilder(root: HTMLElement, preview: HTMLElement, contactBox: HTMLInputElement, initial: FeedbackItem[]) {
+export function createBuilder(
+  root: HTMLElement,
+  preview: HTMLElement,
+  contactBox: HTMLInputElement,
+  initial: FeedbackItem[],
+  previewValues: () => { className: string; name: string }
+) {
   let items: FeedbackItem[] = structuredClone(initial);
   let picking = false;
 
@@ -48,7 +54,7 @@ export function createBuilder(root: HTMLElement, preview: HTMLElement, contactBo
   root.replaceChildren(list, adder);
 
   function renderPreview() {
-    const values = { className: 'your class', name: 'Maria' };
+    const values = previewValues();
     preview.replaceChildren(
       ...items.map((item) => {
         const wrap = el('div', 'flex flex-col gap-2');
@@ -78,7 +84,13 @@ export function createBuilder(root: HTMLElement, preview: HTMLElement, contactBo
         return wrap;
       })
     );
-    if (contactBox.checked) preview.append(el('p', 'text-xs text-muted', '☐ You may contact me about this'));
+    if (contactBox.checked) {
+      const row = el('div', 'flex items-center justify-between gap-3 text-xs text-muted');
+      const track = el('span', 'relative h-5 w-9 shrink-0 rounded-full bg-border');
+      track.append(el('span', 'absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow'));
+      row.append(el('span', '', 'You may contact me about this'), track);
+      preview.append(row);
+    }
   }
 
   function changed() {
@@ -269,5 +281,5 @@ export function createBuilder(root: HTMLElement, preview: HTMLElement, contactBo
   contactBox.addEventListener('change', renderPreview);
   changed();
 
-  return { getItems: () => items };
+  return { getItems: () => items, refreshPreview: renderPreview };
 }

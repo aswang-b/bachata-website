@@ -10,7 +10,7 @@ import { loadFeedbackPage, newSharedSecret, saveAnswers, useSharedSecret, type S
 // request's shared one. Opening it saves nothing: the email's buttons only pick
 // an answer (?q=&a=), which the page's script then saves, so a mail scanner
 // following links never answers. Answers save as they're given when the script
-// runs; Done posts the whole form, so it all works without the script too.
+// runs; Submit posts the whole form, so it all works without the script too.
 const token = Astro.params.token ?? '';
 const cookieName = (campaignId: string) => `feedback_${campaignId}`;
 const secretOf = (campaignId: string) => Astro.cookies.get(cookieName(campaignId))?.value;
@@ -68,6 +68,10 @@ const saveTap = Boolean(!error && tappedItem && tapped !== undefined && page?.an
 
 const showThanks = Boolean(page?.finished && Astro.url.searchParams.get('done') === '1');
 const values = page ? { className: page.className, name: page.firstName } : { className: '' };
+// Sits between the intro and the first question, close under the intro when there is one.
+const firstQuestion = page?.items.findIndex(isQuestion) ?? -1;
+const hasIntro = firstQuestion > 0;
+const anonymousNote = !page?.contactBox ? 'Your answers are anonymous.' : page.mode === 'invite' ? 'Your answers are anonymous unless you choose to share your name.' : 'Your answers are anonymous unless you leave your details.';
 const isPicked = (id: string, value: string | number) => {
   const a = shown[id];
   return Array.isArray(a) ? a.includes(String(value)) : a === value;
@@ -100,11 +104,12 @@ const field = 'rounded-xl border border-border bg-bg px-3 py-2 text-sm text-ink 
         </>
       ) : (
         <form method="post" id="feedback-form" class="flex flex-col gap-8" data-save-tap={saveTap ? '1' : undefined}>
-          <p class="text-xs font-bold uppercase tracking-wider text-accent">{page.title}</p>
-          {page.items.map((item) =>
+          {page.items.map((item, index) =>
             item.kind === 'message' ? (
               <p class="feedback-message whitespace-pre-line text-left text-sm leading-relaxed text-ink">{fillIn(item.text, values)}</p>
             ) : (
+              <>
+              {index === firstQuestion && <p class:list={['feedback-anonymous text-xs text-muted', hasIntro && '-mt-6 text-left']}>{anonymousNote}</p>}
               <fieldset class="feedback-question flex min-w-0 flex-col gap-3" data-kind={item.kind}>
                 <legend class="mb-3 w-full text-center font-display text-lg font-bold text-ink">
                   {fillIn(item.text, values)}
@@ -159,14 +164,21 @@ const field = 'rounded-xl border border-border bg-bg px-3 py-2 text-sm text-ink 
                   <textarea name={`q_${item.id}`} rows="4" maxlength={MAX_ANSWER_LENGTH} required={item.required} aria-label={fillIn(item.text, values)} class={field}>{shown[item.id] ?? ''}</textarea>
                 )}
               </fieldset>
+              </>
             )
           )}
 
           {page.contactBox &&
             (page.mode === 'invite' ? (
-              <label class="flex items-start gap-2 text-left text-sm text-ink/80">
-                <input type="checkbox" name="share" checked={Boolean(page.contact.name)} class="mt-0.5 accent-accent" />
+              <label class="flex cursor-pointer items-center justify-between gap-4 text-left text-sm text-ink/80">
                 <span>You may contact me about this (shares my name with B)</span>
+                <input type="checkbox" role="switch" name="share" checked={Boolean(page.contact.name)} class="feedback-share peer sr-only" />
+                <span
+                  aria-hidden="true"
+                  class="relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-bg peer-checked:[&>span]:translate-x-5"
+                >
+                  <span class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+                </span>
               </label>
             ) : (
               <div class="flex flex-col gap-2 text-left">
@@ -178,10 +190,9 @@ const field = 'rounded-xl border border-border bg-bg px-3 py-2 text-sm text-ink 
 
           {error && <p class="text-sm text-red-400" role="alert">{error}</p>}
           <div class="flex flex-col items-center gap-2">
-            <button type="submit" class="gradient-accent rounded-full px-8 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Done</button>
+            <button type="submit" class="gradient-accent rounded-full px-8 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Submit</button>
             <p id="feedback-status" class="min-h-4 text-xs text-muted" role="status"></p>
           </div>
-          <p class="text-xs text-muted">{page.mode === 'invite' ? 'Your answers are anonymous unless you choose to share your name.' : 'Your answers are anonymous unless you leave your details.'}</p>
         </form>
       )
     }
@@ -207,9 +218,9 @@ const field = 'rounded-xl border border-border bg-bg px-3 py-2 text-sm text-ink 
           const { result } = await res.json();
           // Closed, or answered through their other link, meanwhile: the page says so.
           if (result === 'closed' || result === 'answered') location.assign(location.pathname);
-          else status.textContent = result === 'limited' ? 'Too many answers from this network today.' : res.ok ? 'Saved' : "Couldn't save. Press Done to try again.";
+          else status.textContent = result === 'limited' ? 'Too many answers from this network today.' : res.ok ? 'Saved' : "Couldn't save. Press Submit to try again.";
         } catch {
-          status.textContent = "Couldn't save. Press Done to try again.";
+          status.textContent = "Couldn't save. Press Submit to try again.";
         }
       });
     };
@@ -222,7 +233,7 @@ const field = 'rounded-xl border border-border bg-bg px-3 py-2 text-sm text-ink 
       clearTimeout(typing);
       typing = setTimeout(save, 800);
     });
-    // Done waits for saves under way, so none can land after it and undo it.
+    // Submit waits for saves under way, so none can land after it and undo it.
     let submitting = false;
     form.addEventListener('submit', (e) => {
       if (submitting) return;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dedupeRecipients, feedbackMessage, recipientKey, whatsappNumber, whatsappUrl } from '../../src/lib/feedback';
+import { cleanTypedPeople, dedupeRecipients, feedbackMessage, recipientKey, whatsappNumber, whatsappUrl } from '../../src/lib/feedback';
 import { buildFeedbackEmailHtml, feedbackEmailSubject } from '../../src/lib/feedbackEmail';
 import {
   cleanAnswer,
@@ -195,5 +195,33 @@ describe('feedback email', () => {
     const html = buildFeedbackEmailHtml({ ...base, items: [yesno] });
     expect(html).toContain('?q=y&amp;a=yes');
     expect(html).toContain('?q=y&amp;a=no');
+  });
+});
+
+describe('dancers typed into a request', () => {
+  it('skips blank rows, tidies the rest and asks a repeated dancer once', () => {
+    expect(
+      cleanTypedPeople([
+        { firstName: ' Ana ', lastName: '', email: 'ANA@example.com ', phone: '' },
+        { firstName: '', lastName: '', email: '', phone: '' },
+        { firstName: 'Ana', lastName: '', email: 'ana@example.com', phone: '6085550111' },
+        { firstName: 'Ben', phone: '+34 600 000 000' },
+      ])
+    ).toEqual({
+      people: [
+        { firstName: 'Ana', lastName: '', email: 'ana@example.com', phone: '6085550111' },
+        { firstName: 'Ben', lastName: '', email: null, phone: '+34 600 000 000' },
+      ],
+    });
+    expect(cleanTypedPeople(undefined)).toEqual({ people: [] });
+  });
+
+  it('refuses anyone the request could never reach, naming them', () => {
+    expect(cleanTypedPeople([{ lastName: 'Lee', email: 'lee@example.com' }])).toEqual({ error: 'Add a first name for Lee.' });
+    expect(cleanTypedPeople([{ firstName: 'Ana' }])).toEqual({ error: 'Add an email or WhatsApp number for Ana.' });
+    expect(cleanTypedPeople([{ firstName: 'Ana', email: 'ana@example' }])).toEqual({ error: "Ana's email doesn't look right." });
+    expect(cleanTypedPeople([{ firstName: 'Ana', phone: '12345' }])).toMatchObject({ error: expect.stringContaining('WhatsApp number') });
+    expect(cleanTypedPeople('Ana')).toMatchObject({ error: expect.any(String) });
+    expect(cleanTypedPeople([null, 'Ana'])).toEqual({ people: [] });
   });
 });

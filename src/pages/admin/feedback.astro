@@ -41,6 +41,11 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
             <select id="fb-target" class={field}></select>
           </label>
           <div id="fb-details" class="hidden flex-col gap-4">
+            <label id="fb-class-name-box" class="hidden flex-col gap-1">
+              <span class="text-sm font-medium text-ink/80">Class or event name</span>
+              <input id="fb-class-name" type="text" maxlength="200" class={field} />
+              <span class="text-xs text-muted">Fills in &#123;class&#125;. Left blank, it says Dance with B.</span>
+            </label>
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink/80">Questionnaire</span>
               <select id="fb-questionnaire" class={field}></select>
@@ -55,6 +60,12 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
               <legend id="fb-who" class="mb-1 text-sm font-medium text-ink/80"></legend>
               <div id="fb-recipients" class="flex max-h-80 flex-col gap-1 overflow-y-auto"></div>
               <p class="text-xs text-muted">Ticked dancers with an email get it straight away. WhatsApp messages are sent from the request below, one tap each. Tick nobody to use just the link anyone can use.</p>
+            </fieldset>
+            <fieldset id="fb-typed-box" class="hidden flex-col gap-3">
+              <legend class="mb-1 text-sm font-medium text-ink/80">Who to ask</legend>
+              <div id="fb-typed" class="flex flex-col gap-3"></div>
+              <button id="fb-typed-add" type="button" class="self-start text-sm font-semibold text-accent hover:underline">+ Add a dancer</button>
+              <p class="text-xs text-muted">Each needs a first name and an email or WhatsApp number. Those with an email get it straight away. WhatsApp messages are sent from the request below, one tap each. Add nobody to use just the link anyone can use.</p>
             </fieldset>
             <button id="fb-create" type="button" class={cta}>Create request</button>
           </div>
@@ -95,6 +106,17 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
             </div>
             <div class="flex flex-col gap-2 lg:sticky lg:top-24">
               <p class="text-xs font-bold uppercase tracking-wider text-muted">What dancers see</p>
+              <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                <label class="flex min-w-0 flex-col gap-1">
+                  <span class="text-sm font-medium text-ink/80">Preview for class or event</span>
+                  <select id="qn-preview-class" class={field}></select>
+                </label>
+                <label class="flex min-w-0 flex-col gap-1">
+                  <span class="text-sm font-medium text-ink/80">Preview for dancer</span>
+                  <select id="qn-preview-dancer" class={field} disabled></select>
+                </label>
+              </div>
+              <p id="qn-preview-status" class="min-h-4 text-xs text-muted" role="status"></p>
               <div id="qn-preview" class="flex flex-col gap-4 rounded-3xl border border-border bg-bg p-4"></div>
             </div>
           </div>
@@ -160,6 +182,9 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
   };
   const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
   const targetSelect = byId<HTMLSelectElement>('fb-target');
+  const previewClass = byId<HTMLSelectElement>('qn-preview-class');
+  const previewDancer = byId<HTMLSelectElement>('qn-preview-dancer');
+  const previewStatus = byId('qn-preview-status');
   const questionnaireSelect = byId<HTMLSelectElement>('fb-questionnaire');
   const details = byId('fb-details');
   const message = byId<HTMLTextAreaElement>('fb-message');
@@ -227,7 +252,13 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
   }
 
   function renderOptions() {
-    targetSelect.replaceChildren(new Option('Choose…', ''), new Option('Not about a class or event (link only)', 'general'));
+    targetSelect.replaceChildren(new Option('Choose…', ''), new Option('Type in the class and dancers', 'general'));
+    appendOptionGroups(targetSelect);
+    previewClass.replaceChildren(new Option('Sample class', ''));
+    appendOptionGroups(previewClass);
+  }
+
+  function appendOptionGroups(select: HTMLSelectElement) {
     const groups = [
       { label: 'Classes', items: options.filter((o) => o.scope !== 'event') },
       { label: 'Events', items: options.filter((o) => o.scope === 'event') },
@@ -237,8 +268,13 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
       const group = document.createElement('optgroup');
       group.label = g.label;
       for (const o of g.items) group.append(new Option(optionLabel(o), String(options.indexOf(o))));
-      targetSelect.append(group);
+      select.append(group);
     }
+  }
+
+  async function loadRecipients(option: Option) {
+    const query = new URLSearchParams({ scope: option.scope, seriesKey: option.seriesKey, eventId: option.eventId ?? '' });
+    return (await api('GET', `?${query}`)) as { recipients: FeedbackRecipient[]; keys: string[] };
   }
 
   function renderQuestionnaireOptions() {
@@ -257,6 +293,54 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
   }
   questionnaireSelect.addEventListener('change', applyQuestionnaire);
 
+  // ---- Typed in ----
+
+  const TYPED_FIELDS = [
+    { key: 'firstName', label: 'First name', type: 'text', maxLength: 100 },
+    { key: 'lastName', label: 'Last name', type: 'text', maxLength: 100 },
+    { key: 'email', label: 'Email', type: 'email', maxLength: 200 },
+    { key: 'phone', label: 'WhatsApp number', type: 'tel', maxLength: 30 },
+  ];
+
+  function addTypedRow() {
+    const row = document.createElement('div');
+    row.className = 'fb-typed-row flex flex-col gap-2 rounded-xl border border-border p-3';
+    const inputs = document.createElement('div');
+    inputs.className = 'grid gap-2 sm:grid-cols-2';
+    for (const f of TYPED_FIELDS) {
+      const input = document.createElement('input');
+      input.type = f.type;
+      input.maxLength = f.maxLength;
+      input.placeholder = f.label;
+      input.dataset.field = f.key;
+      input.setAttribute('aria-label', f.label);
+      input.className = 'min-w-0 rounded-xl border border-border bg-bg px-3 py-2 text-sm text-ink';
+      inputs.append(input);
+    }
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'self-end text-xs font-semibold text-accent hover:underline';
+    remove.textContent = 'Remove';
+    remove.addEventListener('click', () => row.remove());
+    row.append(inputs, remove);
+    byId('fb-typed').append(row);
+    return inputs.querySelector('input')!;
+  }
+
+  function typedPeople() {
+    return [...document.querySelectorAll('.fb-typed-row')].map((row) =>
+      Object.fromEntries([...row.querySelectorAll('input')].map((i) => [i.dataset.field, i.value]))
+    );
+  }
+
+  function resetTyped() {
+    byId<HTMLInputElement>('fb-class-name').value = '';
+    byId('fb-typed').replaceChildren();
+    addTypedRow();
+  }
+  byId('fb-typed-add').addEventListener('click', () => addTypedRow().focus());
+  resetTyped();
+
   function reach(r: FeedbackRecipient): string {
     const ways = [r.email && 'Email', whatsappNumber(r.phone) && 'WhatsApp'].filter(Boolean);
     return ways.length ? ways.join(' + ') : 'No email or WhatsApp number';
@@ -266,18 +350,21 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
     toggleFlex(details, false);
     status.textContent = '';
     if (!targetSelect.value) return;
-    if (targetSelect.value === 'general') {
+    const typed = targetSelect.value === 'general';
+    toggleFlex(byId('fb-class-name-box'), typed);
+    toggleFlex(byId('fb-typed-box'), typed);
+    if (typed) {
       toggleFlex(whoBox, false);
       recipientsBox.replaceChildren();
       toggleFlex(details, true);
+      byId('fb-class-name').focus();
       return;
     }
     const option = options[Number(targetSelect.value)];
     if (!option) return;
     status.textContent = 'Loading who came…';
     try {
-      const query = new URLSearchParams({ scope: option.scope, seriesKey: option.seriesKey, eventId: option.eventId ?? '' });
-      const { recipients, keys } = (await api('GET', `?${query}`)) as { recipients: FeedbackRecipient[]; keys: string[] };
+      const { recipients, keys } = await loadRecipients(option);
       who.textContent = `Who to ask (${recipients.length})`;
       recipientsBox.replaceChildren(
         ...recipients.map((r, i) => {
@@ -306,11 +393,12 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
     createButton.disabled = true;
     status.textContent = 'Creating…';
     try {
-      const target = general ? { scope: 'general' } : { scope: option.scope, seriesKey: option.seriesKey, eventId: option.eventId };
+      const target = general ? { scope: 'general', className: byId<HTMLInputElement>('fb-class-name').value, people: typedPeople() } : { scope: option.scope, seriesKey: option.seriesKey, eventId: option.eventId };
       const result = await api('POST', '', { action: 'create', questionnaireId: questionnaireSelect.value, message: message.value, keys, ...target });
       status.textContent = result.emailError ? `Created, but the emails didn't send: ${result.emailError}` : `Created. ${result.emailed} email${result.emailed === 1 ? '' : 's'} sent.`;
       targetSelect.value = '';
       toggleFlex(details, false);
+      resetTyped();
       await Promise.all([loadCampaigns(), loadQuestionnaires()]);
     } catch (err) {
       status.textContent = (err as Error).message;
@@ -486,11 +574,56 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
   const qnStatus = byId('qn-status');
   let editing: { id: string | null; updatedAt: string | null; builder: ReturnType<typeof createBuilder> } | null = null;
 
+  // The preview, for a sample or for someone real. Nothing is saved or sent.
+  const SAMPLE_DANCER = 'B';
+  // Blank is the sample; Number('') would be the first class.
+  const previewOption = (): Option | undefined => (previewClass.value ? options[Number(previewClass.value)] : undefined);
+  function previewValues() {
+    return { className: previewOption()?.classTitle ?? 'your class', name: previewDancer.value || SAMPLE_DANCER };
+  }
+
+  function setPreviewDancers(dancers: FeedbackRecipient[]) {
+    const chosen = previewDancer.selectedOptions[0]?.textContent;
+    const fullName = (d: FeedbackRecipient) => `${d.firstName} ${d.lastName}`.trim();
+    const sorted = [...dancers].sort((a, b) => fullName(a).localeCompare(fullName(b)));
+    previewDancer.replaceChildren(new Option(`Sample dancer (${SAMPLE_DANCER})`, ''), ...sorted.map((d) => new Option(fullName(d), d.firstName)));
+    previewDancer.disabled = dancers.length === 0;
+    // The same dancer stays chosen if they were at this class too.
+    const again = [...previewDancer.options].find((o) => o.textContent === chosen);
+    if (again) again.selected = true;
+  }
+
+  let previewRequest = 0;
+  previewClass.addEventListener('change', async () => {
+    const request = ++previewRequest;
+    const option = previewOption();
+    editing?.builder.refreshPreview();
+    previewDancer.disabled = true;
+    previewStatus.textContent = option ? 'Loading who came…' : '';
+    let dancers: FeedbackRecipient[] = [];
+    let problem = '';
+    if (option) {
+      try {
+        ({ recipients: dancers } = await loadRecipients(option));
+        if (dancers.length === 0) problem = 'Nobody is listed for this one yet.';
+      } catch (err) {
+        problem = (err as Error).message;
+      }
+    }
+    // A slower answer about a class no longer chosen is dropped.
+    if (request !== previewRequest) return;
+    previewStatus.textContent = problem;
+    setPreviewDancers(dancers);
+    editing?.builder.refreshPreview();
+  });
+  previewDancer.addEventListener('change', () => editing?.builder.refreshPreview());
+  setPreviewDancers([]);
+
   function openEditor(q: Questionnaire | null) {
     qnName.value = q?.name ?? '';
     qnContact.checked = q?.contact_box ?? true;
     qnStatus.textContent = '';
-    const builder = createBuilder(byId('qn-builder'), byId('qn-preview'), qnContact, q?.items ?? []);
+    const builder = createBuilder(byId('qn-builder'), byId('qn-preview'), qnContact, q?.items ?? [], previewValues);
     editing = { id: q?.id ?? null, updatedAt: q?.updated_at ?? null, builder };
     qnListView.classList.add('hidden');
     qnEditor.classList.remove('hidden');

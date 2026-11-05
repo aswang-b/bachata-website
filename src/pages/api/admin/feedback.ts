@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { hideTestRows } from '../../../lib/testMode';
-import { recipientKey, type FeedbackRecipient } from '../../../lib/feedback';
+import { cleanTypedPeople, recipientKey, type FeedbackRecipient } from '../../../lib/feedback';
 import { fillIn, isQuestion, summarizeItem, withTopMessage, type Answers, type FeedbackItem, type SummaryResponse } from '../../../lib/feedbackQuestions';
 import { feedbackOptions, feedbackRecipients, type FeedbackOption, type FeedbackScope, type FeedbackTarget } from '../../../lib/feedbackRecipients';
 import { createCampaign, emailInvites, whatsappInvite } from '../../../lib/feedbackStore';
@@ -11,8 +11,9 @@ export const prerender = false;
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const SCOPES: FeedbackScope[] = ['occurrence', 'series', 'event'];
-// What {class} says on a request that isn't about a class or event.
+// What {class} says on a typed-in request with no class or event named.
 const GENERAL_NAME = 'Dance with B';
+const MAX_CLASS_NAME = 200;
 
 function targetFrom(read: (name: string) => unknown): FeedbackTarget | null {
   const get = (k: string) => {
@@ -84,7 +85,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 // POST { action: 'create', questionnaireId, message, scope, seriesKey, eventId, keys }
 // → a new campaign for the ticked dancers (none is fine: it still has its shared
-// link; scope 'general' isn't about a class), emailed straight away;
+// link), emailed straight away. Scope 'general' is typed in rather than listed:
+// { className, people } instead of the class and keys, both optional;
 // { action: 'email', campaignId } emails anyone not emailed yet;
 // { action: 'whatsapp', inviteId } → { url } a WhatsApp message to send;
 // { action: 'close' | 'reopen' | 'delete', campaignId }.
@@ -104,7 +106,12 @@ export const POST: APIRoute = async ({ request, url }) => {
       let option: FeedbackOption;
       let recipients: FeedbackRecipient[] = [];
       if (body.scope === 'general') {
-        option = { scope: 'general', seriesKey: '', eventId: null, classTitle: GENERAL_NAME, title: questionnaire.name, startTime: '', people: 0 };
+        const typed = cleanTypedPeople(body.people);
+        if ('error' in typed) return json({ error: typed.error }, 400);
+        const className = typeof body.className === 'string' ? body.className.trim() : '';
+        if (className.length > MAX_CLASS_NAME) return json({ error: 'That class or event name is too long.' }, 400);
+        recipients = typed.people;
+        option = { scope: 'general', seriesKey: '', eventId: null, classTitle: className || GENERAL_NAME, title: className || questionnaire.name, startTime: '', people: recipients.length };
       } else {
         const target = targetFrom((k) => body[k]);
         if (!target) return json({ error: 'Pick a class or event.' }, 400);

@@ -50,6 +50,30 @@ export function dedupeRecipients(people: FeedbackRecipient[]): FeedbackRecipient
   return out;
 }
 
+const EMAIL_RE = /^[^\s@,;<>()]+@[^\s@,;<>()]+\.[^\s@,;<>()]+$/;
+const MAX_TYPED_PEOPLE = 200;
+const MAX_NAME = 100;
+
+// Dancers typed in for a request. Each needs a first name and a way to reach
+// them, or the request could never get to them. Wholly blank rows are skipped.
+export function cleanTypedPeople(raw: unknown): { people: FeedbackRecipient[] } | { error: string } {
+  if (raw === undefined || raw === null) return { people: [] };
+  if (!Array.isArray(raw) || raw.length > MAX_TYPED_PEOPLE) return { error: `Add up to ${MAX_TYPED_PEOPLE} dancers.` };
+  const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const people: FeedbackRecipient[] = [];
+  for (const row of raw) {
+    const [firstName, lastName, email, phone] = ['firstName', 'lastName', 'email', 'phone'].map((k) => text(row?.[k]));
+    if (!firstName && !lastName && !email && !phone) continue;
+    if (!firstName) return { error: `Add a first name for ${lastName || email || phone}.` };
+    if (firstName.length > MAX_NAME || lastName.length > MAX_NAME) return { error: `${firstName}'s name is too long.` };
+    if (!email && !phone) return { error: `Add an email or WhatsApp number for ${firstName}.` };
+    if (email && !EMAIL_RE.test(email)) return { error: `${firstName}'s email doesn't look right.` };
+    if (phone && !whatsappNumber(phone)) return { error: `${firstName}'s WhatsApp number doesn't look right. Include the country code if it's outside the US.` };
+    people.push({ firstName, lastName, email: email || null, phone: phone || null });
+  }
+  return { people: dedupeRecipients(people) };
+}
+
 // A phone number as wa.me wants it: country code and digits only. Ten digits
 // are taken as a US number; with a + (or 11+ digits) the code is already there.
 export function whatsappNumber(phone: string | null): string | null {
