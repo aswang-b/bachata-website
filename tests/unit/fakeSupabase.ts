@@ -86,6 +86,7 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
   private returnRows = false;
   private orderBy: { col: string; asc: boolean }[] = [];
   private limitN: number | null = null;
+  private offset = 0;
 
   constructor(
     private db: FakeSupabase,
@@ -173,6 +174,7 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
     return this;
   }
   range(from: number, to: number) {
+    this.offset = from;
     this.limitN = to - from + 1;
     return this;
   }
@@ -237,7 +239,7 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
     for (const { col, asc } of [...this.orderBy].reverse()) {
       out = [...out].sort((a, b) => (asc ? 1 : -1) * cmp(a[col], b[col]));
     }
-    if (this.limitN != null) out = out.slice(0, this.limitN);
+    if (this.limitN != null) out = out.slice(this.offset, this.offset + this.limitN);
 
     const copy = out.map((r) => ({ ...r }));
     if (this.singleMode) {

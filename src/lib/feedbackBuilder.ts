@@ -1,5 +1,5 @@
-import { RATINGS } from './feedback';
-import { ITEM_KINDS, fillIn, type FeedbackItem, type ItemKind } from './feedbackQuestions';
+import { RATINGS, anonymityNote } from './feedback';
+import { ITEM_KINDS, fillIn, isQuestion, type FeedbackItem, type ItemKind } from './feedbackQuestions';
 
 // Browser-only: the questionnaire builder on /admin/feedback. Questions and
 // messages in order, moved with arrows or by dragging the dots (mouse or
@@ -53,14 +53,20 @@ export function createBuilder(
   const adder = el('div', 'flex flex-col gap-3');
   root.replaceChildren(list, adder);
 
+  // Where the answer page puts it: before the first question, or after the
+  // messages when there's none. A dancer's own link, so the invite wording.
+  const note = () => el('p', 'fb-preview-anonymous text-xs text-muted', anonymityNote(contactBox.checked, 'invite'));
+
   function renderPreview() {
     const values = previewValues();
+    const firstQuestion = items.findIndex(isQuestion);
     preview.replaceChildren(
-      ...items.map((item) => {
+      ...items.flatMap((item, index) => {
         const wrap = el('div', 'flex flex-col gap-2');
+        const before = index === firstQuestion ? [note()] : [];
         if (item.kind === 'message') {
           wrap.append(el('p', 'whitespace-pre-line text-sm leading-relaxed text-ink', fillIn(item.text, values)));
-          return wrap;
+          return [wrap];
         }
         wrap.append(el('p', 'font-display text-sm font-bold text-ink', `${fillIn(item.text, values) || 'Untitled question'}${item.required ? ' *' : ''}`));
         const box = 'rounded-xl border border-border text-center text-xs text-ink';
@@ -81,9 +87,10 @@ export function createBuilder(
         } else {
           for (const o of item.options ?? []) wrap.append(el('span', `${box} px-3 py-2 text-left`, `${item.kind === 'single' ? '○' : '☐'} ${o.label}`));
         }
-        return wrap;
+        return [...before, wrap];
       })
     );
+    if (firstQuestion < 0) preview.append(note());
     if (contactBox.checked) {
       const row = el('div', 'flex items-center justify-between gap-3 text-xs text-muted');
       const track = el('span', 'relative h-5 w-9 shrink-0 rounded-full bg-border');
@@ -278,8 +285,11 @@ export function createBuilder(
     adder.replaceChildren(block);
   }
 
-  contactBox.addEventListener('change', renderPreview);
+  // The contact box outlives this builder (the editor makes a new one each
+  // time it opens), so its listener goes with destroy().
+  const listening = new AbortController();
+  contactBox.addEventListener('change', renderPreview, { signal: listening.signal });
   changed();
 
-  return { getItems: () => items, refreshPreview: renderPreview };
+  return { getItems: () => items, refreshPreview: renderPreview, destroy: () => listening.abort() };
 }

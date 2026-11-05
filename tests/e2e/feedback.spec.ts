@@ -130,7 +130,11 @@ test('the builder: Add question opens the types, picking one makes the question,
 test('the preview can show a questionnaire as a real dancer at a real class would see it', async ({ page, adminPage }) => {
   void adminPage;
   const klass = await seedEvent({ name: 'Preview Class' });
-  const { error } = await db.from('class_checkins').insert({ first_name: 'ZZZPreviewee', last_name: RUN_ID, phone: '6085550155', class_title: klass.title, event_id: klass.ids[0] });
+  const other = await seedEvent({ name: 'Preview Other' });
+  const { error } = await db.from('class_checkins').insert([
+    { first_name: 'ZZZPreviewee', last_name: RUN_ID, phone: '6085550155', class_title: klass.title, event_id: klass.ids[0] },
+    { first_name: 'ZZZElsewhere', last_name: RUN_ID, phone: '6085550156', class_title: other.title, event_id: other.ids[0] },
+  ]);
   expect(error).toBeNull();
 
   await page.goto('/admin/feedback');
@@ -142,6 +146,17 @@ test('the preview can show a questionnaire as a real dancer at a real class woul
   const preview = page.locator('#qn-preview');
   await expect(preview).toContainText('Hi B, thanks for coming to your class!');
   await expect(page.locator('#qn-preview-dancer')).toBeDisabled();
+  // The anonymity note shows as on the answer page: after the messages when there's no question yet, then before the first.
+  const note = preview.locator('.fb-preview-anonymous');
+  await expect(note).toHaveText('Your answers are anonymous unless you choose to share your name.');
+  await expect(preview.locator('> :nth-child(2)')).toHaveClass(/fb-preview-anonymous/);
+  await page.locator('.fb-add').click();
+  await page.locator('.fb-kind[data-kind="faces"]').click();
+  await expect(preview.locator('> :nth-child(2)')).toHaveClass(/fb-preview-anonymous/);
+  await expect(note).toHaveCount(1);
+  await page.locator('#qn-contact').uncheck();
+  await expect(note).toHaveText('Your answers are anonymous.');
+  await page.locator('#qn-contact').check();
 
   // Choosing a class fills in its name and lists who came; the sample stays until a dancer is picked.
   await pickOption(page, '#qn-preview-class', klass.title);
@@ -151,8 +166,53 @@ test('the preview can show a questionnaire as a real dancer at a real class woul
   await expect(preview).toContainText(`Hi ZZZPreviewee, thanks for coming to ${klass.title}!`);
 
   // Edits keep showing for them.
-  await page.locator('.fb-item .fb-text').fill('{name} again');
+  await page.locator('.fb-item .fb-text').first().fill('{name} again');
   await expect(preview).toContainText('ZZZPreviewee again');
+
+  // Another class shows the sample dancer while its own dancers load, never this class's dancer.
+  const whoCame = /\/api\/admin\/feedback\?scope=/;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(whoCame, async (route) => {
+    await held;
+    await route.continue();
+  });
+  await pickOption(page, '#qn-preview-class', other.title);
+  await expect(preview).toContainText('B again');
+  await expect(preview).not.toContainText('ZZZPreviewee');
+  release();
+  await expect(page.locator('#qn-preview-dancer')).toBeEnabled();
+  await expect(preview).toContainText('B again');
+  await page.unroute(whoCame);
+  await pickOption(page, '#qn-preview-class', klass.title);
+  await expect(page.locator('#qn-preview-dancer')).toBeEnabled();
+  await page.locator('#qn-preview-dancer').selectOption({ label: `ZZZPreviewee ${RUN_ID}` });
+
+  // Reopening the editor leaves one builder drawing the preview, not one more each time.
+  const redrawsOnToggle = async () => {
+    await page.locator('#qn-preview').evaluate((el) => {
+      const w = window as unknown as { redraws: number; watch?: MutationObserver };
+      w.redraws = 0;
+      w.watch?.disconnect();
+      w.watch = new MutationObserver((records) => (w.redraws += records.length));
+      w.watch.observe(el, { childList: true });
+    });
+    await page.locator('#qn-contact').setChecked(!(await page.locator('#qn-contact').isChecked()));
+    await page.waitForTimeout(100);
+    return page.evaluate(() => (window as unknown as { redraws: number }).redraws);
+  };
+  const once = await redrawsOnToggle();
+  for (let i = 0; i < 2; i++) {
+    await page.locator('#qn-back').click();
+    await page.locator('#qn-new').click();
+  }
+  await page.locator('.fb-add').click();
+  await page.locator('.fb-kind[data-kind="message"]').click();
+  await page.locator('.fb-item .fb-text').fill('{name} again');
+  await page.locator('.fb-add').click();
+  await page.locator('.fb-kind[data-kind="faces"]').click();
+  await page.locator('#qn-contact').check();
+  expect(await redrawsOnToggle()).toBe(once);
 
   // Back to the sample: nobody real is left showing.
   await page.locator('#qn-preview-class').selectOption('');
@@ -180,7 +240,12 @@ test('a request can be typed in: any class name, any dancers, with nothing liste
 
   await fill(0, { email: emailOf('tia') });
   await page.locator('#fb-typed-add').click();
-  await fill(1, { firstName: 'ZZZUma', lastName: RUN_ID, phone: '6085550166' });
+  // A number without its country code would message someone else.
+  await fill(1, { firstName: 'ZZZUma', lastName: RUN_ID, phone: '07700 900123' });
+  await page.locator('#fb-create').click();
+  await expect(page.locator('#fb-status')).toContainText("ZZZUma's WhatsApp number doesn't look right");
+  expect((await db.from('feedback_campaigns').select('id').eq('title', className)).data).toEqual([]);
+  await fill(1, { phone: '6085550166' });
   // A row added by mistake can go, and a blank one is ignored.
   await page.locator('#fb-typed-add').click();
   await page.locator('#fb-typed-add').click();
@@ -242,7 +307,7 @@ test('on a phone, dragging the dots reorders questions', async ({ browser, admin
   for (const y of [grip!.y - 60, grip!.y - 160, firstBox!.y + 2]) await touch('touchMove', y);
   await touch('touchEnd');
   await expect.poll(() => page.locator('.fb-item').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.kind))).toEqual(['text', 'faces', 'yesno']);
-  await expect(page.locator('#qn-preview p').first()).toContainText('Anything else?');
+  await expect(page.locator('#qn-preview p:not(.fb-preview-anonymous)').first()).toContainText('Anything else?');
   await context.close();
 });
 
@@ -294,8 +359,15 @@ test('an admin asks who came with their own message; dancers answer from the ema
   expect((await request.get(link5)).status()).toBe(200);
   expect(await responses(campaignId)).toEqual([]);
 
-  // Ana taps a face: it's saved at once, with her message at the top, questions in order.
+  // Nor does one that runs the page's script: the tapped face waits for a real touch.
   await page.goto(link5);
+  await expect(page.locator('#feedback-status')).toHaveText('Your answer from the email is picked. Keep going, or press Submit.');
+  await expect(page.locator('.feedback-question[data-kind="faces"] input[value="5"]')).toBeChecked();
+  await page.waitForTimeout(500);
+  expect(await responses(campaignId)).toEqual([]);
+
+  // Ana's first touch saves it, with her message at the top, questions in order.
+  await page.locator('.feedback-message').click();
   await expect(page.locator('#feedback-status')).toHaveText('Saved');
   await expect(page.locator('.feedback-message')).toContainText(`Hi ZZZAna! Last week of ${klass.title}, thank you.`);
   await expect(page.locator('.feedback-question legend').first()).toContainText(`How was ${klass.title}?`);
@@ -328,6 +400,7 @@ test('an admin asks who came with their own message; dancers answer from the ema
 
   // Tapping another face in the email changes her answer rather than adding one.
   await page.goto(tapLink(sent[0].html, '3'));
+  await page.keyboard.press('Tab');
   await expect(page.locator('#feedback-status')).toHaveText('Saved');
   await expect.poll(async () => (await responses(campaignId)).map((r) => r.answers.rate)).toEqual([3]);
 
@@ -350,6 +423,16 @@ test('an admin asks who came with their own message; dancers answer from the ema
   expect(message).toContain(`Hi ZZZBen! Last week of ${klass.title}, thank you.`);
   const benLink = message.match(LINK)![0];
   await whatsapp.close();
+
+  // Opening WhatsApp isn't sending: Ben counts as messaged once the admin says so.
+  const benRow = card.locator('li', { hasText: 'ZZZBen' });
+  const benInvite = async () => (await db.from('feedback_invites').select('whatsapp_at').eq('campaign_id', campaignId).eq('first_name', 'ZZZBen').single()).data!;
+  await expect(benRow.getByRole('button', { name: 'Send on WhatsApp' })).toBeVisible();
+  expect((await benInvite()).whatsapp_at).toBeNull();
+  await benRow.getByRole('button', { name: 'I sent it' }).click();
+  await expect(benRow.getByRole('button', { name: 'Sent · send again' })).toBeVisible();
+  await expect(benRow.getByRole('button', { name: 'I sent it' })).toHaveCount(0);
+  expect((await benInvite()).whatsapp_at).not.toBeNull();
 
   await page.goto(benLink);
   await page.locator('.feedback-question[data-kind="faces"]').getByText('Good').click();
@@ -486,6 +569,15 @@ test('a request about no class at all; a typed first question gets an Answer but
 
   // The request's title isn't repeated above the questions.
   await expect(page.locator('#feedback-form')).not.toContainText(questionnaire.name);
+
+  // Only messages, no questions: the page still says answers are anonymous.
+  const notes = await seedQuestionnaire('Only Words', [{ id: 'w', kind: 'message', text: 'Thanks for dancing with us!' }]);
+  const wordsOnly = await request.post('/api/admin/feedback', { headers: bearer(admin), data: { action: 'create', questionnaireId: notes.id, message: 'Thanks for dancing with us!', scope: 'general' } });
+  const { data: words } = await db.from('feedback_campaigns').select('share_token').eq('id', (await wordsOnly.json()).id).single();
+  await page.goto(`/feedback/s-${words!.share_token}`);
+  await expect(page.locator('.feedback-message')).toContainText('Thanks for dancing with us!');
+  await expect(page.locator('.feedback-message + .feedback-anonymous')).toHaveText('Your answers are anonymous unless you leave your details.');
+  await page.goto(`/feedback/s-${campaign!.share_token}`);
 
   // Submit with nothing answered asks for an answer and saves nothing.
   await page.getByRole('button', { name: 'Submit' }).click();

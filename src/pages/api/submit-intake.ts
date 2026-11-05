@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { sendAdminNotification, sendEmail } from '../../lib/email';
 import { checkAndIncrementUsage } from '../../lib/apiUsage';
 import { env } from '../../lib/env';
+import { isEmailAddress } from '../../lib/emailFormat';
 import {
   prepareRegistrationRows,
   resolveClassSelections,
@@ -41,7 +42,6 @@ const MAX_COMMENTS_LENGTH = 2000;
 const MAX_CLASS_LENGTH = 200;
 const MAX_CLASS_SELECTIONS_LENGTH = 10000;
 const MAX_DANCERS_LENGTH = 10000;
-const EMAIL_RE = /^[^\s@,;<>()]+@[^\s@,;<>()]+\.[^\s@,;<>()]+$/;
 
 
 interface Dancer {
@@ -117,7 +117,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
       dancers = null;
     }
 
-    const badEmailIndex = Array.isArray(dancers) ? dancers.findIndex((d) => d?.email && !EMAIL_RE.test(d.email)) : -1;
+    const badEmailIndex = Array.isArray(dancers) ? dancers.findIndex((d) => d?.email && !isEmailAddress(d.email)) : -1;
     if (badEmailIndex >= 0) {
       const who = dancers!.length > 1 ? `Dancer ${badEmailIndex + 1}'s email address` : 'The email address';
       return new Response(`${who} isn't in a valid format — it should look like name@example.com.`, { status: 400 });
@@ -163,7 +163,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     instagram = String(formData.get('instagram') ?? '').trim();
     whatsapp = String(formData.get('whatsapp') ?? '').trim();
 
-    if (email && !EMAIL_RE.test(email)) {
+    if (email && !isEmailAddress(email)) {
       return new Response("That email address isn't in a valid format — it should look like name@example.com.", { status: 400 });
     }
 

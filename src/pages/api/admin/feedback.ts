@@ -5,7 +5,8 @@ import { hideTestRows } from '../../../lib/testMode';
 import { cleanTypedPeople, recipientKey, type FeedbackRecipient } from '../../../lib/feedback';
 import { fillIn, isQuestion, summarizeItem, withTopMessage, type Answers, type FeedbackItem, type SummaryResponse } from '../../../lib/feedbackQuestions';
 import { feedbackOptions, feedbackRecipients, type FeedbackOption, type FeedbackScope, type FeedbackTarget } from '../../../lib/feedbackRecipients';
-import { createCampaign, emailInvites, whatsappInvite } from '../../../lib/feedbackStore';
+import { createCampaign, emailInvites, markWhatsappSent, whatsappInvite } from '../../../lib/feedbackStore';
+import { fetchAllIn, fetchAllRows } from '../../../lib/fetchAll';
 
 export const prerender = false;
 
@@ -24,6 +25,40 @@ function targetFrom(read: (name: string) => unknown): FeedbackTarget | null {
   const seriesKey = get('seriesKey');
   if (!scope || !SCOPES.includes(scope) || !seriesKey) return null;
   return { scope, seriesKey, eventId: get('eventId') };
+}
+
+interface InviteRow {
+  id: string;
+  campaign_id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  emailed_at: string | null;
+  whatsapp_at: string | null;
+}
+
+interface ResponseRow {
+  id: string;
+  campaign_id: string;
+  created_at: string;
+  finished_at: string | null;
+  via: 'invite' | 'shared';
+  answers: unknown;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+}
+
+function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const row of rows) {
+    const k = key(row);
+    const list = out.get(k);
+    if (list) list.push(row);
+    else out.set(k, [row]);
+  }
+  return out;
 }
 
 // Who shared their name, if anyone.
@@ -50,26 +85,39 @@ export const GET: APIRoute = async ({ request, url }) => {
     return json({ error: (err as Error).message }, 500);
   }
 
-  const { data: campaigns, error } = await hideTestRows(supabase.from('feedback_campaigns').select('*'), 'title').order('created_at', { ascending: false });
-  if (error) return json({ error: 'Failed to load feedback requests.' }, 500);
-  const ids = (campaigns ?? []).map((c) => c.id);
-  const [invites, responses] = ids.length
-    ? await Promise.all([
-        supabase.from('feedback_invites').select('id, campaign_id, first_name, last_name, email, phone, emailed_at, whatsapp_at').in('campaign_id', ids).order('first_name'),
-        supabase.from('feedback_responses').select('campaign_id, created_at, finished_at, via, answers, contact_name, contact_email, contact_phone').in('campaign_id', ids).order('created_at', { ascending: false }),
-      ])
-    : [{ data: [], error: null }, { data: [], error: null }];
-  if (invites.error || responses.error) return json({ error: 'Failed to load feedback requests.' }, 500);
+  // Paged, since invites and answers pile up past one response's 1000 rows.
+  let campaigns: (Record<string, unknown> & { id: string; class_title: string; items: FeedbackItem[] })[];
+  let invites: InviteRow[];
+  let responses: ResponseRow[];
+  try {
+    campaigns = await fetchAllRows((from, to) =>
+      hideTestRows(supabase.from('feedback_campaigns').select('*'), 'title').order('created_at', { ascending: false }).order('id').range(from, to)
+    );
+    const ids = campaigns.map((c) => c.id as string);
+    [invites, responses] = await Promise.all([
+      fetchAllIn<InviteRow>(ids, (chunk, from, to) =>
+        supabase.from('feedback_invites').select('id, campaign_id, first_name, last_name, email, phone, emailed_at, whatsapp_at').in('campaign_id', chunk).order('first_name').order('id').range(from, to)
+      ),
+      fetchAllIn<ResponseRow>(ids, (chunk, from, to) =>
+        supabase.from('feedback_responses').select('id, campaign_id, created_at, finished_at, via, answers, contact_name, contact_email, contact_phone').in('campaign_id', chunk).order('created_at', { ascending: false }).order('id').range(from, to)
+      ),
+    ]);
+  } catch {
+    return json({ error: 'Failed to load feedback requests.' }, 500);
+  }
+  const invitesBy = groupBy(invites, (i) => i.campaign_id);
+  // Newest first across chunks too.
+  const responsesBy = groupBy(responses.sort((a, b) => b.created_at.localeCompare(a.created_at)), (r) => r.campaign_id);
 
   return json({
-    campaigns: (campaigns ?? []).map((c) => {
-      const rows = (responses.data ?? []).filter((r) => r.campaign_id === c.id);
+    campaigns: campaigns.map((c) => {
+      const rows = responsesBy.get(c.id) ?? [];
       const forSummary: SummaryResponse[] = rows.map((r) => ({ answers: r.answers as Answers, created_at: r.created_at, contact: contactOf(r) }));
       const items = (c.items as FeedbackItem[]).filter(isQuestion);
       const written = new Set(items.filter((i) => i.kind === 'text').map((i) => i.id));
       return {
         ...c,
-        invites: (invites.data ?? []).filter((i) => i.campaign_id === c.id),
+        invites: (invitesBy.get(c.id) ?? []).sort((a, b) => a.first_name.localeCompare(b.first_name)),
         stats: {
           started: rows.filter((r) => r.via === 'invite').length,
           shared: rows.filter((r) => r.via === 'shared').length,
@@ -88,7 +136,9 @@ export const GET: APIRoute = async ({ request, url }) => {
 // link), emailed straight away. Scope 'general' is typed in rather than listed:
 // { className, people } instead of the class and keys, both optional;
 // { action: 'email', campaignId } emails anyone not emailed yet;
-// { action: 'whatsapp', inviteId } → { url } a WhatsApp message to send;
+// { action: 'whatsapp', inviteId } → { url } a WhatsApp message to send, and
+// { action: 'whatsapp-sent', inviteId } once the admin has sent it;
+// emailing resolves to { emailed, held }: held waits for tomorrow's limit;
 // { action: 'close' | 'reopen' | 'delete', campaignId }.
 export const POST: APIRoute = async ({ request, url }) => {
   const { user, error: authError } = await requireAdmin(request);
@@ -124,13 +174,21 @@ export const POST: APIRoute = async ({ request, url }) => {
 
       const id = await createCampaign({ option, questionnaireId: questionnaire.id, items, contactBox: questionnaire.contact_box, recipients, createdBy: user.email ?? null });
       try {
-        return json({ id, emailed: await emailInvites(id, url.origin) });
+        const { sent, held } = await emailInvites(id, url.origin);
+        return json({ id, emailed: sent, held });
       } catch (err) {
-        return json({ id, emailed: 0, emailError: (err as Error).message });
+        return json({ id, emailed: 0, held: 0, emailError: (err as Error).message });
       }
     }
-    if (action === 'email' && campaignId) return json({ emailed: await emailInvites(campaignId, url.origin) });
+    if (action === 'email' && campaignId) {
+      const { sent, held } = await emailInvites(campaignId, url.origin);
+      return json({ emailed: sent, held });
+    }
     if (action === 'whatsapp' && typeof body.inviteId === 'string') return json({ url: await whatsappInvite(body.inviteId, url.origin) });
+    if (action === 'whatsapp-sent' && typeof body.inviteId === 'string') {
+      await markWhatsappSent(body.inviteId);
+      return json({ ok: true });
+    }
     if ((action === 'close' || action === 'reopen') && campaignId) {
       await supabase.from('feedback_campaigns').update({ closed_at: action === 'close' ? new Date().toISOString() : null }).eq('id', campaignId).throwOnError();
       return json({ ok: true });

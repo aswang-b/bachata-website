@@ -56,6 +56,9 @@ export async function sendEmail(
   return typeof sent?.id === 'string' && sent.id ? sent.id : `unreported_${crypto.randomUUID()}`;
 }
 
+// Resend's limit on emails in one batch request.
+export const EMAIL_BATCH_SIZE = 100;
+
 export interface BatchEmail {
   to: string;
   subject: string;
@@ -64,18 +67,17 @@ export interface BatchEmail {
 
 // Many emails in one request per 100 (Resend's batch limit), so a long list
 // isn't slowed by the per-second rate limit. Throws on a failed request,
-// after logging it like sendEmail; emails in earlier requests stay sent.
+// after logging it like sendEmail; emails in earlier requests stay sent, so
+// send one chunk at a time to know which went. Without an API key it throws
+// too: a caller counting sends would otherwise count ones that never left.
 export async function sendEmailBatch(emails: BatchEmail[]): Promise<void> {
   if (emailSinkPath()) {
     for (const e of emails) recordSunkEmail({ id: `sink_${crypto.randomUUID()}`, ...e });
     return;
   }
-  if (!RESEND_API_KEY) {
-    console.warn('Skipping emails: RESEND_API_KEY not set.');
-    return;
-  }
-  for (let i = 0; i < emails.length; i += 100) {
-    const chunk = emails.slice(i, i + 100);
+  if (!RESEND_API_KEY) throw new Error("Emails can't be sent from here: RESEND_API_KEY isn't set.");
+  for (let i = 0; i < emails.length; i += EMAIL_BATCH_SIZE) {
+    const chunk = emails.slice(i, i + EMAIL_BATCH_SIZE);
     const res = await fetch('https://api.resend.com/emails/batch', {
       method: 'POST',
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },

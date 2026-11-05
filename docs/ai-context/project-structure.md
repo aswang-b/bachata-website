@@ -32,7 +32,7 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0066); a new table must be granted to service_role in its migration (see 0045)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0067); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting)
@@ -43,6 +43,7 @@
 │   │   ├── admin.ts                     # Admin auth/session helpers
 │   │   ├── adminSession.ts              # Browser-only shared admin check (refreshes stale sessions, local sign-out)
 │   │   ├── apiUsage.ts                  # API usage tracking (e.g. Google Places quota, daily caps)
+│   │   ├── fetchAll.ts, emailFormat.ts  # Reading past the 1000-row cap; the one server-side email format check
 │   │   ├── calendarSync.ts              # Google Calendar sync logic
 │   │   ├── capacity.ts                  # Per-series capacity: spots remaining per occurrence (a general cap, or separate Leader/Follower caps for classes), from the trigger-maintained event_spot_counts cache; server-side full check
 │   │   ├── attendanceMatching.ts        # Matches sign-ups to check-ins per dancer, expanding series sign-ups into per-occurrence entries

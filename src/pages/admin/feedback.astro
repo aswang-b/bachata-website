@@ -395,7 +395,7 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
     try {
       const target = general ? { scope: 'general', className: byId<HTMLInputElement>('fb-class-name').value, people: typedPeople() } : { scope: option.scope, seriesKey: option.seriesKey, eventId: option.eventId };
       const result = await api('POST', '', { action: 'create', questionnaireId: questionnaireSelect.value, message: message.value, keys, ...target });
-      status.textContent = result.emailError ? `Created, but the emails didn't send: ${result.emailError}` : `Created. ${result.emailed} email${result.emailed === 1 ? '' : 's'} sent.`;
+      status.textContent = result.emailError ? `Created, but not every email went: ${result.emailError} Use "Email the other" on the request to try again.` : `Created. ${emailedText(result)}`;
       targetSelect.value = '';
       toggleFlex(details, false);
       resetTyped();
@@ -408,6 +408,12 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
   });
 
   // ---- Results ----
+
+  // "3 emails sent." plus any left for tomorrow by the daily email limit.
+  function emailedText({ emailed, held }: { emailed: number; held?: number }): string {
+    const sent = `${emailed} email${emailed === 1 ? '' : 's'} sent.`;
+    return held ? `${sent} ${held} more wait for today's email limit: use "Email the other ${held}" tomorrow.` : sent;
+  }
 
   function summaryHtml(s: ItemSummary): string {
     const average = s.average == null ? '' : ` · average ${s.average.toFixed(1)}`;
@@ -483,14 +489,14 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
     const rows = card.querySelector('.fb-whatsapp ul')!;
     for (const invite of onWhatsapp) {
       const li = document.createElement('li');
-      li.className = 'flex items-center justify-between gap-3 text-sm';
+      li.className = 'flex flex-wrap items-center justify-between gap-3 text-sm';
       li.innerHTML = `<span><span class="font-semibold text-ink">${escapeHtml(invite.first_name)} ${escapeHtml(invite.last_name)}</span> <span class="text-xs text-muted">${escapeHtml(invite.phone ?? '')}</span></span>`;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `fb-whatsapp-send shrink-0 ${pill}`;
       button.textContent = invite.whatsapp_at ? 'Sent · send again' : 'Send on WhatsApp';
       button.disabled = Boolean(c.closed_at);
-      button.addEventListener('click', () => sendWhatsapp(invite, button));
+      button.addEventListener('click', () => sendWhatsapp(invite, button, li));
       li.append(button);
       rows.append(li);
     }
@@ -514,8 +520,7 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
     };
     if (!c.closed_at && emailed < withEmail.length) {
       action(`Email the other ${withEmail.length - emailed}`, async () => {
-        const { emailed: sent } = await api('POST', '', { action: 'email', campaignId: c.id });
-        status.textContent = `${sent} email${sent === 1 ? '' : 's'} sent.`;
+        status.textContent = emailedText(await api('POST', '', { action: 'email', campaignId: c.id }));
         await loadCampaigns();
       });
     }
@@ -532,15 +537,34 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
     return card;
   }
 
-  // WhatsApp opens in a tab made before the request, so it isn't blocked as a pop-up.
-  async function sendWhatsapp(invite: Invite, button: HTMLButtonElement) {
+  // WhatsApp opens in a tab made before the request, so it isn't blocked as a
+  // pop-up. Opening it isn't sending it, so the admin says when they have.
+  async function sendWhatsapp(invite: Invite, button: HTMLButtonElement, row: HTMLElement) {
     const tab = window.open('', '_blank');
     button.disabled = true;
     try {
       const { url } = await api('POST', '', { action: 'whatsapp', inviteId: invite.id });
       if (tab) tab.location.href = url;
       else location.href = url;
-      button.textContent = 'Sent · send again';
+      if (!row.querySelector('.fb-whatsapp-sent')) {
+        const sent = document.createElement('button');
+        sent.type = 'button';
+        sent.className = `fb-whatsapp-sent shrink-0 ${pill}`;
+        sent.textContent = 'I sent it';
+        sent.addEventListener('click', async () => {
+          sent.disabled = true;
+          try {
+            await api('POST', '', { action: 'whatsapp-sent', inviteId: invite.id });
+            invite.whatsapp_at = new Date().toISOString();
+            button.textContent = 'Sent · send again';
+            sent.remove();
+          } catch (err) {
+            status.textContent = (err as Error).message;
+            sent.disabled = false;
+          }
+        });
+        button.before(sent);
+      }
     } catch (err) {
       tab?.close();
       status.textContent = (err as Error).message;
@@ -582,8 +606,8 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
     return { className: previewOption()?.classTitle ?? 'your class', name: previewDancer.value || SAMPLE_DANCER };
   }
 
-  function setPreviewDancers(dancers: FeedbackRecipient[]) {
-    const chosen = previewDancer.selectedOptions[0]?.textContent;
+  // `chosen`: the dancer's name to keep picked if they were at this class too.
+  function setPreviewDancers(dancers: FeedbackRecipient[], chosen?: string | null) {
     const fullName = (d: FeedbackRecipient) => `${d.firstName} ${d.lastName}`.trim();
     const sorted = [...dancers].sort((a, b) => fullName(a).localeCompare(fullName(b)));
     previewDancer.replaceChildren(new Option(`Sample dancer (${SAMPLE_DANCER})`, ''), ...sorted.map((d) => new Option(fullName(d), d.firstName)));
@@ -597,6 +621,10 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
   previewClass.addEventListener('change', async () => {
     const request = ++previewRequest;
     const option = previewOption();
+    // Back to the sample dancer while this class's load, so the preview never
+    // pairs the last class's dancer with this one.
+    const chosen = previewDancer.value ? previewDancer.selectedOptions[0]?.textContent : null;
+    setPreviewDancers([]);
     editing?.builder.refreshPreview();
     previewDancer.disabled = true;
     previewStatus.textContent = option ? 'Loading who came…' : '';
@@ -613,7 +641,7 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
     // A slower answer about a class no longer chosen is dropped.
     if (request !== previewRequest) return;
     previewStatus.textContent = problem;
-    setPreviewDancers(dancers);
+    setPreviewDancers(dancers, chosen);
     editing?.builder.refreshPreview();
   });
   previewDancer.addEventListener('change', () => editing?.builder.refreshPreview());
@@ -623,6 +651,7 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
     qnName.value = q?.name ?? '';
     qnContact.checked = q?.contact_box ?? true;
     qnStatus.textContent = '';
+    editing?.builder.destroy();
     const builder = createBuilder(byId('qn-builder'), byId('qn-preview'), qnContact, q?.items ?? [], previewValues);
     editing = { id: q?.id ?? null, updatedAt: q?.updated_at ?? null, builder };
     qnListView.classList.add('hidden');
@@ -631,6 +660,7 @@ const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bo
   }
 
   function closeEditor() {
+    editing?.builder.destroy();
     editing = null;
     qnEditor.classList.add('hidden');
     qnListView.classList.remove('hidden');

@@ -2,15 +2,16 @@
 export const prerender = false;
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { RATINGS } from '../../lib/feedback';
+import { RATINGS, anonymityNote } from '../../lib/feedback';
 import { MAX_ANSWER_LENGTH, MAX_NAME_LENGTH, cleanAnswer, cleanAnswers, fillIn, isQuestion, type Answers } from '../../lib/feedbackQuestions';
 import { loadFeedbackPage, newSharedSecret, saveAnswers, useSharedSecret, type SaveResult } from '../../lib/feedbackStore';
 
 // A feedback link: a dancer's own (from the email or a WhatsApp message) or the
 // request's shared one. Opening it saves nothing: the email's buttons only pick
-// an answer (?q=&a=), which the page's script then saves, so a mail scanner
-// following links never answers. Answers save as they're given when the script
-// runs; Submit posts the whole form, so it all works without the script too.
+// an answer (?q=&a=), which the page's script saves once the dancer touches
+// the page (a tap, a key), so a mail scanner following links, even one that
+// runs the script, never answers. Answers save as they're given when the
+// script runs; Submit posts the whole form, so it all works without it too.
 const token = Astro.params.token ?? '';
 const cookieName = (campaignId: string) => `feedback_${campaignId}`;
 const secretOf = (campaignId: string) => Astro.cookies.get(cookieName(campaignId))?.value;
@@ -59,7 +60,7 @@ if (page && Astro.request.method === 'POST') {
   page = fresh && { ...fresh, answers };
 }
 
-// The answer tapped in the email, picked but not saved until the script runs.
+// The answer tapped in the email, picked but not saved until the dancer is here.
 const tappedId = Astro.url.searchParams.get('q');
 const tappedItem = page?.items.find((i) => isQuestion(i) && i.id === tappedId);
 const tapped = tappedItem ? cleanAnswer(tappedItem, Astro.url.searchParams.get('a')) : undefined;
@@ -68,10 +69,11 @@ const saveTap = Boolean(!error && tappedItem && tapped !== undefined && page?.an
 
 const showThanks = Boolean(page?.finished && Astro.url.searchParams.get('done') === '1');
 const values = page ? { className: page.className, name: page.firstName } : { className: '' };
-// Sits between the intro and the first question, close under the intro when there is one.
+// Sits between the intro and the first question, close under the intro when
+// there is one; with no questions at all, under the messages.
 const firstQuestion = page?.items.findIndex(isQuestion) ?? -1;
 const hasIntro = firstQuestion > 0;
-const anonymousNote = !page?.contactBox ? 'Your answers are anonymous.' : page.mode === 'invite' ? 'Your answers are anonymous unless you choose to share your name.' : 'Your answers are anonymous unless you leave your details.';
+const anonymousNote = page ? anonymityNote(page.contactBox, page.mode) : '';
 const isPicked = (id: string, value: string | number) => {
   const a = shown[id];
   return Array.isArray(a) ? a.includes(String(value)) : a === value;
@@ -167,6 +169,7 @@ const field = 'rounded-xl border border-border bg-bg px-3 py-2 text-sm text-ink 
               </>
             )
           )}
+          {firstQuestion < 0 && <p class="feedback-anonymous text-xs text-muted">{anonymousNote}</p>}
 
           {page.contactBox &&
             (page.mode === 'invite' ? (
@@ -242,6 +245,18 @@ const field = 'rounded-xl border border-border bg-bg px-3 py-2 text-sm text-ink 
       clearTimeout(typing);
       void queue.then(() => form.submit());
     });
-    if (form.dataset.saveTap) save();
+    // The answer tapped in the email saves on the dancer's first touch or key
+    // press: link scanners load the page, script and all, but never touch it.
+    if (form.dataset.saveTap) {
+      status.textContent = 'Your answer from the email is picked. Keep going, or press Submit.';
+      const firstTouch = (e: Event) => {
+        if (!e.isTrusted) return;
+        document.removeEventListener('pointerdown', firstTouch, true);
+        document.removeEventListener('keydown', firstTouch, true);
+        save();
+      };
+      document.addEventListener('pointerdown', firstTouch, true);
+      document.addEventListener('keydown', firstTouch, true);
+    }
   }
 </script>

@@ -1,4 +1,5 @@
 import { normalizeName } from './attendanceMatching';
+import { isEmailAddress } from './emailFormat';
 
 // Feedback requests (migration 0064), the parts shared by the server, the
 // emails and the admin page's script: the rating faces, who to ask, and
@@ -26,9 +27,10 @@ const digits = (phone: string | null) => (phone ?? '').replace(/\D/g, '');
 
 // The same dancer turns up once per class they came to (and on both a
 // check-in and a sign-up): one invite each. Same name is only the same
-// person when their email or phone agrees, or one side has neither, so two
-// namesakes with different contacts are both asked. Merged contacts fill in
-// each other's blanks.
+// person when their email or phone agrees, or nothing they gave disagrees
+// (one row with only an email, another with only a phone), so two namesakes
+// with different contacts are both asked. Merged contacts fill in each
+// other's blanks.
 export function dedupeRecipients(people: FeedbackRecipient[]): FeedbackRecipient[] {
   const out: FeedbackRecipient[] = [];
   for (const p of people) {
@@ -37,8 +39,10 @@ export function dedupeRecipients(people: FeedbackRecipient[]): FeedbackRecipient
     const name = normalizeName(p.firstName, p.lastName);
     const same = out.find((o) => {
       if (normalizeName(o.firstName, o.lastName) !== name) return false;
-      if ((!email && !phone) || (!o.email && !o.phone)) return true;
-      return Boolean((email && o.email === email) || (phone && digits(o.phone) === digits(phone)));
+      if (email && o.email === email) return true;
+      if (phone && o.phone && digits(o.phone) === digits(phone)) return true;
+      // Nothing to tell them apart: no email or phone that disagrees.
+      return (!email || !o.email) && (!phone || !o.phone);
     });
     if (same) {
       same.email ??= email;
@@ -50,9 +54,22 @@ export function dedupeRecipients(people: FeedbackRecipient[]): FeedbackRecipient
   return out;
 }
 
-const EMAIL_RE = /^[^\s@,;<>()]+@[^\s@,;<>()]+\.[^\s@,;<>()]+$/;
 const MAX_TYPED_PEOPLE = 200;
 const MAX_NAME = 100;
+const MAX_PHONE = 30;
+
+// What a typed-in WhatsApp number still needs, or null when it's usable.
+// Stricter than whatsappNumber: a number typed without its country code (a UK
+// 07700…) would otherwise be messaged as if the 0 were one.
+export function typedPhoneProblem(phone: string): string | null {
+  const tidy = phone.trim();
+  if (tidy.length > MAX_PHONE || !/^\+?[\d\s().-]+$/.test(tidy)) return 'only digits, spaces and dashes, with a + before the country code';
+  const d = digits(tidy);
+  if (tidy.startsWith('+')) return d.length >= 8 && d.length <= 15 && !d.startsWith('0') ? null : 'a + then the country code and number';
+  // Without a +, only a US number: 10 digits, or 11 starting with its 1.
+  const us = d.length === 11 && d.startsWith('1') ? d.slice(1) : d;
+  return us.length === 10 && /^[2-9]/.test(us) ? null : 'a + then the country code, unless it is a US number';
+}
 
 // Dancers typed in for a request. Each needs a first name and a way to reach
 // them, or the request could never get to them. Wholly blank rows are skipped.
@@ -67,8 +84,9 @@ export function cleanTypedPeople(raw: unknown): { people: FeedbackRecipient[] } 
     if (!firstName) return { error: `Add a first name for ${lastName || email || phone}.` };
     if (firstName.length > MAX_NAME || lastName.length > MAX_NAME) return { error: `${firstName}'s name is too long.` };
     if (!email && !phone) return { error: `Add an email or WhatsApp number for ${firstName}.` };
-    if (email && !EMAIL_RE.test(email)) return { error: `${firstName}'s email doesn't look right.` };
-    if (phone && !whatsappNumber(phone)) return { error: `${firstName}'s WhatsApp number doesn't look right. Include the country code if it's outside the US.` };
+    if (email && !isEmailAddress(email)) return { error: `${firstName}'s email doesn't look right.` };
+    const phoneProblem = phone ? typedPhoneProblem(phone) : null;
+    if (phoneProblem) return { error: `${firstName}'s WhatsApp number doesn't look right: it needs ${phoneProblem}.` };
     people.push({ firstName, lastName, email: email || null, phone: phone || null });
   }
   return { people: dedupeRecipients(people) };
@@ -80,7 +98,14 @@ export function whatsappNumber(phone: string | null): string | null {
   const d = digits(phone);
   if (d.length === 10 && !phone!.trim().startsWith('+')) return `1${d}`;
   if (d.length >= 11 && d.length <= 15) return d;
+  if (d.length >= 8 && d.length <= 10 && phone!.trim().startsWith('+')) return d;
   return null;
+}
+
+// The line on the answer page (and its preview) saying answers are anonymous.
+export function anonymityNote(contactBox: boolean, mode: 'invite' | 'shared'): string {
+  if (!contactBox) return 'Your answers are anonymous.';
+  return mode === 'invite' ? 'Your answers are anonymous unless you choose to share your name.' : 'Your answers are anonymous unless you leave your details.';
 }
 
 // The WhatsApp message: the request's own message (already filled in), or a

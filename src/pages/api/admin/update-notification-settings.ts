@@ -1,10 +1,10 @@
 import type { APIRoute } from 'astro';
 import { requireAdmin } from '../../../lib/admin';
+import { isEmailAddress } from '../../../lib/emailFormat';
 import { parseRecipientEmails, setNotificationRecipients } from '../../../lib/notificationSettings';
 
 export const prerender = false;
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_RECIPIENTS = 20;
 
 export const POST: APIRoute = async ({ request }) => {
@@ -24,7 +24,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (emails.length > MAX_RECIPIENTS) {
     return new Response(JSON.stringify({ error: `No more than ${MAX_RECIPIENTS} recipients.` }), { status: 400 });
   }
-  const invalid = emails.filter((e) => !EMAIL_RE.test(e));
+  const invalid = emails.filter((e) => !isEmailAddress(e));
   if (invalid.length > 0) {
     return new Response(JSON.stringify({ error: `Invalid email address: ${invalid[0]}` }), { status: 400 });
   }

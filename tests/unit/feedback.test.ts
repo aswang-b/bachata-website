@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanTypedPeople, dedupeRecipients, feedbackMessage, recipientKey, whatsappNumber, whatsappUrl } from '../../src/lib/feedback';
+import { anonymityNote, cleanTypedPeople, dedupeRecipients, feedbackMessage, recipientKey, typedPhoneProblem, whatsappNumber, whatsappUrl } from '../../src/lib/feedback';
 import { buildFeedbackEmailHtml, feedbackEmailSubject } from '../../src/lib/feedbackEmail';
 import {
   cleanAnswer,
@@ -32,6 +32,14 @@ describe('feedback recipients', () => {
 
   it('keeps two namesakes with different contacts apart', () => {
     expect(dedupeRecipients([person('Sam', 'a@example.com', null), person('Sam', 'b@example.com', null)])).toHaveLength(2);
+  });
+
+  it('merges a dancer given once with only an email and once with only a phone', () => {
+    expect(dedupeRecipients([person('Ana', 'ana@example.com', null), person('Ana', null, '6085550111')])).toEqual([
+      { firstName: 'Ana', lastName: 'Lee', email: 'ana@example.com', phone: '6085550111' },
+    ]);
+    // A phone that disagrees still tells two namesakes apart.
+    expect(dedupeRecipients([person('Ana', 'ana@example.com', '6085550111'), person('Ana', null, '6085550999')])).toHaveLength(2);
   });
 
   it('keys a recipient by name and contacts', () => {
@@ -214,6 +222,27 @@ describe('dancers typed into a request', () => {
       ],
     });
     expect(cleanTypedPeople(undefined)).toEqual({ people: [] });
+  });
+
+  it('refuses a WhatsApp number typed without its country code, or with words in it', () => {
+    expect(typedPhoneProblem('07700 900123')).toEqual(expect.stringContaining('country code'));
+    expect(typedPhoneProblem('call 608 555 0111 ext 2')).toEqual(expect.stringContaining('only digits'));
+    expect(typedPhoneProblem('+44 7700 900123')).toBeNull();
+    expect(typedPhoneProblem('(608) 555-0111')).toBeNull();
+    expect(typedPhoneProblem('1 608 555 0111')).toBeNull();
+    expect(cleanTypedPeople([{ firstName: 'Ana', phone: '07700 900123' }])).toMatchObject({ error: expect.stringContaining("Ana's WhatsApp number") });
+  });
+
+  it('refuses contact details longer than any real one', () => {
+    expect(cleanTypedPeople([{ firstName: 'Ana', email: `${'a'.repeat(250)}@example.com` }])).toEqual({ error: "Ana's email doesn't look right." });
+    expect(cleanTypedPeople([{ firstName: 'Ana', phone: `+1 608 555 0111${' '.repeat(40)}` }])).toEqual({ people: [expect.objectContaining({ phone: '+1 608 555 0111' })] });
+    expect(cleanTypedPeople([{ firstName: 'Ana', phone: `+1 608${'-'.repeat(40)}555 0111` }])).toMatchObject({ error: expect.stringContaining("Ana's WhatsApp number") });
+  });
+
+  it('tells dancers their answers are anonymous in words that fit the link', () => {
+    expect(anonymityNote(false, 'invite')).toBe('Your answers are anonymous.');
+    expect(anonymityNote(true, 'invite')).toBe('Your answers are anonymous unless you choose to share your name.');
+    expect(anonymityNote(true, 'shared')).toBe('Your answers are anonymous unless you leave your details.');
   });
 
   it('refuses anyone the request could never reach, naming them', () => {

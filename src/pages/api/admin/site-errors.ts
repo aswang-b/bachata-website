@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
+import { isEmailAddress } from '../../../lib/emailFormat';
 import { sendEmail } from '../../../lib/email';
 import { checkAndIncrementUsage } from '../../../lib/apiUsage';
 import { getConfirmationBccEmails } from '../../../lib/notificationSettings';
@@ -12,7 +13,6 @@ import { signupsWithEmail } from '../../../lib/bouncedSignups';
 export const prerender = false;
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const EMAIL_RE = /^[^\s@,;<>()]+@[^\s@,;<>()]+\.[^\s@,;<>()]+$/;
 
 // A dancer's (or a single-person sign-up's) current email.
 async function currentEmail(submissionId: string, dancerIndex: number | null): Promise<string | null> {
@@ -92,7 +92,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     if (body.action === 'update-email') {
       const email = typeof body.email === 'string' ? body.email.trim() : '';
-      if (!EMAIL_RE.test(email) || email.length > 200) return json({ error: "That email address isn't in a valid format." }, 400);
+      if (!isEmailAddress(email)) return json({ error: "That email address isn't in a valid format." }, 400);
       const saved = await saveDancerEmail(submissionId, dancerIndex, email);
       if (saved !== 'ok') return json({ error: saved === 'not-found' ? 'Sign-up not found.' : 'Failed to update the sign-up.' }, saved === 'not-found' ? 404 : 500);
       let regs = supabase.from('class_registrations').update({ email }).eq('submission_id', submissionId).is('deleted_at', null);

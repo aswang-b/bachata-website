@@ -1,7 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { supabase } from './supabase';
-import { sendEmailBatch } from './email';
-import { checkAndIncrementUsage } from './apiUsage';
+import { EMAIL_BATCH_SIZE, sendEmailBatch } from './email';
+import { checkAndIncrementUsage, claimUsage } from './apiUsage';
+import { env } from './env';
 import { buildFeedbackEmailHtml, feedbackEmailSubject } from './feedbackEmail';
 import { MAX_NAME_LENGTH, fillIn, missingRequired, topMessage, type Answers, type FeedbackItem } from './feedbackQuestions';
 import { feedbackMessage, whatsappNumber, whatsappUrl, type FeedbackRecipient } from './feedback';
@@ -23,6 +24,10 @@ export const newSharedSecret = () => randomBytes(24).toString('base64url');
 export const SHARED_PREFIX = 's-';
 // New answers one network can start through shared links in a day.
 const SHARED_DAILY_CAP_PER_IP = 60;
+// Feedback emails a day, counted apart from sign-up confirmations so a big
+// request can't use up their allowance. Override via RESEND_FEEDBACK_DAILY_CAP.
+const FEEDBACK_EMAIL_USAGE = 'resend_feedback_email';
+const FEEDBACK_EMAIL_DAILY_CAP = Number(env('RESEND_FEEDBACK_DAILY_CAP')) || 300;
 
 // A new link for an invite, by email or WhatsApp.
 async function newLink(inviteId: string, channel: 'email' | 'whatsapp'): Promise<string> {
@@ -68,9 +73,18 @@ export async function createCampaign(params: {
   return data.id as string;
 }
 
+export interface EmailResult {
+  sent: number;
+  // Not emailed for today's limit: "Email the other N" sends them tomorrow.
+  held: number;
+}
+
 // Emails everyone in the campaign with an email who hasn't been emailed yet
-// (so it also retries a send that failed). Resolves to how many were sent.
-export async function emailInvites(campaignId: string, origin: string): Promise<number> {
+// (so it also retries a send that failed), up to today's feedback email limit.
+// A chunk's invites are claimed (emailed_at set) before it's sent, so two
+// sends at once never email anyone twice, and handed back if it fails, so
+// a failure part way only leaves the unsent ones for a retry.
+export async function emailInvites(campaignId: string, origin: string): Promise<EmailResult> {
   const { data: campaign } = await supabase.from('feedback_campaigns').select('class_title, items, closed_at').eq('id', campaignId).maybeSingle();
   if (!campaign) throw new Error('That feedback request no longer exists.');
   if (campaign.closed_at) throw new Error('This feedback request is closed.');
@@ -79,28 +93,59 @@ export async function emailInvites(campaignId: string, origin: string): Promise<
     .select('id, first_name, email')
     .eq('campaign_id', campaignId)
     .not('email', 'is', null)
-    .is('emailed_at', null);
+    .is('emailed_at', null)
+    .order('id');
   if (error) throw new Error(`Couldn't load who to email: ${error.message}`);
-  if (!invites || invites.length === 0) return 0;
+  if (!invites || invites.length === 0) return { sent: 0, held: 0 };
 
+  const allowed = await claimUsage(FEEDBACK_EMAIL_USAGE, FEEDBACK_EMAIL_DAILY_CAP, invites.length);
   const items = campaign.items as FeedbackItem[];
   const className = campaign.class_title as string;
-  const emails = await Promise.all(
-    invites.map(async (i) => ({
-      to: i.email as string,
-      subject: feedbackEmailSubject({ className, items }),
-      html: buildFeedbackEmailHtml({ firstName: i.first_name, className, items, link: feedbackLink(origin, await newLink(i.id, 'email')) }),
-    }))
-  );
-  await sendEmailBatch(emails);
-  await supabase
-    .from('feedback_invites')
-    .update({ emailed_at: new Date().toISOString() })
-    .in('id', invites.map((i) => i.id));
-  return invites.length;
+  const subject = feedbackEmailSubject({ className, items });
+  let sent = 0;
+  try {
+    for (let i = 0; i < allowed; i += EMAIL_BATCH_SIZE) {
+      const ids = invites.slice(i, Math.min(i + EMAIL_BATCH_SIZE, allowed)).map((r) => r.id);
+      const { data: claimed, error: claimError } = await supabase
+        .from('feedback_invites')
+        .update({ emailed_at: new Date().toISOString() })
+        .in('id', ids)
+        .is('emailed_at', null)
+        .select('id, first_name, email');
+      if (claimError) throw new Error(`Couldn't mark who's being emailed: ${claimError.message}`);
+      // Another send already has them.
+      if (!claimed || claimed.length === 0) continue;
+      const release = () => supabase.from('feedback_invites').update({ emailed_at: null }).in('id', claimed.map((r) => r.id));
+
+      const tokens = claimed.map(() => randomBytes(24).toString('base64url'));
+      const { error: linkError } = await supabase
+        .from('feedback_links')
+        .insert(claimed.map((r, n) => ({ token_hash: linkHash(tokens[n]), invite_id: r.id, channel: 'email' })));
+      if (linkError) {
+        await release();
+        throw new Error(`Couldn't make the feedback links: ${linkError.message}`);
+      }
+      try {
+        await sendEmailBatch(
+          claimed.map((r, n) => ({ to: r.email as string, subject, html: buildFeedbackEmailHtml({ firstName: r.first_name, className, items, link: feedbackLink(origin, tokens[n]) }) }))
+        );
+      } catch (err) {
+        await release();
+        await supabase.from('feedback_links').delete().in('token_hash', tokens.map(linkHash));
+        throw err;
+      }
+      sent += claimed.length;
+    }
+  } finally {
+    // Give back what wasn't sent: a failure, or invites another send took.
+    if (allowed > sent) await claimUsage(FEEDBACK_EMAIL_USAGE, FEEDBACK_EMAIL_DAILY_CAP, sent - allowed);
+  }
+  return { sent, held: invites.length - allowed };
 }
 
-// A wa.me link that opens WhatsApp with the request (and a new link of its own) typed out.
+// A wa.me link that opens WhatsApp with the request (and a new link of its
+// own) typed out. Only opening it, so the invite isn't marked as messaged
+// until the admin says they sent it (markWhatsappSent).
 export async function whatsappInvite(inviteId: string, origin: string): Promise<string> {
   const { data: invite } = await supabase
     .from('feedback_invites')
@@ -113,10 +158,15 @@ export async function whatsappInvite(inviteId: string, origin: string): Promise<
   const number = whatsappNumber(invite.phone);
   if (!number) throw new Error(`${invite.first_name}'s phone number can't be used for WhatsApp.`);
   const link = feedbackLink(origin, await newLink(invite.id, 'whatsapp'));
-  await supabase.from('feedback_invites').update({ whatsapp_at: new Date().toISOString() }).eq('id', invite.id);
   const top = topMessage(campaign.items);
   const lead = top ? fillIn(top, { className: campaign.class_title, name: invite.first_name }) : null;
   return whatsappUrl(number, feedbackMessage(lead, invite.first_name, campaign.class_title, link));
+}
+
+export async function markWhatsappSent(inviteId: string): Promise<void> {
+  const { data, error } = await supabase.from('feedback_invites').update({ whatsapp_at: new Date().toISOString() }).eq('id', inviteId).select('id');
+  if (error) throw new Error(`Couldn't mark it as sent: ${error.message}`);
+  if (!data || data.length === 0) throw new Error('That dancer is no longer on this feedback request.');
 }
 
 interface InviteRow {

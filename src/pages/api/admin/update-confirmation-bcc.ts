@@ -1,10 +1,10 @@
 import type { APIRoute } from 'astro';
 import { requireAdmin } from '../../../lib/admin';
+import { isEmailAddress } from '../../../lib/emailFormat';
 import { parseRecipientEmails, setConfirmationBccEmails } from '../../../lib/notificationSettings';
 
 export const prerender = false;
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_BCC = 10;
 
 // Saves the admin emails BCC'd on registration confirmations. An empty string
@@ -26,7 +26,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (emails.length > MAX_BCC) {
     return new Response(JSON.stringify({ error: `No more than ${MAX_BCC} BCC addresses.` }), { status: 400 });
   }
-  const invalid = emails.filter((e) => !EMAIL_RE.test(e));
+  const invalid = emails.filter((e) => !isEmailAddress(e));
   if (invalid.length > 0) {
     return new Response(JSON.stringify({ error: `Invalid email address: ${invalid[0]}` }), { status: 400 });
   }
