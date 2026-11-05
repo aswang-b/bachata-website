@@ -1,0 +1,592 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { MAX_MESSAGE_LENGTH, MAX_NAME_LENGTH } from '../../lib/feedbackQuestions';
+
+const tab = 'fb-tab border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink aria-selected:border-accent aria-selected:text-accent';
+const field = 'rounded-xl border border-border bg-bg px-3 py-2 text-sm text-ink';
+const cta = 'gradient-accent self-start rounded-full px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 disabled:opacity-50';
+---
+
+<BaseLayout title="Feedback">
+  <div class="mx-auto max-w-4xl px-6 py-16">
+    <div class="flex items-center justify-between gap-4">
+      <h1 class="font-display text-3xl font-extrabold text-ink">Feedback</h1>
+      <a href="/admin" class="text-sm font-semibold text-accent hover:underline">&larr; Admin Tools</a>
+    </div>
+    <p class="mt-2 text-sm text-muted">Ask the dancers who came to a class or event for quick anonymous feedback, by email, WhatsApp or a link anyone can use.</p>
+
+    <p id="loading" class="mt-8 text-sm text-muted">Loading&hellip;</p>
+    <div id="signed-out" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">Sign in as an admin to view this page.</p>
+      <a href="/admin" class="text-sm font-semibold text-accent hover:underline">Go to Admin Tools</a>
+    </div>
+    <div id="admin-unavailable" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">We couldn't check your sign-in just now. Check your connection, then reload the page.</p>
+    </div>
+    <div id="not-admin" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">This account isn't authorized as an admin.</p>
+    </div>
+
+    <div id="feedback-admin" class="mt-8 hidden flex-col gap-6">
+      <div class="flex gap-1 border-b border-border" role="tablist">
+        <button type="button" role="tab" id="tab-requests" aria-selected="true" class={tab}>Requests</button>
+        <button type="button" role="tab" id="tab-questionnaires" aria-selected="false" class={tab}>Questionnaires</button>
+      </div>
+
+      <div id="panel-requests" class="flex flex-col gap-8">
+        <section class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5">
+          <h2 class="font-display text-lg font-bold text-ink">Ask for feedback</h2>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink/80">Class or event</span>
+            <select id="fb-target" class={field}></select>
+          </label>
+          <div id="fb-details" class="hidden flex-col gap-4">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink/80">Questionnaire</span>
+              <select id="fb-questionnaire" class={field}></select>
+              <span id="fb-tap-note" class="text-xs text-muted"></span>
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink/80">Message to dancers</span>
+              <textarea id="fb-message" rows="3" maxlength={MAX_MESSAGE_LENGTH} placeholder="Blank uses a short thank-you. {name} is the dancer's first name, {class} the class or event." class={field}></textarea>
+              <span class="text-xs text-muted">Opens the email, WhatsApp message and page. This changes it for this request only.</span>
+            </label>
+            <fieldset id="fb-who-box" class="flex flex-col gap-2">
+              <legend id="fb-who" class="mb-1 text-sm font-medium text-ink/80"></legend>
+              <div id="fb-recipients" class="flex max-h-80 flex-col gap-1 overflow-y-auto"></div>
+              <p class="text-xs text-muted">Ticked dancers with an email get it straight away. WhatsApp messages are sent from the request below, one tap each. Tick nobody to use just the link anyone can use.</p>
+            </fieldset>
+            <button id="fb-create" type="button" class={cta}>Create request</button>
+          </div>
+          <p id="fb-status" class="min-h-4 text-xs text-muted" role="status"></p>
+        </section>
+
+        <section class="flex flex-col gap-4">
+          <h2 class="font-display text-lg font-bold text-ink">Requests</h2>
+          <div id="fb-campaigns" class="flex flex-col gap-4"></div>
+          <p id="fb-empty" class="hidden text-sm text-muted">No feedback requests yet.</p>
+        </section>
+      </div>
+
+      <div id="panel-questionnaires" class="hidden flex-col gap-4">
+        <div id="qn-list-view" class="flex flex-col gap-3">
+          <button id="qn-new" type="button" class={cta}>New questionnaire</button>
+          <p id="qn-list-status" class="min-h-4 text-xs text-muted" role="status"></p>
+          <div id="qn-list" class="flex flex-col gap-3"></div>
+        </div>
+        <div id="qn-editor" class="hidden">
+          <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+            <div class="flex min-w-0 flex-col gap-4">
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-ink/80">Questionnaire name</span>
+                <input id="qn-name" type="text" maxlength={MAX_NAME_LENGTH} class={field} />
+              </label>
+              <div id="qn-builder"></div>
+              <label class="flex items-start gap-2 text-sm text-ink/80">
+                <input id="qn-contact" type="checkbox" class="mt-0.5 accent-accent" />
+                <span>End with a way to be contacted (nothing is shared unless the dancer chooses to)</span>
+              </label>
+              <p class="text-xs text-muted">Write &#123;class&#125; to fill in the class or event, and &#123;name&#125; for the dancer's first name. Requests already sent keep the questions they went out with.</p>
+              <div class="flex flex-wrap items-center gap-3">
+                <button id="qn-save" type="button" class={cta}>Save questionnaire</button>
+                <button id="qn-back" type="button" class="text-sm font-semibold text-accent hover:underline">Back to the list</button>
+              </div>
+              <p id="qn-status" class="min-h-4 text-xs text-muted" role="status"></p>
+            </div>
+            <div class="flex flex-col gap-2 lg:sticky lg:top-24">
+              <p class="text-xs font-bold uppercase tracking-wider text-muted">What dancers see</p>
+              <div id="qn-preview" class="flex flex-col gap-4 rounded-3xl border border-border bg-bg p-4"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { checkAdminSession } from '../../lib/adminSession';
+  import { siteFormatter } from '../../lib/siteTime';
+  import { whatsappNumber, type FeedbackRecipient } from '../../lib/feedback';
+  import { emailChoices, isQuestion, topMessage, type FeedbackItem, type ItemSummary } from '../../lib/feedbackQuestions';
+  import { createBuilder } from '../../lib/feedbackBuilder';
+
+  interface Option {
+    scope: 'occurrence' | 'series' | 'event';
+    seriesKey: string;
+    eventId: string | null;
+    classTitle: string;
+    title: string;
+    people: number;
+  }
+  interface Invite {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string | null;
+    phone: string | null;
+    emailed_at: string | null;
+    whatsapp_at: string | null;
+  }
+  interface Campaign {
+    id: string;
+    created_at: string;
+    title: string;
+    share_token: string;
+    closed_at: string | null;
+    items: FeedbackItem[];
+    invites: Invite[];
+    stats: { started: number; shared: number; finished: number };
+    summaries: ItemSummary[];
+    contacts: string[];
+  }
+  interface Questionnaire {
+    id: string;
+    name: string;
+    items: FeedbackItem[];
+    contact_box: boolean;
+    updated_at: string;
+    uses: number;
+  }
+
+  const pill =
+    'rounded-full border border-accent px-3 py-1 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white disabled:opacity-50';
+  const panels = {
+    loading: document.getElementById('loading')!,
+    signedOut: document.getElementById('signed-out')!,
+    notAdmin: document.getElementById('not-admin')!,
+    unavailable: document.getElementById('admin-unavailable')!,
+    admin: document.getElementById('feedback-admin')!,
+  };
+  const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+  const targetSelect = byId<HTMLSelectElement>('fb-target');
+  const questionnaireSelect = byId<HTMLSelectElement>('fb-questionnaire');
+  const details = byId('fb-details');
+  const message = byId<HTMLTextAreaElement>('fb-message');
+  const tapNote = byId('fb-tap-note');
+  const whoBox = byId('fb-who-box');
+  const who = byId('fb-who');
+  const recipientsBox = byId('fb-recipients');
+  const createButton = byId<HTMLButtonElement>('fb-create');
+  const status = byId('fb-status');
+  const list = byId('fb-campaigns');
+  const empty = byId('fb-empty');
+  const dateFormatter = siteFormatter({ month: 'short', day: 'numeric', year: 'numeric' });
+  const timeFormatter = siteFormatter({ month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  let accessToken = '';
+  let options: Option[] = [];
+  let questionnaires: Questionnaire[] = [];
+
+  function showPanel(name: keyof typeof panels) {
+    for (const [key, el] of Object.entries(panels)) {
+      el.classList.toggle('hidden', key !== name);
+      el.classList.toggle('flex', key === name);
+    }
+  }
+
+  function toggleFlex(el: HTMLElement, show: boolean) {
+    el.classList.toggle('hidden', !show);
+    el.classList.toggle('flex', show);
+  }
+
+  function escapeHtml(str: string): string {
+    const div = document.createElement('div');
+    div.textContent = str ?? '';
+    return div.innerHTML.replace(/"/g, '&quot;');
+  }
+
+  async function api(method: 'GET' | 'POST', query = '', body?: unknown, route = 'feedback') {
+    const res = await fetch(`/api/admin/${route}${query}`, {
+      method,
+      headers: { Authorization: `Bearer ${accessToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? 'Something went wrong.');
+    return data;
+  }
+  const questionnaireApi = (method: 'GET' | 'POST', body?: unknown) => api(method, '', body, 'feedback-questionnaires');
+
+  // ---- Tabs ----
+
+  const tabs = { requests: byId('tab-requests'), questionnaires: byId('tab-questionnaires') };
+  function showTab(name: keyof typeof tabs) {
+    tabs.requests.setAttribute('aria-selected', String(name === 'requests'));
+    tabs.questionnaires.setAttribute('aria-selected', String(name === 'questionnaires'));
+    toggleFlex(byId('panel-requests'), name === 'requests');
+    toggleFlex(byId('panel-questionnaires'), name === 'questionnaires');
+  }
+  tabs.requests.addEventListener('click', () => showTab('requests'));
+  tabs.questionnaires.addEventListener('click', () => showTab('questionnaires'));
+
+  // ---- Asking ----
+
+  function optionLabel(o: Option): string {
+    if (o.scope === 'event') return `${o.title} · ${o.people} signed up`;
+    return `${o.title}${o.scope === 'series' ? ' (whole series)' : ''} · ${o.people} checked in`;
+  }
+
+  function renderOptions() {
+    targetSelect.replaceChildren(new Option('Choose…', ''), new Option('Not about a class or event (link only)', 'general'));
+    const groups = [
+      { label: 'Classes', items: options.filter((o) => o.scope !== 'event') },
+      { label: 'Events', items: options.filter((o) => o.scope === 'event') },
+    ];
+    for (const g of groups) {
+      if (g.items.length === 0) continue;
+      const group = document.createElement('optgroup');
+      group.label = g.label;
+      for (const o of g.items) group.append(new Option(optionLabel(o), String(options.indexOf(o))));
+      targetSelect.append(group);
+    }
+  }
+
+  function renderQuestionnaireOptions() {
+    const chosen = questionnaireSelect.value;
+    questionnaireSelect.replaceChildren(...questionnaires.map((q) => new Option(`${q.name} (${q.items.filter(isQuestion).length} questions)`, q.id)));
+    if (questionnaires.some((q) => q.id === chosen)) questionnaireSelect.value = chosen;
+    applyQuestionnaire();
+  }
+
+  // Starts the message from the questionnaire's, and says how the email will open.
+  function applyQuestionnaire() {
+    const q = questionnaires.find((x) => x.id === questionnaireSelect.value);
+    if (!q) return;
+    message.value = topMessage(q.items);
+    tapNote.textContent = emailChoices(q.items) ? 'Its first question can be answered with one tap from the email.' : "The email will show an Answer button, since its first question can't be tapped.";
+  }
+  questionnaireSelect.addEventListener('change', applyQuestionnaire);
+
+  function reach(r: FeedbackRecipient): string {
+    const ways = [r.email && 'Email', whatsappNumber(r.phone) && 'WhatsApp'].filter(Boolean);
+    return ways.length ? ways.join(' + ') : 'No email or WhatsApp number';
+  }
+
+  targetSelect.addEventListener('change', async () => {
+    toggleFlex(details, false);
+    status.textContent = '';
+    if (!targetSelect.value) return;
+    if (targetSelect.value === 'general') {
+      toggleFlex(whoBox, false);
+      recipientsBox.replaceChildren();
+      toggleFlex(details, true);
+      return;
+    }
+    const option = options[Number(targetSelect.value)];
+    if (!option) return;
+    status.textContent = 'Loading who came…';
+    try {
+      const query = new URLSearchParams({ scope: option.scope, seriesKey: option.seriesKey, eventId: option.eventId ?? '' });
+      const { recipients, keys } = (await api('GET', `?${query}`)) as { recipients: FeedbackRecipient[]; keys: string[] };
+      who.textContent = `Who to ask (${recipients.length})`;
+      recipientsBox.replaceChildren(
+        ...recipients.map((r, i) => {
+          const row = document.createElement('label');
+          row.className = 'fb-recipient flex items-start gap-2 rounded-lg px-2 py-1 text-sm hover:bg-bg';
+          row.innerHTML = `<input type="checkbox" class="mt-1 accent-accent" checked />
+            <span><span class="font-semibold text-ink">${escapeHtml(r.firstName)} ${escapeHtml(r.lastName)}</span>
+            <span class="block text-xs text-muted">${escapeHtml([r.email, r.phone].filter(Boolean).join(' · ') || '—')} · ${reach(r)}</span></span>`;
+          row.querySelector('input')!.value = keys[i];
+          return row;
+        })
+      );
+      toggleFlex(whoBox, true);
+      toggleFlex(details, true);
+      status.textContent = '';
+    } catch (err) {
+      status.textContent = (err as Error).message;
+    }
+  });
+
+  createButton.addEventListener('click', async () => {
+    const general = targetSelect.value === 'general';
+    const option = options[Number(targetSelect.value)];
+    if (!general && !option) return;
+    const keys = [...recipientsBox.querySelectorAll<HTMLInputElement>('input:checked')].map((i) => i.value);
+    createButton.disabled = true;
+    status.textContent = 'Creating…';
+    try {
+      const target = general ? { scope: 'general' } : { scope: option.scope, seriesKey: option.seriesKey, eventId: option.eventId };
+      const result = await api('POST', '', { action: 'create', questionnaireId: questionnaireSelect.value, message: message.value, keys, ...target });
+      status.textContent = result.emailError ? `Created, but the emails didn't send: ${result.emailError}` : `Created. ${result.emailed} email${result.emailed === 1 ? '' : 's'} sent.`;
+      targetSelect.value = '';
+      toggleFlex(details, false);
+      await Promise.all([loadCampaigns(), loadQuestionnaires()]);
+    } catch (err) {
+      status.textContent = (err as Error).message;
+    } finally {
+      createButton.disabled = false;
+    }
+  });
+
+  // ---- Results ----
+
+  function summaryHtml(s: ItemSummary): string {
+    const average = s.average == null ? '' : ` · average ${s.average.toFixed(1)}`;
+    const max = Math.max(1, ...s.bars.map((b) => b.count));
+    const bars = s.bars
+      .map(
+        (b) => `<div class="grid grid-cols-[minmax(4.5rem,8rem)_minmax(0,1fr)_1.5rem] items-center gap-2 text-sm">
+          <span class="truncate text-ink/90" title="${escapeHtml(b.label)}">${b.emoji ?? ''} ${escapeHtml(b.label)}</span>
+          <span class="h-2.5 overflow-hidden rounded-full bg-border"><span class="block h-full rounded-full bg-accent" style="width:${(b.count / max) * 100}%"></span></span>
+          <span class="text-right tabular-nums text-muted">${b.count}</span></div>`
+      )
+      .join('');
+    const written = s.written
+      .map(
+        (w) => `<li class="fb-comment rounded-xl border border-border bg-surface p-3"><p class="text-xs text-muted">${timeFormatter.format(new Date(w.at))}</p>
+          <p class="mt-1 whitespace-pre-line text-sm text-ink">${escapeHtml(w.text)}</p>${w.contact ? `<p class="mt-1 text-xs font-semibold text-accent">${escapeHtml(w.contact)}</p>` : ''}</li>`
+      )
+      .join('');
+    return `<div class="fb-summary flex flex-col gap-2 rounded-xl border border-border bg-bg p-3">
+      <p class="text-sm font-semibold text-ink">${escapeHtml(s.text)}</p>
+      <p class="text-xs text-muted">${s.count} answer${s.count === 1 ? '' : 's'}${average}</p>
+      ${bars}${written ? `<ul class="flex flex-col gap-2">${written}</ul>` : ''}</div>`;
+  }
+
+  function campaignCard(c: Campaign): HTMLElement {
+    const withEmail = c.invites.filter((i) => i.email);
+    const emailed = withEmail.filter((i) => i.emailed_at).length;
+    const onWhatsapp = c.invites.filter((i) => whatsappNumber(i.phone));
+    const counts = [
+      c.invites.length ? `${c.stats.started} of ${c.invites.length} started` : null,
+      `${c.stats.finished} finished`,
+      c.stats.shared ? `${c.stats.shared} from the shared link` : null,
+    ].filter(Boolean);
+    const shareLink = `${location.origin}/feedback/s-${c.share_token}`;
+    const card = document.createElement('article');
+    card.className = 'fb-campaign flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5';
+    card.dataset.id = c.id;
+    card.innerHTML = `
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <p class="font-display text-lg font-bold text-ink">${escapeHtml(c.title)}${c.closed_at ? ' <span class="ml-1 rounded-full bg-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted">Closed</span>' : ''}</p>
+        <p class="text-xs text-muted">${dateFormatter.format(new Date(c.created_at))}</p>
+      </div>
+      <p class="fb-counts text-sm font-semibold text-ink">${counts.join(' · ')}</p>
+      <div class="grid gap-3 md:grid-cols-2">${c.summaries.map(summaryHtml).join('')}</div>
+      ${c.contacts.length ? `<p class="fb-contacts text-xs text-accent">Happy to be contacted: ${c.contacts.map(escapeHtml).join('; ')}</p>` : ''}
+      <div class="flex flex-col gap-1">
+        <span class="text-sm font-semibold text-ink/80">Link anyone can use</span>
+        <div class="flex flex-wrap items-center gap-2">
+          <input class="fb-share min-w-0 flex-1 basis-56 rounded-xl border border-border bg-bg px-3 py-1.5 text-xs text-ink" type="text" readonly aria-label="Link anyone can use" value="${escapeHtml(shareLink)}" />
+          <button type="button" class="fb-copy ${pill}">Copy</button>
+        </div>
+      </div>
+      ${withEmail.length ? `<p class="text-xs text-muted">Emailed ${emailed} of ${withEmail.length} with an email.</p>` : ''}
+      <details class="fb-whatsapp rounded-xl border border-border bg-bg ${onWhatsapp.length ? '' : 'hidden'}">
+        <summary class="cursor-pointer select-none px-4 py-2 text-sm font-bold text-ink/80">Send on WhatsApp (${onWhatsapp.length})</summary>
+        <ul class="flex flex-col gap-1 border-t border-border p-3"></ul>
+      </details>
+      <div class="fb-actions flex flex-wrap gap-2"></div>`;
+
+    const copy = card.querySelector<HTMLButtonElement>('.fb-copy')!;
+    const shareField = card.querySelector<HTMLInputElement>('.fb-share')!;
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(shareLink);
+        copy.textContent = 'Copied';
+      } catch {
+        shareField.select();
+        copy.textContent = 'Press Ctrl+C';
+      }
+      setTimeout(() => (copy.textContent = 'Copy'), 2000);
+    });
+
+    const rows = card.querySelector('.fb-whatsapp ul')!;
+    for (const invite of onWhatsapp) {
+      const li = document.createElement('li');
+      li.className = 'flex items-center justify-between gap-3 text-sm';
+      li.innerHTML = `<span><span class="font-semibold text-ink">${escapeHtml(invite.first_name)} ${escapeHtml(invite.last_name)}</span> <span class="text-xs text-muted">${escapeHtml(invite.phone ?? '')}</span></span>`;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `fb-whatsapp-send shrink-0 ${pill}`;
+      button.textContent = invite.whatsapp_at ? 'Sent · send again' : 'Send on WhatsApp';
+      button.disabled = Boolean(c.closed_at);
+      button.addEventListener('click', () => sendWhatsapp(invite, button));
+      li.append(button);
+      rows.append(li);
+    }
+
+    const actions = card.querySelector('.fb-actions')!;
+    const action = (label: string, run: () => Promise<void>) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = pill;
+      button.textContent = label;
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await run();
+        } catch (err) {
+          status.textContent = (err as Error).message;
+        }
+        button.disabled = false;
+      });
+      actions.append(button);
+    };
+    if (!c.closed_at && emailed < withEmail.length) {
+      action(`Email the other ${withEmail.length - emailed}`, async () => {
+        const { emailed: sent } = await api('POST', '', { action: 'email', campaignId: c.id });
+        status.textContent = `${sent} email${sent === 1 ? '' : 's'} sent.`;
+        await loadCampaigns();
+      });
+    }
+    action(c.closed_at ? 'Reopen' : 'Close', async () => {
+      await api('POST', '', { action: c.closed_at ? 'reopen' : 'close', campaignId: c.id });
+      await loadCampaigns();
+    });
+    action('Delete', async () => {
+      const answers = c.stats.started + c.stats.shared;
+      if (!confirm(`Delete the feedback request for ${c.title}, with its ${answers} response(s)? This can't be undone.`)) return;
+      await api('POST', '', { action: 'delete', campaignId: c.id });
+      await loadCampaigns();
+    });
+    return card;
+  }
+
+  // WhatsApp opens in a tab made before the request, so it isn't blocked as a pop-up.
+  async function sendWhatsapp(invite: Invite, button: HTMLButtonElement) {
+    const tab = window.open('', '_blank');
+    button.disabled = true;
+    try {
+      const { url } = await api('POST', '', { action: 'whatsapp', inviteId: invite.id });
+      if (tab) tab.location.href = url;
+      else location.href = url;
+      button.textContent = 'Sent · send again';
+    } catch (err) {
+      tab?.close();
+      status.textContent = (err as Error).message;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function loadCampaigns() {
+    const { campaigns } = (await api('GET')) as { campaigns: Campaign[] };
+    // Keep open WhatsApp lists open across a reload.
+    const open = new Set([...list.querySelectorAll<HTMLElement>('.fb-campaign')].filter((el) => el.querySelector('details')?.open).map((el) => el.dataset.id));
+    list.replaceChildren(
+      ...campaigns.map((c) => {
+        const card = campaignCard(c);
+        if (open.has(c.id)) card.querySelector('details')!.open = true;
+        return card;
+      })
+    );
+    empty.classList.toggle('hidden', campaigns.length > 0);
+  }
+
+  // ---- Questionnaires ----
+
+  const qnListView = byId('qn-list-view');
+  const qnList = byId('qn-list');
+  const qnListStatus = byId('qn-list-status');
+  const qnEditor = byId('qn-editor');
+  const qnName = byId<HTMLInputElement>('qn-name');
+  const qnContact = byId<HTMLInputElement>('qn-contact');
+  const qnStatus = byId('qn-status');
+  let editing: { id: string | null; updatedAt: string | null; builder: ReturnType<typeof createBuilder> } | null = null;
+
+  function openEditor(q: Questionnaire | null) {
+    qnName.value = q?.name ?? '';
+    qnContact.checked = q?.contact_box ?? true;
+    qnStatus.textContent = '';
+    const builder = createBuilder(byId('qn-builder'), byId('qn-preview'), qnContact, q?.items ?? []);
+    editing = { id: q?.id ?? null, updatedAt: q?.updated_at ?? null, builder };
+    qnListView.classList.add('hidden');
+    qnEditor.classList.remove('hidden');
+    qnName.focus();
+  }
+
+  function closeEditor() {
+    editing = null;
+    qnEditor.classList.add('hidden');
+    qnListView.classList.remove('hidden');
+  }
+
+  byId('qn-new').addEventListener('click', () => openEditor(null));
+  byId('qn-back').addEventListener('click', closeEditor);
+  byId('qn-save').addEventListener('click', async (e) => {
+    if (!editing) return;
+    const button = e.currentTarget as HTMLButtonElement;
+    button.disabled = true;
+    qnStatus.textContent = 'Saving…';
+    try {
+      const saved = await questionnaireApi('POST', { action: 'save', id: editing.id, updatedAt: editing.updatedAt, name: qnName.value, items: editing.builder.getItems(), contactBox: qnContact.checked });
+      editing.id = saved.id;
+      editing.updatedAt = saved.updatedAt;
+      qnStatus.textContent = 'Saved.';
+      await loadQuestionnaires();
+    } catch (err) {
+      qnStatus.textContent = (err as Error).message;
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  function renderQuestionnaires() {
+    qnList.replaceChildren(
+      ...questionnaires.map((q) => {
+        const count = q.items.filter(isQuestion).length;
+        const card = document.createElement('div');
+        card.className = 'fb-questionnaire flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4';
+        card.innerHTML = `<div class="min-w-0"><p class="font-display font-bold text-ink">${escapeHtml(q.name)}</p>
+          <p class="text-xs text-muted">${count} question${count === 1 ? '' : 's'} · ${q.uses ? `used in ${q.uses} request${q.uses === 1 ? '' : 's'}` : 'not used yet'}</p></div>`;
+        const buttons = document.createElement('div');
+        buttons.className = 'flex flex-wrap gap-2';
+        const add = (label: string, run: () => void | Promise<void>) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = pill;
+          b.textContent = label;
+          b.addEventListener('click', async () => {
+            try {
+              await run();
+            } catch (err) {
+              qnListStatus.textContent = (err as Error).message;
+            }
+          });
+          buttons.append(b);
+        };
+        add('Edit', () => openEditor(q));
+        add('Duplicate', async () => {
+          await questionnaireApi('POST', { action: 'duplicate', id: q.id });
+          await loadQuestionnaires();
+        });
+        add(q.uses ? 'Hide' : 'Delete', async () => {
+          const what = q.uses ? `Hide ${q.name}? Its requests and results stay.` : `Delete ${q.name}? This can't be undone.`;
+          if (!confirm(what)) return;
+          await questionnaireApi('POST', { action: 'delete', id: q.id });
+          await loadQuestionnaires();
+        });
+        card.append(buttons);
+        return card;
+      })
+    );
+  }
+
+  async function loadQuestionnaires() {
+    ({ questionnaires } = (await questionnaireApi('GET')) as { questionnaires: Questionnaire[] });
+    renderQuestionnaires();
+    renderQuestionnaireOptions();
+  }
+
+  async function init() {
+    const gate = await checkAdminSession();
+    if (gate.status !== 'admin') {
+      showPanel(gate.status);
+      return;
+    }
+    accessToken = gate.session.access_token;
+    try {
+      const [{ options: loaded }] = await Promise.all([api('GET', '?view=options'), loadCampaigns(), loadQuestionnaires()]);
+      options = loaded;
+    } catch {
+      showPanel('notAdmin');
+      return;
+    }
+    renderOptions();
+    showPanel('admin');
+  }
+
+  init();
+</script>

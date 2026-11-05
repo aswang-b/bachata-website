@@ -1,0 +1,236 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { RATINGS } from '../../lib/feedback';
+import { MAX_ANSWER_LENGTH, MAX_NAME_LENGTH, cleanAnswer, cleanAnswers, fillIn, isQuestion, type Answers } from '../../lib/feedbackQuestions';
+import { loadFeedbackPage, newSharedSecret, saveAnswers, useSharedSecret, type SaveResult } from '../../lib/feedbackStore';
+
+// A feedback link: a dancer's own (from the email or a WhatsApp message) or the
+// request's shared one. Opening it saves nothing: the email's buttons only pick
+// an answer (?q=&a=), which the page's script then saves, so a mail scanner
+// following links never answers. Answers save as they're given when the script
+// runs; Done posts the whole form, so it all works without the script too.
+const token = Astro.params.token ?? '';
+const cookieName = (campaignId: string) => `feedback_${campaignId}`;
+const secretOf = (campaignId: string) => Astro.cookies.get(cookieName(campaignId))?.value;
+let page = await loadFeedbackPage(token, secretOf);
+let error = '';
+
+if (page && Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const autosave = form.get('intent') === 'autosave';
+  // A shared link's browser gets its secret with its first save.
+  if (page.mode === 'shared' && !page.responseKey) {
+    const secret = newSharedSecret();
+    useSharedSecret(page, secret);
+    Astro.cookies.set(cookieName(page.campaignId), secret, { path: '/feedback', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:', maxAge: 60 * 60 * 24 * 365 });
+  }
+  const answers = cleanAnswers(page.items, (id) => {
+    const all = form.getAll(`q_${id}`);
+    return all.length > 1 ? all : all[0];
+  });
+  let ip = 'unknown';
+  try {
+    ip = Astro.clientAddress;
+  } catch {
+    // Not every adapter knows it: a shared bucket rather than a crash.
+  }
+  let result: SaveResult | 'failed';
+  try {
+    result = await saveAnswers(page, answers, { share: form.get('share') === 'on', name: String(form.get('contact_name') ?? ''), way: String(form.get('contact_way') ?? '') }, { finish: !autosave, ip });
+  } catch {
+    result = 'failed';
+  }
+  if (autosave) return new Response(JSON.stringify({ result }), { status: result === 'failed' ? 500 : 200, headers: { 'Content-Type': 'application/json' } });
+  if (result === 'saved') return Astro.redirect(`/feedback/${token}?done=1`, 303);
+  error =
+    result === 'failed'
+      ? "That didn't save. Please try again."
+      : result === 'empty'
+        ? 'Answer at least one question first.'
+        : result === 'missing'
+          ? 'Please answer the questions marked with a star.'
+          : result === 'limited'
+            ? 'Too many answers from this network today. Please try again tomorrow.'
+            : '';
+  // Keep what they gave on screen.
+  const fresh = await loadFeedbackPage(token, secretOf);
+  page = fresh && { ...fresh, answers };
+}
+
+// The answer tapped in the email, picked but not saved until the script runs.
+const tappedId = Astro.url.searchParams.get('q');
+const tappedItem = page?.items.find((i) => isQuestion(i) && i.id === tappedId);
+const tapped = tappedItem ? cleanAnswer(tappedItem, Astro.url.searchParams.get('a')) : undefined;
+const shown: Answers = { ...(page?.answers ?? {}), ...(tappedItem && tapped !== undefined ? { [tappedItem.id]: tapped } : {}) };
+const saveTap = Boolean(!error && tappedItem && tapped !== undefined && page?.answers[tappedItem.id] !== tapped);
+
+const showThanks = Boolean(page?.finished && Astro.url.searchParams.get('done') === '1');
+const values = page ? { className: page.className, name: page.firstName } : { className: '' };
+const isPicked = (id: string, value: string | number) => {
+  const a = shown[id];
+  return Array.isArray(a) ? a.includes(String(value)) : a === value;
+};
+const tile = 'flex cursor-pointer items-center justify-center rounded-2xl border border-border text-center transition-colors hover:bg-surface has-[:checked]:border-accent has-[:checked]:bg-accent/10 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent';
+const line = 'flex cursor-pointer items-center gap-3 rounded-2xl border border-border px-4 py-3 text-left text-sm text-ink transition-colors hover:bg-surface has-[:checked]:border-accent has-[:checked]:bg-accent/10';
+const field = 'rounded-xl border border-border bg-bg px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none';
+---
+
+<BaseLayout title="Feedback" noindex>
+  <div class="mx-auto max-w-md px-6 py-16 text-center">
+    {
+      !page ? (
+        <p class="text-sm text-muted">This feedback link isn't valid. It may have been mistyped or cut off.</p>
+      ) : page.closed ? (
+        <>
+          <h1 class="font-display text-2xl font-extrabold text-ink">This feedback request has closed</h1>
+          <p class="mt-2 text-sm text-muted">Thanks anyway{page.firstName ? `, ${page.firstName}` : ''}!</p>
+        </>
+      ) : page.answeredElsewhere ? (
+        <>
+          <h1 class="font-display text-2xl font-extrabold text-ink">Thanks, {page.firstName}!</h1>
+          <p class="mt-2 text-sm text-muted">We already have your answers.</p>
+        </>
+      ) : showThanks ? (
+        <>
+          <h1 class="font-display text-2xl font-extrabold text-ink">Thank you!</h1>
+          <p class="mt-2 text-sm text-muted">Your answers are in.</p>
+          <a href={`/feedback/${token}`} class="mt-6 inline-block text-sm font-semibold text-accent hover:underline">Change my answers</a>
+        </>
+      ) : (
+        <form method="post" id="feedback-form" class="flex flex-col gap-8" data-save-tap={saveTap ? '1' : undefined}>
+          <p class="text-xs font-bold uppercase tracking-wider text-accent">{page.title}</p>
+          {page.items.map((item) =>
+            item.kind === 'message' ? (
+              <p class="feedback-message whitespace-pre-line text-left text-sm leading-relaxed text-ink">{fillIn(item.text, values)}</p>
+            ) : (
+              <fieldset class="feedback-question flex min-w-0 flex-col gap-3" data-kind={item.kind}>
+                <legend class="mb-3 w-full text-center font-display text-lg font-bold text-ink">
+                  {fillIn(item.text, values)}
+                  {item.required && <span class="text-accent" aria-label="required"> *</span>}
+                </legend>
+                {item.kind === 'faces' && (
+                  <div class="grid grid-cols-5 gap-1.5">
+                    {RATINGS.map((r) => (
+                      <label class:list={[tile, 'flex-col gap-1 px-0.5 py-2']}>
+                        <input class="sr-only" type="radio" name={`q_${item.id}`} value={r.value} checked={isPicked(item.id, r.value)} required={item.required} />
+                        <span class="text-3xl leading-none" aria-hidden="true">{r.emoji}</span>
+                        <span class="text-[11px] leading-tight text-muted">{r.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {item.kind === 'scale' && (
+                  <div class="grid grid-cols-6 gap-1.5 sm:grid-cols-11">
+                    {Array.from({ length: 11 }, (_, n) => (
+                      <label class:list={[tile, 'py-2 text-sm tabular-nums text-ink']}>
+                        <input class="sr-only" type="radio" name={`q_${item.id}`} value={n} checked={isPicked(item.id, n)} required={item.required} />
+                        {n}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {item.kind === 'yesno' && (
+                  <div class="grid grid-cols-2 gap-2">
+                    {['yes', 'no'].map((v) => (
+                      <label class:list={[tile, 'py-3 text-sm font-semibold capitalize text-ink']}>
+                        <input class="sr-only" type="radio" name={`q_${item.id}`} value={v} checked={isPicked(item.id, v)} required={item.required} />
+                        {v}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {(item.kind === 'single' || item.kind === 'multi') &&
+                  (item.options ?? []).map((o) => (
+                    <label class={line}>
+                      <input
+                        class="accent-accent"
+                        type={item.kind === 'single' ? 'radio' : 'checkbox'}
+                        name={`q_${item.id}`}
+                        value={o.id}
+                        checked={isPicked(item.id, o.id)}
+                        required={item.required && item.kind === 'single'}
+                      />
+                      <span>{o.label}</span>
+                    </label>
+                  ))}
+                {item.kind === 'text' && (
+                  <textarea name={`q_${item.id}`} rows="4" maxlength={MAX_ANSWER_LENGTH} required={item.required} aria-label={fillIn(item.text, values)} class={field}>{shown[item.id] ?? ''}</textarea>
+                )}
+              </fieldset>
+            )
+          )}
+
+          {page.contactBox &&
+            (page.mode === 'invite' ? (
+              <label class="flex items-start gap-2 text-left text-sm text-ink/80">
+                <input type="checkbox" name="share" checked={Boolean(page.contact.name)} class="mt-0.5 accent-accent" />
+                <span>You may contact me about this (shares my name with B)</span>
+              </label>
+            ) : (
+              <div class="flex flex-col gap-2 text-left">
+                <p class="text-sm text-ink/80">Want a reply? Leave your details. Otherwise your answers stay anonymous.</p>
+                <input type="text" name="contact_name" maxlength={MAX_NAME_LENGTH} value={page.contact.name} placeholder="Your name (optional)" aria-label="Your name (optional)" class={field} />
+                <input type="text" name="contact_way" maxlength={MAX_NAME_LENGTH} value={page.contact.way} placeholder="Email or phone (optional)" aria-label="Email or phone (optional)" class={field} />
+              </div>
+            ))}
+
+          {error && <p class="text-sm text-red-400" role="alert">{error}</p>}
+          <div class="flex flex-col items-center gap-2">
+            <button type="submit" class="gradient-accent rounded-full px-8 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Done</button>
+            <p id="feedback-status" class="min-h-4 text-xs text-muted" role="status"></p>
+          </div>
+          <p class="text-xs text-muted">{page.mode === 'invite' ? 'Your answers are anonymous unless you choose to share your name.' : 'Your answers are anonymous unless you leave your details.'}</p>
+        </form>
+      )
+    }
+  </div>
+</BaseLayout>
+
+<script>
+  // Saves as they go: a tap at once, typing after a pause, one save at a time.
+  const form = document.getElementById('feedback-form') as HTMLFormElement | null;
+  if (form) {
+    const status = document.getElementById('feedback-status')!;
+    let queue: Promise<unknown> = Promise.resolve();
+    let typing: ReturnType<typeof setTimeout> | undefined;
+
+    const save = () => {
+      queue = queue.then(async () => {
+        // Read when its turn comes, so it never sends something older than the form.
+        const data = new FormData(form);
+        data.set('intent', 'autosave');
+        status.textContent = 'Saving…';
+        try {
+          const res = await fetch(location.pathname, { method: 'POST', body: data });
+          const { result } = await res.json();
+          // Closed, or answered through their other link, meanwhile: the page says so.
+          if (result === 'closed' || result === 'answered') location.assign(location.pathname);
+          else status.textContent = result === 'limited' ? 'Too many answers from this network today.' : res.ok ? 'Saved' : "Couldn't save. Press Done to try again.";
+        } catch {
+          status.textContent = "Couldn't save. Press Done to try again.";
+        }
+      });
+    };
+
+    form.addEventListener('change', (e) => {
+      if ((e.target as HTMLElement).matches('input[type=radio], input[type=checkbox]')) save();
+    });
+    form.addEventListener('input', (e) => {
+      if (!(e.target as HTMLElement).matches('textarea, input[type=text]')) return;
+      clearTimeout(typing);
+      typing = setTimeout(save, 800);
+    });
+    // Done waits for saves under way, so none can land after it and undo it.
+    let submitting = false;
+    form.addEventListener('submit', (e) => {
+      if (submitting) return;
+      e.preventDefault();
+      submitting = true;
+      clearTimeout(typing);
+      void queue.then(() => form.submit());
+    });
+    if (form.dataset.saveTap) save();
+  }
+</script>

@@ -56,6 +56,42 @@ export async function sendEmail(
   return typeof sent?.id === 'string' && sent.id ? sent.id : `unreported_${crypto.randomUUID()}`;
 }
 
+export interface BatchEmail {
+  to: string;
+  subject: string;
+  html: string;
+}
+
+// Many emails in one request per 100 (Resend's batch limit), so a long list
+// isn't slowed by the per-second rate limit. Throws on a failed request,
+// after logging it like sendEmail; emails in earlier requests stay sent.
+export async function sendEmailBatch(emails: BatchEmail[]): Promise<void> {
+  if (emailSinkPath()) {
+    for (const e of emails) recordSunkEmail({ id: `sink_${crypto.randomUUID()}`, ...e });
+    return;
+  }
+  if (!RESEND_API_KEY) {
+    console.warn('Skipping emails: RESEND_API_KEY not set.');
+    return;
+  }
+  for (let i = 0; i < emails.length; i += 100) {
+    const chunk = emails.slice(i, i + 100);
+    const res = await fetch('https://api.resend.com/emails/batch', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(chunk.map((e) => ({ from: FROM_ADDRESS, ...e }))),
+    });
+    if (!res.ok) {
+      const reason = `${res.status} ${await res.text()}`;
+      await logSiteError('email_send', `Couldn't send "${chunk[0].subject}" to ${chunk.length} dancer(s): ${reason}`.slice(0, 1000), {
+        details: { to: chunk.map((e) => e.to), status: res.status },
+        dedupeKey: `resend:${res.status}`,
+      });
+      throw new Error(`Failed to send emails via Resend: ${reason}`);
+    }
+  }
+}
+
 export async function sendAdminNotification(subject: string, html: string): Promise<void> {
   // The admin-editable recipient list (Settings -> Notifications) is the
   // source of truth; the env var is only a fallback for before it's been set.

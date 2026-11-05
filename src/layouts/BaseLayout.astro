@@ -15,6 +15,8 @@ interface Props {
   image?: string;
   // Extra schema.org JSON-LD for search engines (e.g. the homepage's classes); never shown.
   structuredData?: unknown[];
+  // Kept out of search results (e.g. a dancer's own feedback link).
+  noindex?: boolean;
 }
 
 const {
@@ -22,6 +24,7 @@ const {
   description = 'Bachata lessons, private coaching, and social events.',
   image = DEFAULT_SHARE_IMAGE,
   structuredData = [],
+  noindex = false,
 } = Astro.props;
 
 const canonicalUrl = new URL(Astro.url.pathname, 'https://dancewithb.fun').toString();
@@ -43,6 +46,7 @@ const siteStructuredData = siteSchema(['https://www.instagram.com/ohmytofuu/', '
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex" />}
     <title>{title} | Dance with B</title>
     <link rel="canonical" href={canonicalUrl} />
 

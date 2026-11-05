@@ -226,6 +226,9 @@ export async function sweepTestData(): Promise<void> {
     db.from('contact_messages').delete().like('first_name', like),
     db.from('email_bounces').delete().ilike('email', like),
     db.from('site_errors').delete().ilike('message', `%${TEST_PREFIX}%`),
+    // Named after their test class; their invites, links and answers go with them.
+    db.from('feedback_campaigns').delete().like('title', like),
+    db.from('feedback_questionnaires').delete().like('name', like),
   ]);
   const { data: testEvents, error: testEventsError } = await db.from('events').select('id, google_recurring_event_id').like('title', like);
   if (testEventsError) throw new Error(`Cleanup failed: ${testEventsError.message}`);
