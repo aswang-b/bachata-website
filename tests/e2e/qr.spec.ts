@@ -63,6 +63,8 @@ test('saved door signs: each gets its own short link and branded code, repoints 
   expect(await decode(preview.locator('.sign-half').nth(1).locator('canvas'))).toBe(DANCE_WITH_B_VENMO);
   await expect(preview).toContainText('@amumira · B Zh');
   await expect(preview).toContainText('Haven’t paid yet?');
+  // The check-in half's label adds to its title rather than repeating it.
+  await expect(preview.locator('.sign-half').first().locator('.sign-step')).toHaveText('Just arrived?');
   await expect(preview).not.toContainText('Step');
 
   // Saved: it gets its own short link, which the code opens.

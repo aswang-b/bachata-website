@@ -335,7 +335,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
 
     const checkin = el('div', 'sign-half');
     checkin.dataset.hidden = String(full && fullShows !== 'checkin');
-    checkin.append(el('span', 'sign-step', 'Check in'), el('span', 'sign-title', 'Check in for class'));
+    checkin.append(el('span', 'sign-step', 'Just arrived?'), el('span', 'sign-title', 'Check in for class'));
     if (!m.checkin) {
       checkin.append(el('div', 'sign-empty', 'Pick the classes this sign checks in to.'));
     } else {

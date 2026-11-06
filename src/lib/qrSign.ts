@@ -110,7 +110,7 @@ export async function signPng(content: SignContent): Promise<Blob> {
   let x = 0;
   if (content.checkin) {
     const cx = x + half / 2;
-    centered(ctx, 'CHECK IN', cx, top - 70, '700 26px Inter, system-ui, sans-serif', ACCENT, half - 80);
+    centered(ctx, 'JUST ARRIVED?', cx, top - 70, '700 26px Inter, system-ui, sans-serif', ACCENT, half - 80);
     centered(ctx, 'Check in for class', cx, top - 20, '800 48px Poppins, system-ui, sans-serif', INK, half - 80);
     if (content.checkin.branded) {
       ctx.fillStyle = '#ffffff';
