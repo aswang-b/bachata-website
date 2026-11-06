@@ -42,14 +42,16 @@ function report(action, id) {
   }).catch(() => {});
 }
 
-// Tapping it opens its page: in a window of the site already open, or a new one.
+// Tapping it opens its page: the window already showing that page, if there
+// is one, or a new one. A page the dancer has open (maybe half-way through a
+// form) is never navigated away.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data || {};
   const target = new URL(sitePath(data.url), self.location.origin).href;
   const show = self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
-    const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
-    if (open) return open.focus().then((w) => (w || open).navigate(target)).catch(() => self.clients.openWindow(target));
+    const already = windows.find((w) => w.url === target);
+    if (already) return already.focus();
     return self.clients.openWindow(target);
   });
   event.waitUntil(Promise.all([show, report('opened', data.id)]));

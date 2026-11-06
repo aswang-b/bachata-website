@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
-import { cleanMessage, lastSendFor, pushConfigured, PushError, recentSends, sendToAll, subscriberCounts } from '../../../lib/push';
+import { cleanMessage, lastSendFor, pushConfigured, PushError, recentSends, sendChunk, startSend, subscriberCounts } from '../../../lib/push';
 import { fakePush, publicVisibilities } from '../../../lib/testMode';
 
 export const prerender = false;
@@ -50,20 +50,23 @@ export const GET: APIRoute = async ({ request, url }) => {
   }
 };
 
-// POST { title, body, url, eventId?, confirmRepeat? } sends to every phone.
-// About an event already sent about, it answers 409 { error: 'repeat', lastSend } unless confirmRepeat.
+// POST { title, body, url, eventId?, confirmRepeat? } records a send to every
+// device and sends its first chunk; POST { continue: <send id> } sends the next
+// (the page keeps asking until the send's finished_at is set). About an event
+// already sent about, it answers 409 { error: 'repeat', lastSend } unless confirmRepeat.
 export const POST: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
   if (!user) return json({ error: authError }, 403);
   const body = await request.json().catch(() => null);
   try {
+    if (typeof body?.continue === 'string') return json({ send: await sendChunk(body.continue) });
     const message = cleanMessage(body);
     const eventId = typeof body?.eventId === 'string' && /^[0-9a-f-]{36}$/i.test(body.eventId) ? body.eventId : null;
     if (eventId && body?.confirmRepeat !== true) {
       const lastSend = await lastSendFor(eventId);
       if (lastSend) return json({ error: 'repeat', lastSend }, 409);
     }
-    const send = await sendToAll(message, { eventId, sentBy: user.email ?? null });
+    const send = await startSend(message, { eventId, sentBy: user.email ?? null });
     return json({ send });
   } catch (e) {
     return failed(e);

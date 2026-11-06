@@ -94,14 +94,17 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
   private orderBy: { col: string; asc: boolean }[] = [];
   private limitN: number | null = null;
   private offset = 0;
+  private countOnly = false;
 
   constructor(
     private db: FakeSupabase,
     private table: string
   ) {}
 
-  select(_cols?: string) {
+  // { count: 'exact', head: true } answers with just the count, as PostgREST does.
+  select(_cols?: string, opts?: { count?: string; head?: boolean }) {
     if (this.op !== 'select') this.returnRows = true;
+    if (opts?.head) this.countOnly = true;
     return this;
   }
   insert(payload: Row | Row[]) {
@@ -164,13 +167,18 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
     this.filters.push((r) => r[col] != null && cmp(r[col], v) < 0);
     return this;
   }
-  // Supports the "a.not.is.null,b.eq.true" form used in this codebase.
+  // Supports the "a.not.is.null,b.eq.true,c.is.null,d.lt.<value>" forms used in this codebase.
   or(expr: string) {
-    const parts = expr.split(',').map((p) => p.split('.'));
+    const parts = expr.split(',').map((p) => {
+      const [col, a, ...rest] = p.split('.');
+      return [col, a, rest.join('.')];
+    });
     this.filters.push((r) =>
-      parts.some(([col, a, b, c]) => {
-        if (a === 'not' && b === 'is' && c === 'null') return r[col] != null;
-        if (a === 'eq') return String(r[col]) === b;
+      parts.some(([col, a, value]) => {
+        if (a === 'not' && value === 'is.null') return r[col] != null;
+        if (a === 'is' && value === 'null') return r[col] == null;
+        if (a === 'eq') return String(r[col]) === value;
+        if (a === 'lt') return r[col] != null && cmp(r[col], value) < 0;
         return false;
       })
     );
@@ -252,6 +260,7 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
     }
     if (this.limitN != null) out = out.slice(this.offset, this.offset + this.limitN);
 
+    if (this.countOnly) return { data: null, error: null, count: out.length } as { data: unknown; error: FakeError | null };
     const copy = out.map((r) => ({ ...r }));
     if (this.singleMode) {
       if (copy.length === 0) return this.singleMode === 'maybe' ? { data: null, error: null } : { data: null, error: { message: 'no rows' } };

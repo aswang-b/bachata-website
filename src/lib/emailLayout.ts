@@ -36,6 +36,7 @@ const icon = (href: string, name: string, label: string) =>
   `<a href="${escapeAttr(href)}" style="text-decoration:none;margin-left:14px;"><img src="${SITE_URL}/email/${name}.png" width="22" height="22" alt="${label}" style="border:0;vertical-align:middle;" /></a>`;
 
 export interface EmailLayoutParams {
+  // Plain text (escaped here).
   heading: string;
   subheading?: string;
   // The content (already escaped where it holds what people typed).
@@ -51,8 +52,8 @@ export function emailLayout(p: EmailLayoutParams): string {
     <tr>
       <td bgcolor="${C.dark}" style="background:${C.dark};padding:24px 28px 22px;">
         ${wordmark(20)}
-        <h1 style="margin:16px 0 0;font-family:${DISPLAY};font-size:24px;line-height:1.2;font-weight:800;color:${C.onDark};">${p.heading}</h1>
-        ${p.subheading ? `<p style="margin:4px 0 0;font-family:${TEXT};font-size:15px;color:${C.mutedOnDark};">${p.subheading}</p>` : ''}
+        <h1 style="margin:16px 0 0;font-family:${DISPLAY};font-size:24px;line-height:1.2;font-weight:800;color:${C.onDark};">${escapeAttr(p.heading)}</h1>
+        ${p.subheading ? `<p style="margin:4px 0 0;font-family:${TEXT};font-size:15px;color:${C.mutedOnDark};">${escapeAttr(p.subheading)}</p>` : ''}
       </td>
     </tr>
     <tr><td bgcolor="${C.red}" style="background:${C.red};height:4px;line-height:4px;font-size:0;">&nbsp;</td></tr>

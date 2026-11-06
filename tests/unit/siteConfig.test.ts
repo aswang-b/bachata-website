@@ -82,3 +82,21 @@ describe('the WhatsApp community link', () => {
     expect(html.indexOf('email/whatsapp.png')).toBeGreaterThan(html.indexOf('What to bring?'));
   });
 });
+
+describe('the confirmation email', () => {
+  it("links only the contact lines (a date in a dancer's notes isn't a phone number), and escapes its heading", async () => {
+    const { emailLayout } = await import('../../src/lib/emailLayout');
+    const html = buildRegistrationConfirmationEmailHtml({
+      registrationTypeLabel: 'Group Lesson',
+      createdAt: new Date('2026-11-06T18:00:00Z'),
+      summaryRows: [['Phone', '(555) 555-0100'], ['Notes', "Can't make 2026-11-13, call 555 555 0199"], ['Class', 'Bachata 2026-11-20 0800-0900']],
+      subtotal: null,
+      faqs: [],
+    });
+    expect(html).toContain('<a href="tel:5555550100"');
+    expect(html).not.toContain('tel:20261113');
+    expect(html).not.toContain('tel:5555550199');
+    expect(html).not.toContain('tel:2026');
+    expect(emailLayout({ heading: 'Bachata <a href="https://evil.example">x</a>', bodyHtml: '' })).not.toContain('<a href="https://evil.example">');
+  });
+});

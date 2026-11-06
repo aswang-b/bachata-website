@@ -25,7 +25,28 @@ export async function pushState(): Promise<PushState> {
   if (!pushSupported()) return 'unsupported';
   if (Notification.permission === 'denied') return 'blocked';
   const subscription = await (await registration()).pushManager.getSubscription();
+  if (subscription && Notification.permission === 'granted' && madeWithOldKey(subscription)) await renew(subscription).catch(() => {});
   return subscription && Notification.permission === 'granted' ? 'on' : 'off';
+}
+
+// A subscription made before the site's keys changed can't be sent to (the
+// push service refuses it), and the server never deletes on that answer, so
+// the phone swaps it for one with the current key on its next visit.
+function madeWithOldKey(subscription: PushSubscription): boolean {
+  const key = subscription.options?.applicationServerKey;
+  if (!key) return false;
+  const current = keyBytes(publicKey);
+  const saved = new Uint8Array(key);
+  return saved.length !== current.length || saved.some((b, i) => b !== current[i]);
+}
+
+async function renew(old: PushSubscription): Promise<void> {
+  const { endpoint, keys } = old.toJSON();
+  await old.unsubscribe();
+  await tellSite({ action: 'unsubscribe', endpoint, auth: keys?.auth }).catch(() => {});
+  const reg = await registration();
+  const fresh = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
+  await tellSite({ action: 'subscribe', subscription: fresh.toJSON(), platform: phonePlatform() });
 }
 
 function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {

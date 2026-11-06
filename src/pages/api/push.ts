@@ -6,7 +6,9 @@ export const prerender = false;
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-// A backstop against a bot filling the list: far more phones a day than ever turn notifications on.
+// Backstops against a bot filling the list: per network (generous, as a studio's
+// Wi-Fi is shared), and for the whole site (far more than ever turn them on in a day).
+const SUBSCRIBE_DAILY_CAP_PER_IP = 20;
 const SUBSCRIBE_DAILY_CAP = 1000;
 const MAX_BODY_BYTES = 4000;
 
@@ -14,7 +16,7 @@ const MAX_BODY_BYTES = 4000;
 // POST { action: 'subscribe', subscription, platform } saves the phone's push address;
 // POST { action: 'unsubscribe', endpoint, auth } removes it (only with its own key);
 // POST { action: 'shown' | 'opened', id } counts a notification shown or tapped.
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, clientAddress }) => {
   const text = await request.text().catch(() => '');
   if (text.length > MAX_BODY_BYTES) return json({ error: 'Too large.' }, 413);
   let body: Record<string, unknown> | null = null;
@@ -28,7 +30,14 @@ export const POST: APIRoute = async ({ request }) => {
     if (body?.action === 'subscribe') {
       const sub = cleanSubscription(body.subscription, body.platform);
       if (!sub) return json({ error: "That isn't a push subscription from a browser." }, 400);
-      if (!(await checkAndIncrementUsage('push-subscribe', SUBSCRIBE_DAILY_CAP))) return json({ error: 'Too many phones turned notifications on today. Try again tomorrow.' }, 429);
+      let ip = 'unknown';
+      try {
+        ip = clientAddress;
+      } catch {
+        // No address (e.g. a prerender): counted together.
+      }
+      if (!(await checkAndIncrementUsage(`push-subscribe:${ip}`, SUBSCRIBE_DAILY_CAP_PER_IP))) return json({ error: 'Too many devices turned notifications on from this network today. Try again tomorrow.' }, 429);
+      if (!(await checkAndIncrementUsage('push-subscribe', SUBSCRIBE_DAILY_CAP))) return json({ error: 'Too many devices turned notifications on today. Try again tomorrow.' }, 429);
       await saveSubscription(sub);
       return json({ ok: true });
     }

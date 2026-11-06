@@ -1,7 +1,6 @@
 import webpush from 'web-push';
 import { supabase } from './supabase';
 import { env } from './env';
-import { fetchAllRows } from './fetchAll';
 import { fakePush } from './testMode';
 
 // Push notifications: phones turn them on from the header bell
@@ -37,7 +36,13 @@ export interface PushSend extends PushMessage {
   // Reported by the devices (public/sw.js): how many showed it, and how many were tapped.
   shown: number;
   opened: number;
+  // How many devices it was for, and when it reached them all (null while it's still going, or stopped).
+  target: number | null;
+  finished_at: string | null;
 }
+
+// A subscription as stored: when it was made, and when a send last tried it.
+type Subscribed = PushSubscriptionRow & { id: string; created_at: string; last_sent_at: string | null };
 
 export const MAX_TITLE = 60;
 export const MAX_BODY = 180;
@@ -54,16 +59,22 @@ export class PushError extends Error {
 
 export const pushConfigured = () => Boolean(env('PUBLIC_VAPID_KEY') && env('VAPID_PRIVATE_KEY'));
 
-// The push services browsers use. Anything else is refused, so a made-up
-// "subscription" can never make this server call some other address.
-const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^([a-z0-9-]+\.)*push\.apple\.com$/, /^([a-z0-9-]+\.)*push\.services\.mozilla\.com$/, /^([a-z0-9-]+\.)*notify\.windows\.com$/];
+// The push services browsers use, each with the shape of its own addresses.
+// Anything else is refused, so a made-up "subscription" can never make this
+// server call some other address (or anything on those hosts but a push).
+const PUSH_SERVICES: { host: RegExp; path: RegExp }[] = [
+  { host: /^fcm\.googleapis\.com$/, path: /^\/(fcm\/send|wp)\/[\w:-]{20,}$/ },
+  { host: /^([a-z0-9-]+\.)*push\.apple\.com$/, path: /^\/[\w-]{20,}$/ },
+  { host: /^([a-z0-9-]+\.)*push\.services\.mozilla\.com$/, path: /^\/wpush\/v[12]\/[\w=-]{20,}$/ },
+  { host: /^([a-z0-9-]+\.)*notify\.windows\.com$/, path: /^\/w\/$/ },
+];
 const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/;
 
 export function isPushEndpoint(value: unknown): value is string {
   if (typeof value !== 'string' || value.length > 1000) return false;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && !url.port && !url.username && PUSH_HOSTS.some((host) => host.test(url.hostname));
+    return url.protocol === 'https:' && !url.port && !url.username && !url.hash && PUSH_SERVICES.some((p) => p.host.test(url.hostname) && p.path.test(url.pathname));
   } catch {
     return false;
   }
@@ -107,14 +118,16 @@ export function cleanMessage(raw: unknown): PushMessage {
 
 // ---- Storage (or memory, for the test suite) ----
 
-const memory = { subscriptions: [] as PushSubscriptionRow[], sends: [] as PushSend[] };
+const memory = { subscriptions: [] as Subscribed[], sends: [] as PushSend[] };
 
 const storeError = (message: string) =>
   new PushError(`Couldn't reach the notification list: ${message}.${/push_s/.test(message) ? ' Run migration 0069 in Supabase first.' : ''}`, 500);
 
 export async function saveSubscription(sub: PushSubscriptionRow): Promise<void> {
   if (fakePush()) {
-    memory.subscriptions = [...memory.subscriptions.filter((s) => s.endpoint !== sub.endpoint), sub];
+    const before = memory.subscriptions.find((s) => s.endpoint === sub.endpoint);
+    const kept = { id: before?.id ?? crypto.randomUUID(), created_at: before?.created_at ?? new Date().toISOString(), last_sent_at: before?.last_sent_at ?? null };
+    memory.subscriptions = [...memory.subscriptions.filter((s) => s.endpoint !== sub.endpoint), { ...sub, ...kept }];
     return;
   }
   // The endpoint is unique: a phone turning them on again just refreshes its keys.
@@ -132,21 +145,21 @@ export async function removeSubscription(endpoint: string, auth: string): Promis
   if (error) throw storeError(error.message);
 }
 
-async function allSubscriptions(): Promise<(PushSubscriptionRow & { id: string })[]> {
-  if (fakePush()) return memory.subscriptions.map((s) => ({ ...s, id: s.endpoint }));
-  try {
-    return await fetchAllRows<PushSubscriptionRow & { id: string }>((from, to) =>
-      supabase.from('push_subscriptions').select('id, endpoint, p256dh, auth, platform').order('created_at').order('id').range(from, to)
-    );
-  } catch (e) {
-    throw storeError(e instanceof Error ? e.message : String(e));
-  }
-}
-
 export async function subscriberCounts(): Promise<Record<Platform | 'total', number>> {
-  const subs = await allSubscriptions();
-  const count = (p: Platform) => subs.filter((s) => s.platform === p).length;
-  return { total: subs.length, ios: count('ios'), android: count('android'), other: count('other') };
+  if (fakePush()) {
+    const count = (p: Platform) => memory.subscriptions.filter((s) => s.platform === p).length;
+    return { total: memory.subscriptions.length, ios: count('ios'), android: count('android'), other: count('other') };
+  }
+  // Counted by the database, not by reading every subscription.
+  const count = async (platform?: Platform) => {
+    let query = supabase.from('push_subscriptions').select('id', { count: 'exact', head: true });
+    if (platform) query = query.eq('platform', platform);
+    const { count: n, error } = await query;
+    if (error) throw storeError(error.message);
+    return n ?? 0;
+  };
+  const [total, ios, android, other] = await Promise.all([count(), count('ios'), count('android'), count('other')]);
+  return { total, ios, android, other };
 }
 
 export async function recentSends(limit = 50): Promise<PushSend[]> {
@@ -163,40 +176,22 @@ export async function lastSendFor(eventId: string): Promise<PushSend | null> {
   return ((data ?? [])[0] as PushSend | undefined) ?? null;
 }
 
-// Saved before sending, so a device that shows it at once can already be counted;
-// `delivered` starts at the most it can be (it caps the device counts) and is set after.
-async function startSend(send: Omit<PushSend, 'id' | 'created_at' | 'shown' | 'opened'>): Promise<PushSend> {
-  const row = { ...send, shown: 0, opened: 0 };
-  if (fakePush()) {
-    const saved = { ...row, id: crypto.randomUUID(), created_at: new Date().toISOString() };
-    memory.sends.unshift(saved);
-    return saved;
-  }
-  const { data, error } = await supabase.from('push_sends').insert(send).select('*').single();
+async function getSend(id: string): Promise<PushSend | null> {
+  if (fakePush()) return memory.sends.find((s) => s.id === id) ?? null;
+  const { data, error } = await supabase.from('push_sends').select('*').eq('id', id).maybeSingle();
   if (error) throw storeError(error.message);
-  return data as PushSend;
-}
-
-async function finishSend(id: string, counts: Pick<PushSend, 'delivered' | 'failed' | 'removed'>): Promise<PushSend> {
-  if (fakePush()) {
-    const saved = memory.sends.find((s) => s.id === id)!;
-    Object.assign(saved, counts);
-    return { ...saved };
-  }
-  const { data, error } = await supabase.from('push_sends').update(counts).eq('id', id).select('*').single();
-  if (error) throw storeError(error.message);
-  return data as PushSend;
+  return (data as PushSend | null) ?? null;
 }
 
 export type DeviceReport = 'shown' | 'opened';
 
 // A device showed a notification, or someone tapped it (api/push.ts). Only the
-// send's id is reported; neither count can pass `delivered` (migration 0070).
+// send's id is reported; neither count can pass the send's target (migration 0073).
 export async function countReport(sendId: string, kind: DeviceReport): Promise<boolean> {
   if (fakePush()) {
     const send = memory.sends.find((s) => s.id === sendId);
     if (!send) return false;
-    send[kind] = Math.min(send[kind] + 1, send.delivered);
+    send[kind] = Math.min(send[kind] + 1, send.target ?? send.delivered);
     return true;
   }
   const { data, error } = await supabase.rpc('count_push_send', { p_id: sendId, p_kind: kind });
@@ -204,9 +199,15 @@ export async function countReport(sendId: string, kind: DeviceReport): Promise<b
   return data === true;
 }
 
-// ---- Sending ----
+// ---- Sending, a chunk per request ----
+// No request can run past the hosting's time limit: each sends to at most
+// CHUNK devices at once (each given PUSH_TIMEOUT_MS), and the admin page asks
+// for the next chunk until the send is finished (api/admin/push.ts). A device
+// is claimed (its last_sent_at set) before it's sent to, so no chunk, or a
+// second tab continuing the same send, tries it twice.
 
-const BATCH = 50;
+export const CHUNK = 150;
+const PUSH_TIMEOUT_MS = 5_000;
 const ID_CHUNK = 100;
 
 type Outcome = 'delivered' | 'gone' | 'failed';
@@ -217,51 +218,93 @@ async function deliver(sub: PushSubscriptionRow, payload: string): Promise<Outco
     await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload, {
       TTL: 60 * 60 * 24,
       vapidDetails: { subject: env('VAPID_SUBJECT') || 'https://dancewithb.fun', publicKey: env('PUBLIC_VAPID_KEY')!, privateKey: env('VAPID_PRIVATE_KEY')! },
-      timeout: 10_000,
+      timeout: PUSH_TIMEOUT_MS,
     });
     return 'delivered';
   } catch (e) {
     // The phone unsubscribed, or the app was removed: the push service says it's gone.
+    // (Not 401/403: those can mean a mistake in this site's keys, and must never empty the list.)
     const status = (e as { statusCode?: number }).statusCode;
     return status === 404 || status === 410 ? 'gone' : 'failed';
   }
 }
 
+// The next devices this send hasn't tried, claimed for this chunk.
+async function claimChunk(send: PushSend): Promise<Subscribed[]> {
+  const now = new Date().toISOString();
+  const due = (s: Pick<Subscribed, 'created_at' | 'last_sent_at'>) => s.created_at <= send.created_at && (!s.last_sent_at || s.last_sent_at < send.created_at);
+  if (fakePush()) {
+    const chunk = memory.subscriptions.filter(due).slice(0, CHUNK);
+    chunk.forEach((s) => (s.last_sent_at = now));
+    return chunk.map((s) => ({ ...s }));
+  }
+  const notTried = `last_sent_at.is.null,last_sent_at.lt.${send.created_at}`;
+  const { data, error } = await supabase.from('push_subscriptions').select('id').lte('created_at', send.created_at).or(notTried).order('id').limit(CHUNK);
+  if (error) throw storeError(error.message);
+  const ids = (data ?? []).map((r) => (r as { id: string }).id);
+  if (ids.length === 0) return [];
+  // Only the ones still unclaimed come back, so a second request never gets the same device.
+  const claimed = await supabase
+    .from('push_subscriptions')
+    .update({ last_sent_at: now })
+    .in('id', ids)
+    .or(notTried)
+    .select('id, endpoint, p256dh, auth, platform, created_at, last_sent_at');
+  if (claimed.error) throw storeError(claimed.error.message);
+  return (claimed.data ?? []) as Subscribed[];
+}
+
 async function forget(ids: string[]): Promise<void> {
   if (fakePush()) {
-    memory.subscriptions = memory.subscriptions.filter((s) => !ids.includes(s.endpoint));
+    memory.subscriptions = memory.subscriptions.filter((s) => !ids.includes(s.id));
     return;
   }
   for (let i = 0; i < ids.length; i += ID_CHUNK) await supabase.from('push_subscriptions').delete().in('id', ids.slice(i, i + ID_CHUNK));
 }
 
-async function markSent(ids: string[]): Promise<void> {
-  if (fakePush() || ids.length === 0) return;
-  const now = new Date().toISOString();
-  for (let i = 0; i < ids.length; i += ID_CHUNK) await supabase.from('push_subscriptions').update({ last_sent_at: now }).in('id', ids.slice(i, i + ID_CHUNK));
-}
-
-// Sends to every subscribed phone, removes the ones that are gone, and keeps a record.
-export async function sendToAll(message: PushMessage, options: { eventId: string | null; sentBy: string | null }): Promise<PushSend> {
+// Sends the next chunk and adds it to the send's counts; `finished_at` is set
+// once no device is left. Safe to call again on a finished send.
+export async function sendChunk(sendId: string): Promise<PushSend> {
   if (!pushConfigured() && !fakePush()) throw new PushError('Push notifications aren’t set up: add PUBLIC_VAPID_KEY and VAPID_PRIVATE_KEY in Netlify.', 500);
-  const subs = await allSubscriptions();
-  const send = await startSend({ ...message, event_id: options.eventId, sent_by: options.sentBy, delivered: subs.length, failed: 0, removed: 0 });
+  const send = await getSend(sendId);
+  if (!send) throw new PushError('That notification wasn’t found.', 404);
+  if (send.finished_at) return send;
+  const subs = await claimChunk(send);
   // The tag lets a resent message replace the earlier one on the phone instead of stacking;
   // the id is what the device reports back when it shows or opens it.
-  const payload = JSON.stringify({ ...message, tag: options.eventId ?? send.id, id: send.id });
-  const delivered: string[] = [];
-  const gone: string[] = [];
-  let failed = 0;
-  for (let i = 0; i < subs.length; i += BATCH) {
-    const batch = subs.slice(i, i + BATCH);
-    const outcomes = await Promise.all(batch.map((s) => deliver(s, payload)));
-    outcomes.forEach((outcome, j) => {
-      if (outcome === 'delivered') delivered.push(batch[j].id);
-      else if (outcome === 'gone') gone.push(batch[j].id);
-      else failed++;
-    });
-  }
+  const payload = JSON.stringify({ title: send.title, body: send.body, url: send.url, tag: send.event_id ?? send.id, id: send.id });
+  const outcomes = await Promise.all(subs.map((s) => deliver(s, payload)));
+  const gone = subs.filter((_, i) => outcomes[i] === 'gone').map((s) => s.id);
   await forget(gone);
-  await markSent(delivered);
-  return finishSend(send.id, { delivered: delivered.length, failed, removed: gone.length });
+  const fresh = (await getSend(sendId)) ?? send;
+  const counts = {
+    delivered: fresh.delivered + outcomes.filter((o) => o === 'delivered').length,
+    failed: fresh.failed + outcomes.filter((o) => o === 'failed').length,
+    removed: fresh.removed + gone.length,
+    finished_at: subs.length < CHUNK ? new Date().toISOString() : null,
+  };
+  if (fakePush()) {
+    Object.assign(memory.sends.find((s) => s.id === sendId)!, counts);
+    return { ...fresh, ...counts };
+  }
+  const { data, error } = await supabase.from('push_sends').update(counts).eq('id', sendId).select('*').single();
+  if (error) throw storeError(error.message);
+  return data as PushSend;
+}
+
+// Records the send (for every device subscribed now) and sends its first chunk.
+export async function startSend(message: PushMessage, options: { eventId: string | null; sentBy: string | null }): Promise<PushSend> {
+  if (!pushConfigured() && !fakePush()) throw new PushError('Push notifications aren’t set up: add PUBLIC_VAPID_KEY and VAPID_PRIVATE_KEY in Netlify.', 500);
+  const { total } = await subscriberCounts();
+  const row = { ...message, event_id: options.eventId, sent_by: options.sentBy, delivered: 0, failed: 0, removed: 0, target: total, finished_at: null };
+  let send: PushSend;
+  if (fakePush()) {
+    send = { ...row, id: crypto.randomUUID(), created_at: new Date().toISOString(), shown: 0, opened: 0 };
+    memory.sends.unshift(send);
+  } else {
+    const { data, error } = await supabase.from('push_sends').insert(row).select('*').single();
+    if (error) throw storeError(`${error.message}${/target|finished_at/.test(error.message) ? '. Run migration 0073 in Supabase first' : ''}`);
+    send = data as PushSend;
+  }
+  return sendChunk(send.id);
 }

@@ -37,6 +37,9 @@ export interface RegistrationEmailParams {
   whatsappUrl?: string | null;
 }
 
+// Summary rows that aren't contact details (registrationConfirmation.ts's labels): left as plain text.
+const NOT_CONTACT = new Set(['Name', 'Instagram', 'Class', 'Event', 'Notes']);
+
 // Email addresses and phone numbers as the site's red links, instead of the
 // blue an email app adds on its own. `text` is already escaped.
 const LINK = `color:${C.red};text-decoration:underline;`;
@@ -75,11 +78,12 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
   // In the site's time zone (the server's own is UTC).
   const dateLabel = siteFormatter({ month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(params.createdAt);
 
+  // Only contact lines become links: never what a dancer typed in Notes, or class text (a date isn't a phone number).
   const rowsHtml = params.summaryRows
-    .map(
-      ([label, value]) =>
-        `<tr><td style="padding:6px 12px 6px 0;font-weight:bold;vertical-align:top;color:${C.ink};white-space:nowrap;">${escapeHtml(label)}</td><td style="padding:6px 0;color:${C.ink};">${linkContacts(escapeHtml(value)).replace(/\n/g, '<br/>')}</td></tr>`
-    )
+    .map(([label, value]) => {
+      const shown = NOT_CONTACT.has(label) ? escapeHtml(value) : linkContacts(escapeHtml(value));
+      return `<tr><td style="padding:6px 12px 6px 0;font-weight:bold;vertical-align:top;color:${C.ink};white-space:nowrap;">${escapeHtml(label)}</td><td style="padding:6px 0;color:${C.ink};">${shown.replace(/\n/g, '<br/>')}</td></tr>`;
+    })
     .join('');
 
   const hasReceipt = Boolean(params.receiptLines && params.receiptLines.length > 0);

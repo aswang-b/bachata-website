@@ -111,6 +111,8 @@ const label = 'text-xs font-bold uppercase tracking-wider text-muted';
     removed: number;
     shown: number;
     opened: number;
+    target: number | null;
+    finished_at: string | null;
   }
   interface UpcomingEvent {
     id: string;
@@ -203,6 +205,19 @@ const label = 'text-xs font-bold uppercase tracking-wider text-muted';
         body.className = 'mt-1 text-sm text-ink/80';
         body.textContent = s.body;
         card.append(head, body, stats(s));
+        // Stopped partway (the page was closed, or a chunk failed): the rest can still be sent.
+        if (!s.finished_at && s.id !== sendingId) {
+          const more = document.createElement('div');
+          more.className = 'mt-2 flex flex-wrap items-center gap-3 text-xs text-ink';
+          more.append(`Stopped after ${s.delivered + s.failed + s.removed} of ${s.target ?? '?'} devices. `);
+          const resume = document.createElement('button');
+          resume.type = 'button';
+          resume.className = 'push-continue rounded-full border border-accent px-3 py-1 font-bold uppercase tracking-wider text-accent hover:bg-accent hover:text-white';
+          resume.textContent = 'Continue';
+          resume.addEventListener('click', () => void finishSending(s));
+          more.append(resume);
+          card.append(more);
+        }
         return card;
       })
     );
@@ -280,15 +295,40 @@ const label = 'text-xs font-bold uppercase tracking-wider text-muted';
         sendStatus.textContent = data.error ?? `Sending failed (${res.status}).`;
         return;
       }
-      const s = data.send as Send;
+      await finishSending(data.send as Send);
+    } finally {
+      sendButton.disabled = false;
+    }
+  }
+
+  // A send goes out a chunk per request (so none runs past the server's time
+  // limit): this keeps asking for the next one until it's finished, showing
+  // progress. If one fails, what's left can be sent later with Continue.
+  let sendingId: string | null = null;
+  async function finishSending(start: Send) {
+    let s = start;
+    sendingId = s.id;
+    sendButton.disabled = true;
+    try {
+      while (!s.finished_at) {
+        sendStatus.textContent = `Sending… ${s.delivered + s.failed + s.removed} of ${s.target ?? '?'} devices`;
+        const res = await fetch('/api/admin/push', { method: 'POST', headers: { ...(await authHeader()), 'Content-Type': 'application/json' }, body: JSON.stringify({ continue: s.id }) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          sendStatus.textContent = `Sending stopped after ${s.delivered + s.failed + s.removed} of ${s.target ?? '?'} devices: ${data.error ?? res.status}. Press Continue on it below to send the rest.`;
+          return;
+        }
+        s = data.send as Send;
+      }
       sendStatus.textContent = `Sent to ${plural(s.delivered, 'device')}.${s.failed ? ` ${s.failed} couldn't be reached.` : ''}`;
+    } finally {
+      sendingId = null;
+      sendButton.disabled = false;
       const refreshed = await fetch('/api/admin/push', { headers: await authHeader() }).then((r) => r.json()).catch(() => null);
       if (refreshed?.sends) {
         renderSends(refreshed.sends);
         renderCount(refreshed.subscribers);
       }
-    } finally {
-      sendButton.disabled = false;
     }
   }
 

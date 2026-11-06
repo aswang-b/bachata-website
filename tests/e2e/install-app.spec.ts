@@ -32,7 +32,7 @@ async function fakePushService(context: BrowserContext, permission: Notification
       save();
       return current;
     };
-    const make = (endpoint = `https://fcm.googleapis.com/fcm/send/e2e-${Math.random().toString(36).slice(2)}`) => {
+    const make = (endpoint = `https://fcm.googleapis.com/fcm/send/e2e-device-${Math.random().toString(36).slice(2)}-${Date.now()}`) => {
       const keys = { p256dh: 'B'.repeat(87), auth: 'a'.repeat(22) };
       return {
         endpoint,
