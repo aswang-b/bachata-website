@@ -1,0 +1,64 @@
+---
+// Admin → Admin → WhatsApp Community (lib/siteConfig.ts): the link the
+// footer's WhatsApp icon and the "Join Our WhatsApp Community" button on
+// the registration confirmation (page and email) open. Empty hides them both.
+---
+
+<div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+  <p class="text-xs font-bold uppercase tracking-wider text-muted">WhatsApp Community</p>
+  <p class="text-xs text-muted">
+    The community's invite link. With one set, the footer shows a WhatsApp icon, and registration confirmations (the page and the email) show a
+    Join Our WhatsApp Community button. Leave it empty to hide both.
+  </p>
+  <input
+    id="whatsapp-url"
+    type="url"
+    inputmode="url"
+    maxlength="300"
+    placeholder="https://chat.whatsapp.com/…"
+    autocomplete="off"
+    class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+  />
+  <button
+    id="whatsapp-url-save"
+    type="button"
+    class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white disabled:opacity-50"
+  >
+    Save Link
+  </button>
+  <p id="whatsapp-url-status" class="min-h-4 text-xs text-muted" role="status"></p>
+</div>
+
+<script>
+  import { supabaseBrowser } from '../lib/supabaseBrowser';
+
+  const input = document.getElementById('whatsapp-url') as HTMLInputElement;
+  const save = document.getElementById('whatsapp-url-save') as HTMLButtonElement;
+  const status = document.getElementById('whatsapp-url-status')!;
+
+  async function headers(): Promise<Record<string, string>> {
+    const { data } = await supabaseBrowser.auth.getSession();
+    return { Authorization: `Bearer ${data.session?.access_token ?? ''}`, 'Content-Type': 'application/json' };
+  }
+
+  async function load() {
+    const res = await fetch('/api/admin/whatsapp', { headers: await headers() });
+    if (res.ok) input.value = (await res.json()).url ?? '';
+  }
+
+  save.addEventListener('click', async () => {
+    save.disabled = true;
+    status.textContent = 'Saving…';
+    const res = await fetch('/api/admin/whatsapp', { method: 'POST', headers: await headers(), body: JSON.stringify({ url: input.value }) });
+    const body = await res.json().catch(() => ({}));
+    save.disabled = false;
+    if (!res.ok) {
+      status.textContent = body.error ?? 'Failed to save.';
+      return;
+    }
+    input.value = body.url ?? '';
+    status.textContent = body.url ? 'Saved. The footer icon and the confirmations’ button open it now.' : 'Cleared. The footer icon and the confirmations’ button are hidden.';
+  });
+
+  load();
+</script>

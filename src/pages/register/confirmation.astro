@@ -1,6 +1,7 @@
 ---
 export const prerender = false;
 
+import WhatsAppButton from '../../components/WhatsAppButton.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
 import { siteFormatter } from '../../lib/siteTime';
@@ -176,6 +177,9 @@ const dateFormatter = siteFormatter({ month: 'long', day: 'numeric', year: 'nume
         This page is your confirmation — print it or save it for your records.
       </p>
     )}
+
+    {/* Only with a WhatsApp community link set (Admin → Admin); otherwise nothing, and the spacing is as before. */}
+    {submission && <WhatsAppButton class="mt-6" />}
 
     {reminders.length > 0 && (
       <div class="mt-8 w-full text-left">

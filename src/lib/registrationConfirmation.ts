@@ -5,6 +5,7 @@ import { listFaqs } from './faqs';
 import { buildRegistrationConfirmationEmailHtml } from './registrationEmail';
 import { buildReceiptLines, paymentAgreementText, receiptSubtotal } from './registrationReceipt';
 import { getCommunityGuidelines, guidelineSections } from './communityGuidelines';
+import { loadWhatsappUrl } from './siteConfig';
 
 // The confirmation email for a class or event sign-up, built from what's
 // saved for it (so a resend from the dashboard matches what was first sent,
@@ -95,6 +96,7 @@ export async function buildRegistrationConfirmation(submissionId: string, opts: 
     paymentNote: paymentAgreementText(row.payment_method),
     faqs: reminders,
     faqsHeading: isEvent ? 'Our Community Guidelines' : undefined,
+    whatsappUrl: await loadWhatsappUrl(),
   });
 
   const addresses = (dancers && dancers.length > 0 ? dancers.map((d) => d.email) : [row.email]).map((e) => (e ?? '').trim()).filter(Boolean);

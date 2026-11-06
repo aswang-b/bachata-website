@@ -14,6 +14,7 @@ export function escapeHtml(str: string): string {
 
 import { siteFormatter } from './siteTime';
 import { formatPrice, quantityNote, receiptHeading, type ReceiptLine } from './registrationReceipt';
+import { SITE_URL } from './seoSchema';
 
 export interface RegistrationEmailParams {
   registrationTypeLabel: string;
@@ -31,6 +32,21 @@ export interface RegistrationEmailParams {
   // their community guidelines here; an item with no question is just its text.
   faqs: { question: string; answer: string }[];
   faqsHeading?: string;
+  // The WhatsApp community link (lib/siteConfig.ts): a "Join Our WhatsApp
+  // Community" button above the reminders; none without it.
+  whatsappUrl?: string | null;
+}
+
+// Email apps drop SVG, so the button's icon is a hosted PNG.
+const WHATSAPP_ICON_URL = `${SITE_URL}/whatsapp-icon.png`;
+
+function whatsappButtonHtml(url: string): string {
+  return `
+      <p style="margin:24px 0 0;">
+        <a href="${escapeHtml(url)}" style="display:inline-block;padding:12px 22px;border-radius:999px;background:#b81640;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">
+          <img src="${WHATSAPP_ICON_URL}" width="18" height="18" alt="" style="vertical-align:-4px;margin-right:8px;border:0;" />Join Our WhatsApp Community
+        </a>
+      </p>`;
 }
 
 function receiptHtml(lines: ReceiptLine[], subtotal: number | null, isEvent: boolean): string {
@@ -106,6 +122,7 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
         ${params.paymentNote ? `<p style="margin:12px 0 0;font-size:14px;color:#333;">${escapeHtml(params.paymentNote)}</p>` : ''}
       </div>
 
+      ${params.whatsappUrl ? whatsappButtonHtml(params.whatsappUrl) : ''}
       ${faqsHtml}
     </div>
   `;

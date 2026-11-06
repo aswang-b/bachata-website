@@ -69,3 +69,15 @@ test('the header arrives whole: the Site Visibility settings are applied in the 
   expect(header.includes('href="/about"')).toBe(!on('hide_about_nav'));
   expect(header.includes('href="/contact"')).toBe(!on('hide_contact_nav'));
 });
+
+test('the footer has no Linktree placeholder; its WhatsApp icon, when a link is set, opens only WhatsApp', async ({ page }) => {
+  // The link itself is set in Admin → Admin (shared database), so this checks whichever it is now.
+  await page.goto('/');
+  const footer = page.locator('footer');
+  await expect(footer.locator('a[href*="linktr.ee"]')).toHaveCount(0);
+  for (const { href, title } of await footer.locator('a[aria-label="Join our WhatsApp community"]').evaluateAll((as) => as.map((a) => ({ href: (a as HTMLAnchorElement).href, title: a.getAttribute('title') })))) {
+    expect(new URL(href).hostname).toMatch(/(^|\.)whatsapp\.com$|^wa\.me$/);
+    // Its tooltip.
+    expect(title).toBe('Join our WhatsApp community!');
+  }
+});
