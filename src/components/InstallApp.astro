@@ -115,7 +115,9 @@ const badge = 'your-phone ml-2 hidden rounded-full bg-accent/15 px-2 py-0.5 alig
             <Fragment set:html={chevron} />
           </summary>
           <ol class={steps}>
-            <li>Open <strong class="text-ink">dancewithb.fun</strong> in your browser (such as Chrome).</li>
+            <li>
+              Open <strong class="text-ink">dancewithb.fun</strong> in your browser. We recommend <strong class="text-ink">Chrome</strong> for the best experience.
+            </li>
             <li>Open the browser's menu: <Fragment set:html={dotsIcon} /> in the top right corner in Chrome, or at the bottom of the screen in some other browsers.</li>
             <li>Tap <strong class="text-ink">Add to home screen</strong> or <strong class="text-ink">Install app</strong>.</li>
             <li>Confirm with <strong class="text-ink">Install</strong> or <strong class="text-ink">Add</strong>.</li>
@@ -284,5 +286,36 @@ const badge = 'your-phone ml-2 hidden rounded-full bg-accent/15 px-2 py-0.5 alig
   window.addEventListener('appinstalled', () => {
     installButton.classList.add('hidden');
     say('Installed! Find Dance with B on your home screen.');
+    void setInstalledFlag(true);
   });
+
+  // Tells the service worker (public/sw.js) whether this Android phone has the
+  // site installed as an app, so notifications don't repeat the logo the phone
+  // already shows. Open as the app, it is; in a tab, Chrome can say whether the
+  // app is installed (the manifest's related_applications).
+  async function setInstalledFlag(on: boolean) {
+    try {
+      const cache = await caches.open('dwb-flags');
+      // When it was last seen installed: sw.js lets it lapse after 30 days.
+      if (on) await cache.put('/__dwb/installed-app', new Response(String(Date.now())));
+      else await cache.delete('/__dwb/installed-app');
+    } catch {
+      // No Cache Storage: notifications just keep their picture.
+    }
+  }
+  // Only Chrome installs a real app on Android whose notifications show its own
+  // icon; Firefox, Edge and Samsung Internet still show the browser's.
+  const realAppBrowser = /Chrome\//.test(ua) && !/EdgA|OPR|Firefox|DuckDuckGo|Brave|SamsungBrowser/.test(ua);
+  async function syncInstalledFlag() {
+    if (platform !== 'android' || !realAppBrowser || !('caches' in window)) return;
+    if (installed) return setInstalledFlag(true);
+    const related = (navigator as Navigator & { getInstalledRelatedApps?: () => Promise<unknown[]> }).getInstalledRelatedApps;
+    if (!related) return;
+    try {
+      await setInstalledFlag((await related.call(navigator)).length > 0);
+    } catch {
+      // Unknown: leave it as it was.
+    }
+  }
+  void syncInstalledFlag();
 </script>

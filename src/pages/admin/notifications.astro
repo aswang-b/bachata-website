@@ -1,4 +1,8 @@
 ---
+// Rendered per request, so the header and footer follow the live settings
+// (Site Visibility, the WhatsApp community link) instead of the last deploy's.
+export const prerender = false;
+
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const input = 'w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none';
@@ -200,7 +204,13 @@ const label = 'text-xs font-bold uppercase tracking-wider text-muted';
         const meta = document.createElement('p');
         meta.className = 'text-xs text-muted';
         meta.textContent = `${when.format(new Date(s.created_at))}${s.sent_by ? ` · ${s.sent_by}` : ''}`;
-        head.append(title, meta);
+        // Removes it from this list only: it was already sent. Only once it's
+        // finished: one still going out needs its row to send the rest.
+        const side = document.createElement('div');
+        side.className = 'flex items-center gap-2';
+        side.append(meta);
+        head.append(title, side);
+        if (s.finished_at) side.append(trashButton(s));
         const body = document.createElement('p');
         body.className = 'mt-1 text-sm text-ink/80';
         body.textContent = s.body;
@@ -222,6 +232,18 @@ const label = 'text-xs font-bold uppercase tracking-wider text-muted';
       })
     );
     el('sends-empty').classList.toggle('hidden', sends.length > 0);
+  }
+
+  // Removes a finished send from the history (after asking).
+  function trashButton(s: Send): HTMLButtonElement {
+    const trash = document.createElement('button');
+    trash.type = 'button';
+    trash.className = 'push-delete -my-1 rounded-full p-1.5 text-muted transition-colors hover:bg-bg hover:text-red-400';
+    trash.setAttribute('aria-label', `Delete "${s.title}" from the history`);
+    trash.title = 'Delete from the history';
+    trash.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>';
+    trash.addEventListener('click', () => void removeSend(s, trash));
+    return trash;
   }
 
   // How it did: reached (the push services took it), shown and opened (reported by the
@@ -298,6 +320,21 @@ const label = 'text-xs font-bold uppercase tracking-wider text-muted';
       await finishSending(data.send as Send);
     } finally {
       sendButton.disabled = false;
+    }
+  }
+
+  async function removeSend(s: Send, button: HTMLButtonElement) {
+    if (!confirm(`Delete "${s.title}" from the history? It's been sent either way; this only removes it from this list (and its shown/opened counts).`)) return;
+    button.disabled = true;
+    try {
+      const res = await fetch('/api/admin/push', { method: 'POST', headers: { ...(await authHeader()), 'Content-Type': 'application/json' }, body: JSON.stringify({ delete: s.id }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `Couldn't delete it (${res.status}).`);
+      renderSends(data.sends);
+    } catch (err) {
+      // Offline, or refused: say so and let it be tried again.
+      button.disabled = false;
+      sendStatus.textContent = err instanceof TypeError ? "Couldn't reach the site to delete it. Check the connection and try again." : (err as Error).message;
     }
   }
 

@@ -41,7 +41,8 @@ export interface RegistrationConfirmation {
 // null when the sign-up doesn't exist, is in the Recycling Bin, or isn't a
 // class or event registration. `guidelines` saves a lookup when the caller
 // already has them.
-export async function buildRegistrationConfirmation(submissionId: string, opts: { guidelines?: string } = {}): Promise<RegistrationConfirmation | null> {
+// `noticeHtml` goes at the top of the email's body (the admins' copy's delivery note).
+export async function buildRegistrationConfirmation(submissionId: string, opts: { guidelines?: string; noticeHtml?: string } = {}): Promise<RegistrationConfirmation | null> {
   const { data: row, error } = await supabase
     .from('intake_submissions')
     .select('registration_type, created_at, first_name, last_name, email, phone, instagram, whatsapp, class, comments, dancers, payment_method')
@@ -97,6 +98,7 @@ export async function buildRegistrationConfirmation(submissionId: string, opts: 
     faqs: reminders,
     faqsHeading: isEvent ? 'Our Community Guidelines' : undefined,
     whatsappUrl: await loadWhatsappUrl(),
+    noticeHtml: opts.noticeHtml,
   });
 
   const addresses = (dancers && dancers.length > 0 ? dancers.map((d) => d.email) : [row.email]).map((e) => (e ?? '').trim()).filter(Boolean);

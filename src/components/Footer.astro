@@ -2,6 +2,7 @@
 import { zonedParts } from '../lib/siteTime';
 import { WHATSAPP_ICON_PATH } from '../lib/whatsappIcon';
 
+// Loaded by middleware.ts; every page renders per request, so it's the saved link.
 const whatsappUrl = Astro.locals.whatsappUrl;
 ---
 

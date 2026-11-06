@@ -1,4 +1,8 @@
 ---
+// Rendered per request, so the header and footer follow the live settings
+// (Site Visibility, the WhatsApp community link) instead of the last deploy's.
+export const prerender = false;
+
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ErrorsQueue from '../../components/ErrorsQueue.astro';
 ---

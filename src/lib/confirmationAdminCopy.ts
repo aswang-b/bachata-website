@@ -34,11 +34,12 @@ export function undeliveredNoteHtml(outcomes: EmailOutcome[]): string {
   const items = missed
     .map((o) => `<li style="margin:0 0 4px;"><strong>${escapeHtml(o.email)}</strong> — ${o.status === 'bounced' ? 'bounced' : "couldn't be sent"}${o.reason ? `: ${escapeHtml(o.reason)}` : ''}</li>`)
     .join('');
+  // Inside the email, under its header (the shared email look), as a pink notice.
   return `
-    <div style="max-width:560px;margin:0 auto 20px;padding:12px 16px;border:2px solid #d72244;border-radius:8px;background:#fdecef;font-family:Arial,Helvetica,sans-serif;color:#111;">
-      <p style="margin:0 0 6px;font-weight:bold;">This confirmation didn't reach the dancer:</p>
+    <div style="margin:0 0 16px;padding:12px 16px;border:1px solid #f0b3c0;border-radius:12px;background:#fdecef;color:#8a1530;">
+      <p style="margin:0 0 6px;font-size:14px;font-weight:bold;">This didn't reach the dancer</p>
       <ul style="margin:0 0 6px;padding-left:20px;font-size:13px;">${items}</ul>
-      <p style="margin:0;font-size:13px;">Check Admin → Dashboard → Errors to fix the address and resend it.</p>
+      <p style="margin:0;font-size:13px;">Fix the address in Admin → Dashboard → Errors, then resend it.</p>
     </div>`;
 }
 
@@ -49,12 +50,12 @@ async function sendAdminCopy(submissionId: string, outcomes: EmailOutcome[]): Pr
   try {
     const admins = await getConfirmationBccEmails();
     if (admins.length === 0) return true;
-    const confirmation = await buildRegistrationConfirmation(submissionId);
+    const note = undeliveredNoteHtml(outcomes);
+    const confirmation = await buildRegistrationConfirmation(submissionId, { noticeHtml: note });
     // Gone (e.g. moved to the Recycling Bin) since it was sent.
     if (!confirmation) return true;
-    const note = undeliveredNoteHtml(outcomes);
     const subject = note ? `Not delivered: ${confirmation.subject}` : confirmation.subject;
-    await sendEmail(admins[0], subject, note + confirmation.html, { bcc: admins.slice(1) });
+    await sendEmail(admins[0], subject, confirmation.html, { bcc: admins.slice(1) });
     return true;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

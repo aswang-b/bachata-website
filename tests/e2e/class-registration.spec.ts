@@ -118,9 +118,12 @@ test("a dancer's confirmation that bounces is noted in the admins' copy, and a r
   expect(copies).toHaveLength(1);
   expect(recipients(copies[0])).toEqual([admins[0]]);
   expect(copies[0].subject).toBe(`Not delivered: ${toDancer.subject}`);
-  expect(copies[0].html).toContain("This confirmation didn't reach the dancer:");
+  // Inside the email, under its dark header (it once sat on top of the email).
+  expect(copies[0].html).toContain("This didn't reach the dancer");
+  expect(copies[0].html.indexOf("This didn't reach the dancer")).toBeGreaterThan(copies[0].html.indexOf('Your Registration is Confirmed!'));
   expect(copies[0].html).toContain(`<strong>${email}</strong> — bounced: Mailbox does not exist`);
-  expect(copies[0].html).toContain(toDancer.html);
+  // Otherwise it's the dancer's own confirmation, word for word.
+  expect(copies[0].html.replace(/\n {4}<div style="margin:0 0 16px;padding:12px 16px;border:1px solid #f0b3c0;[\s\S]*?<\/div>/, '')).toBe(toDancer.html);
 
   // After the address is fixed, a resend from the dashboard is the same confirmation, with no note.
   const fixed = `zzz-e2e-${RUN_ID.toLowerCase()}-fixed@example.com`;

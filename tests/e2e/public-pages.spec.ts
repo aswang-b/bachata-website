@@ -80,4 +80,22 @@ test('the footer has no Linktree placeholder; its WhatsApp icon, when a link is 
     // Its tooltip.
     expect(title).toBe('Join our WhatsApp community!');
   }
+
+  // On every page, including ones once built ahead of time (Contact, About, the
+  // admin pages), which then showed no icon: the footer follows the saved link.
+  const { data: config } = await db.from('site_config').select('whatsapp_url').eq('id', true).maybeSingle();
+  for (const path of [...PAGES, '/admin']) {
+    await page.goto(path);
+    await expect(page.locator('footer a[aria-label="Join our WhatsApp community"]'), path).toHaveCount(config?.whatsapp_url ? 1 : 0);
+  }
+});
+
+test("pages that are the same for everyone are kept at Netlify's edge for a minute, so most visits skip the server", async ({ request }) => {
+  // They render per request (for the live header and footer settings), which costs a server call each visit without this.
+  for (const path of ['/about', '/contact', '/privacy-policy']) {
+    const res = await request.get(path);
+    expect(res.headers()['netlify-cdn-cache-control'], path).toMatch(/^public, durable, s-maxage=60\b/);
+  }
+  // Admin pages are never cached for everyone.
+  expect((await request.get('/admin')).headers()['netlify-cdn-cache-control']).toBeUndefined();
 });

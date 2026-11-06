@@ -176,6 +176,21 @@ export async function lastSendFor(eventId: string): Promise<PushSend | null> {
   return ((data ?? [])[0] as PushSend | undefined) ?? null;
 }
 
+// Removes a send from the history (it was already sent; phones keep theirs).
+// Its devices' later shown/opened reports then count for nothing. Not while
+// it's still going out: what's left is sent from this row (Continue).
+export async function deleteSend(id: string): Promise<void> {
+  const send = await getSend(id);
+  if (!send) throw new PushError('That notification wasn’t found.', 404);
+  if (!send.finished_at) throw new PushError('It hasn’t finished sending yet: send the rest with Continue first.', 409);
+  if (fakePush()) {
+    memory.sends = memory.sends.filter((s) => s.id !== id);
+    return;
+  }
+  const { error } = await supabase.from('push_sends').delete().eq('id', id);
+  if (error) throw storeError(error.message);
+}
+
 async function getSend(id: string): Promise<PushSend | null> {
   if (fakePush()) return memory.sends.find((s) => s.id === id) ?? null;
   const { data, error } = await supabase.from('push_sends').select('*').eq('id', id).maybeSingle();

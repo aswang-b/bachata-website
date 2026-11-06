@@ -63,22 +63,6 @@ Signed-in admins get an admin area for running the business day to day:
 - [Netlify](https://www.netlify.com) for hosting
 - Email confirmations, Google Calendar sync, web push notifications, and a companion branded QR code site
 
-## Running it locally
-
-You'll need Node.js 22 or later, and your own accounts for the services above.
-
-```sh
-npm install
-cp .env.example .env   # then fill in your own values
-npm run dev            # http://localhost:4321
-```
-
-Tests (unit, then end-to-end in a browser):
-
-```sh
-npm test
-```
-
 ## Privacy
 
 Dancers' contact details are used only for their registrations and class updates, and are never sold or shared. Feedback is anonymous unless the dancer chooses otherwise, and push notifications are opt-in. See the site's privacy policy for details.

@@ -10,7 +10,7 @@ vi.mock('../../src/lib/supabase', () => ({
 const sendNotification = vi.hoisted(() => vi.fn());
 vi.mock('web-push', () => ({ default: { sendNotification } }));
 
-import { CHUNK, cleanMessage, cleanPath, cleanSubscription, isPushEndpoint, lastSendFor, sendChunk, startSend, subscriberCounts } from '../../src/lib/push';
+import { CHUNK, cleanMessage, deleteSend, cleanPath, cleanSubscription, isPushEndpoint, lastSendFor, sendChunk, startSend, subscriberCounts } from '../../src/lib/push';
 
 // Push notifications (lib/push.ts): what's accepted as a phone's subscription,
 // what a notification may say and open, and sending to every phone, a chunk at a time.
@@ -140,6 +140,20 @@ describe('sending', () => {
     // Continuing a finished send does nothing.
     expect((await sendChunk(first.id)).delivered).toBe(count);
     expect(sendNotification).toHaveBeenCalledTimes(count);
+  });
+
+  it("won't delete a send still going out (the rest is sent from its row), only a finished one", async () => {
+    db.current = new FakeSupabase().seed('push_subscriptions', Array.from({ length: CHUNK + 1 }, (_, i) => row(`d${String(i).padStart(3, '0')}`)));
+    sendNotification.mockResolvedValue({ statusCode: 201 });
+    const send = await startSend(message, { eventId: null, sentBy: null });
+    expect(send.finished_at).toBeNull();
+    await expect(deleteSend(send.id)).rejects.toMatchObject({ status: 409 });
+    expect(db.current.rows('push_sends')).toHaveLength(1);
+
+    await sendChunk(send.id);
+    await deleteSend(send.id);
+    expect(db.current.rows('push_sends')).toHaveLength(0);
+    await expect(deleteSend(send.id)).rejects.toMatchObject({ status: 404 });
   });
 
   it("refuses to send before the keys are set up", async () => {

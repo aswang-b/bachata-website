@@ -24,6 +24,11 @@ describe('codebase rules', () => {
     expect(unguarded).toEqual([]);
   });
 
+  it('every page renders per request: one built at deploy kept the header and footer settings of that day (the WhatsApp icon went missing)', () => {
+    const prebuilt = filesUnder('src/pages', ['.astro']).filter((f) => !/export const prerender = false;/.test(read(f)));
+    expect(prebuilt).toEqual([]);
+  });
+
   it("signs out with scope 'local' everywhere: a default (global) sign-out logs the admin out on every device", () => {
     const offenders = filesUnder('src', ['.ts', '.astro'])
       .flatMap((f) => read(f).split('\n').map((line, i) => ({ f: relative(root, join(root, f)), i: i + 1, line })))

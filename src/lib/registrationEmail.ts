@@ -35,10 +35,14 @@ export interface RegistrationEmailParams {
   faqsHeading?: string;
   // The WhatsApp community link (lib/siteConfig.ts): its icon in the footer, beside Instagram and Spotify.
   whatsappUrl?: string | null;
+  // A notice at the top of the body, above the details (the admins' copy says when it didn't reach the dancer).
+  noticeHtml?: string;
 }
 
 // Summary rows that aren't contact details (registrationConfirmation.ts's labels): left as plain text.
-const NOT_CONTACT = new Set(['Name', 'Instagram', 'Class', 'Event', 'Notes']);
+// Shared with the admins' contact alert (adminAlertEmail.ts), whose rows use the same labels.
+const NOT_CONTACT = new Set(['Name', 'Instagram', 'Class', 'Event', 'Notes', 'Payment method']);
+export const isContactRow = (label: string) => !NOT_CONTACT.has(label);
 
 // Email addresses and phone numbers as the site's red links, instead of the
 // blue an email app adds on its own. `text` is already escaped.
@@ -81,7 +85,7 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
   // Only contact lines become links: never what a dancer typed in Notes, or class text (a date isn't a phone number).
   const rowsHtml = params.summaryRows
     .map(([label, value]) => {
-      const shown = NOT_CONTACT.has(label) ? escapeHtml(value) : linkContacts(escapeHtml(value));
+      const shown = isContactRow(label) ? linkContacts(escapeHtml(value)) : escapeHtml(value);
       return `<tr><td style="padding:6px 12px 6px 0;font-weight:bold;vertical-align:top;color:${C.ink};white-space:nowrap;">${escapeHtml(label)}</td><td style="padding:6px 0;color:${C.ink};">${shown.replace(/\n/g, '<br/>')}</td></tr>`;
     })
     .join('');
@@ -122,7 +126,7 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
   return emailLayout({
     heading: 'Your Registration is Confirmed!',
     subheading: params.isEvent ? 'See you there!' : 'See you in class!',
-    bodyHtml: card + faqsHtml,
+    bodyHtml: (params.noticeHtml ?? '') + card + faqsHtml,
     whatsappUrl: params.whatsappUrl,
   });
 }

@@ -183,6 +183,14 @@ describe('feedback email', () => {
     expect(html).toContain('After tapping there is 1 more quick question.');
   });
 
+  it('is set in the site email look: "We welcome your feedback!" in the dark header, WhatsApp in the footer only with a link', () => {
+    const html = buildFeedbackEmailHtml({ ...base, items: [faces] });
+    expect(html).toContain('We welcome your feedback!</h1>');
+    expect(html).toContain('bgcolor="#170f0d"');
+    expect(html).not.toContain('email/whatsapp.png');
+    expect(buildFeedbackEmailHtml({ ...base, items: [faces], whatsappUrl: 'https://chat.whatsapp.com/AbC123' })).toContain('email/whatsapp.png');
+  });
+
   it('opens with the custom message instead of the greeting', () => {
     const html = buildFeedbackEmailHtml({ ...base, firstName: 'Ana', items: [hello, faces] });
     expect(html).toContain('Hi Ana!<br/>Thanks for Class &amp; Co.');

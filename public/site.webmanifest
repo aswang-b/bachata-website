@@ -6,6 +6,7 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "related_applications": [{ "platform": "webapp", "url": "https://dancewithb.fun/site.webmanifest" }],
   "background_color": "#170f0d",
   "theme_color": "#170f0d",
   "icons": [

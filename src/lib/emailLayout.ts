@@ -42,10 +42,14 @@ export interface EmailLayoutParams {
   // The content (already escaped where it holds what people typed).
   bodyHtml: string;
   whatsappUrl?: string | null;
+  // For admins' own emails: a short note in the footer instead of the social icons.
+  footerNote?: string;
 }
 
 export function emailLayout(p: EmailLayoutParams): string {
-  const socials = [icon(INSTAGRAM, 'instagram', 'Instagram'), icon(SPOTIFY, 'spotify', 'Spotify'), p.whatsappUrl ? icon(p.whatsappUrl, 'whatsapp', 'Join our WhatsApp community') : ''].join('');
+  const socials = p.footerNote
+    ? `<span style="font-family:${TEXT};font-size:12px;color:${C.mutedOnDark};">${escapeAttr(p.footerNote)}</span>`
+    : [icon(INSTAGRAM, 'instagram', 'Instagram'), icon(SPOTIFY, 'spotify', 'Spotify'), p.whatsappUrl ? icon(p.whatsappUrl, 'whatsapp', 'Join our WhatsApp community') : ''].join('');
   return `
 <div style="background:${C.body};padding:0;margin:0;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;border-collapse:collapse;">

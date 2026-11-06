@@ -15,6 +15,7 @@ import { getConfirmationBccEmails, getConfirmationEmailPerIpCap, getContactEmail
 import { flagDuplicateSubmission } from '../../lib/duplicateSubmissions';
 import { buildRegistrationConfirmation, CONFIRMATION_EMAIL_DAILY_CAP } from '../../lib/registrationConfirmation';
 import { saveContactMessage } from '../../lib/contactMessages';
+import { buildContactAlertHtml } from '../../lib/adminAlertEmail';
 import { logSiteError } from '../../lib/siteErrors';
 import { capacityErrorMessage } from '../../lib/capacity';
 import { getCommunityGuidelines, hasGuidelines } from '../../lib/communityGuidelines';
@@ -66,14 +67,6 @@ function toDancer(d: Record<string, unknown>, isEvent: boolean): Dancer {
     phone: field(d.phone),
     email: field(d.email),
   };
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
@@ -406,17 +399,8 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
     if (paymentMethod) rows.push(['Payment method', paymentMethod === 'venmo' ? 'Venmo' : 'Cash at the door']);
     if (comments) rows.push(['Notes', comments]);
 
-    const html = `
-      <h2>New Contact Request</h2>
-      <table cellpadding="6" cellspacing="0">
-        ${rows
-          .map(
-            ([label, value]) =>
-              `<tr><td style="font-weight:bold;vertical-align:top;">${escapeHtml(label)}</td><td>${escapeHtml(value).replace(/\n/g, '<br/>')}</td></tr>`
-          )
-          .join('')}
-      </table>
-    `;
+    // In the site's email look (lib/adminAlertEmail.ts).
+    const html = buildContactAlertHtml({ name: `${firstName} ${lastName}`, createdAt: new Date(), rows, replyTo: email || dancers?.find((d) => d.email)?.email || null });
 
     await sendAdminNotification(`Website Contact Request - ${firstName} ${lastName}`, html);
   } catch (err) {

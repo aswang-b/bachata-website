@@ -4,6 +4,7 @@ import { EMAIL_BATCH_SIZE, sendEmailBatch } from './email';
 import { checkAndIncrementUsage, claimUsage } from './apiUsage';
 import { env } from './env';
 import { buildFeedbackEmailHtml, feedbackEmailSubject } from './feedbackEmail';
+import { loadWhatsappUrl } from './siteConfig';
 import { MAX_NAME_LENGTH, fillIn, missingRequired, topMessage, type Answers, type FeedbackItem } from './feedbackQuestions';
 import { feedbackMessage, whatsappNumber, whatsappUrl, type FeedbackRecipient } from './feedback';
 import type { FeedbackOption } from './feedbackRecipients';
@@ -102,6 +103,8 @@ export async function emailInvites(campaignId: string, origin: string): Promise<
   const items = campaign.items as FeedbackItem[];
   const className = campaign.class_title as string;
   const subject = feedbackEmailSubject({ className, items });
+  // For the WhatsApp icon in the email's footer.
+  const whatsappUrl = await loadWhatsappUrl();
   let sent = 0;
   try {
     for (let i = 0; i < allowed; i += EMAIL_BATCH_SIZE) {
@@ -127,7 +130,7 @@ export async function emailInvites(campaignId: string, origin: string): Promise<
       }
       try {
         await sendEmailBatch(
-          claimed.map((r, n) => ({ to: r.email as string, subject, html: buildFeedbackEmailHtml({ firstName: r.first_name, className, items, link: feedbackLink(origin, tokens[n]) }) }))
+          claimed.map((r, n) => ({ to: r.email as string, subject, html: buildFeedbackEmailHtml({ firstName: r.first_name, className, items, link: feedbackLink(origin, tokens[n]), whatsappUrl }) }))
         );
       } catch (err) {
         await release();

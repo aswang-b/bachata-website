@@ -1,12 +1,14 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
-import { cleanMessage, lastSendFor, pushConfigured, PushError, recentSends, sendChunk, startSend, subscriberCounts } from '../../../lib/push';
+import { cleanMessage, deleteSend, lastSendFor, pushConfigured, PushError, recentSends, sendChunk, startSend, subscriberCounts } from '../../../lib/push';
 import { fakePush, publicVisibilities } from '../../../lib/testMode';
 
 export const prerender = false;
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+// A send or event id (a uuid); anything else is refused before it reaches the database.
+const UUID = /^[0-9a-f-]{36}$/i;
 const failed = (e: unknown) => (e instanceof PushError ? json({ error: e.message }, e.status) : json({ error: e instanceof Error ? e.message : 'Something went wrong.' }, 500));
 
 const EVENT_COLUMNS = 'id, title, event_type, start_time, end_time, location, google_recurring_event_id';
@@ -52,16 +54,24 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 // POST { title, body, url, eventId?, confirmRepeat? } records a send to every
 // device and sends its first chunk; POST { continue: <send id> } sends the next
-// (the page keeps asking until the send's finished_at is set). About an event
+// (the page keeps asking until the send's finished_at is set); POST { delete: <send id> }
+// removes one from the history. About an event
 // already sent about, it answers 409 { error: 'repeat', lastSend } unless confirmRepeat.
 export const POST: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
   if (!user) return json({ error: authError }, 403);
   const body = await request.json().catch(() => null);
   try {
+    for (const key of ['continue', 'delete'] as const) {
+      if (body?.[key] !== undefined && !(typeof body[key] === 'string' && UUID.test(body[key]))) return json({ error: 'That notification wasn’t found.' }, 400);
+    }
     if (typeof body?.continue === 'string') return json({ send: await sendChunk(body.continue) });
+    if (typeof body?.delete === 'string') {
+      await deleteSend(body.delete);
+      return json({ sends: await recentSends() });
+    }
     const message = cleanMessage(body);
-    const eventId = typeof body?.eventId === 'string' && /^[0-9a-f-]{36}$/i.test(body.eventId) ? body.eventId : null;
+    const eventId = typeof body?.eventId === 'string' && UUID.test(body.eventId) ? body.eventId : null;
     if (eventId && body?.confirmRepeat !== true) {
       const lastSend = await lastSendFor(eventId);
       if (lastSend) return json({ error: 'repeat', lastSend }, 409);

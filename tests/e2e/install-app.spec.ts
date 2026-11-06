@@ -295,6 +295,75 @@ test('an admin sends a notification about an event, is asked before sending abou
   await expect.poll(() => questions.some((q) => q.includes('already sent'))).toBe(true);
   await expect(page.locator('.push-send')).toHaveCount(sentBefore);
 
+  // The trash can removes it from the history (after asking); it was already sent.
+  const first = page.locator('.push-send').first();
+  await expect(first).toContainText(event.title);
+  const trash = first.getByRole('button', { name: /Delete .* from the history/ });
+  // Offline: it says so and can be tried again.
+  await page.route('**/api/admin/push', (route) => (route.request().method() === 'POST' ? route.abort('internetdisconnected') : route.continue()), { times: 1 });
+  await trash.click();
+  await expect(page.locator('#send-status')).toContainText("Couldn't reach the site");
+  await expect(trash).toBeEnabled();
+  await trash.click();
+  await expect.poll(() => questions.some((q) => q.includes('from the history'))).toBe(true);
+  await expect(page.locator('.push-send')).toHaveCount(sentBefore - 1);
+  await expect(page.locator('.push-send', { hasText: event.title })).toHaveCount(0);
+  // Something that isn't a send's id is refused before it reaches the database.
+  const remove = (id: unknown) => request.post('/api/admin/push', { headers: bearer(admin), data: { delete: id } });
+  expect((await remove('not-an-id')).status()).toBe(400);
+  expect((await remove(sent.id)).status()).toBe(404);
+
+  // A send that stopped partway offers Continue, and no trash can: the rest goes out from its row.
+  await page.route('**/api/admin/push', async (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const res = await route.fetch();
+    const data = await res.json();
+    const stoppedSend = { ...sent, id: '22222222-2222-2222-2222-222222222222', title: 'Stopped partway', body: 'Tue 7 PM', url: '/', event_id: null, sent_by: null, created_at: new Date().toISOString(), delivered: 3, failed: 0, removed: 0, shown: 0, opened: 0, target: 8, finished_at: null };
+    data.sends = [stoppedSend, ...(data.sends ?? [])];
+    await route.fulfill({ response: res, json: data });
+  });
+  await page.reload();
+  const stopped = page.locator('.push-send').first();
+  await expect(stopped.getByRole('button', { name: 'Continue' })).toBeVisible();
+  await expect(stopped.getByRole('button', { name: /Delete .* from the history/ })).toHaveCount(0);
+  await page.unroute('**/api/admin/push');
+
   // The phone turns them off.
   await request.post('/api/push', { data: { action: 'unsubscribe', endpoint, auth: 'a'.repeat(22) } });
+});
+
+test("on an Android phone with the app installed (Chrome), notifications leave out the logo the phone already shows; Firefox's shortcut keeps it", async ({ browser }) => {
+  const standalone = () => {
+    const real = window.matchMedia.bind(window);
+    window.matchMedia = (query: string) => (query.includes('display-mode: standalone') ? ({ ...real(query), matches: true } as MediaQueryList) : real(query));
+  };
+  const flagged = (page: Page) => page.evaluate(async () => Boolean(await caches.match('/__dwb/installed-app')));
+
+  // Opened as the installed app in Chrome: the service worker is told.
+  const chrome = await phone(browser);
+  await chrome.addInitScript(standalone);
+  const app = await chrome.newPage();
+  await app.goto('/');
+  await expect.poll(() => flagged(app)).toBe(true);
+  // It holds when it saw the app (sw.js lets it lapse after 30 days, in case the app was removed).
+  const seen = await app.evaluate(async () => Number(await (await caches.match('/__dwb/installed-app'))?.text()));
+  expect(Date.now() - seen).toBeLessThan(60_000);
+  await chrome.close();
+
+  // A plain Chrome tab with nothing installed: no flag.
+  const tab = await phone(browser);
+  const plain = await tab.newPage();
+  await plain.goto('/');
+  await plain.waitForTimeout(1000);
+  expect(await flagged(plain)).toBe(false);
+  await tab.close();
+
+  // Firefox's home-screen shortcut also opens full screen, but its notifications show Firefox's icon: no flag.
+  const firefox = await phone(browser, 'Mozilla/5.0 (Android 14; Mobile; rv:131.0) Gecko/131.0 Firefox/131.0');
+  await firefox.addInitScript(standalone);
+  const shortcut = await firefox.newPage();
+  await shortcut.goto('/');
+  await shortcut.waitForTimeout(1000);
+  expect(await flagged(shortcut)).toBe(false);
+  await firefox.close();
 });

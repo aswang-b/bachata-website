@@ -1,16 +1,20 @@
 import { escapeHtml } from './registrationEmail';
+import { EMAIL_COLORS as C, emailLayout } from './emailLayout';
 import { emailChoices, fillIn, isQuestion, topMessage, type FeedbackItem } from './feedbackQuestions';
 
 // The feedback request email: the top message (or a default greeting), then
 // the first question, as buttons when it can be answered in one tap. Each
 // button links to the dancer's own page with that answer picked; the page saves
-// it, so a mail scanner opening the links never counts as an answer.
+// it, so a mail scanner opening the links never counts as an answer. Set in
+// the shared email look (emailLayout.ts), like the registration confirmation.
 
 export interface FeedbackEmailParams {
   firstName: string;
   className: string;
   items: FeedbackItem[];
   link: string;
+  // The WhatsApp community link: its icon in the footer, beside Instagram and Spotify.
+  whatsappUrl?: string | null;
 }
 
 export function feedbackEmailSubject(params: Pick<FeedbackEmailParams, 'className' | 'items'>): string {
@@ -18,7 +22,7 @@ export function feedbackEmailSubject(params: Pick<FeedbackEmailParams, 'classNam
   return tap ? fillIn(tap.item.text, { className: params.className }) : `A quick question about ${params.className}`;
 }
 
-const buttonStyle = 'display:block;border:1px solid #e5d9da;border-radius:14px;text-decoration:none;color:#333;';
+const buttonStyle = `display:block;border:1px solid ${C.border};border-radius:14px;text-decoration:none;color:${C.ink};background:#ffffff;`;
 
 export function buildFeedbackEmailHtml(params: FeedbackEmailParams): string {
   const values = { className: params.className, name: params.firstName };
@@ -40,7 +44,7 @@ export function buildFeedbackEmailHtml(params: FeedbackEmailParams): string {
         (c) => `<td width="20%" style="padding:0 2px;text-align:center;">
         <a href="${answerLink(c.value)}" style="${buttonStyle}padding:10px 0 8px;">
           <span style="display:block;font-size:30px;line-height:36px;">${c.emoji}</span>
-          <span style="display:block;font-size:11px;color:#666;">${escapeHtml(c.label)}</span>
+          <span style="display:block;font-size:11px;color:${C.muted};">${escapeHtml(c.label)}</span>
         </a>
       </td>`
       )
@@ -49,20 +53,19 @@ export function buildFeedbackEmailHtml(params: FeedbackEmailParams): string {
   } else if (tap) {
     answers = tap.choices.map((c) => `<a href="${answerLink(c.value)}" style="${buttonStyle}margin:0 auto 8px;max-width:360px;padding:11px 12px;font-size:15px;font-weight:bold;">${escapeHtml(c.label)}</a>`).join('');
   } else {
-    answers = `<a href="${escapeHtml(params.link)}" style="display:inline-block;padding:12px 28px;border-radius:999px;background:#b81640;color:#fff;font-size:15px;font-weight:bold;text-decoration:none;">Answer</a>`;
+    answers = `<a href="${escapeHtml(params.link)}" style="display:inline-block;padding:12px 28px;border-radius:999px;background:${C.red};color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;">Answer</a>`;
   }
 
   const more = questions.length - 1;
   const after = tap && more > 0 ? ` After tapping there ${more === 1 ? 'is 1 more quick question' : `are ${more} more quick questions`}.` : '';
 
-  return `
-    <div style="max-width:560px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:#111;">
+  const body = `
       ${lead}
-      <div style="border:1px solid #e5d9da;border-radius:16px;padding:20px 12px;text-align:center;">
-        <p style="margin:0 0 16px;font-size:18px;font-weight:bold;">${escapeHtml(fillIn(first.text, values))}</p>
+      <div style="border:1px solid ${C.border};border-radius:16px;padding:20px 12px;text-align:center;background:#ffffff;">
+        <p style="margin:0 0 16px;font-size:18px;font-weight:bold;color:${C.ink};">${escapeHtml(fillIn(first.text, values))}</p>
         ${answers}
       </div>
-      <p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#666;">Your answers are anonymous.${after}</p>
-    </div>
-  `;
+      <p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:${C.muted};">Your answers are anonymous.${after}</p>`;
+
+  return emailLayout({ heading: 'We welcome your feedback!', bodyHtml: body, whatsappUrl: params.whatsappUrl });
 }

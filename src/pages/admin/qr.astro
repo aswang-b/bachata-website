@@ -1,4 +1,8 @@
 ---
+// Rendered per request, so the header and footer follow the live settings
+// (Site Visibility, the WhatsApp community link) instead of the last deploy's.
+export const prerender = false;
+
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const tab = 'qr-tab border-b-2 border-transparent px-4 py-2.5 text-sm font-bold text-ink/60 transition-colors hover:text-ink aria-selected:border-accent aria-selected:text-accent';
