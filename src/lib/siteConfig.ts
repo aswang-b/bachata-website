@@ -31,8 +31,8 @@ export async function saveSiteTimeZone(tz: string): Promise<void> {
 }
 
 // ---- The WhatsApp community link (migration 0072) ----
-// The footer's WhatsApp icon and the "Join Our WhatsApp Community" button on
-// dancer confirmations open it; with none set, both are hidden. Read on its
+// The site footer's WhatsApp icon and the confirmation email's (and
+// printout's) footer icon open it; with none set, they're hidden. Read on its
 // own query (not with the time zone, so that still loads before the
 // migration), cached a minute, keeping the last good value on a failed read.
 

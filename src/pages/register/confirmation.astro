@@ -1,7 +1,7 @@
 ---
 export const prerender = false;
 
-import WhatsAppButton from '../../components/WhatsAppButton.astro';
+import PrintBrandBand from '../../components/PrintBrandBand.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
 import { siteFormatter } from '../../lib/siteTime';
@@ -89,13 +89,15 @@ const dateFormatter = siteFormatter({ month: 'long', day: 'numeric', year: 'nume
 <BaseLayout title="Registration Confirmed">
   <div class="mx-auto flex max-w-xl flex-col items-center px-6 py-24 text-center print:py-0" style="-webkit-print-color-adjust: exact; print-color-adjust: exact;">
     <div class="flex w-full flex-col items-center print:break-inside-avoid">
-      <div class="gradient-accent mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+      {/* Printed, it carries the same dark header (and footer, below) as the confirmation email. */}
+      <PrintBrandBand kind="header" heading="Your Registration is Confirmed!" subheading={isEvent ? 'See you there!' : 'See you in class!'} />
+      <div class="gradient-accent mb-4 flex h-16 w-16 items-center justify-center rounded-full print:hidden">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
         </svg>
       </div>
-      <h1 class="font-display text-3xl font-extrabold text-ink">Your Registration is Confirmed!</h1>
-      <p class="mt-3 text-muted">{isEvent ? 'See you there!' : 'See you in class!'}</p>
+      <h1 class="font-display text-3xl font-extrabold text-ink print:hidden">Your Registration is Confirmed!</h1>
+      <p class="mt-3 text-muted print:hidden">{isEvent ? 'See you there!' : 'See you in class!'}</p>
 
       {submission && (
         <div class="mt-8 w-full rounded-2xl border border-border bg-surface p-6 text-left">
@@ -178,9 +180,6 @@ const dateFormatter = siteFormatter({ month: 'long', day: 'numeric', year: 'nume
       </p>
     )}
 
-    {/* Only with a WhatsApp community link set (Admin → Admin); otherwise nothing, and the spacing is as before. */}
-    {submission && <WhatsAppButton class="mt-6" />}
-
     {reminders.length > 0 && (
       <div class="mt-8 w-full text-left">
         <h2 class={`text-xs font-bold uppercase tracking-wider text-muted print:break-after-avoid ${printReminders.length === 0 ? 'print:hidden' : ''}`}>
@@ -218,6 +217,8 @@ const dateFormatter = siteFormatter({ month: 'long', day: 'numeric', year: 'nume
         )}
       </div>
     )}
+
+    <PrintBrandBand kind="footer" />
 
     <div class="mt-8 flex gap-3 print:hidden">
       {submission && (

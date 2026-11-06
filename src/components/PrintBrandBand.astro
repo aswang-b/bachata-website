@@ -1,0 +1,37 @@
+---
+// The printed registration confirmation's brand bands, matching the email
+// (lib/emailLayout.ts): a dark header with the wordmark and the heading over a
+// thin red line, and a dark footer with the wordmark and the social icons
+// (WhatsApp only with a community link set). Only in print; the page's own
+// container keeps print-color-adjust: exact so the backgrounds print.
+interface Props {
+  kind: 'header' | 'footer';
+  heading?: string;
+  subheading?: string;
+}
+const { kind, heading, subheading } = Astro.props;
+const whatsappUrl = Astro.locals.whatsappUrl;
+const wordmark = (size: string) => `<span class="font-display font-extrabold ${size}" style="color:#f5ece9">Dance with <span style="color:#ff5577">B</span></span>`;
+---
+
+{
+  kind === 'header' ? (
+    <div class="print-brand hidden w-full text-left print:block print:break-inside-avoid">
+      <div class="rounded-t-2xl px-7 pb-5 pt-6" style="background:#170f0d">
+        <Fragment set:html={wordmark('text-xl')} />
+        <p class="mt-4 font-display text-2xl font-extrabold" style="color:#f5ece9">{heading}</p>
+        {subheading && <p class="mt-1 text-sm" style="color:#b9a89b">{subheading}</p>}
+      </div>
+      <div class="h-1" style="background:#b81640" />
+    </div>
+  ) : (
+    <div class="print-brand mt-8 hidden w-full items-center justify-between rounded-b-2xl px-7 py-4 print:flex print:break-inside-avoid" style="background:#170f0d">
+      <Fragment set:html={wordmark('text-base')} />
+      <span class="flex items-center gap-3">
+        <img src="/email/instagram.png" width="20" height="20" alt="Instagram" />
+        <img src="/email/spotify.png" width="20" height="20" alt="Spotify" />
+        {whatsappUrl && <img src="/email/whatsapp.png" width="20" height="20" alt="WhatsApp community" />}
+      </span>
+    </div>
+  )
+}

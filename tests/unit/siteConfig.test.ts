@@ -63,15 +63,22 @@ describe('the WhatsApp community link', () => {
     }
   });
 
-  it('puts a Join button above the reminders in the confirmation email, only when a link is set', () => {
-    const base = { registrationTypeLabel: 'Group Lesson', createdAt: new Date('2026-11-06T18:00:00Z'), summaryRows: [] as [string, string][], subtotal: null, faqs: [{ question: 'What to bring?', answer: 'Water.' }] };
+  it("is set in the site's look: dark header and footer, WhatsApp in the footer only when a link is set, contacts as red links", () => {
+    const base = { registrationTypeLabel: 'Group Lesson', createdAt: new Date('2026-11-06T18:00:00Z'), summaryRows: [['Jamie Rivera', 'leader · (555) 555-0100 · jamie@example.com']] as [string, string][], subtotal: null, faqs: [{ question: 'What to bring?', answer: 'Water.' }] };
     const without = buildRegistrationConfirmationEmailHtml(base);
-    expect(without).not.toContain('WhatsApp');
+    expect(without).not.toContain('whatsapp');
+    // The header (wordmark and heading) and footer bands, with Instagram and Spotify.
+    expect(without).toContain('bgcolor="#170f0d"');
+    expect(without).toContain('Dance with <span style="color:#ff5577;">B</span>');
+    expect(without).toContain('https://dancewithb.fun/email/instagram.png');
+    expect(without).not.toContain('Join Our WhatsApp Community');
+    expect(without).toContain('<a href="mailto:jamie@example.com"');
+    expect(without).toContain('<a href="tel:5555550100"');
+
     const html = buildRegistrationConfirmationEmailHtml({ ...base, whatsappUrl: 'https://chat.whatsapp.com/AbC123' });
     expect(html).toContain('href="https://chat.whatsapp.com/AbC123"');
-    expect(html).toContain('Join Our WhatsApp Community');
-    // A hosted PNG icon (email apps drop SVG), above the reminders.
-    expect(html).toContain('https://dancewithb.fun/whatsapp-icon.png');
-    expect(html.indexOf('Join Our WhatsApp Community')).toBeLessThan(html.indexOf('What to bring?'));
+    // A hosted PNG icon (email apps drop SVG), in the footer after the reminders.
+    expect(html).toContain('https://dancewithb.fun/email/whatsapp.png');
+    expect(html.indexOf('email/whatsapp.png')).toBeGreaterThan(html.indexOf('What to bring?'));
   });
 });

@@ -1,14 +1,14 @@
 ---
 // Admin → Admin → WhatsApp Community (lib/siteConfig.ts): the link the
-// footer's WhatsApp icon and the "Join Our WhatsApp Community" button on
-// the registration confirmation (page and email) open. Empty hides them both.
+// site footer's WhatsApp icon and the one in the confirmation email's (and
+// printout's) footer open. Empty hides them.
 ---
 
 <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
   <p class="text-xs font-bold uppercase tracking-wider text-muted">WhatsApp Community</p>
   <p class="text-xs text-muted">
-    The community's invite link. With one set, the footer shows a WhatsApp icon, and registration confirmations (the page and the email) show a
-    Join Our WhatsApp Community button. Leave it empty to hide both.
+    The community's invite link. With one set, the site footer and the confirmation email's footer show a WhatsApp icon that opens it.
+    Leave it empty to hide them.
   </p>
   <input
     id="whatsapp-url"

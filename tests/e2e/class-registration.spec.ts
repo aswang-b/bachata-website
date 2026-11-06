@@ -52,13 +52,18 @@ test('a group signs up for a whole series and gets an itemized confirmation page
   await expect(body).toContainText('leader');
   // Classes list the FAQ reminders (when there are FAQs), never the event guidelines.
   await expect(body).not.toContainText('Our Community Guidelines');
-  // With a WhatsApp community link set (Admin → Admin; shared database), a Join button, in the site's colours, above the reminders.
+  // No Join button: the WhatsApp community is in the footer. Printed, the page gets the email's
+  // dark header and footer, the footer's WhatsApp icon only with a link set (Admin → Admin; shared database).
+  await expect(page.getByText('Join Our WhatsApp Community')).toHaveCount(0);
   const { data: config } = await db.from('site_config').select('whatsapp_url').eq('id', true).maybeSingle();
-  const join = page.locator('a.whatsapp-join');
-  if (config?.whatsapp_url) {
-    await expect(join).toHaveAttribute('href', config.whatsapp_url);
-    await expect(join).toHaveClass(/gradient-accent/);
-  } else await expect(join).toHaveCount(0);
+  await expect(page.locator('.print-brand')).toHaveCount(2);
+  await expect(page.locator('.print-brand').first()).toBeHidden();
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.locator('.print-brand').first()).toBeVisible();
+  await expect(page.locator('.print-brand').first()).toContainText('Your Registration is Confirmed!');
+  await expect(page.locator('h1', { hasText: 'Your Registration is Confirmed!' })).toBeHidden();
+  await expect(page.locator('.print-brand').nth(1).locator('img[alt="WhatsApp community"]')).toHaveCount(config?.whatsapp_url ? 1 : 0);
+  await page.emulateMedia({ media: 'screen' });
 
   // Saved per dancer, under the series, and counted by role.
   const id = confirmationId(page.url())!;

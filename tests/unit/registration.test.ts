@@ -275,7 +275,7 @@ describe('confirmation email', () => {
     expect(html).not.toContain('A Few Reminders');
     expect(html).toContain('See you there!');
     // The untitled block has no empty question bar above it.
-    expect(html.match(/font-weight:600;color:#111;background:#f7f1f1/g)).toHaveLength(1);
+    expect(html.match(/font-weight:600;color:#1c1114;background:#fbf3f4/g)).toHaveLength(1);
   });
 
   it('itemizes the receipt with the subtotal under it', () => {
