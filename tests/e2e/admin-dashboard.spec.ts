@@ -289,10 +289,12 @@ test.describe('with the Attendance lock taken', () => {
   });
 });
 
-test('the check-in QR tool makes a QR for a class', async ({ request, admin }) => {
-  const res = await request.post('/api/admin/generate-checkin-qr', { headers: bearer(admin), data: { eventIds: [klass.ids[0]] } });
+test('the door sign makes a plain check-in address for a class', async ({ request, admin }) => {
+  // The old generate-checkin-qr endpoint is gone; the door sign's `direct` point replaces it.
+  expect((await request.post('/api/admin/generate-checkin-qr', { headers: bearer(admin), data: { eventIds: [klass.ids[0]] } })).ok()).toBe(false);
+  const res = await request.post('/api/admin/qr-studio', { headers: bearer(admin), data: { action: 'point', direct: true, eventIds: [klass.ids[0]] } });
   expect(res.ok()).toBe(true);
   const body = await res.json();
-  expect(JSON.stringify(body)).toContain('data:image');
-  expect(JSON.stringify(body)).toContain(`/check-in/${klass.ids[0]}`);
+  expect(body.pointed).toBe(false);
+  expect(body.url).toContain(`/check-in/${klass.ids[0]}`);
 });

@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import jsQR from 'jsqr';
 import { test, expect } from './support/fixtures';
 import { seedEvent, sweepTestData } from './support/db';
-import { signInBrowser } from './support/admin';
+import { bearer, signInBrowser } from './support/admin';
 
 // The door sign (/admin/qr). The test server fakes qr.dancewithb.fun and Venmo
 // (E2E_FAKE_QR), so no real link is repointed and nobody is looked up; any
@@ -23,8 +23,9 @@ async function pickClass(page: Page, title: string) {
   await page.locator('.class-item', { hasText: title }).locator('.class-select-btn').click();
 }
 
-test('the door sign: branded check-in link set up once and repointed, simple codes and Venmo codes that scan', async ({ page, adminPage }) => {
+test('the door sign: branded check-in link set up once and repointed, simple codes and Venmo codes that scan', async ({ page, adminPage, admin, request }) => {
   void adminPage;
+  const pointedAt = async () => (await (await request.get('/api/admin/qr-studio', { headers: bearer(admin) })).json()).checkin?.pointedAt as string;
   const first = await seedEvent({ name: 'Door Sign A', priceDropIn: 15 });
   const second = await seedEvent({ name: 'Door Sign B', priceDropIn: 15 });
 
@@ -58,6 +59,12 @@ test('the door sign: branded check-in link set up once and repointed, simple cod
   expect(await decode(preview.locator('.sign-half').first().locator('canvas'))).toBe(short);
   await expect(preview).toContainText(first.title);
 
+  // Pointing at the same class again doesn't ask, and keeps the time it was first pointed.
+  const firstPointedAt = await pointedAt();
+  await page.locator('#sign-point').click();
+  await expect(page.locator('#sign-status')).toContainText(`now opens check-in for ${first.title}`);
+  expect(await pointedAt()).toBe(firstPointedAt);
+
   // Dance with B's Venmo by default, with the code Venmo's own scanner reads.
   expect(await decode(preview.locator('.sign-half').nth(1).locator('canvas'))).toBe(DANCE_WITH_B_VENMO);
   await expect(preview).toContainText('@amumira · Dance with B');
@@ -65,10 +72,16 @@ test('the door sign: branded check-in link set up once and repointed, simple cod
   // Repointing soon after, somewhere else, asks first.
   await pickClass(page, first.title);
   await pickClass(page, second.title);
+  // Until it's pointed, the sign still names the class the code opens, and says the pick differs.
+  await expect(page.locator('#opens')).toContainText('aren’t the ones it opens yet');
+  await expect(preview).toContainText(first.title);
+  await expect(preview).not.toContainText(second.title);
   await page.locator('#sign-point').click();
   await expect(page.locator('#sign-status')).toContainText(`It was pointed at ${first.title}`);
   await page.locator('#point-anyway').click();
   await expect(page.locator('#sign-status')).toContainText(`now opens check-in for ${second.title}`);
+  await expect(preview).toContainText(second.title);
+  await expect(page.locator('#opens')).not.toContainText('aren’t the ones');
 
   // An artist: found by username, shown on the sign, remembered, then removed.
   await page.getByRole('radio', { name: /Someone else/ }).check();

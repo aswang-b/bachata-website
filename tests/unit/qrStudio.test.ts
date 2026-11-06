@@ -1,7 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkinUrl, eventIdsFrom } from '../../src/lib/checkinLink';
 import { cleanVenmoUsername, lookupVenmo, parseVenmoProfile, venmoCodeUrl } from '../../src/lib/venmo';
-import { BrandedQrError, codeSvg, createLink, listLinks, pointLink } from '../../src/lib/brandedQr';
+import { BrandedQrError, codeSvg, codesFor, createLink, listLinks, pointLink } from '../../src/lib/brandedQr';
+import { DANCE_WITH_B_VENMO, loadQrStudio, normalize, updateQrStudio } from '../../src/lib/qrStudioStore';
+import { FakeSupabase } from './fakeSupabase';
+
+const db = vi.hoisted(() => ({ current: null as unknown as FakeSupabase }));
+vi.mock('../../src/lib/supabase', () => ({
+  get supabase() {
+    return db.current;
+  },
+}));
 
 // The door sign (/admin/qr): Venmo lookups, check-in addresses, and calls to qr.dancewithb.fun.
 
@@ -107,5 +116,81 @@ describe('qr.dancewithb.fun', () => {
     const err = await listLinks().catch((e) => e);
     expect(err).toBeInstanceOf(BrandedQrError);
     expect(err.message).toContain('set QR_API_TOKEN');
+  });
+});
+
+describe("the door sign's saved settings", () => {
+  const luna = { username: 'lunamoves', name: 'Luna', userId: '1', picture: null, label: 'Luna' };
+
+  it('keeps an emptied Venmo list empty, and fills in Dance with B only before anything was saved', () => {
+    expect(normalize(null)).toEqual({ checkin: null, venmo: [DANCE_WITH_B_VENMO], defaultVenmo: 'amumira' });
+    expect(normalize({ venmo: [], defaultVenmo: null })).toEqual({ checkin: null, venmo: [], defaultVenmo: null });
+    expect(normalize({ venmo: [luna], defaultVenmo: null }).defaultVenmo).toBeNull();
+  });
+
+  it("two admins saving at once don't undo each other", async () => {
+    db.current = new FakeSupabase().seed('site_config', [{ id: true, qr_studio: { checkin: null, venmo: [DANCE_WITH_B_VENMO], defaultVenmo: 'amumira', rev: 'r1' } }]);
+    // Another admin points the link between this save's read and its write.
+    db.current.beforeNext.set('site_config.update', () => {
+      db.current.rows('site_config')[0].qr_studio = {
+        checkin: { code: 'a', short: 's', designId: null, pointedUrl: 'u', pointedLabel: 'Monday', pointedAt: '2026-11-05T00:00:00Z' },
+        venmo: [DANCE_WITH_B_VENMO],
+        defaultVenmo: 'amumira',
+        rev: 'r2',
+      };
+    });
+    await updateQrStudio((s) => {
+      s.venmo = [...s.venmo, luna];
+    });
+    const { studio } = await loadQrStudio();
+    expect(studio.checkin?.pointedLabel).toBe('Monday');
+    expect(studio.venmo.map((a) => a.username)).toEqual(['amumira', 'lunamoves']);
+    expect(db.current.callsTo('site_config', 'update')).toHaveLength(2);
+  });
+
+  it('removing the last account sticks', async () => {
+    db.current = new FakeSupabase().seed('site_config', [{ id: true, qr_studio: null }]);
+    await updateQrStudio((s) => {
+      s.venmo = [];
+      s.defaultVenmo = null;
+    });
+    expect((await loadQrStudio()).studio).toEqual({ checkin: null, venmo: [], defaultVenmo: null });
+  });
+});
+
+describe('branded codes from qr.dancewithb.fun', () => {
+  beforeEach(() => {
+    process.env.QR_API_TOKEN = 'qra_test';
+  });
+  afterEach(() => {
+    delete process.env.QR_API_TOKEN;
+    vi.unstubAllGlobals();
+  });
+
+  it('refuses an SVG that could run script', async () => {
+    for (const svg of ['<svg><script>alert(1)</script></svg>', '<svg onload="alert(1)"></svg>', '<svg><a href="javascript:x"/></svg>', '<svg><foreignObject/></svg>']) {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(svg, { status: 200 })));
+      await expect(codeSvg(501)).rejects.toThrow('scripts in it');
+    }
+  });
+
+  it('keeps a code for a while, but loads it again when asked for a fresh one', async () => {
+    const fetch = vi.fn(async () => new Response('<svg>one</svg>', { status: 200 }));
+    vi.stubGlobal('fetch', fetch);
+    expect(await codeSvg(502)).toBe('<svg>one</svg>');
+    fetch.mockImplementation(async () => new Response('<svg>two</svg>', { status: 200 }));
+    expect(await codeSvg(502)).toBe('<svg>one</svg>');
+    expect(await codeSvg(502, true)).toBe('<svg>two</svg>');
+  });
+
+  it("lists the link's codes once a minute, unless asked again", async () => {
+    const designs = [{ id: 7, name: 'Pink', created_at: 1, link: { code: 'zz', short: 's', url: 'u' } }, { id: 8, name: 'Other', created_at: 1, link: null }];
+    const fetch = vi.fn(async () => Response.json({ designs }));
+    vi.stubGlobal('fetch', fetch);
+    expect((await codesFor('zz')).map((c) => c.id)).toEqual([7]);
+    await codesFor('zz');
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await codesFor('zz', true);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });

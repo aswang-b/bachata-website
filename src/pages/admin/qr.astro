@@ -181,6 +181,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
   import { codeCanvas, downloadBlob, loadImage, signPng } from '../../lib/qrSign';
   import type { ClassSeriesEntry } from '../../lib/classSeries';
   import { siteFormatter } from '../../lib/siteTime';
+  import { supabaseBrowser } from '../../lib/supabaseBrowser';
 
   const whenFormatter = siteFormatter({ month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   const dayFormatter = siteFormatter({ month: 'short', day: 'numeric', year: 'numeric' });
@@ -188,6 +189,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
   interface Account { username: string; name: string; userId: string; picture: string | null; label: string; codeUrl: string; profileUrl: string }
   interface Checkin {
     code: string; short: string; designId: number | null; pointedLabel: string | null; pointedAt: string | null; opens?: string | null;
+    pointedEventIds?: string[]; pointedTitles?: string[];
     hits?: number; missing?: boolean; error?: string; codes: { id: number; name: string; created_at: number }[]; generatorUrl: string;
   }
   interface Studio { saved: boolean; connected: boolean; venmo: Account[]; defaultVenmo: string | null; checkin: Checkin | null }
@@ -211,7 +213,6 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     return node;
   }
 
-  let token = '';
   let studio: Studio;
   let picker: ClassPicker;
   let venmoLogo: HTMLImageElement | null = null;
@@ -225,10 +226,18 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
   let fullShows: 'checkin' | 'venmo' = 'checkin';
   let simple = false;
 
+  // Asked for each call, so a sign left open for hours keeps a fresh token (getSession refreshes it).
+  async function auth(): Promise<Record<string, string>> {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    return { Authorization: `Bearer ${session?.access_token ?? ''}` };
+  }
+
   async function api(method: 'GET' | 'POST', body?: unknown, query = ''): Promise<any> {
     const res = await fetch(`/api/admin/qr-studio${query}`, {
       method,
-      headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { ...(await auth()), ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
     const data = await res.json().catch(() => ({}));
@@ -250,6 +259,27 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
   // ---- What the sign shows ----
   const linkReady = () => Boolean(studio.checkin && !studio.checkin.missing && !studio.checkin.error);
   const checkinText = () => (linkReady() ? studio.checkin!.short : directUrl);
+  const sameIds = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+  // The classes the check-in code opens: the short link's last pointing, not
+  // whatever is picked now (the plain code is remade on every pick).
+  const signNames = () => (linkReady() ? (studio.checkin!.pointedTitles ?? []) : picker.titles());
+  const pickNotPointed = () => linkReady() && picker.eventIds().length > 0 && !sameIds(picker.eventIds(), studio.checkin!.pointedEventIds ?? []);
+
+  // Drawing a code is the slow part; each one is drawn once and copied.
+  const drawn = new Map<string, HTMLCanvasElement>();
+  function code(text: string, logo: HTMLImageElement | null = null) {
+    const key = `${logo ? 'logo:' : ''}${text}`;
+    let source = drawn.get(key);
+    if (!source) {
+      if (drawn.size > 20) drawn.clear();
+      source = codeCanvas(text, 600, logo);
+      drawn.set(key, source);
+    }
+    const copy = document.createElement('canvas');
+    copy.width = copy.height = source.width;
+    copy.getContext('2d')!.drawImage(source, 0, 0);
+    return copy;
+  }
 
   function renderSign(frame: HTMLElement, full: boolean) {
     const sign = el('div', 'sign');
@@ -272,10 +302,10 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
         const img = branded!.img.cloneNode() as HTMLImageElement;
         img.alt = 'Branded check-in QR code';
         holder.append(img);
-      } else holder.append(Object.assign(codeCanvas(text, 600), { ariaLabel: 'Check-in QR code' }));
+      } else holder.append(Object.assign(code(text), { ariaLabel: 'Check-in QR code' }));
       holder.setAttribute('aria-label', useBranded ? 'Branded check-in QR code' : 'Simple check-in QR code');
       checkin.append(holder);
-      const names = ($('sign-classes') as HTMLInputElement).checked ? picker.titles().join(' · ') : '';
+      const names = ($('sign-classes') as HTMLInputElement).checked ? signNames().join(' · ') : '';
       if (names) checkin.append(el('span', 'sign-note', names));
       if (branded && linkReady()) {
         const swap = el('button', 'sign-swap', simple ? 'Back to the branded code' : 'Hard to scan? Tap for a simpler code') as HTMLButtonElement;
@@ -296,7 +326,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
       title.append(el('span', 'venmo', 'Venmo'));
       pay.append(el('span', 'sign-step', 'Step 2'), title);
       const holder = el('div', 'sign-code');
-      holder.append(codeCanvas(venmoChoice.codeUrl, 600, venmoLogo));
+      holder.append(code(venmoChoice.codeUrl, venmoLogo));
       holder.setAttribute('aria-label', `Venmo QR code for @${venmoChoice.username}`);
       pay.append(holder, el('span', 'sign-note', `@${venmoChoice.username}${venmoChoice.label ? ` · ${venmoChoice.label}` : ''}`));
       halves.append(pay);
@@ -313,7 +343,8 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     }
     const c = studio.checkin;
     $('opens').textContent = linkReady()
-      ? `The check-in code is ${c!.short}. It opens: ${c!.pointedLabel ?? 'the check-in page'}${c!.pointedAt ? ` (pointed ${whenFormatter.format(new Date(c!.pointedAt))})` : ''}.`
+      ? `The check-in code is ${c!.short}. It opens: ${c!.pointedLabel ?? 'the check-in page'}${c!.pointedAt ? ` (pointed ${whenFormatter.format(new Date(c!.pointedAt))})` : ''}.` +
+        (pickNotPointed() ? ' The classes picked aren’t the ones it opens yet: press Point check-in here.' : '')
       : directUrl
         ? `Plain check-in code for this pick. Set up the branded code on the Setup tab to keep one code for every class.`
         : '';
@@ -382,7 +413,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     save.addEventListener('click', async () => {
       save.disabled = true;
       try {
-        studio = await api('POST', { action: 'venmo-save', username: account.username, label: account.label });
+        studio = { ...studio, ...(await api('POST', { action: 'venmo-save', username: account.username, label: account.label })) };
         found = null;
         venmoChoice = studio.venmo.find((a) => a.username === account.username) ?? null;
         renderVenmoChoices();
@@ -441,7 +472,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
           b.type = 'button';
           b.addEventListener('click', async () => {
             try {
-              studio = await api('POST', { action, username: a.username });
+              studio = { ...studio, ...(await api('POST', { action, username: a.username })) };
               if (action === 'venmo-remove' && venmoChoice?.username === a.username) venmoChoice = null;
               renderVenmoList();
               renderVenmoChoices();
@@ -463,18 +494,20 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
   }
 
   // ---- Setup tab ----
-  async function loadBranded() {
+  // `fresh` loads it again even when it's the same code (it may have been re-saved).
+  async function loadBranded(fresh = false) {
     const c = studio.checkin;
     const id = c && linkReady() ? c.designId : null;
     if (!id) {
       branded = null;
       return;
     }
-    if (branded?.id === id) return;
+    if (branded?.id === id && !fresh) return;
     try {
-      const res = await fetch(`/api/admin/qr-studio?svg=${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/admin/qr-studio?svg=${id}${fresh ? '&fresh=1' : ''}`, { headers: await auth(), cache: fresh ? 'no-store' : 'default' });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Couldn't load the branded code.");
-      const url = URL.createObjectURL(new Blob([await res.text()], { type: 'image/svg+xml' }));
+      // A data: address, not a blob: one, so nothing is left to free and it never runs as this site's page.
+      const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(await res.text())}`;
       branded = { id, img: await loadImage(url) };
     } catch (err) {
       branded = null;
@@ -508,9 +541,9 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     if (c?.designId) select.value = String(c.designId);
   }
 
-  async function refreshStudio(next?: Studio) {
-    studio = next ?? (await api('GET'));
-    await loadBranded();
+  async function refreshStudio(next?: Studio, fresh = false) {
+    studio = next ?? (await api('GET', undefined, fresh ? '?fresh=1' : ''));
+    await loadBranded(fresh);
     renderSetup();
     renderVenmoList();
     redraw();
@@ -528,7 +561,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
   $('setup-refresh').addEventListener('click', async () => {
     $('setup-status').textContent = 'Checking…';
     try {
-      await refreshStudio();
+      await refreshStudio(undefined, true);
       $('setup-status').textContent = studio.checkin?.codes.length ? 'Found it. The sign uses it now.' : 'No branded code saved for this link yet.';
     } catch (err) {
       $('setup-status').textContent = (err as Error).message;
@@ -550,7 +583,8 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     button.disabled = true;
     status.textContent = linkReady() ? 'Pointing…' : 'Making…';
     try {
-      const result = await api('POST', { action: 'point', eventIds: picker.eventIds(), createRegistration: $<HTMLInputElement>('register-too').checked, confirm });
+      // Without a working short link (none yet, deleted, or the QR site down), a plain code.
+      const result = await api('POST', { action: 'point', eventIds: picker.eventIds(), createRegistration: $<HTMLInputElement>('register-too').checked, confirm, direct: !linkReady() });
       if (result.pointed) {
         await refreshStudio();
         status.textContent = `✓ ${result.short} now opens check-in for ${result.title}.`;
@@ -573,7 +607,17 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     }
   }
   $('sign-point').addEventListener('click', () => point());
-  $('sign-heading').addEventListener('input', redraw);
+  // Typing and resizing redraw at most once a frame.
+  let redrawQueued = false;
+  function redrawSoon() {
+    if (redrawQueued) return;
+    redrawQueued = true;
+    requestAnimationFrame(() => {
+      redrawQueued = false;
+      redraw();
+    });
+  }
+  $('sign-heading').addEventListener('input', redrawSoon);
   $('sign-classes').addEventListener('change', redraw);
 
   // ---- Showing and saving ----
@@ -593,7 +637,28 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
       })
     );
   }
-  let wakeLock: { release(): Promise<void> } | null = null;
+  type WakeLock = EventTarget & { release(): Promise<void> };
+  let wakeLock: WakeLock | null = null;
+  const fullOpen = () => !$('full').classList.contains('hidden');
+  // Keeps the screen on. The browser drops the lock whenever the tab is hidden,
+  // so it's asked for again when the sign comes back.
+  async function keepAwake() {
+    if (wakeLock || !fullOpen()) return;
+    try {
+      const lock = (await (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<WakeLock> } }).wakeLock?.request('screen')) ?? null;
+      if (!lock) return;
+      if (!fullOpen()) {
+        lock.release().catch(() => {});
+        return;
+      }
+      wakeLock = lock;
+      lock.addEventListener('release', () => {
+        if (wakeLock === lock) wakeLock = null;
+      });
+    } catch {
+      /* the screen may dim */
+    }
+  }
   $('show-full').addEventListener('click', async () => {
     toggleShown($('full'), true);
     fullShows = 'checkin';
@@ -603,11 +668,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     } catch {
       /* the overlay alone is fine */
     }
-    try {
-      wakeLock = await (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock?.request('screen') ?? null;
-    } catch {
-      /* the screen may dim */
-    }
+    await keepAwake();
   });
   function closeFull() {
     toggleShown($('full'), false);
@@ -617,10 +678,17 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
   }
   $('full-close').addEventListener('click', closeFull);
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !$('full').classList.contains('hidden')) closeFull();
+    if (e.key === 'Escape' && fullOpen()) closeFull();
+  });
+  // In real full screen the browser takes Escape itself; leaving full screen closes the sign too.
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && fullOpen()) closeFull();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') keepAwake();
   });
   addEventListener('resize', () => {
-    if (!$('full').classList.contains('hidden')) redraw();
+    if (fullOpen()) redrawSoon();
   });
 
   $('download-sign').addEventListener('click', async () => {
@@ -628,7 +696,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     try {
       const blob = await signPng({
         heading: $<HTMLInputElement>('sign-heading').value.trim(),
-        checkin: text ? { branded: linkReady() ? (branded?.img ?? null) : null, text, classes: $<HTMLInputElement>('sign-classes').checked ? picker.titles().join(' · ') : '' } : null,
+        checkin: text ? { branded: linkReady() ? (branded?.img ?? null) : null, text, classes: $<HTMLInputElement>('sign-classes').checked ? signNames().join(' · ') : '' } : null,
         venmo: venmoChoice ? { text: venmoChoice.codeUrl, label: venmoChoice.label, username: venmoChoice.username, logo: venmoLogo } : null,
       });
       downloadBlob(blob, 'door-sign.png');
@@ -653,10 +721,9 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
       showPanel(gate.status);
       return;
     }
-    token = gate.session.access_token;
     try {
       const [classesRes, state, logo] = await Promise.all([
-        fetch('/api/admin/checkin-classes', { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+        auth().then((headers) => fetch('/api/admin/checkin-classes', { headers })).then((r) => r.json()),
         api('GET'),
         loadImage('/venmo-logo.svg').catch(() => null),
       ]);

@@ -36,6 +36,7 @@ export class BrandedQrError extends Error {
 const base = () => (env('QR_API_BASE') || 'https://qr.dancewithb.fun').replace(/\/$/, '');
 const TIMEOUT_MS = 10_000;
 const SVG_CACHE_MS = 5 * 60 * 1000;
+const CODES_CACHE_MS = 60 * 1000;
 
 export const brandedQrConfigured = () => fakeQrServices() || Boolean(env('QR_API_TOKEN'));
 export const generatorUrl = (short: string) => `${base()}/?text=${encodeURIComponent(short)}`;
@@ -79,18 +80,30 @@ export async function readLink(code: string): Promise<ShortLink | null> {
 export const createLink = (url: string, label: string) => call<ShortLink>('link.create', { url, label });
 export const pointLink = (code: string, url: string) => call<ShortLink>('link.update', { code, url });
 
-// Saved codes that open this short link, newest first.
-export async function codesFor(linkCode: string): Promise<SavedCode[]> {
+// Saved codes that open this short link, newest first. Kept for a minute, as
+// every page load and every branded code asks; `fresh` asks the site again
+// (after a new code was saved in the generator).
+const codesCache = new Map<string, { codes: SavedCode[]; at: number }>();
+export async function codesFor(linkCode: string, fresh = false): Promise<SavedCode[]> {
+  const hit = codesCache.get(linkCode);
+  if (!fresh && hit && Date.now() - hit.at < CODES_CACHE_MS) return hit.codes;
   const { designs } = await call<{ designs: SavedCode[] }>('qr.read', { limit: 200 });
-  return designs.filter((d) => d.link?.code === linkCode);
+  const codes = designs.filter((d) => d.link?.code === linkCode);
+  codesCache.set(linkCode, { codes, at: Date.now() });
+  return codes;
 }
 
+// Anything in an SVG that could run script if it were ever opened as a page.
+const ACTIVE_SVG = /<script|<foreignObject|<iframe|<embed|<object|\son[a-z]+\s*=|javascript:/i;
+
+// A saved code's SVG; `fresh` skips the cache (the design may have been re-saved).
 const svgCache = new Map<number, { svg: string; at: number }>();
-export async function codeSvg(id: number): Promise<string> {
+export async function codeSvg(id: number, fresh = false): Promise<string> {
   const hit = svgCache.get(id);
-  if (hit && Date.now() - hit.at < SVG_CACHE_MS) return hit.svg;
+  if (!fresh && hit && Date.now() - hit.at < SVG_CACHE_MS) return hit.svg;
   const svg = await call<string>('qr.read', { id, format: 'svg' }, true);
   if (!svg.trimStart().startsWith('<svg')) throw new BrandedQrError('qr.dancewithb.fun sent something other than an SVG.', 502);
+  if (ACTIVE_SVG.test(svg)) throw new BrandedQrError('That branded code has scripts in it, so the sign won’t use it. Save it again in the generator.', 502);
   svgCache.set(id, { svg, at: Date.now() });
   return svg;
 }

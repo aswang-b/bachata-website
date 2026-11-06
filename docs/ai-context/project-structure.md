@@ -9,7 +9,7 @@
 - **Database/Auth**: Supabase (`@supabase/supabase-js`)
 - **Hosting**: Netlify (see `netlify.toml`, `netlify/functions/`). In `astro dev`, the adapter's local edge-functions server is off (`devFeatures.edgeFunctions: false` in `astro.config.mjs`): the site has no edge functions.
 - **Language**: TypeScript
-- **Other**: `qrcode` (check-in QR generation)
+- **Other**: `qrcode` (the door sign's plain and Venmo codes, drawn in the browser)
 - **Testing**: Vitest (unit), Playwright (end-to-end, using the installed Edge)
 - **Node**: >=22.12.0
 

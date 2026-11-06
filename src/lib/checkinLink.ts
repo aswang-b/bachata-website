@@ -2,8 +2,8 @@ import { supabase } from './supabase';
 import { siteFormatter } from './siteTime';
 import { createCheckinRegisterToken } from './checkinToken';
 
-// The check-in address for one or more classes, shared by the plain check-in
-// QR (generate-checkin-qr.ts) and the door sign's short link (qr-studio.ts).
+// The check-in address for one or more classes, for the door sign
+// (qr-studio.ts): its short link points here, or a plain code holds it.
 // One class keeps the original per-class link; two or more link to the general
 // check-in page limited to those events, each class's signed register token
 // carried as `<eventId>.<token>`.

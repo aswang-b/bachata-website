@@ -78,6 +78,13 @@ const cmp = (a: unknown, b: unknown) => {
   return as < bs ? -1 : as > bs ? 1 : 0;
 };
 
+// `column->>key`: one key of a JSON column as text (null when missing), as PostgREST reads it.
+const jsonText = (row: Row, path: string): string | null => {
+  const [col, key] = path.split('->>');
+  const value = (row[col] as Record<string, unknown> | null | undefined)?.[key];
+  return value == null ? null : typeof value === 'string' ? value : JSON.stringify(value);
+};
+
 class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | null }> {
   private filters: Filter[] = [];
   private op: RecordedCall['op'] = 'select';
@@ -117,6 +124,10 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
     return this;
   }
   eq(col: string, v: unknown) {
+    if (col.includes('->>')) {
+      this.filters.push((r) => jsonText(r, col) === v);
+      return this;
+    }
     // A JSON column compared with a JSON string, as PostgREST compares jsonb.
     this.filters.push((r) => (r[col] !== null && typeof r[col] === 'object' && typeof v === 'string' ? JSON.stringify(r[col]) === JSON.stringify(JSON.parse(v)) : r[col] === v));
     return this;
@@ -126,7 +137,7 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
     return this;
   }
   is(col: string, v: unknown) {
-    this.filters.push((r) => (r[col] ?? null) === v);
+    this.filters.push((r) => (col.includes('->>') ? jsonText(r, col) : (r[col] ?? null)) === v);
     return this;
   }
   not(col: string, op: string, v: unknown) {
