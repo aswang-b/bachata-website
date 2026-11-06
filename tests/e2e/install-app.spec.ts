@@ -279,7 +279,7 @@ test('an admin sends a notification about an event, is asked before sending abou
   await expect(stats).toContainText('1 shown');
   await expect(stats).toContainText('1 opened (100%)');
   // Neither count can pass how many it reached.
-  for (let i = 0; i < sent.delivered + 2; i++) await report('shown', sent.id);
+  await Promise.all(Array.from({ length: sent.delivered + 2 }, () => report('shown', sent.id)));
   await page.reload();
   await expect(page.locator('.push-send').first().locator('.push-stats')).toContainText(`${sent.delivered} shown`);
 

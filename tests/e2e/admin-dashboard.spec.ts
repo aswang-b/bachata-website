@@ -290,11 +290,10 @@ test.describe('with the Attendance lock taken', () => {
 });
 
 test('the door sign makes a plain check-in address for a class', async ({ request, admin }) => {
-  // The old generate-checkin-qr endpoint is gone; the door sign's `direct` point replaces it.
+  // The old generate-checkin-qr endpoint is gone; the door sign's `preview` (a sign not yet saved) replaces it.
   expect((await request.post('/api/admin/generate-checkin-qr', { headers: bearer(admin), data: { eventIds: [klass.ids[0]] } })).ok()).toBe(false);
-  const res = await request.post('/api/admin/qr-studio', { headers: bearer(admin), data: { action: 'point', direct: true, eventIds: [klass.ids[0]] } });
+  const res = await request.post('/api/admin/qr-studio', { headers: bearer(admin), data: { action: 'preview', eventIds: [klass.ids[0]] } });
   expect(res.ok()).toBe(true);
   const body = await res.json();
-  expect(body.pointed).toBe(false);
   expect(body.url).toContain(`/check-in/${klass.ids[0]}`);
 });

@@ -11,10 +11,11 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
 <BaseLayout title="QR Codes">
   <div class="mx-auto max-w-6xl px-6 py-16">
     <div class="flex items-center justify-between gap-4">
-      <h1 class="font-display text-3xl font-extrabold text-ink">QR Codes</h1>
+      <h1 class="font-display text-3xl font-extrabold text-ink">Door Signs</h1>
       <a href="/admin" class="text-sm font-semibold text-accent hover:underline">&larr; Admin Tools</a>
     </div>
-    <p class="mt-2 text-sm text-muted">The door sign: check in for class, then pay on Venmo. Each code has a simple version for phones that struggle with the branded one.</p>
+    <p class="mt-2 text-sm text-muted">Check in for class, and pay on Venmo for anyone who hasn't. Each saved sign has its own short link and branded code, with a simple version for phones that struggle with it.</p>
+    <p id="connection" class="mt-1 text-xs text-muted"></p>
 
     <p id="loading" class="mt-8 text-sm text-muted">Loading&hellip;</p>
     <div id="signed-out" class="mt-8 hidden flex-col items-start gap-3">
@@ -30,103 +31,101 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
 
     <div id="qr-admin" class="mt-8 hidden flex-col gap-6">
       <div class="flex gap-1 overflow-x-auto border-b border-border" role="tablist">
-        <button type="button" role="tab" id="tab-sign" aria-selected="true" class={tab}>Door sign</button>
+        <button type="button" role="tab" id="tab-sign" aria-selected="true" class={tab}>Door signs</button>
         <button type="button" role="tab" id="tab-venmo" aria-selected="false" class={tab}>Venmo accounts</button>
-        <button type="button" role="tab" id="tab-setup" aria-selected="false" class={tab}>Setup</button>
       </div>
 
-      <div id="panel-sign" class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start">
-        <div class="flex min-w-0 flex-col gap-6">
-          <section class={card}>
-            <h2 class="font-display text-lg font-bold text-ink">1. Check in to</h2>
-            <p id="selection-summary" class="min-h-4 text-xs font-semibold text-accent"></p>
-            <p id="no-classes" class="hidden rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-muted">No classes are scheduled for today or later.</p>
-            <div id="class-list" class="flex max-h-[28rem] flex-col gap-2 overflow-y-auto"></div>
-            <label class="flex items-start gap-3 rounded-xl border border-border bg-bg px-4 py-3 has-[:disabled]:opacity-50">
-              <input id="register-too" type="checkbox" disabled class="mt-0.5 h-4 w-4 shrink-0 accent-accent" />
-              <span class="flex flex-col gap-0.5">
-                <span class="text-sm font-semibold text-ink">Also register attendees as drop-ins</span>
-                <span id="register-too-hint" class="text-xs text-muted"></span>
-              </span>
-            </label>
-          </section>
+      <div id="panel-sign" class="flex flex-col gap-6">
+        {/* Signs whose short link has no branded code yet: one trip to the generator makes them all. */}
+        <div id="codes-needed" class="hidden flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
+          <p id="codes-needed-text" class="text-sm text-ink"></p>
+          <button id="make-codes" type="button" class={pill}>Make branded codes</button>
+        </div>
+        <div id="codes-standard" class="hidden flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
+          <p id="codes-standard-text" class="text-sm text-ink"></p>
+          <button id="make-vivid" type="button" class={pill}>Make them vivid</button>
+        </div>
+        <p id="page-status" class="hidden rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-ink" role="status"></p>
 
-          <section class={card}>
-            <h2 class="font-display text-lg font-bold text-ink">2. Pay on Venmo</h2>
-            <div id="venmo-choices" class="flex flex-col gap-2" role="radiogroup" aria-label="Venmo account on the sign"></div>
-            <div id="venmo-other" class="hidden flex-col gap-3">
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink/80">Their Venmo username</span>
-                <span class="flex gap-2">
-                  <input id="venmo-username" type="text" maxlength="31" placeholder="@username" autocomplete="off" class:list={[field, 'min-w-0 flex-1']} />
-                  <button id="venmo-find" type="button" class={pill}>Find</button>
+        <section class={card}>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="font-display text-lg font-bold text-ink">Saved signs</h2>
+            <button id="new-sign" type="button" class={pill}>New sign</button>
+          </div>
+          <div id="signs-list" class="grid gap-3 sm:grid-cols-2"></div>
+          <p id="signs-empty" class="hidden text-sm text-muted">No saved signs yet. Make one below, then press Save sign.</p>
+        </section>
+
+        <div id="editor" class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start">
+          <div class="flex min-w-0 flex-col gap-6">
+            <h2 id="editor-title" class="font-display text-2xl font-extrabold text-ink">New sign</h2>
+            <section class={card}>
+              <h3 class="font-display text-lg font-bold text-ink">1. Check in to</h3>
+              <p id="selection-summary" class="min-h-4 text-xs font-semibold text-accent"></p>
+              <p id="no-classes" class="hidden rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-muted">No classes are scheduled for today or later.</p>
+              <div id="class-list" class="flex max-h-[28rem] flex-col gap-2 overflow-y-auto"></div>
+              <label class="flex items-start gap-3 rounded-xl border border-border bg-bg px-4 py-3 has-[:disabled]:opacity-50">
+                <input id="register-too" type="checkbox" disabled class="mt-0.5 h-4 w-4 shrink-0 accent-accent" />
+                <span class="flex flex-col gap-0.5">
+                  <span class="text-sm font-semibold text-ink">Also register attendees as drop-ins</span>
+                  <span id="register-too-hint" class="text-xs text-muted"></span>
                 </span>
               </label>
-              <div id="venmo-found" class="hidden"></div>
-              <p id="venmo-status" class="min-h-4 text-xs text-muted" role="status"></p>
-            </div>
-          </section>
+            </section>
 
-          <section class={card}>
-            <h2 class="font-display text-lg font-bold text-ink">3. The sign</h2>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink/80">Heading</span>
-              <input id="sign-heading" type="text" maxlength="60" value="Welcome to class!" class={field} />
-            </label>
-            <label class="flex items-center gap-2 text-sm text-ink/80">
-              <input id="sign-classes" type="checkbox" checked class="accent-accent" />
-              Show the class names under the check-in code
-            </label>
-            <button id="sign-point" type="button" disabled class={cta}>Point check-in here</button>
-            <p id="sign-status" class="min-h-4 text-xs text-muted" role="status"></p>
+            <section class={card}>
+              <h3 class="font-display text-lg font-bold text-ink">2. Pay on Venmo</h3>
+              <div id="venmo-choices" class="flex flex-col gap-2" role="radiogroup" aria-label="Venmo account on the sign"></div>
+              <div id="venmo-other" class="hidden flex-col gap-3">
+                <label class="flex flex-col gap-1">
+                  <span class="text-sm font-medium text-ink/80">Their Venmo username</span>
+                  <span class="flex gap-2">
+                    <input id="venmo-username" type="text" maxlength="31" placeholder="@username" autocomplete="off" class:list={[field, 'min-w-0 flex-1']} />
+                    <button id="venmo-find" type="button" class={pill}>Find</button>
+                  </span>
+                </label>
+                <div id="venmo-found" class="hidden"></div>
+                <p id="venmo-status" class="min-h-4 text-xs text-muted" role="status"></p>
+              </div>
+            </section>
+
+            <section class={card}>
+              <h3 class="font-display text-lg font-bold text-ink">3. The sign</h3>
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-ink/80">Heading</span>
+                <input id="sign-heading" type="text" maxlength="60" value="Welcome to class!" class={field} />
+              </label>
+              <label class="flex items-center gap-2 text-sm text-ink/80">
+                <input id="sign-classes" type="checkbox" checked class="accent-accent" />
+                Show the class names under the check-in code
+              </label>
+              <div class="flex flex-wrap items-center gap-3">
+                <button id="sign-save" type="button" disabled class={cta}>Save sign</button>
+                <button id="sign-cancel" type="button" class="hidden text-sm font-semibold text-ink/70 hover:text-ink">Stop editing</button>
+              </div>
+              <p id="sign-status" class="min-h-4 text-xs text-muted" role="status"></p>
+            </section>
+          </div>
+
+          <section class:list={[card, 'min-w-0 lg:sticky lg:top-24']}>
+            <h3 class="font-display text-lg font-bold text-ink">Preview</h3>
+            <div id="sign-preview" class="sign-frame"></div>
+            <div class="flex flex-wrap gap-2">
+              <button id="show-full" type="button" class={pill}>Show full screen</button>
+              <button id="download-sign" type="button" class={pill}>Download sign (PNG)</button>
+              <button id="copy-link" type="button" class={pill}>Copy check-in link</button>
+            </div>
+            <p id="opens" class="text-xs text-muted"></p>
           </section>
         </div>
-
-        <section class:list={[card, 'min-w-0 lg:sticky lg:top-24']}>
-          <h2 class="font-display text-lg font-bold text-ink">Preview</h2>
-          <div id="sign-preview" class="sign-frame"></div>
-          <div class="flex flex-wrap gap-2">
-            <button id="show-full" type="button" class={pill}>Show full screen</button>
-            <button id="download-sign" type="button" class={pill}>Download sign (PNG)</button>
-            <button id="copy-link" type="button" class={pill}>Copy check-in link</button>
-          </div>
-          <p id="opens" class="text-xs text-muted"></p>
-        </section>
       </div>
 
       <div id="panel-venmo" class="hidden flex-col gap-6">
         <section class={card}>
           <h2 class="font-display text-lg font-bold text-ink">Venmo accounts</h2>
-          <p class="text-sm text-muted">The sign can show any of these. The default is picked when the page opens.</p>
+          <p class="text-sm text-muted">A sign can show any of these. The default is picked for a new sign.</p>
           <ul id="venmo-list" class="flex flex-col divide-y divide-border"></ul>
           <p id="venmo-list-status" class="min-h-4 text-xs text-muted" role="status"></p>
-        </section>
-      </div>
-
-      <div id="panel-setup" class="hidden flex-col gap-6">
-        <section class={card}>
-          <h2 class="font-display text-lg font-bold text-ink">Branded check-in code</h2>
-          <p id="setup-connection" class="text-sm text-muted"></p>
-          <ol class="flex flex-col gap-3">
-            <li class="flex flex-col gap-2 rounded-xl border border-border bg-bg p-4">
-              <span class="text-sm font-bold text-ink">Step 1 · Create the check-in short link</span>
-              <span id="setup-link" class="text-sm text-muted"></span>
-              <button id="setup-create" type="button" class={pill + ' self-start'}>Create the link</button>
-            </li>
-            <li class="flex flex-col gap-2 rounded-xl border border-border bg-bg p-4">
-              <span class="text-sm font-bold text-ink">Step 2 · Make its branded code</span>
-              <span class="text-sm text-muted">Opens the generator with the link filled in. Pick a design and Save it with author "Dance With B", then come back and press Check again.</span>
-              <span class="flex flex-wrap gap-2">
-                <a id="setup-generator" target="_blank" rel="noopener" class={pill}>Open the generator</a>
-                <button id="setup-refresh" type="button" class={pill}>Check again</button>
-              </span>
-            </li>
-          </ol>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink/80">Branded code on the sign</span>
-            <select id="setup-code" class={field}></select>
-          </label>
-          <p id="setup-status" class="min-h-4 text-xs text-muted" role="status"></p>
         </section>
       </div>
     </div>
@@ -139,6 +138,22 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     </div>
     <div id="full-sign" class="sign-frame full flex-1"></div>
   </div>
+
+  {/* The QR site's generator, embedded: it makes and saves the branded codes on its own, then reports back. */}
+  <dialog id="codes-dialog" aria-labelledby="codes-title" class="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-border bg-bg p-0 text-ink backdrop:bg-black/60">
+    <div class="flex flex-col gap-3 p-5">
+      <div class="flex items-center justify-between gap-3">
+        <h2 id="codes-title" class="font-display text-lg font-bold text-ink">Making branded codes</h2>
+        <button id="codes-close" type="button" class="rounded-full border border-border px-3 py-1 text-xs font-bold text-ink/70 hover:bg-surface">Close</button>
+      </div>
+      <p id="codes-status" class="text-sm text-ink/80" role="status"></p>
+      <iframe id="codes-frame" title="Making QR codes" class="h-40 w-full rounded-xl border-0 bg-white"></iframe>
+      <p id="codes-fallback" class="hidden text-xs text-muted">
+        <button id="codes-retry" type="button" class="font-semibold text-accent hover:underline">Try again</button>
+        <span id="codes-fallback-other">or <a id="codes-fallback-link" class="font-semibold text-accent hover:underline">open the generator instead</a></span>.
+      </p>
+    </div>
+  </dialog>
 </BaseLayout>
 
 <style is:global>
@@ -156,10 +171,12 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
   .sign-code img, .sign-code canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
   .sign-code img { image-rendering: auto; }
   .sign-note { font: 500 1.4cqw/1.3 Inter, system-ui, sans-serif; color: #6b5a5e; overflow-wrap: anywhere; }
+  .sign-names { display: flex; flex-direction: column; align-items: center; gap: 0.2cqw; }
   .sign-swap { font: 600 1.15cqw/1 Inter, system-ui, sans-serif; color: #6b5a5e; border: 1px solid #dccbd0; border-radius: 999px; padding: 0.5cqw 1cqw; background: none; cursor: pointer; }
   .sign-empty { font: 500 1.5cqw/1.4 Inter, system-ui, sans-serif; color: #6b5a5e; width: min(30cqw, 100%); aspect-ratio: 1; display: grid; place-items: center; border: 2px dashed #e3d3d7; border-radius: 1cqw; padding: 2cqw; }
   .sign-frame.full .sign { padding: 2vh 3vw; }
-  .sign-frame.full .sign-code, .sign-frame.full .sign-empty { width: min(36cqw, 62vh); }
+  /* As big as fits: the screen's height less the heading, titles, button and one line per class name (--note-lines, set when drawn). */
+  .sign-frame.full .sign-code, .sign-frame.full .sign-empty { width: max(26vh, min(36cqw, calc(100vh - 64px - 21cqw - var(--note-lines, 1) * 1.9cqw))); }
   /* A phone held up: one code at a time, big. */
   @container (max-width: 640px) {
     .sign-frame.full .sign h3 { font-size: 7cqw; }
@@ -169,11 +186,12 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     .sign-frame.full .sign-half + .sign-half { border-left: 0; }
     .sign-frame.full .sign-step { font-size: 3.4cqw; }
     .sign-frame.full .sign-title { font-size: 7.5cqw; }
-    .sign-frame.full .sign-code, .sign-frame.full .sign-empty { width: min(86cqw, 60vh); }
+    .sign-frame.full .sign-code, .sign-frame.full .sign-empty { width: max(26vh, min(86cqw, calc(100vh - 64px - 46cqw - var(--note-lines, 1) * 5cqw))); }
     .sign-frame.full .sign-note { font-size: 3.8cqw; }
     .sign-frame.full .sign-swap { font-size: 3.4cqw; padding: 2cqw 3cqw; }
   }
 </style>
+
 
 <script>
   import { checkAdminSession } from '../../lib/adminSession';
@@ -184,27 +202,30 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
   import { supabaseBrowser } from '../../lib/supabaseBrowser';
 
   const whenFormatter = siteFormatter({ month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const dayFormatter = siteFormatter({ month: 'short', day: 'numeric', year: 'numeric' });
 
-  interface Account { username: string; name: string; userId: string; picture: string | null; label: string; codeUrl: string; profileUrl: string }
-  interface Checkin {
-    code: string; short: string; designId: number | null; pointedLabel: string | null; pointedAt: string | null; opens?: string | null;
-    pointedEventIds?: string[]; pointedTitles?: string[];
-    hits?: number; missing?: boolean; error?: string; codes: { id: number; name: string; created_at: number }[]; generatorUrl: string;
+  interface Account { username: string; name: string; userId: string; picture?: string | null; label: string; codeUrl: string; profileUrl: string }
+  interface SavedSign {
+    id: string; heading: string; event_ids: string[]; titles: string[]; create_registration: boolean; show_classes: boolean;
+    venmo: Account | null; link_code: string; link_short: string; updated_at: string;
+    link: { code: string; short: string; url: string; hits: number; updatedAt: number; week: { date: string; hits: number }[] } | null;
+    code: { id: number; name: string; svgUrl: string; vivid: boolean } | null;
+    error?: string;
   }
-  interface Studio { saved: boolean; connected: boolean; venmo: Account[]; defaultVenmo: string | null; checkin: Checkin | null }
+  interface Studio { saved: boolean; connected: boolean; venmo: Account[]; defaultVenmo: string | null; signs: SavedSign[]; signsError: string | null; standardCodes: number }
+  // What a sign shows, saved or being made.
+  interface SignModel { signId: string | null; heading: string; titles: string[]; showClasses: boolean; venmo: Account | null; checkin: string | null; branded: HTMLImageElement | null }
 
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
   const panels = { loading: $('loading'), signedOut: $('signed-out'), notAdmin: $('not-admin'), unavailable: $('admin-unavailable'), admin: $('qr-admin') };
   function showPanel(name: keyof typeof panels) {
-    for (const [key, el] of Object.entries(panels)) {
-      el.classList.toggle('hidden', key !== name);
-      el.classList.toggle('flex', key === name);
+    for (const [key, node] of Object.entries(panels)) {
+      node.classList.toggle('hidden', key !== name);
+      node.classList.toggle('flex', key === name);
     }
   }
-  const toggleShown = (el: HTMLElement, show: boolean, display = 'flex') => {
-    el.classList.toggle('hidden', !show);
-    el.classList.toggle(display, show);
+  const toggleShown = (node: HTMLElement, show: boolean, display = 'flex') => {
+    node.classList.toggle('hidden', !show);
+    node.classList.toggle(display, show);
   };
   function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text?: string) {
     const node = document.createElement(tag);
@@ -212,19 +233,28 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     if (text !== undefined) node.textContent = text;
     return node;
   }
+  function button(label: string, className: string, onClick: () => void) {
+    const b = el('button', className, label) as HTMLButtonElement;
+    b.type = 'button';
+    b.addEventListener('click', onClick);
+    return b;
+  }
+  const pillClass = 'rounded-full border border-accent px-3 py-1 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent hover:text-white disabled:opacity-50';
 
   let studio: Studio;
   let picker: ClassPicker;
   let venmoLogo: HTMLImageElement | null = null;
-  let branded: { id: number; img: HTMLImageElement } | null = null;
-  // The Venmo account on the sign: a saved one, someone just found, or none.
+  // The Venmo account on the sign being made: a saved one, someone just found, or none.
   let venmoChoice: Account | null = null;
   let found: Account | null = null;
-  // Plain check-in address made without a short link (before setup).
-  let directUrl: string | null = null;
-  // Which code the full-screen view shows at phone width, and whether the check-in code is the simple one.
+  // The sign being edited (null: a new one), and the plain check-in address for the current pick.
+  let editing: SavedSign | null = null;
+  let pickUrl: string | null = null;
+  // What the full-screen view shows, which code at phone width, and whether the check-in code is the simple one.
+  let fullModel: SignModel | null = null;
   let fullShows: 'checkin' | 'venmo' = 'checkin';
   let simple = false;
+  const fullOpen = () => !$('full').classList.contains('hidden');
 
   // Asked for each call, so a sign left open for hours keeps a fresh token (getSession refreshes it).
   async function auth(): Promise<Record<string, string>> {
@@ -245,26 +275,41 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     return data;
   }
 
+  function say(text: string) {
+    $('page-status').textContent = text;
+    $('page-status').classList.toggle('hidden', !text);
+  }
+
   // ---- Tabs ----
-  const tabs = { sign: $('tab-sign'), venmo: $('tab-venmo'), setup: $('tab-setup') };
+  const tabs = { sign: $('tab-sign'), venmo: $('tab-venmo') };
   function showTab(name: keyof typeof tabs) {
     for (const [key, t] of Object.entries(tabs)) t.setAttribute('aria-selected', String(key === name));
-    $('panel-sign').classList.toggle('hidden', name !== 'sign');
-    $('panel-sign').classList.toggle('grid', name === 'sign');
+    toggleShown($('panel-sign'), name === 'sign');
     toggleShown($('panel-venmo'), name === 'venmo');
-    toggleShown($('panel-setup'), name === 'setup');
   }
   for (const [key, t] of Object.entries(tabs)) t.addEventListener('click', () => showTab(key as keyof typeof tabs));
 
-  // ---- What the sign shows ----
-  const linkReady = () => Boolean(studio.checkin && !studio.checkin.missing && !studio.checkin.error);
-  const checkinText = () => (linkReady() ? studio.checkin!.short : directUrl);
-  const sameIds = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
-  // The classes the check-in code opens: the short link's last pointing, not
-  // whatever is picked now (the plain code is remade on every pick).
-  const signNames = () => (linkReady() ? (studio.checkin!.pointedTitles ?? []) : picker.titles());
-  const pickNotPointed = () => linkReady() && picker.eventIds().length > 0 && !sameIds(picker.eventIds(), studio.checkin!.pointedEventIds ?? []);
+  // ---- Branded codes ----
+  // Shown straight from the QR site (its svg_url needs no token); the PNG can't draw
+  // another site's image, so it gets the same code through this site instead.
+  const brandedImages = new Map<string, Promise<HTMLImageElement | null>>();
+  function brandedFor(sign: SavedSign): Promise<HTMLImageElement | null> {
+    if (!sign.code) return Promise.resolve(null);
+    const key = sign.code.svgUrl;
+    if (!brandedImages.has(key)) brandedImages.set(key, loadImage(key).catch(() => null));
+    return brandedImages.get(key)!;
+  }
+  async function brandedForPng(signId: string): Promise<HTMLImageElement | null> {
+    const res = await fetch(`/api/admin/qr-studio?svg=${encodeURIComponent(signId)}`, { headers: await auth() });
+    if (!res.ok) return null;
+    return loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(await res.text())}`).catch(() => null);
+  }
+  const loaded = new Map<string, HTMLImageElement | null>();
+  async function loadBranded() {
+    await Promise.all(studio.signs.map(async (s) => loaded.set(s.id, await brandedFor(s))));
+  }
 
+  // ---- Drawing a sign ----
   // Drawing a code is the slow part; each one is drawn once and copied.
   const drawn = new Map<string, HTMLCanvasElement>();
   function code(text: string, logo: HTMLImageElement | null = null) {
@@ -281,78 +326,381 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     return copy;
   }
 
-  function renderSign(frame: HTMLElement, full: boolean) {
+  function renderSign(frame: HTMLElement, full: boolean, m: SignModel) {
+    // Full screen leaves a line under the codes for each class name (and the Venmo name).
+    frame.style.setProperty('--note-lines', String(Math.max(1, m.showClasses ? m.titles.length : 0)));
     const sign = el('div', 'sign');
-    const heading = ($('sign-heading') as HTMLInputElement).value.trim();
-    sign.append(el('h3', '', heading));
+    sign.append(el('h3', '', m.heading));
     const halves = el('div', 'sign-halves');
-    const two = Boolean(venmoChoice);
 
     const checkin = el('div', 'sign-half');
     checkin.dataset.hidden = String(full && fullShows !== 'checkin');
-    checkin.append(el('span', 'sign-step', two ? 'Step 1' : 'Check in'), el('span', 'sign-title', 'Check in for class'));
-    const text = checkinText();
-    if (!text) {
-      checkin.append(el('div', 'sign-empty', linkReady() ? '' : 'Pick classes, then press Make the check-in code.'));
+    checkin.append(el('span', 'sign-step', 'Check in'), el('span', 'sign-title', 'Check in for class'));
+    if (!m.checkin) {
+      checkin.append(el('div', 'sign-empty', 'Pick the classes this sign checks in to.'));
     } else {
       const holder = el('button', 'sign-code') as HTMLButtonElement;
       holder.type = 'button';
-      const useBranded = branded && linkReady() && !simple;
+      const useBranded = Boolean(m.branded) && !simple;
       if (useBranded) {
-        const img = branded!.img.cloneNode() as HTMLImageElement;
+        const img = m.branded!.cloneNode() as HTMLImageElement;
         img.alt = 'Branded check-in QR code';
         holder.append(img);
-      } else holder.append(Object.assign(code(text), { ariaLabel: 'Check-in QR code' }));
+      } else holder.append(code(m.checkin));
       holder.setAttribute('aria-label', useBranded ? 'Branded check-in QR code' : 'Simple check-in QR code');
       checkin.append(holder);
-      const names = ($('sign-classes') as HTMLInputElement).checked ? signNames().join(' · ') : '';
-      if (names) checkin.append(el('span', 'sign-note', names));
-      if (branded && linkReady()) {
-        const swap = el('button', 'sign-swap', simple ? 'Back to the branded code' : 'Hard to scan? Tap for a simpler code') as HTMLButtonElement;
-        swap.type = 'button';
-        swap.addEventListener('click', () => {
-          simple = !simple;
-          redraw();
-        });
-        checkin.append(swap);
+      // Each class on its own line.
+      if (m.showClasses && m.titles.length) {
+        const list = el('div', 'sign-names');
+        list.append(...m.titles.map((name) => el('span', 'sign-note', name)));
+        checkin.append(list);
+      }
+      if (m.branded) {
+        checkin.append(
+          button(simple ? 'Back to the branded code' : 'Hard to scan? Tap for a simpler code', 'sign-swap', () => {
+            simple = !simple;
+            redraw();
+          })
+        );
       }
     }
     halves.append(checkin);
 
-    if (venmoChoice) {
+    if (m.venmo) {
       const pay = el('div', 'sign-half');
       pay.dataset.hidden = String(full && fullShows !== 'venmo');
       const title = el('span', 'sign-title', 'Pay on ');
       title.append(el('span', 'venmo', 'Venmo'));
-      pay.append(el('span', 'sign-step', 'Step 2'), title);
+      // Most dancers pay ahead; this is for the ones who didn't.
+      pay.append(el('span', 'sign-step', 'Haven’t paid yet?'), title);
       const holder = el('div', 'sign-code');
-      holder.append(code(venmoChoice.codeUrl, venmoLogo));
-      holder.setAttribute('aria-label', `Venmo QR code for @${venmoChoice.username}`);
-      pay.append(holder, el('span', 'sign-note', `@${venmoChoice.username}${venmoChoice.label ? ` · ${venmoChoice.label}` : ''}`));
+      holder.append(code(m.venmo.codeUrl, venmoLogo));
+      holder.setAttribute('aria-label', `Venmo QR code for @${m.venmo.username}`);
+      // The name Venmo shows when paying, so dancers know they have the right account.
+      pay.append(holder, el('span', 'sign-note', `@${m.venmo.username} · ${m.venmo.name}`));
       halves.append(pay);
     }
     sign.append(halves);
     frame.replaceChildren(sign);
   }
 
+  const sameIds = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+  // The pick is still what the edited sign's link opens.
+  // The pick as loaded from the sign being edited (its classes still listed; past ones aren't).
+  let pickedOnEdit: string[] = [];
+  // The pick is still what the edited sign's link opens: unchanged since it was loaded.
+  const pickIsSaved = () => Boolean(editing) && sameIds(picker.eventIds(), pickedOnEdit) && $<HTMLInputElement>('register-too').checked === editing!.create_registration;
+  // What Save sends: an unchanged pick keeps all the sign's classes, past ones too.
+  const eventIdsToSave = () => (pickIsSaved() ? editing!.event_ids : picker.eventIds());
+
+  function savedModel(s: SavedSign): SignModel {
+    return { signId: s.id, heading: s.heading, titles: s.titles, showClasses: s.show_classes, venmo: s.venmo, checkin: s.link_short, branded: loaded.get(s.id) ?? null };
+  }
+
+  // The sign being made: once saved (and the pick unchanged), its own short link and branded code.
+  function editorModel(): SignModel {
+    const saved = pickIsSaved();
+    return {
+      signId: saved ? editing!.id : null,
+      heading: $<HTMLInputElement>('sign-heading').value.trim(),
+      titles: saved ? editing!.titles : picker.titles(),
+      showClasses: $<HTMLInputElement>('sign-classes').checked,
+      venmo: venmoChoice,
+      checkin: saved ? editing!.link_short : pickUrl,
+      branded: saved ? (loaded.get(editing!.id) ?? null) : null,
+    };
+  }
+
   function redraw() {
-    renderSign($('sign-preview'), false);
-    if (!$('full').classList.contains('hidden')) {
-      renderSign($('full-sign'), true);
+    const m = editorModel();
+    renderSign($('sign-preview'), false, m);
+    if (fullOpen() && fullModel) {
+      if (fullModel.signId === null || fullModel.signId === m.signId) fullModel = m;
+      renderSign($('full-sign'), true, fullModel);
       renderFullSwitch();
     }
-    const c = studio.checkin;
-    $('opens').textContent = linkReady()
-      ? `The check-in code is ${c!.short}. It opens: ${c!.pointedLabel ?? 'the check-in page'}${c!.pointedAt ? ` (pointed ${whenFormatter.format(new Date(c!.pointedAt))})` : ''}.` +
-        (pickNotPointed() ? ' The classes picked aren’t the ones it opens yet: press Point check-in here.' : '')
-      : directUrl
-        ? `Plain check-in code for this pick. Set up the branded code on the Setup tab to keep one code for every class.`
-        : '';
-    const point = $<HTMLButtonElement>('sign-point');
-    point.textContent = linkReady() ? 'Point check-in here' : 'Make the check-in code';
-    point.disabled = picker.eventIds().length === 0;
-    $<HTMLButtonElement>('copy-link').disabled = !checkinText();
+    $('opens').textContent = !m.checkin
+      ? ''
+      : editing && pickIsSaved()
+        ? `Its check-in code is ${editing.link_short}${m.branded ? '' : ' (a plain code until its branded code is made)'}.` +
+          (editing.event_ids.length > pickedOnEdit.length ? ' Some of its classes have passed, so they aren’t listed above; picking other classes replaces them.' : '')
+        : editing
+          ? 'These classes aren’t saved yet: Save changes points its short link at them.'
+          : 'A plain code for now. Saving gives the sign its own short link and branded code.';
+    $<HTMLButtonElement>('sign-save').disabled = eventIdsToSave().length === 0 || !studio.connected;
+    $<HTMLButtonElement>('copy-link').disabled = !m.checkin;
   }
+
+  // A new pick needs its plain check-in address (one request per change).
+  let pickRequest = 0;
+  async function pickChanged() {
+    const ids = picker.eventIds();
+    const mine = ++pickRequest;
+    pickUrl = null;
+    redraw();
+    if (ids.length === 0 || pickIsSaved()) return;
+    try {
+      const { url } = await api('POST', { action: 'preview', eventIds: ids, createRegistration: $<HTMLInputElement>('register-too').checked });
+      if (mine === pickRequest) pickUrl = url;
+    } catch (err) {
+      if (mine === pickRequest) $('sign-status').textContent = (err as Error).message;
+    }
+    if (mine === pickRequest) redraw();
+  }
+
+  // ---- Saved signs ----
+  function weekLine(sign: SavedSign) {
+    const week = sign.link?.week ?? [];
+    const total = week.reduce((n, d) => n + d.hits, 0);
+    const line = el('div', 'flex items-end gap-2 text-xs text-muted');
+    const bars = el('div', 'flex h-6 items-end gap-0.5');
+    bars.setAttribute('aria-hidden', 'true');
+    const most = Math.max(1, ...week.map((d) => d.hits));
+    for (const d of week) {
+      const bar = el('span', 'w-1.5 rounded-sm bg-accent/70');
+      bar.style.height = `${Math.max(2, (d.hits / most) * 24)}px`;
+      bar.title = `${d.date}: ${d.hits}`;
+      bars.append(bar);
+    }
+    line.append(bars, el('span', '', `${total} scan${total === 1 ? '' : 's'} this week · ${sign.link?.hits ?? 0} in all`));
+    return line;
+  }
+
+  function renderSigns() {
+    const list = $('signs-list');
+    list.replaceChildren(
+      ...studio.signs.map((s) => {
+        const item = el('article', `door-sign flex flex-col gap-3 rounded-xl border bg-bg p-4 ${editing?.id === s.id ? 'border-accent' : 'border-border'}`);
+        item.dataset.id = s.id;
+        item.append(el('p', 'font-display text-lg font-bold text-ink', s.heading || 'Untitled sign'));
+        const classes = el('div', 'flex flex-col text-sm text-ink/80');
+        classes.append(...s.titles.map((t) => el('span', '', t)));
+        item.append(classes);
+        item.append(el('p', 'text-xs text-muted', s.venmo ? `Venmo: @${s.venmo.username} · ${s.venmo.name}` : 'No Venmo code'));
+        if (s.error) item.append(el('p', 'text-xs text-red-400', s.error));
+        else if (!s.link) item.append(el('p', 'text-xs text-red-400', `${s.link_short} was deleted on the QR site.`));
+        else {
+          item.append(el('p', 'text-xs text-muted', `${s.link_short} · ${s.code ? 'branded code ready' : 'no branded code yet'}`));
+          item.append(weekLine(s));
+        }
+        const actions = el('div', 'flex flex-wrap gap-2');
+        actions.append(
+          button('Open', pillClass, () => openFull(savedModel(s))),
+          button('Download', pillClass, () => download(savedModel(s))),
+          button('Edit', pillClass, () => edit(s)),
+          button('Delete', 'rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/10', () => remove(s))
+        );
+        item.append(actions);
+        return item;
+      })
+    );
+    $('signs-empty').classList.toggle('hidden', studio.signs.length > 0);
+    if (studio.signsError) say(studio.signsError);
+    const missing = studio.signs.filter((s) => s.link && !s.code).length;
+    toggleShown($('codes-needed'), missing > 0);
+    $('codes-needed-text').textContent = `${missing} sign${missing === 1 ? '' : 's'} ${missing === 1 ? 'has' : 'have'} no branded code yet (${missing === 1 ? 'it shows' : 'they show'} a plain one). One trip to the QR generator makes them, plus a couple for your next signs.`;
+    const standard = studio.standardCodes ?? 0;
+    toggleShown($('codes-standard'), standard > 0);
+    $('codes-standard-text').textContent = `${standard} branded code${standard === 1 ? ' uses' : 's use'} standard colours. New codes are made in vivid colours; these can be remade to match (the old ones are deleted, and their short links don’t change).`;
+    $('connection').textContent = studio.connected ? 'Connected to qr.dancewithb.fun as Dance With B.' : 'Not connected to qr.dancewithb.fun: add QR_API_TOKEN (the "Dance With B" author token) in Netlify to save signs.';
+  }
+
+  function edit(s: SavedSign) {
+    editing = s;
+    $('editor-title').textContent = `Editing: ${s.heading || 'Untitled sign'}`;
+    $<HTMLInputElement>('sign-heading').value = s.heading;
+    $<HTMLInputElement>('sign-classes').checked = s.show_classes;
+    picker.select(s.event_ids, s.create_registration);
+    pickedOnEdit = picker.eventIds();
+    const known = s.venmo && studio.venmo.find((a) => a.username === s.venmo!.username);
+    found = s.venmo && !known ? s.venmo : null;
+    venmoChoice = known ?? s.venmo;
+    renderVenmoChoices();
+    $('sign-save').textContent = 'Save changes';
+    $('sign-cancel').classList.remove('hidden');
+    $('sign-status').textContent = '';
+    renderSigns();
+    void pickChanged();
+    $('editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function newSign() {
+    editing = null;
+    $('editor-title').textContent = 'New sign';
+    $<HTMLInputElement>('sign-heading').value = 'Welcome to class!';
+    $<HTMLInputElement>('sign-classes').checked = true;
+    picker.select([], false);
+    found = null;
+    venmoChoice = studio.venmo.find((a) => a.username === studio.defaultVenmo) ?? studio.venmo[0] ?? null;
+    renderVenmoChoices();
+    $('sign-save').textContent = 'Save sign';
+    $('sign-cancel').classList.add('hidden');
+    $('sign-status').textContent = '';
+    renderSigns();
+    redraw();
+  }
+  $('new-sign').addEventListener('click', () => {
+    newSign();
+    $('editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $('sign-cancel').addEventListener('click', newSign);
+
+  async function remove(s: SavedSign) {
+    if (!confirm(`Delete "${s.heading || 'Untitled sign'}"? Printed copies will open the general check-in page, and its short link goes to your next sign.`)) return;
+    try {
+      await applyState((await api('POST', { action: 'delete', id: s.id })).state);
+      if (editing?.id === s.id) newSign();
+      say('Deleted.');
+    } catch (err) {
+      say((err as Error).message);
+    }
+  }
+
+  async function applyState(next: Studio) {
+    studio = next;
+    await loadBranded();
+    if (editing) editing = studio.signs.find((s) => s.id === editing!.id) ?? null;
+    renderSigns();
+    renderVenmoList();
+    redraw();
+  }
+
+  async function saveSign(confirm = false) {
+    const status = $('sign-status');
+    const save = $<HTMLButtonElement>('sign-save');
+    save.disabled = true;
+    status.textContent = 'Saving…';
+    try {
+      const result = await api('POST', {
+        action: 'save',
+        id: editing?.id,
+        heading: $<HTMLInputElement>('sign-heading').value,
+        eventIds: eventIdsToSave(),
+        createRegistration: $<HTMLInputElement>('register-too').checked,
+        showClasses: $<HTMLInputElement>('sign-classes').checked,
+        venmo: venmoChoice ? { username: venmoChoice.username, label: venmoChoice.label } : null,
+        confirm,
+      });
+      await applyState(result.state);
+      const saved = studio.signs.find((s) => s.id === result.saved);
+      if (saved) edit(saved);
+      // A new link without a branded code: make it now, right here.
+      if (saved && saved.link && !saved.code) void makeCodes(true);
+      status.textContent = `✓ Saved. Its check-in code is ${saved?.link_short ?? 'ready'}.`;
+    } catch (err) {
+      const e = err as Error & { status?: number; data?: { error?: string; pointedAt?: string; opens?: string | null } };
+      if (e.status === 409 && e.data?.error === 'confirm') {
+        status.replaceChildren(document.createTextNode(`Its short link was pointed at other classes at ${whenFormatter.format(new Date(e.data.pointedAt!))}. Anyone scanning a printed copy will get these classes instead. `));
+        const yes = button('Save it anyway', 'font-semibold text-accent hover:underline', () => saveSign(true));
+        yes.id = 'point-anyway';
+        status.append(yes);
+      } else if (e.status === 409 && e.data?.error === 'changed') {
+        status.textContent = `Its short link was changed on the QR site meanwhile${e.data.opens ? ` (it opens ${e.data.opens} now)` : ''}. Nothing was saved: reload to see it, then save again.`;
+      } else status.textContent = e.message;
+    } finally {
+      redraw();
+    }
+  }
+  $('sign-save').addEventListener('click', () => saveSign());
+
+  // ---- Making branded codes, in the QR site's generator embedded here ----
+  // Only messages from that site's origin, and from this iframe, are read.
+  const codesDialog = $<HTMLDialogElement>('codes-dialog');
+  const codesFrame = $<HTMLIFrameElement>('codes-frame');
+  let codesFrom: string | null = null;
+  let codesCount = 0;
+  let codesDone = 0;
+  const codesSay = (text: string) => ($('codes-status').textContent = text);
+  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+
+  // `auto`: right after saving a sign without a code (says nothing when there's nothing to make).
+  // `remake`: new vivid codes for the ones in standard colours.
+  let lastRemake = false;
+  async function makeCodes(auto = false, remake = false) {
+    lastRemake = remake;
+    let result: { embed?: { url: string; origin: string; links: string[] }; url?: string | null };
+    try {
+      result = await api('POST', { action: 'codes', remake });
+    } catch (err) {
+      if (!auto) say((err as Error).message);
+      return;
+    }
+    $<HTMLAnchorElement>('codes-fallback-link').href = result.url ?? '#';
+    $('codes-fallback-other').classList.toggle('hidden', !result.url);
+    $('codes-title').textContent = remake ? 'Remaking codes in vivid colours' : 'Making branded codes';
+    if (!codesDialog.open) codesDialog.showModal();
+    if (!result.embed) {
+      codesFrom = null;
+      codesFrame.classList.add('hidden');
+      codesSay(remake ? 'The generator can’t open inside this page from here, so codes can’t be remade. Try again on dancewithb.fun.' : 'The generator can’t open inside this page from here.');
+      $('codes-fallback').classList.remove('hidden');
+      return;
+    }
+    codesFrom = result.embed.origin;
+    codesCount = result.embed.links.length;
+    codesDone = 0;
+    codesSay(`${remake ? 'Remaking' : 'Making'} ${plural(codesCount, 'branded code')} in vivid colours (a few seconds each)…`);
+    $('codes-fallback').classList.add('hidden');
+    codesFrame.classList.remove('hidden');
+    codesFrame.src = result.embed.url;
+  }
+
+  // False when the page couldn't be brought up to date (the codes are saved either way).
+  async function refreshAfterCodes(): Promise<boolean> {
+    try {
+      await applyState(await api('GET', undefined, '?fresh=1'));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  window.addEventListener('message', async (e) => {
+    if (!codesFrom || e.origin !== codesFrom || e.source !== codesFrame.contentWindow) return;
+    const m = (e.data ?? {}) as { type?: string; height?: number; status?: string; error?: string; results?: { status: string }[] };
+    if (m.type === 'qr-resize' && typeof m.height === 'number') codesFrame.style.height = `${Math.min(Math.max(m.height, 80), 600)}px`;
+    else if (m.type === 'qr-progress') codesSay(`${++codesDone} of ${codesCount} done…`);
+    else if (m.type === 'qr-error') {
+      // Any codes saved before it stopped are kept.
+      const kept = (m.results ?? []).filter((r) => r.status !== 'failed').length;
+      codesSay(`${m.error ?? 'The generator stopped.'}${kept ? ` ${plural(kept, 'code')} made before it stopped are saved.` : ''}`);
+      $('codes-fallback').classList.remove('hidden');
+      if (kept) await refreshAfterCodes();
+    } else if (m.type === 'qr-done') {
+      const results = m.results ?? [];
+      const failed = results.filter((r) => r.status === 'failed').length;
+      if (!(await refreshAfterCodes())) {
+        codesSay(`${plural(results.length - failed, 'code')} made, but the page couldn’t update. Reload it to see them.`);
+        return;
+      }
+      if (failed) {
+        codesSay(`${plural(results.length - failed, 'code')} made; ${failed} couldn’t be. Try again for those.`);
+        $('codes-fallback').classList.remove('hidden');
+      } else {
+        codesSay(`✓ ${plural(results.length, 'branded code')} ready.`);
+        setTimeout(() => codesDialog.open && codesDialog.close(), 1500);
+      }
+    }
+  });
+  $('codes-retry').addEventListener('click', () => makeCodes(false, lastRemake));
+  $('codes-close').addEventListener('click', () => codesDialog.close());
+  // Closing it doesn't stop the generator: the iframe keeps working, and when it's
+  // done the page updates (only a new run replaces it).
+  $('make-codes').addEventListener('click', () => makeCodes());
+  $('make-vivid').addEventListener('click', () => makeCodes(false, true));
+
+  // Typing and resizing redraw at most once a frame.
+  let redrawQueued = false;
+  function redrawSoon() {
+    if (redrawQueued) return;
+    redrawQueued = true;
+    requestAnimationFrame(() => {
+      redrawQueued = false;
+      redraw();
+    });
+  }
+  $('sign-heading').addEventListener('input', redrawSoon);
+  $('sign-classes').addEventListener('change', redraw);
 
   // ---- Venmo on the sign ----
   function renderVenmoChoices() {
@@ -381,7 +729,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     };
     box.replaceChildren(
       ...studio.venmo.map((a) => option(a.username, a.label || a.name, `@${a.username}`)),
-      option('other', 'Someone else', 'An artist you’re working with'),
+      option('other', 'Someone else', ''),
       option('none', 'No Venmo code on this sign', '')
     );
   }
@@ -493,138 +841,11 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     if (!studio.saved) $('venmo-list-status').textContent = 'Run migration 0068 in Supabase so the site can remember accounts.';
   }
 
-  // ---- Setup tab ----
-  // `fresh` loads it again even when it's the same code (it may have been re-saved).
-  async function loadBranded(fresh = false) {
-    const c = studio.checkin;
-    const id = c && linkReady() ? c.designId : null;
-    if (!id) {
-      branded = null;
-      return;
-    }
-    if (branded?.id === id && !fresh) return;
-    try {
-      const res = await fetch(`/api/admin/qr-studio?svg=${id}${fresh ? '&fresh=1' : ''}`, { headers: await auth(), cache: fresh ? 'no-store' : 'default' });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Couldn't load the branded code.");
-      // A data: address, not a blob: one, so nothing is left to free and it never runs as this site's page.
-      const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(await res.text())}`;
-      branded = { id, img: await loadImage(url) };
-    } catch (err) {
-      branded = null;
-      $('setup-status').textContent = (err as Error).message;
-    }
-  }
-
-  function renderSetup() {
-    const c = studio.checkin;
-    $('setup-connection').textContent = !studio.connected
-      ? 'Not connected: add QR_API_TOKEN (the "Dance With B" author token) to the site’s environment in Netlify.'
-      : !studio.saved
-        ? 'Connected. Run migration 0068 in Supabase so the site can remember its link.'
-        : 'Connected to qr.dancewithb.fun as Dance With B.';
-    const link = $('setup-link');
-    if (!c) link.textContent = 'Not created yet.';
-    else if (c.error) link.textContent = `${c.short} · ${c.error}`;
-    else if (c.missing) link.textContent = `${c.short} was deleted on the QR site. Create a new one.`;
-    else link.textContent = `${c.short} · ${c.hits ?? 0} scan${c.hits === 1 ? '' : 's'} so far`;
-    $<HTMLButtonElement>('setup-create').disabled = !studio.connected || !studio.saved || linkReady();
-    const generator = $<HTMLAnchorElement>('setup-generator');
-    generator.classList.toggle('pointer-events-none', !c);
-    generator.classList.toggle('opacity-50', !c);
-    if (c) generator.href = c.generatorUrl;
-    const select = $<HTMLSelectElement>('setup-code');
-    const codes = c?.codes ?? [];
-    select.replaceChildren(
-      ...(codes.length ? codes.map((x) => new Option(`${x.name} (saved ${dayFormatter.format(new Date(x.created_at * 1000))})`, String(x.id))) : [new Option('None saved for this link yet', '')])
-    );
-    select.disabled = codes.length === 0;
-    if (c?.designId) select.value = String(c.designId);
-  }
-
-  async function refreshStudio(next?: Studio, fresh = false) {
-    studio = next ?? (await api('GET', undefined, fresh ? '?fresh=1' : ''));
-    await loadBranded(fresh);
-    renderSetup();
-    renderVenmoList();
-    redraw();
-  }
-
-  $('setup-create').addEventListener('click', async () => {
-    $('setup-status').textContent = 'Creating…';
-    try {
-      await refreshStudio(await api('POST', { action: 'create-link' }));
-      $('setup-status').textContent = 'Created. Now make its branded code.';
-    } catch (err) {
-      $('setup-status').textContent = (err as Error).message;
-    }
-  });
-  $('setup-refresh').addEventListener('click', async () => {
-    $('setup-status').textContent = 'Checking…';
-    try {
-      await refreshStudio(undefined, true);
-      $('setup-status').textContent = studio.checkin?.codes.length ? 'Found it. The sign uses it now.' : 'No branded code saved for this link yet.';
-    } catch (err) {
-      $('setup-status').textContent = (err as Error).message;
-    }
-  });
-  $('setup-code').addEventListener('change', async (e) => {
-    try {
-      await refreshStudio(await api('POST', { action: 'choose-code', id: Number((e.target as HTMLSelectElement).value) }));
-      $('setup-status').textContent = 'The sign uses this code now.';
-    } catch (err) {
-      $('setup-status').textContent = (err as Error).message;
-    }
-  });
-
-  // ---- Pointing ----
-  async function point(confirm = false) {
-    const status = $('sign-status');
-    const button = $<HTMLButtonElement>('sign-point');
-    button.disabled = true;
-    status.textContent = linkReady() ? 'Pointing…' : 'Making…';
-    try {
-      // Without a working short link (none yet, deleted, or the QR site down), a plain code.
-      const result = await api('POST', { action: 'point', eventIds: picker.eventIds(), createRegistration: $<HTMLInputElement>('register-too').checked, confirm, direct: !linkReady() });
-      if (result.pointed) {
-        await refreshStudio();
-        status.textContent = `✓ ${result.short} now opens check-in for ${result.title}.`;
-      } else {
-        directUrl = result.url;
-        status.textContent = `✓ Check-in code for ${result.title}.`;
-      }
-    } catch (err) {
-      const e = err as Error & { status?: number; data?: { pointedLabel?: string; pointedAt?: string } };
-      if (e.status === 409 && e.data?.pointedLabel !== undefined) {
-        status.replaceChildren(document.createTextNode(`It was pointed at ${e.data.pointedLabel} at ${whenFormatter.format(new Date(e.data.pointedAt!))}. Anyone scanning a printed copy will get the new classes. `));
-        const yes = el('button', 'font-semibold text-accent hover:underline', 'Point it here anyway') as HTMLButtonElement;
-        yes.type = 'button';
-        yes.id = 'point-anyway';
-        yes.addEventListener('click', () => point(true));
-        status.append(yes);
-      } else status.textContent = e.message;
-    } finally {
-      redraw();
-    }
-  }
-  $('sign-point').addEventListener('click', () => point());
-  // Typing and resizing redraw at most once a frame.
-  let redrawQueued = false;
-  function redrawSoon() {
-    if (redrawQueued) return;
-    redrawQueued = true;
-    requestAnimationFrame(() => {
-      redrawQueued = false;
-      redraw();
-    });
-  }
-  $('sign-heading').addEventListener('input', redrawSoon);
-  $('sign-classes').addEventListener('change', redraw);
-
   // ---- Showing and saving ----
   function renderFullSwitch() {
     const box = $('full-switch');
     const narrow = $('full-sign').clientWidth <= 640;
-    box.classList.toggle('invisible', !narrow || !venmoChoice);
+    box.classList.toggle('invisible', !narrow || !fullModel?.venmo);
     box.replaceChildren(
       ...(['checkin', 'venmo'] as const).map((which) => {
         const b = el('button', `rounded-full px-4 py-1.5 ${fullShows === which ? 'bg-[#1c1114] text-white' : ''}`, which === 'checkin' ? 'Check in' : 'Pay') as HTMLButtonElement;
@@ -639,8 +860,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
   }
   type WakeLock = EventTarget & { release(): Promise<void> };
   let wakeLock: WakeLock | null = null;
-  const fullOpen = () => !$('full').classList.contains('hidden');
-  // Keeps the screen on. The browser drops the lock whenever the tab is hidden,
+    // Keeps the screen on. The browser drops the lock whenever the tab is hidden,
   // so it's asked for again when the sign comes back.
   async function keepAwake() {
     if (wakeLock || !fullOpen()) return;
@@ -659,9 +879,12 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
       /* the screen may dim */
     }
   }
-  $('show-full').addEventListener('click', async () => {
+  // Full screen: the sign being made, or a saved one (its Open button).
+  async function openFull(model: SignModel) {
+    fullModel = model;
     toggleShown($('full'), true);
     fullShows = 'checkin';
+    simple = false;
     redraw();
     try {
       await document.documentElement.requestFullscreen?.();
@@ -669,7 +892,8 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
       /* the overlay alone is fine */
     }
     await keepAwake();
-  });
+  }
+  $('show-full').addEventListener('click', () => openFull(editorModel()));
   function closeFull() {
     toggleShown($('full'), false);
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -691,21 +915,24 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     if (fullOpen()) redrawSoon();
   });
 
-  $('download-sign').addEventListener('click', async () => {
-    const text = checkinText();
+  // ---- Saving the picture, copying the link ----
+  async function download(m: SignModel) {
     try {
+      // A saved sign's branded code comes through this site, as a canvas can't draw the QR site's image.
+      const branded = m.branded && m.signId ? await brandedForPng(m.signId) : null;
       const blob = await signPng({
-        heading: $<HTMLInputElement>('sign-heading').value.trim(),
-        checkin: text ? { branded: linkReady() ? (branded?.img ?? null) : null, text, classes: $<HTMLInputElement>('sign-classes').checked ? signNames().join(' · ') : '' } : null,
-        venmo: venmoChoice ? { text: venmoChoice.codeUrl, label: venmoChoice.label, username: venmoChoice.username, logo: venmoLogo } : null,
+        heading: m.heading,
+        checkin: m.checkin ? { branded, text: m.checkin, classes: m.showClasses ? m.titles : [] } : null,
+        venmo: m.venmo ? { text: m.venmo.codeUrl, name: m.venmo.name, username: m.venmo.username, logo: venmoLogo } : null,
       });
-      downloadBlob(blob, 'door-sign.png');
+      downloadBlob(blob, `${(m.heading || 'door-sign').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'door-sign'}.png`);
     } catch (err) {
-      $('sign-status').textContent = (err as Error).message;
+      say((err as Error).message);
     }
-  });
+  }
+  $('download-sign').addEventListener('click', () => download(editorModel()));
   $('copy-link').addEventListener('click', async () => {
-    const text = checkinText();
+    const text = editorModel().checkin;
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
@@ -721,24 +948,29 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
       showPanel(gate.status);
       return;
     }
+    // Back from the QR generator with the codes it made: ?qr_ids=<link>:<id>,…
+    const params = new URL(location.href).searchParams;
+    const madeCodes = params.get('qr_ids');
+    if (madeCodes !== null) history.replaceState(null, '', location.pathname);
     try {
       const [classesRes, state, logo] = await Promise.all([
         auth().then((headers) => fetch('/api/admin/checkin-classes', { headers })).then((r) => r.json()),
-        api('GET'),
+        api('GET', undefined, madeCodes !== null ? '?fresh=1' : ''),
         loadImage('/venmo-logo.svg').catch(() => null),
       ]);
-      studio = state;
       venmoLogo = logo;
       const classes = (classesRes.classSeries ?? []) as ClassSeriesEntry[];
       $('no-classes').classList.toggle('hidden', classes.length > 0);
-      picker = createClassPicker($('class-list'), $('selection-summary'), $('register-too'), $('register-too-hint'), classes, () => {
-        directUrl = null;
-        redraw();
-      });
-      venmoChoice = studio.venmo.find((a) => a.username === studio.defaultVenmo) ?? studio.venmo[0] ?? null;
-      renderVenmoChoices();
-      await refreshStudio(studio);
+      picker = createClassPicker($('class-list'), $('selection-summary'), $('register-too'), $('register-too-hint'), classes, () => void pickChanged());
+      studio = state;
+      await loadBranded();
+      newSign();
+      renderVenmoList();
       showPanel('admin');
+      if (madeCodes !== null) {
+        const made = madeCodes.split(',').filter(Boolean).length;
+        say(made ? `Made branded codes for ${made} short link${made === 1 ? '' : 's'}. Saved signs use them now.` : 'No branded codes were made. Try Make branded codes again.');
+      }
     } catch (err) {
       showPanel('unavailable');
       console.error(err);

@@ -5,8 +5,10 @@ import QRCode from 'qrcode';
 
 export interface SignContent {
   heading: string;
-  checkin: { branded: HTMLImageElement | null; text: string; classes: string } | null;
-  venmo: { text: string; label: string; username: string; logo: HTMLImageElement | null } | null;
+  // The classes the check-in code opens, one per line.
+  checkin: { branded: HTMLImageElement | null; text: string; classes: string[] } | null;
+  // `name` is the account's name on Venmo, what dancers see when paying.
+  venmo: { text: string; name: string; username: string; logo: HTMLImageElement | null } | null;
 }
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
@@ -76,6 +78,18 @@ function centered(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+// Lines of text centered under a code, between `top` and `bottom`: smaller type
+// when there are many, and the ones that still don't fit joined on the last line.
+function lines(ctx: CanvasRenderingContext2D, items: string[], cx: number, top: number, bottom: number, maxWidth: number) {
+  if (items.length === 0) return;
+  let size = 28;
+  const fits = (n: number) => Math.floor((bottom - top) / (size * 1.3)) >= n;
+  while (size > 18 && !fits(items.length)) size -= 2;
+  const room = Math.max(1, Math.floor((bottom - top) / (size * 1.3)));
+  const shown = items.length <= room ? items : [...items.slice(0, room - 1), items.slice(room - 1).join(' · ')];
+  shown.forEach((text, i) => centered(ctx, text, cx, top + size + i * size * 1.3, `500 ${size}px Inter, system-ui, sans-serif`, MUTED, maxWidth));
+}
+
 // The sign at 1920×1080 (16:9, a TV or a landscape print), as a PNG. With a
 // branded check-in code, its simple version sits small beside it for older phones.
 export async function signPng(content: SignContent): Promise<Blob> {
@@ -96,7 +110,7 @@ export async function signPng(content: SignContent): Promise<Blob> {
   let x = 0;
   if (content.checkin) {
     const cx = x + half / 2;
-    centered(ctx, halves > 1 ? 'STEP 1' : 'CHECK IN', cx, top - 70, '700 26px Inter, system-ui, sans-serif', ACCENT, half - 80);
+    centered(ctx, 'CHECK IN', cx, top - 70, '700 26px Inter, system-ui, sans-serif', ACCENT, half - 80);
     centered(ctx, 'Check in for class', cx, top - 20, '800 48px Poppins, system-ui, sans-serif', INK, half - 80);
     if (content.checkin.branded) {
       ctx.fillStyle = '#ffffff';
@@ -115,7 +129,8 @@ export async function signPng(content: SignContent): Promise<Blob> {
     } else {
       drawCode(ctx, content.checkin.text, cx - code / 2, top + 10, code);
     }
-    if (content.checkin.classes) centered(ctx, content.checkin.classes, cx, top + code + 60, '500 28px Inter, system-ui, sans-serif', MUTED, half - 120);
+    // Above the simple code's row when there is one.
+    lines(ctx, content.checkin.classes, cx, top + code + 28, content.checkin.branded ? H - 150 - 30 - 16 : H - 30, half - 120);
     x += half;
   }
   if (content.venmo) {
@@ -130,7 +145,8 @@ export async function signPng(content: SignContent): Promise<Blob> {
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    centered(ctx, halves > 1 ? 'STEP 2' : 'PAY', cx, top - 70, '700 26px Inter, system-ui, sans-serif', ACCENT, half - 80);
+    // Most dancers pay ahead; this is for the ones who didn't.
+    centered(ctx, "HAVEN'T PAID YET?", cx, top - 70, '700 26px Inter, system-ui, sans-serif', ACCENT, half - 80);
     ctx.font = '800 48px Poppins, system-ui, sans-serif';
     const lead = 'Pay on ';
     const full = ctx.measureText(lead + 'Venmo').width;
@@ -140,7 +156,7 @@ export async function signPng(content: SignContent): Promise<Blob> {
     ctx.fillStyle = VENMO_BLUE;
     ctx.fillText('Venmo', cx - full / 2 + ctx.measureText(lead).width, top - 20);
     drawCode(ctx, content.venmo.text, cx - code / 2, top + 10, code, content.venmo.logo);
-    centered(ctx, `@${content.venmo.username}${content.venmo.label ? ` · ${content.venmo.label}` : ''}`, cx, top + code + 60, '500 28px Inter, system-ui, sans-serif', MUTED, half - 120);
+    centered(ctx, `@${content.venmo.username} · ${content.venmo.name}`, cx, top + code + 60, '500 28px Inter, system-ui, sans-serif', MUTED, half - 120);
   }
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't make the image."))), 'image/png'));
 }

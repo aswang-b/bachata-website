@@ -1,36 +1,46 @@
 import type { APIRoute } from 'astro';
 import { requireAdmin } from '../../../lib/admin';
 import { CheckinLinkError, buildCheckinLink, eventIdsFrom } from '../../../lib/checkinLink';
-import { BrandedQrError, brandedQrConfigured, codeSvg, codesFor, createLink, generatorUrl, pointLink, readLink } from '../../../lib/brandedQr';
+import { BrandedQrError, MAX_BATCH, batchUrl, brandedQrConfigured, codeSvg, codesFor, createTicket, embedOrigin, isVivid, pointLink, readLink } from '../../../lib/brandedQr';
+import { DoorSignError, MAX_SIGNS, SPARE_LINKS, addPoolLink, deleteSign, getSign, insertSign, listSigns, poolLinks, updateSign, type DoorSign, type SignVenmo } from '../../../lib/doorSigns';
 import { QrStudioStoreError, loadQrStudio, updateQrStudio, type QrStudio } from '../../../lib/qrStudioStore';
+import { siteTimeZone } from '../../../lib/siteTime';
 import { VenmoLookupError, cleanVenmoUsername, lookupVenmo, venmoCodeUrl, venmoProfileUrl } from '../../../lib/venmo';
 import { fakeQrServices } from '../../../lib/testMode';
 
 export const prerender = false;
 
-// The door sign on /admin/qr: a branded check-in code (a short link on
-// qr.dancewithb.fun, repointed to the classes picked) and a Venmo code.
+// Door signs on /admin/qr. Each saved sign (lib/doorSigns.ts) has its own
+// short link on qr.dancewithb.fun, pointed at its classes, and a branded code
+// made for that link in the QR site's generator.
 //
-// GET → the sign's state (?fresh=1 asks the QR site again instead of using
-// the minute-long cache); GET ?svg=<id> → a saved branded code's SVG.
-// POST { action: 'create-link' } makes the check-in short link (once);
-// 'choose-code' { id }; 'point' { eventIds, createRegistration, confirm?, direct? }
-// repoints it (409 { pointedLabel } when it was pointed elsewhere in the last
-// few hours, unless confirm), or with `direct` (no working short link) only
-// returns the plain check-in address; 'venmo-find' { username } looks someone
-// up; 'venmo-save' { username, label }, 'venmo-remove' { username },
-// 'venmo-default' { username } (these three answer with only the Venmo part).
+// GET → saved signs (each with its link: where it opens, scans per day this
+// week, and its branded code), the Venmo accounts, and how many signs still
+// need a branded code; ?fresh=1 skips the minute-long cache of codes;
+// ?svg=<sign id> → that sign's branded code as an SVG, for the PNG download.
+// POST 'preview' { eventIds, createRegistration } → the plain check-in address
+// for an unsaved pick; 'save' { id?, heading, eventIds, createRegistration,
+// showClasses, venmo: { username, label } | null, confirm? } saves a sign
+// (409 { error: 'confirm', pointedAt } when it moves a link pointed elsewhere
+// in the last 6 hours, unless confirm; 409 { error: 'changed', opens } when the
+// link was repointed on the QR site meanwhile); 'delete' { id } frees its link;
+// 'codes' { remake? } → a ticket for the embedded generator (`embed: { url, origin, links }`)
+// that makes branded codes for every sign (and spare link) without one, and
+// the full-page generator's address (`url`) as the fallback; with remake, for
+// codes not yet in Vivid colours instead (no fallback); 'venmo-find' { username }; 'venmo-save'
+// { username, label }, 'venmo-remove' { username }, 'venmo-default' { username }.
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-const CHECKIN_LABEL = 'Class check-in (dancewithb.fun door sign)';
-// Repointing within this long of the last time, to somewhere else, asks first.
+// Repointing a sign's link within this long of the last time, to somewhere else, asks first.
 const RECENT_MS = 6 * 60 * 60 * 1000;
+const JUST_MADE_MS = 30 * 60 * 1000;
 const MAX_VENMO = 30;
 const MAX_LABEL = 60;
+const MAX_HEADING = 60;
 // It comes from another site: never run anything in it, even if opened directly.
 const SVG_HEADERS = {
   'Content-Type': 'image/svg+xml',
-  'Cache-Control': 'private, no-cache',
+  'Cache-Control': 'private, max-age=300',
   'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox",
   'X-Content-Type-Options': 'nosniff',
 };
@@ -38,54 +48,166 @@ const SVG_HEADERS = {
 // Check-in links go to the live site (phones can't open a dev server), except in the test suite.
 const siteOrigin = (request: Request) => (fakeQrServices() ? new URL(request.url).origin : (import.meta.env.SITE ?? 'https://dancewithb.fun').replace(/\/$/, ''));
 
-const withLinks = (a: QrStudio['venmo'][number]) => ({ ...a, codeUrl: venmoCodeUrl(a.userId), profileUrl: venmoProfileUrl(a.username) });
-
+const withLinks = <T extends { username: string; userId: string }>(a: T) => ({ ...a, codeUrl: venmoCodeUrl(a.userId), profileUrl: venmoProfileUrl(a.username) });
 const venmoState = (studio: QrStudio) => ({ venmo: studio.venmo.map(withLinks), defaultVenmo: studio.defaultVenmo });
 
-async function state(fresh = false): Promise<Record<string, unknown>> {
-  const { studio, saved } = await loadQrStudio();
-  const base = { saved, connected: brandedQrConfigured(), ...venmoState(studio), checkin: null as unknown };
-  if (!studio.checkin || !base.connected) return base;
+// A saved sign as the page shows it: where its link opens now, its scans this week, its branded code.
+async function signView(sign: DoorSign, fresh: boolean) {
+  const view = { ...sign, venmo: sign.venmo ? withLinks(sign.venmo) : null };
   try {
-    const [link, codes] = await Promise.all([readLink(studio.checkin.code), codesFor(studio.checkin.code, fresh)]);
-    const chosen = codes.find((c) => c.id === studio.checkin!.designId) ?? codes[0] ?? null;
-    base.checkin = {
-      ...studio.checkin,
-      missing: !link,
-      hits: link?.hits ?? 0,
-      opens: link?.url ?? null,
-      codes: codes.map((c) => ({ id: c.id, name: c.name, created_at: c.created_at })),
-      designId: chosen?.id ?? null,
-      generatorUrl: generatorUrl(studio.checkin.short),
+    const [link, codes] = await Promise.all([readLink(sign.link_code, { tz: siteTimeZone(), days: 7 }), codesFor(sign.link_code, fresh)]);
+    const code = codes[0] ?? null;
+    return {
+      ...view,
+      link: link ? { code: link.code, short: link.short, url: link.url, hits: link.hits, updatedAt: link.updated_at, week: link.stats?.days ?? [] } : null,
+      code: code ? { id: code.id, name: code.name, svgUrl: code.svg_url, vivid: isVivid(code) } : null,
     };
   } catch (err) {
-    base.checkin = { ...studio.checkin, error: (err as Error).message, codes: [], generatorUrl: generatorUrl(studio.checkin.short) };
+    return { ...view, link: null, code: null, error: (err as Error).message };
+  }
+}
+
+// `fresh`: true asks the QR site again about every sign's codes; a sign id, only about that one (just saved).
+async function state(fresh: boolean | string = false): Promise<Record<string, unknown>> {
+  const { studio, saved } = await loadQrStudio();
+  const connected = brandedQrConfigured();
+  const base = { saved, connected, ...venmoState(studio), signs: [] as unknown[], signsError: null as string | null, standardCodes: 0 };
+  if (!connected) return base;
+  let signs: DoorSign[];
+  try {
+    signs = await listSigns();
+  } catch (err) {
+    base.signsError = (err as Error).message;
+    return base;
+  }
+  // Each sign stays on the page (with its plain code) even when the QR site can't be reached.
+  base.signs = await Promise.all(signs.map((s) => signView(s, fresh === true || fresh === s.id)));
+  try {
+    // Codes made before they were all vivid (signs' and spares'), which can be remade. Mostly cached by now.
+    const pool = await poolLinks(signs);
+    const codes = await Promise.all(pool.links.map((l) => codesFor(l.code)));
+    base.standardCodes = codes.filter((c) => c[0] && !isVivid(c[0])).length;
+  } catch {
+    // Only the "make them vivid" count is missing.
   }
   return base;
 }
 
 function failure(err: unknown): Response {
-  if (err instanceof CheckinLinkError || err instanceof BrandedQrError) return json({ error: err.message }, err.status);
+  if (err instanceof CheckinLinkError || err instanceof BrandedQrError || err instanceof DoorSignError) return json({ error: err.message }, err.status);
   if (err instanceof VenmoLookupError) return json({ error: err.message }, 400);
   if (err instanceof QrStudioStoreError) return json({ error: err.message }, 500);
-  console.error('QR studio failed:', err);
+  console.error('Door signs failed:', err);
   return json({ error: 'Something went wrong.' }, 500);
+}
+
+// The Venmo account a sign shows: a remembered one, or anyone else looked up on Venmo.
+async function signVenmo(raw: unknown): Promise<SignVenmo | null> {
+  const r = raw as { username?: unknown; label?: unknown } | null;
+  if (!r) return null;
+  const username = cleanVenmoUsername(r.username);
+  if (!username) throw new VenmoLookupError('That Venmo username has letters, numbers, - and _ only.');
+  const label = typeof r.label === 'string' ? r.label.trim().slice(0, MAX_LABEL) : '';
+  const { studio } = await loadQrStudio();
+  const known = studio.venmo.find((a) => a.username.toLowerCase() === username.toLowerCase());
+  const account = known ?? (await lookupVenmo(username));
+  return { username: account.username, name: account.name, userId: account.userId, label: label || (known?.label ?? '') };
+}
+
+async function save(request: Request, body: Record<string, unknown>): Promise<Response> {
+  const link = await buildCheckinLink(siteOrigin(request), eventIdsFrom(body), body.createRegistration === true);
+  const fields = {
+    heading: typeof body.heading === 'string' ? body.heading.trim().slice(0, MAX_HEADING) : '',
+    event_ids: link.events.map((e) => e.id),
+    titles: link.events.map((e) => e.title),
+    create_registration: link.createRegistration,
+    show_classes: body.showClasses !== false,
+    venmo: await signVenmo(body.venmo),
+  };
+  if (!brandedQrConfigured()) throw new DoorSignError('Saving signs needs the QR site: set QR_API_TOKEN in Netlify.', 503);
+
+  // A new sign takes a free link from the pool, or a new one.
+  if (typeof body.id !== 'string') {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { links, free } = await poolLinks();
+      if (links.length - free.length >= MAX_SIGNS) throw new DoorSignError(`Delete a sign first: up to ${MAX_SIGNS} can be saved.`);
+      let target;
+      try {
+        target = free[0] ? await pointLink(free[0].code, link.url, free[0].url) : await addPoolLink(link.url, links);
+      } catch (err) {
+        // Another save took that link first: try again with the next one.
+        if (err instanceof BrandedQrError && err.status === 409) continue;
+        throw err;
+      }
+      const sign = await insertSign({ ...fields, link_code: target.code, link_short: target.short, pointed_url: link.url });
+      if (sign) return json({ saved: sign.id, state: await state(sign.id) });
+    }
+    throw new DoorSignError('Another sign was saved at the same moment. Try again.', 409);
+  }
+
+  const sign = await getSign(body.id);
+  if (!sign) throw new DoorSignError('That sign was deleted.', 404);
+  const current = await readLink(sign.link_code);
+  if (!current) throw new DoorSignError(`Its short link ${sign.link_short} was deleted on the QR site. Delete this sign and save it again.`, 409);
+  if (current.url !== link.url) {
+    const pointedAt = current.updated_at * 1000;
+    // A sign made in the last half hour is still being set up, not printed: no need to ask.
+    const justMade = Date.now() - Date.parse(sign.created_at) < JUST_MADE_MS;
+    if (!justMade && Date.now() - pointedAt < RECENT_MS && body.confirm !== true) return json({ error: 'confirm', pointedAt: new Date(pointedAt).toISOString() }, 409);
+    try {
+      await pointLink(sign.link_code, link.url, current.url);
+    } catch (err) {
+      if (err instanceof BrandedQrError && err.status === 409) return json({ error: 'changed', opens: err.link?.url ?? null }, 409);
+      throw err;
+    }
+  }
+  await updateSign(sign.id, { ...fields, pointed_url: link.url });
+  return json({ saved: sign.id, state: await state(sign.id) });
+}
+
+// The generator address that makes branded codes for every pool link without
+// one, keeping a couple of spare links ready so the next new signs have codes too.
+// With `remake`: instead, every pool link whose code isn't in Vivid colours gets a new one (the old is deleted).
+async function codesUrl(request: Request, remake = false): Promise<Response> {
+  const origin = siteOrigin(request);
+  let { links, free } = await poolLinks();
+  // Spare links only when making codes; a remake only redoes existing ones.
+  for (let i = free.length; !remake && i < SPARE_LINKS; i++) {
+    const spare = await addPoolLink(`${origin}/check-in`, links);
+    links = [...links, spare];
+    free = [...free, spare];
+  }
+  const codes = await Promise.all(links.map(async (l) => ({ link: l, codes: await codesFor(l.code, true) })));
+  const missing = codes.filter((c) => (remake ? c.codes[0] && !isVivid(c.codes[0]) : c.codes.length === 0)).map((c) => c.link.code);
+  if (missing.length === 0) return json({ error: remake ? 'Every branded code is already in vivid colours.' : 'Every sign already has its branded code.' }, 409);
+  // The newest code in the pool sets the look of the new ones.
+  const from = codes.flatMap((c) => c.codes).sort((a, b) => b.created_at - a.created_at)[0]?.id ?? null;
+  const here = new URL(request.url).origin;
+  // The full page can't remake codes, so a remake has no fallback.
+  const fallback = remake ? null : batchUrl(missing, from, `${here}/admin/qr`);
+  // The generator embedded in this page; if the QR site won't make a ticket
+  // for this address (only dancewithb.fun and the dev server are allowed), the full page instead.
+  try {
+    const ticket = await createTicket(missing, from, here, remake);
+    return json({ embed: { url: ticket.url, origin: embedOrigin(here), links: missing.slice(0, MAX_BATCH) }, url: fallback });
+  } catch (err) {
+    console.error('QR ticket failed:', (err as Error).message);
+    return json({ url: fallback });
+  }
 }
 
 export const GET: APIRoute = async ({ request, url }) => {
   const { user, error: authError } = await requireAdmin(request);
   if (!user) return json({ error: authError }, 403);
   try {
-    const fresh = url.searchParams.get('fresh') === '1';
-    const svgId = Number(url.searchParams.get('svg'));
-    if (svgId) {
-      // Only a code saved for this sign's own link (the list is cached for a minute).
-      const { studio } = await loadQrStudio();
-      const codes = studio.checkin ? await codesFor(studio.checkin.code, fresh) : [];
-      if (!codes.some((c) => c.id === svgId)) return json({ error: "That code isn't one of the door sign's." }, 404);
-      return new Response(await codeSvg(svgId, fresh), { headers: SVG_HEADERS });
+    const svgFor = url.searchParams.get('svg');
+    if (svgFor) {
+      const sign = await getSign(svgFor);
+      const code = sign ? (await codesFor(sign.link_code))[0] : null;
+      if (!code) return json({ error: 'That sign has no branded code yet.' }, 404);
+      return new Response(await codeSvg(code.svg_url), { headers: SVG_HEADERS });
     }
-    return json(await state(fresh));
+    return json(await state(url.searchParams.get('fresh') === '1'));
   } catch (err) {
     return failure(err);
   }
@@ -94,53 +216,29 @@ export const GET: APIRoute = async ({ request, url }) => {
 export const POST: APIRoute = async ({ request }) => {
   const { user, error: authError } = await requireAdmin(request);
   if (!user) return json({ error: authError }, 403);
-  const body = await request.json().catch(() => ({}));
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const action = body?.action;
 
   try {
-    if (action === 'create-link') {
-      const { studio, saved } = await loadQrStudio();
-      if (!saved) return json({ error: 'Run migration 0068 in Supabase first, so the site can remember its link.' }, 409);
-      if (studio.checkin && (await readLink(studio.checkin.code))) return json({ error: 'The check-in link already exists.' }, 409);
-      const link = await createLink(`${siteOrigin(request)}/check-in`, CHECKIN_LABEL);
-      await updateQrStudio((s) => {
-        s.checkin = { code: link.code, short: link.short, designId: null, pointedUrl: link.url, pointedLabel: 'The check-in page', pointedAt: null, pointedEventIds: [], pointedTitles: [] };
-      });
-      return json(await state(true));
+    if (action === 'preview') {
+      const link = await buildCheckinLink(siteOrigin(request), eventIdsFrom(body), body.createRegistration === true);
+      return json({ url: link.url, titles: link.events.map((e) => e.title) });
     }
 
-    if (action === 'choose-code') {
-      await updateQrStudio((s) => {
-        if (s.checkin) s.checkin.designId = Number(body.id) || null;
-      });
-      return json(await state());
+    if (action === 'save') return await save(request, body);
+
+    if (action === 'delete') {
+      const sign = typeof body.id === 'string' ? await getSign(body.id) : null;
+      if (!sign) return json({ state: await state() });
+      // Printed copies of it now land on the general check-in page. Pointed while the sign
+      // still holds the link (so no new sign can have taken it yet), and only if it still
+      // opens this sign's classes; then the link is free for the next sign.
+      if (sign.pointed_url) await pointLink(sign.link_code, `${siteOrigin(request)}/check-in`, sign.pointed_url).catch(() => {});
+      await deleteSign(sign.id);
+      return json({ state: await state() });
     }
 
-    if (action === 'point') {
-      const link = await buildCheckinLink(siteOrigin(request), eventIdsFrom(body), body?.createRegistration === true);
-      const label = `${link.title} · ${link.scheduleLabel}`;
-      const { studio } = await loadQrStudio();
-      const current = studio.checkin;
-      // No short link, or the page found it deleted or the QR site down: a plain code still works.
-      if (body?.direct === true || !current || !brandedQrConfigured()) return json({ pointed: false, url: link.url, title: link.title, scheduleLabel: link.scheduleLabel });
-
-      const same = current.pointedUrl === link.url;
-      const recent = current.pointedAt && Date.now() - Date.parse(current.pointedAt) < RECENT_MS;
-      if (recent && !same && body?.confirm !== true) {
-        return json({ error: 'confirm', pointedLabel: current.pointedLabel, pointedAt: current.pointedAt }, 409);
-      }
-      // Sent even when unchanged, in case it was repointed on the QR site itself.
-      await pointLink(current.code, link.url);
-      const pointedEventIds = link.events.map((e) => e.id);
-      const pointedTitles = link.events.map((e) => e.title);
-      await updateQrStudio((s) => {
-        if (!s.checkin) return;
-        // The same classes again don't restart the "pointed recently" window.
-        const pointedAt = same && s.checkin.pointedAt ? s.checkin.pointedAt : new Date().toISOString();
-        Object.assign(s.checkin, { pointedUrl: link.url, pointedLabel: label, pointedAt, pointedEventIds, pointedTitles });
-      });
-      return json({ pointed: true, url: link.url, short: current.short, title: link.title, scheduleLabel: link.scheduleLabel });
-    }
+    if (action === 'codes') return await codesUrl(request, body.remake === true);
 
     if (action === 'venmo-find') return json({ account: withLinks({ ...(await lookupVenmo(body.username)), label: '' }) });
 
@@ -149,7 +247,7 @@ export const POST: APIRoute = async ({ request }) => {
       const label = typeof body.label === 'string' ? body.label.trim().slice(0, MAX_LABEL) : '';
       const saved = await updateQrStudio((s) => {
         const others = s.venmo.filter((a) => a.username.toLowerCase() !== account.username.toLowerCase());
-        if (others.length >= MAX_VENMO) throw new VenmoLookupError(`Remove someone first: the sign remembers up to ${MAX_VENMO} accounts.`);
+        if (others.length >= MAX_VENMO) throw new VenmoLookupError(`Remove someone first: up to ${MAX_VENMO} accounts can be remembered.`);
         s.venmo = [...others, { ...account, label }];
       });
       return json(venmoState(saved));

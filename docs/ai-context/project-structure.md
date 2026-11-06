@@ -47,7 +47,7 @@
 │   │   ├── calendarSync.ts              # Google Calendar sync logic
 │   │   ├── capacity.ts                  # Per-series capacity: spots remaining per occurrence (a general cap, or separate Leader/Follower caps for classes), from the trigger-maintained event_spot_counts cache; server-side full check
 │   │   ├── attendanceMatching.ts        # Matches sign-ups to check-ins per dancer, expanding series sign-ups into per-occurrence entries
-│   │   ├── checkinLink.ts, brandedQr.ts, venmo.ts, qrStudioStore.ts, qrSign.ts, classPicker.ts  # The door sign: check-in addresses, qr.dancewithb.fun, Venmo codes, the sign
+│   │   ├── checkinLink.ts, brandedQr.ts, doorSigns.ts, venmo.ts, qrStudioStore.ts, qrSign.ts, classPicker.ts  # Door signs: check-in addresses, qr.dancewithb.fun, saved signs and their link pool, Venmo codes, drawing
 │   │   ├── push.ts, pushClient.ts       # Push notifications: subscriptions, sending (server); turning them on/off (browser)
 │   │   ├── checkinToken.ts              # Signed per-event token authorizing check-in auto-registration (QR link)
 │   │   ├── classRegistrations.ts        # One-row-per-(dancer,class) registration records with snapshotted prices
@@ -96,7 +96,7 @@
 │       ├── check-in.astro, check-in/[eventId].astro, check-in/confirmation.astro, feedback/[token].astro (a feedback link: a dancer's own or the shared one)
 │       ├── admin.astro, admin/analytics.astro, admin/qr.astro (door sign; admin/checkin-qr.astro forwards to it), admin/inbox.astro, admin/feedback.astro, admin/notifications.astro
 │       └── api/
-│           ├── banner.ts, faqs.ts, homepage-content.ts, settings.ts, submit-checkin.ts, submit-intake.ts, push.ts (notifications on/off), test-mode.ts (dev-only)
+│           ├── banner.ts, faqs.ts, homepage-content.ts, settings.ts, submit-checkin.ts, submit-intake.ts, push.ts (notifications on/off), test-mode.ts and fake-qr-embed.ts (dev/test only)
 │           └── admin/                    # Admin-only API routes (events, signups, sync, lock, uploads, FAQs, homepage content, inbox)
 ├── tests/                               # Vitest unit tests (tests/unit) + Playwright e2e tests (tests/e2e); see tests/CONTEXT.md
 └── docs/ai-context/                     # This Tier 1 documentation set
@@ -108,6 +108,6 @@ The site is a bachata dance-class business site: public pages for class info, re
 
 - **Event editor**: classes and events are edited in a sectioned editor on `/calendar`. Its section menu is a list on desktop and a sideways-scrolling chip row on phones. It offers any color (a picker plus the five most recently used colors), a single capacity cap or separate Leader/Follower caps for classes, and tiered pricing. Calendar banner text shrinks to fit, and all banners share one size.
 - **Registration**: shows an itemized subtotal (also on the confirmation page and email, with an admin copy that notes any dancer email that bounced) and enforces capacity, per role where capped. Event registrants agree to the community guidelines, which event confirmations list FAQ-style. Double-submitted sign-ups and check-ins are moved to the Recycling Bin automatically.
-- **Check-in**: a public picker, plus the admin door sign (`/admin/qr`) for one or several classes, which can optionally register drop-in attendees. Its branded code is a short link on qr.dancewithb.fun (author "Dance With B", `QR_API_TOKEN`) repointed to the classes picked; next to it, a Venmo code for Dance with B or a guest artist, and simple versions of each for older phones.
+- **Check-in**: a public picker, plus saved door signs (`/admin/qr`) for one or several classes, which can optionally register drop-in attendees. Each sign has its own short link on qr.dancewithb.fun (author "Dance With B", `QR_API_TOKEN`) from a reusable pool, with a branded code made in the QR generator (several at once); next to it, a Venmo code for Dance with B or a guest artist, and simple versions of each for older phones.
 - **App and notifications**: the site installs to a phone's home screen; the header bell (phones) turns push notifications on, and admins send them from `/admin/notifications` (or the calendar editor's Notify link).
 - **Data**: stored in Supabase (see `supabase/migrations/`; each table is granted to `service_role` explicitly). The admin area uses edit-locks to avoid concurrent-edit conflicts.

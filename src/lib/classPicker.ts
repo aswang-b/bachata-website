@@ -8,6 +8,9 @@ export interface ClassPicker {
   eventIds(): string[];
   // "Bachata Foundations · Sensual Styling", for the sign.
   titles(): string[];
+  // Loads a saved sign's classes (ones no longer listed, e.g. past, are left out),
+  // and its "also register" choice when it's still allowed.
+  select(eventIds: string[], registerToo: boolean): void;
 }
 
 const REGISTER_HINT = "For drop-in-only events: checking in also creates an unpaid drop-in registration, so attendees don't show up as orphaned check-ins.";
@@ -114,5 +117,23 @@ export function createClassPicker(
   return {
     eventIds: () => [...picked.values()],
     titles: () => [...picked.keys()].map((k) => byKey.get(k)!.title),
+    select(eventIds, register) {
+      picked.clear();
+      for (const id of eventIds) {
+        const c = classes.find((x) => x.singleEventId === id || x.occurrences.some((o) => o.id === id));
+        if (c && !picked.has(c.key)) picked.set(c.key, id);
+      }
+      for (const item of list.querySelectorAll<HTMLElement>('.class-item')) {
+        const dates = item.querySelector<HTMLElement>('.occurrence-picker');
+        const open = picked.has(item.dataset.key!) && Boolean(dates);
+        dates?.classList.toggle('hidden', !open);
+        dates?.classList.toggle('flex', open);
+      }
+      changed();
+      if (register && !registerToo.disabled) {
+        registerToo.checked = true;
+        onChange();
+      }
+    },
   };
 }
