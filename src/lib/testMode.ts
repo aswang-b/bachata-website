@@ -35,6 +35,12 @@ export function fakeQrServices(): boolean {
   return flag('E2E_FAKE_QR') === '1';
 }
 
+// Push notifications (lib/push.ts) are kept in memory and never sent, so a run
+// never reaches a real phone or adds to the real subscriber list.
+export function fakePush(): boolean {
+  return flag('E2E_FAKE_PUSH') === '1';
+}
+
 // The suite's own classes and events are saved with visibility 'test'
 // (migration 0060). Only the test server shows them, as if public; the live
 // site, and any other dev server, never does, so a run never shows on it.

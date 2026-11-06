@@ -1,0 +1,288 @@
+---
+// The bell in the header (Header.astro). Its pop-up turns push
+// notifications on and off (lib/pushClient.ts) wherever the phone can get them
+// (Android in any browser; an iPhone only in the installed app), and shows how
+// to put the site on the home screen (public/site.webmanifest, public/sw.js):
+// the visitor's phone first, Android's own Install button when Chrome offers
+// it, and a warning inside Instagram/Facebook, which can't install anything.
+// On a computer, and inside the installed app, it shows just the switch. The bell is hidden for
+// signed-in admins (their inbox sits there) unless they preview as the public,
+// and on a computer whose browser can't get push notifications.
+
+const shareIcon = `<svg viewBox="0 0 24 24" class="inline h-5 w-5 align-[-4px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l4-4 4 4M12 3v12"/><path d="M7 10H5v11h14V10h-2"/></svg>`;
+const dotsIcon = `<svg viewBox="0 0 24 24" class="inline h-5 w-5 align-[-4px]" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>`;
+const moreIcon = `<svg viewBox="0 0 24 24" class="inline h-5 w-5 align-[-4px]" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>`;
+const guide = 'group rounded-xl border border-border bg-surface';
+const summary = 'flex cursor-pointer list-none items-center justify-between gap-3 p-4 font-display text-base font-bold text-ink [&::-webkit-details-marker]:hidden';
+const steps = 'list-decimal space-y-2 px-4 pb-4 pl-9 text-sm leading-relaxed text-ink/80';
+const chevron = `<svg viewBox="0 0 24 24" class="h-5 w-5 shrink-0 text-ink/60 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
+const badge = 'your-phone ml-2 hidden rounded-full bg-accent/15 px-2 py-0.5 align-middle text-xs font-semibold text-accent';
+---
+
+<button
+  id="app-bell"
+  type="button"
+  aria-label="Notifications from B"
+  aria-haspopup="dialog"
+  class="relative flex items-center justify-center text-ink transition-colors hover:text-accent"
+>
+  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M12 2a1.5 1.5 0 0 0-1.5 1.5v.7A6.5 6.5 0 0 0 5.5 10.5v3.6l-1.7 2.5A1 1 0 0 0 4.6 18h14.8a1 1 0 0 0 .8-1.4l-1.7-2.5v-3.6a6.5 6.5 0 0 0-5-6.3v-.7A1.5 1.5 0 0 0 12 2Z" />
+    <path d="M9.5 19.5h5a2.5 2.5 0 0 1-5 0Z" />
+  </svg>
+  {/* Until notifications are turned on and the pop-up was opened once. */}
+  <span id="app-bell-dot" class="absolute -right-0.5 -top-0.5 hidden h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-bg"></span>
+</button>
+
+<dialog
+  id="app-dialog"
+  aria-labelledby="app-dialog-title"
+  class="m-auto max-h-[85vh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl border border-border bg-bg p-0 text-ink backdrop:bg-black/60"
+>
+  <div class="p-6">
+    <div class="flex items-start justify-between gap-4">
+      <h2 id="app-dialog-title" class="font-display text-xl font-extrabold text-ink">
+        Notifications from <span class="text-gradient-accent inline-block align-baseline">B</span>
+      </h2>
+      <button id="app-dialog-close" type="button" aria-label="Close" class="-mr-2 -mt-1 rounded-full p-2 text-ink/70 hover:bg-surface hover:text-ink">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    </div>
+    {/* Push notifications: shown wherever this phone can get them (Android in any browser, an iPhone in the installed app). */}
+    <div id="app-push" class="mt-4 hidden rounded-xl border border-border bg-surface p-4">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <p class="font-display text-base font-bold text-ink">Notifications</p>
+          <p id="push-what" class="text-sm text-ink/70">New events, workshops and classes.</p>
+        </div>
+        <button
+          id="push-switch"
+          type="button"
+          role="switch"
+          aria-checked="false"
+          aria-label="Notifications"
+          class="relative h-7 w-12 shrink-0 rounded-full bg-border transition-colors disabled:opacity-60 aria-checked:bg-accent"
+        >
+          <span class="push-knob absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"></span>
+        </button>
+      </div>
+      <p id="push-status" class="mt-2 hidden text-sm text-ink/80" role="status"></p>
+    </div>
+
+    {/* How to install; hidden inside the installed app. */}
+    <div id="app-install">
+      <p class="mt-4 text-sm text-ink/80">Did you know you can add this site to your home screen to open it or get push notifications just like an app?</p>
+      <p class="mt-2 text-sm text-ink/80">
+        Installing it only takes a few clicks and several KB of storage. Notifications are opt-in so we don't clutter your
+        phone, and you'll be one of the first to get the latest news on what we're doing. <strong class="font-semibold text-ink">None of your personal or device data is ever harvested.</strong>
+      </p>
+      <p id="ios-then-bell" class="mt-2 hidden text-sm text-ink/80">
+        Once it's on your home screen, open it from there and tap the bell again to turn on notifications.
+      </p>
+
+      <p id="app-status" class="mt-4 hidden rounded-lg border border-accent/40 bg-accent/10 p-3 text-sm text-ink" role="status"></p>
+
+      <button
+        id="install-app"
+        type="button"
+        class="gradient-accent mt-4 hidden w-full rounded-full px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+      >
+        Install the app
+      </button>
+
+      {/* Both closed; the script moves the visitor's phone to the top and opens it. */}
+      <div id="app-guides" class="mt-5 flex flex-col gap-3">
+        <details data-platform="ios" class={guide}>
+          <summary class={summary}>
+            <span>iPhone or iPad <span class={badge}>Your phone</span></span>
+            <Fragment set:html={chevron} />
+          </summary>
+          <ol class={steps}>
+            <li>Open <strong class="text-ink">dancewithb.fun</strong> in your browser (such as Safari).</li>
+            <li>
+              Tap <strong class="text-ink">Share</strong> <Fragment set:html={shareIcon} />. In Safari it's at the bottom of the screen (on iOS 26, tap <Fragment set:html={moreIcon} /> first); in other browsers it's by the address bar or in the menu.
+            </li>
+            <li>Scroll down and tap <strong class="text-ink">Add to Home Screen</strong>. (Don't see it? Tap <strong class="text-ink">View More</strong> or <strong class="text-ink">Edit Actions</strong> at the end of the list.)</li>
+            <li>Leave <strong class="text-ink">Open as Web App</strong> on if you see it, then tap <strong class="text-ink">Add</strong>.</li>
+          </ol>
+        </details>
+
+        <details data-platform="android" class={guide}>
+          <summary class={summary}>
+            <span>Android <span class={badge}>Your phone</span></span>
+            <Fragment set:html={chevron} />
+          </summary>
+          <ol class={steps}>
+            <li>Open <strong class="text-ink">dancewithb.fun</strong> in your browser (such as Chrome).</li>
+            <li>Open the browser's menu: <Fragment set:html={dotsIcon} /> in the top right corner in Chrome, or at the bottom of the screen in some other browsers.</li>
+            <li>Tap <strong class="text-ink">Add to home screen</strong> or <strong class="text-ink">Install app</strong>.</li>
+            <li>Confirm with <strong class="text-ink">Install</strong> or <strong class="text-ink">Add</strong>.</li>
+          </ol>
+        </details>
+      </div>
+
+      <p class="mt-5 text-xs text-ink/70">
+        Opened this from Instagram, Facebook or WhatsApp? Open it in your usual browser first: those apps can't add it to your home screen.
+      </p>
+    </div>
+  </div>
+</dialog>
+
+<style>
+  #push-switch[aria-checked='true'] .push-knob {
+    transform: translateX(1.25rem);
+  }
+</style>
+
+<script>
+  import { checkAdminSession } from '../lib/adminSession';
+  import { isPreviewingAsPublic } from '../lib/previewMode';
+  import { phonePlatform, pushState, pushSupported, turnOff, turnOn, type PushState } from '../lib/pushClient';
+
+  // Android's own Install prompt, offered when Chrome is ready to install.
+  interface InstallPrompt extends Event {
+    prompt(): Promise<void>;
+  }
+
+  const bell = document.getElementById('app-bell') as HTMLButtonElement;
+  const bellDot = document.getElementById('app-bell-dot')!;
+  const dialog = document.getElementById('app-dialog') as HTMLDialogElement;
+  const status = document.getElementById('app-status')!;
+  const installButton = document.getElementById('install-app') as HTMLButtonElement;
+  const guides = document.getElementById('app-guides')!;
+  const pushBox = document.getElementById('app-push')!;
+  const pushSwitch = document.getElementById('push-switch') as HTMLButtonElement;
+  const pushStatus = document.getElementById('push-status')!;
+
+  const say = (text: string) => {
+    status.textContent = text;
+    status.classList.remove('hidden');
+  };
+  const sayPush = (text: string) => {
+    pushStatus.textContent = text;
+    pushStatus.classList.toggle('hidden', !text);
+  };
+
+  const ua = navigator.userAgent;
+  const platform = phonePlatform();
+  const inAppBrowser = /Instagram|FBAN|FBAV|FB_IAB|Messenger|Snapchat|TikTok|musical_ly|Line\//.test(ua);
+  const installed = window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
+
+  // Admins have their inbox there instead, unless previewing as the public.
+  if (!isPreviewingAsPublic()) {
+    checkAdminSession()
+      .then((gate) => {
+        if (gate.status === 'admin') bell.remove();
+      })
+      .catch(() => {});
+  }
+
+  // On a computer, or inside the installed app, there's nothing to install: just the switch.
+  const computer = platform === 'other';
+  if (installed || computer) document.getElementById('app-install')!.classList.add('hidden');
+  if (computer) {
+    document.getElementById('push-what')!.textContent = 'Get a notice on this computer about new events, workshops and classes.';
+    // A browser without push has nothing to offer here.
+    if (!pushSupported()) bell.remove();
+  }
+  // An iPhone only offers notifications inside the installed app.
+  else if (platform === 'ios' && !pushSupported()) document.getElementById('ios-then-bell')!.classList.remove('hidden');
+
+  // The visitor's phone goes first, marked.
+  const section = platform === 'other' ? null : guides.querySelector<HTMLDetailsElement>(`[data-platform="${platform}"]`);
+  if (section) {
+    guides.prepend(section);
+    section.querySelector('.your-phone')?.classList.remove('hidden');
+    section.open = true;
+  }
+  if (inAppBrowser) {
+    say(`You're in another app's browser, which can't add this to your home screen. Tap ${platform === 'ios' ? '•••' : '⋮'} and choose Open in browser (or Open in ${platform === 'ios' ? 'Safari' : 'Chrome'}), then follow the steps below.`);
+  }
+
+  // ---- Notifications ----
+  const OPENED_KEY = 'bwb-bell-opened';
+  const opened = () => {
+    try {
+      return localStorage.getItem(OPENED_KEY) === '1';
+    } catch {
+      return true;
+    }
+  };
+  const BLOCKED =
+    platform === 'ios'
+      ? 'Notifications are blocked. To allow them, open Settings → Notifications → Dance with B.'
+      : computer
+        ? 'Notifications are blocked. To allow them, click the icon to the left of the address bar and allow notifications for this site.'
+        : "Notifications are blocked. To allow them, open this site's settings in your browser (or the app's info) and allow notifications.";
+
+  function showPush(state: PushState) {
+    pushSwitch.setAttribute('aria-checked', String(state === 'on'));
+    pushSwitch.disabled = state === 'blocked';
+    sayPush(state === 'blocked' ? BLOCKED : '');
+    // The dot invites a tap until they're on, or the pop-up was seen.
+    bellDot.classList.toggle('hidden', state !== 'off' || opened());
+  }
+
+  if (pushSupported()) {
+    pushBox.classList.remove('hidden');
+    pushState().then(showPush, () => pushBox.classList.add('hidden'));
+  } else if (installed) {
+    // Installed, but too old for notifications (before iOS 16.4).
+    pushBox.classList.remove('hidden');
+    pushSwitch.classList.add('hidden');
+    sayPush(platform === 'ios' ? 'This phone can’t get notifications from the app yet. Updating to the latest iOS turns them on.' : 'This browser can’t get notifications.');
+  }
+
+  pushSwitch.addEventListener('click', async () => {
+    const on = pushSwitch.getAttribute('aria-checked') === 'true';
+    pushSwitch.disabled = true;
+    sayPush(on ? 'Turning off…' : 'Turning on…');
+    try {
+      const state = on ? await turnOff() : await turnOn();
+      showPush(state);
+      if (state === 'on') sayPush("You're all set. We'll let you know about new events, workshops and classes.");
+      else if (state === 'off' && !on) sayPush('Notifications are still off. Tap the switch to try again.');
+    } catch (e) {
+      showPush(await pushState().catch((): PushState => 'off'));
+      sayPush(e instanceof Error ? e.message : "Couldn't change notifications. Try again.");
+    }
+  });
+
+  bell.addEventListener('click', () => {
+    dialog.showModal();
+    try {
+      localStorage.setItem(OPENED_KEY, '1');
+    } catch {
+      // Without storage the dot just stays until notifications are on.
+    }
+    bellDot.classList.add('hidden');
+  });
+  document.getElementById('app-dialog-close')?.addEventListener('click', () => dialog.close());
+  // A tap on the dimmed backdrop closes it too.
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+
+  let deferred: InstallPrompt | null = null;
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferred = event as InstallPrompt;
+    installButton.classList.remove('hidden');
+  });
+
+  installButton.addEventListener('click', async () => {
+    if (!deferred) return;
+    const prompt = deferred;
+    deferred = null;
+    installButton.classList.add('hidden');
+    // A prompt works once; Chrome sends a fresh one later if it was dismissed.
+    await prompt.prompt();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    installButton.classList.add('hidden');
+    say('Installed! Find Dance with B on your home screen.');
+  });
+</script>

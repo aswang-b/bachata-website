@@ -45,6 +45,9 @@ const siteStructuredData = siteSchema(['https://www.instagram.com/ohmytofuu/', '
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
+    {/* Installed on a phone (see /app), it opens full screen under this name and color. */}
+    <meta name="theme-color" content="#170f0d" />
+    <meta name="apple-mobile-web-app-title" content="Dance with B" />
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex" />}
     <title>{title} | Dance with B</title>
@@ -74,6 +77,8 @@ const siteStructuredData = siteSchema(['https://www.instagram.com/ohmytofuu/', '
     <script>
       const siteTop = document.getElementById('site-top');
       if (siteTop) new ResizeObserver(() => document.documentElement.style.setProperty('--site-top-h', `${siteTop.offsetHeight}px`)).observe(siteTop);
+      // Makes the site installable (public/sw.js caches nothing).
+      if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
     </script>
     <PreviewBanner />
     {/* The announcement banner sticks to the top with the nav header. Its height goes in --site-top-h for anything that sticks just below them. */}

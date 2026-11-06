@@ -75,7 +75,7 @@ test.describe.serial('with community guidelines', () => {
     await expect(body).toContainText('See you there!');
     await expect(body).toContainText('Our Community Guidelines');
     await expect(body).not.toContainText('A Few Reminders');
-    await expect(page.locator('details summary')).toHaveText([/ZZZ Consent/, /ZZZ Hygiene/]);
+    await expect(page.locator('main details summary')).toHaveText([/ZZZ Consent/, /ZZZ Hygiene/]);
     // An attendee with no role has no stray separator in front of their phone.
     const contactLine = page.locator('span', { hasText: 'Attendee 1:' }).locator('xpath=following-sibling::span[1]');
     await expect(contactLine).toHaveText(email);

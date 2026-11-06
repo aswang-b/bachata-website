@@ -9,7 +9,7 @@
 - **Database/Auth**: Supabase (`@supabase/supabase-js`)
 - **Hosting**: Netlify (see `netlify.toml`, `netlify/functions/`). In `astro dev`, the adapter's local edge-functions server is off (`devFeatures.edgeFunctions: false` in `astro.config.mjs`): the site has no edge functions.
 - **Language**: TypeScript
-- **Other**: `qrcode` (the door sign's plain and Venmo codes, drawn in the browser)
+- **Other**: `qrcode` (the door sign's plain and Venmo codes, drawn in the browser), `web-push` (push notifications)
 - **Testing**: Vitest (unit), Playwright (end-to-end, using the installed Edge)
 - **Node**: >=22.12.0
 
@@ -31,7 +31,7 @@
 ├── netlify.toml
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
-├── public/                              # Static assets (favicon, venmo QR)
+├── public/                              # Static assets (favicon, venmo QR, site.webmanifest, sw.js service worker)
 ├── supabase/migrations/                 # Numbered SQL migrations (0001-0068); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
@@ -48,6 +48,7 @@
 │   │   ├── capacity.ts                  # Per-series capacity: spots remaining per occurrence (a general cap, or separate Leader/Follower caps for classes), from the trigger-maintained event_spot_counts cache; server-side full check
 │   │   ├── attendanceMatching.ts        # Matches sign-ups to check-ins per dancer, expanding series sign-ups into per-occurrence entries
 │   │   ├── checkinLink.ts, brandedQr.ts, venmo.ts, qrStudioStore.ts, qrSign.ts, classPicker.ts  # The door sign: check-in addresses, qr.dancewithb.fun, Venmo codes, the sign
+│   │   ├── push.ts, pushClient.ts       # Push notifications: subscriptions, sending (server); turning them on/off (browser)
 │   │   ├── checkinToken.ts              # Signed per-event token authorizing check-in auto-registration (QR link)
 │   │   ├── classRegistrations.ts        # One-row-per-(dancer,class) registration records with snapshotted prices
 │   │   ├── classFilterGroup.ts          # Browser-only multi-row class filter for the dancer dashboard
@@ -93,9 +94,9 @@
 │       ├── index.astro (flyer blocks: each flyer beside its classes' live details), about.astro, contact.astro, contact/confirmation.astro, privacy-policy.astro, calendar.astro
 │       ├── register.astro, register/events.astro, register/confirmation.astro
 │       ├── check-in.astro, check-in/[eventId].astro, check-in/confirmation.astro, feedback/[token].astro (a feedback link: a dancer's own or the shared one)
-│       ├── admin.astro, admin/analytics.astro, admin/qr.astro (door sign; admin/checkin-qr.astro forwards to it), admin/inbox.astro, admin/feedback.astro
+│       ├── admin.astro, admin/analytics.astro, admin/qr.astro (door sign; admin/checkin-qr.astro forwards to it), admin/inbox.astro, admin/feedback.astro, admin/notifications.astro
 │       └── api/
-│           ├── banner.ts, faqs.ts, homepage-content.ts, settings.ts, submit-checkin.ts, submit-intake.ts, test-mode.ts (dev-only)
+│           ├── banner.ts, faqs.ts, homepage-content.ts, settings.ts, submit-checkin.ts, submit-intake.ts, push.ts (notifications on/off), test-mode.ts (dev-only)
 │           └── admin/                    # Admin-only API routes (events, signups, sync, lock, uploads, FAQs, homepage content, inbox)
 ├── tests/                               # Vitest unit tests (tests/unit) + Playwright e2e tests (tests/e2e); see tests/CONTEXT.md
 └── docs/ai-context/                     # This Tier 1 documentation set
@@ -108,4 +109,5 @@ The site is a bachata dance-class business site: public pages for class info, re
 - **Event editor**: classes and events are edited in a sectioned editor on `/calendar`. Its section menu is a list on desktop and a sideways-scrolling chip row on phones. It offers any color (a picker plus the five most recently used colors), a single capacity cap or separate Leader/Follower caps for classes, and tiered pricing. Calendar banner text shrinks to fit, and all banners share one size.
 - **Registration**: shows an itemized subtotal (also on the confirmation page and email, with an admin copy that notes any dancer email that bounced) and enforces capacity, per role where capped. Event registrants agree to the community guidelines, which event confirmations list FAQ-style. Double-submitted sign-ups and check-ins are moved to the Recycling Bin automatically.
 - **Check-in**: a public picker, plus the admin door sign (`/admin/qr`) for one or several classes, which can optionally register drop-in attendees. Its branded code is a short link on qr.dancewithb.fun (author "Dance With B", `QR_API_TOKEN`) repointed to the classes picked; next to it, a Venmo code for Dance with B or a guest artist, and simple versions of each for older phones.
+- **App and notifications**: the site installs to a phone's home screen; the header bell (phones) turns push notifications on, and admins send them from `/admin/notifications` (or the calendar editor's Notify link).
 - **Data**: stored in Supabase (see `supabase/migrations/`; each table is granted to `service_role` explicitly). The admin area uses edit-locks to avoid concurrent-edit conflicts.

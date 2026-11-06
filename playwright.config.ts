@@ -38,6 +38,7 @@ export default defineConfig({
       E2E_DISABLE_GOOGLE: '1',
       E2E_SKIP_USAGE_COUNTERS: '1',
       E2E_FAKE_QR: '1',
+      E2E_FAKE_PUSH: '1',
       // Lists the suite's own (visibility 'test') classes, which no other server shows.
       E2E_TEST_EVENTS: '1',
       E2E_PORT: String(PORT),

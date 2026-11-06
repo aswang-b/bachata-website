@@ -4,7 +4,7 @@ import { createAdminSession, endAdminSession, signInBrowser } from './admin';
 import { BASE_URL } from './env';
 import { endTestScope, startTestScope } from './db';
 
-const WARM_UP_PAGES = ['/', '/calendar', '/register', '/register/events', '/contact', '/check-in', '/admin', '/admin/analytics', '/admin/qr', '/admin/inbox', '/admin/feedback'];
+const WARM_UP_PAGES = ['/', '/calendar', '/register', '/register/events', '/contact', '/check-in', '/admin', '/admin/analytics', '/admin/qr', '/admin/inbox', '/admin/feedback', '/admin/notifications'];
 
 // Every spec imports `test` from here, so the safety check below always runs first.
 export const test = base.extend<

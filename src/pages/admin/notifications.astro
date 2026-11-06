@@ -1,0 +1,335 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const input = 'w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none';
+const label = 'text-xs font-bold uppercase tracking-wider text-muted';
+---
+
+<BaseLayout title="Notifications" noindex>
+  <div class="mx-auto max-w-3xl px-6 py-16">
+    <div class="flex items-center justify-between gap-4">
+      <h1 class="font-display text-3xl font-extrabold text-ink">Notifications</h1>
+      <a href="/admin" class="text-sm font-semibold text-accent hover:underline">&larr; Admin Tools</a>
+    </div>
+    <p class="mt-2 text-sm text-muted">Push notifications to the phones and computers that turned them on from the bell in the header.</p>
+    <p id="subscriber-count" class="text-sm font-semibold text-ink"></p>
+
+    <p id="loading" class="mt-8 text-sm text-muted">Loading&hellip;</p>
+    <div id="signed-out" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">Sign in as an admin to view this page.</p>
+      <a href="/admin" class="text-sm font-semibold text-accent hover:underline">Go to Admin Tools</a>
+    </div>
+    <div id="admin-unavailable" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">We couldn't check your sign-in just now. Check your connection, then reload the page.</p>
+    </div>
+    <div id="not-admin" class="mt-8 hidden flex-col items-start gap-3">
+      <p class="text-sm text-muted">This account isn't authorized as an admin.</p>
+    </div>
+    <p id="load-error" class="mt-8 hidden rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm text-ink"></p>
+
+    <div id="push-admin" class="mt-8 hidden flex-col gap-8">
+      <p id="not-configured" class="hidden rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-ink">
+        Push isn't set up on this server yet: add <code>PUBLIC_VAPID_KEY</code> and <code>VAPID_PRIVATE_KEY</code> in Netlify, then deploy again.
+      </p>
+
+      <section class="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5">
+        <h2 class="font-display text-xl font-bold text-ink">Send a notification</h2>
+
+        <label class="flex flex-col gap-1">
+          <span class={label}>About</span>
+          <select id="push-event" class={input}>
+            <option value="">Nothing in particular</option>
+          </select>
+          <span class="text-xs text-muted">Picking a class or event fills in the message, which you can change.</span>
+        </label>
+
+        <label class="flex flex-col gap-1">
+          <span class={label}>Title <span id="title-count" class="font-normal normal-case tracking-normal"></span></span>
+          <input id="push-title" type="text" maxlength="60" class={input} placeholder="New workshop: Sensual Footwork" />
+        </label>
+
+        <label class="flex flex-col gap-1">
+          <span class={label}>Message <span id="body-count" class="font-normal normal-case tracking-normal"></span></span>
+          <textarea id="push-body" rows="3" maxlength="180" class={input} placeholder="Sat, Nov 21, 2 PM at Aubergine. Tap to register."></textarea>
+        </label>
+
+        <label class="flex flex-col gap-1">
+          <span class={label}>Opens</span>
+          <input id="push-url" type="text" list="push-pages" value="/" class={input} />
+          <datalist id="push-pages">
+            <option value="/register">Register for classes</option>
+            <option value="/register/events">Register for events</option>
+            <option value="/calendar">Calendar</option>
+            <option value="/">Home</option>
+          </datalist>
+          <span class="text-xs text-muted">A page on this site, like /register.</span>
+        </label>
+
+        <div>
+          <p class={label}>Preview</p>
+          <div class="mt-2 flex max-w-sm gap-3 rounded-2xl bg-white/90 p-3 text-left text-black shadow">
+            <img src="/icon-192.png" alt="" class="h-10 w-10 shrink-0 rounded-lg" />
+            <div class="min-w-0">
+              <p id="preview-title" class="truncate text-sm font-semibold">Title</p>
+              <p id="preview-body" class="line-clamp-3 text-sm text-black/80">Message</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button id="push-send" type="button" class="gradient-accent rounded-full px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 disabled:opacity-50">
+            Send
+          </button>
+          <p id="send-status" class="text-sm text-ink/80" role="status"></p>
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3">
+        <h2 class="font-display text-xl font-bold text-ink">Sent</h2>
+        <div id="sends" class="flex flex-col gap-3"></div>
+        <p id="sends-empty" class="hidden text-sm text-muted">Nothing sent yet.</p>
+      </section>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { checkAdminSession } from '../../lib/adminSession';
+  import { siteFormatter } from '../../lib/siteTime';
+  import { supabaseBrowser } from '../../lib/supabaseBrowser';
+
+  interface Send {
+    id: string;
+    created_at: string;
+    sent_by: string | null;
+    title: string;
+    body: string;
+    url: string;
+    event_id: string | null;
+    delivered: number;
+    failed: number;
+    removed: number;
+    shown: number;
+    opened: number;
+  }
+  interface UpcomingEvent {
+    id: string;
+    title: string;
+    event_type: string;
+    start_time: string;
+    end_time: string;
+    location: string | null;
+    google_recurring_event_id: string | null;
+  }
+
+  const MAX_TITLE = 60;
+  const MAX_BODY = 180;
+  const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+  const panels = { loading: el('loading'), signedOut: el('signed-out'), notAdmin: el('not-admin'), unavailable: el('admin-unavailable') };
+  const eventSelect = el<HTMLSelectElement>('push-event');
+  const titleInput = el<HTMLInputElement>('push-title');
+  const bodyInput = el<HTMLTextAreaElement>('push-body');
+  const urlInput = el<HTMLInputElement>('push-url');
+  const sendButton = el<HTMLButtonElement>('push-send');
+  const sendStatus = el('send-status');
+  let events: UpcomingEvent[] = [];
+  let subscriberTotal = 0;
+
+  const when = siteFormatter({ dateStyle: 'medium', timeStyle: 'short' });
+  const day = siteFormatter({ weekday: 'short', month: 'short', day: 'numeric' });
+  const time = siteFormatter({ hour: 'numeric', minute: '2-digit' });
+  const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+
+  function showPanel(name: keyof typeof panels | null) {
+    for (const [key, panel] of Object.entries(panels)) {
+      panel.classList.toggle('hidden', key !== name);
+      panel.classList.toggle('flex', key === name);
+    }
+  }
+
+  async function authHeader(): Promise<Record<string, string>> {
+    // A fresh token each call, so a page left open still works.
+    const { data } = await supabaseBrowser.auth.getSession();
+    return { Authorization: `Bearer ${data.session?.access_token ?? ''}` };
+  }
+
+  // The message a class or event starts with.
+  function messageFor(e: UpcomingEvent) {
+    const start = new Date(e.start_time);
+    const kind = e.event_type === 'class' ? 'class' : 'event';
+    const date = `${e.google_recurring_event_id ? 'Starts ' : ''}${day.format(start)}, ${time.format(start)}`;
+    return {
+      title: clip(`New ${kind}: ${e.title}`, MAX_TITLE),
+      body: clip(`${date}${e.location ? ` at ${e.location.split(',')[0]}` : ''}. Tap to register.`, MAX_BODY),
+      url: kind === 'class' ? '/register' : '/register/events',
+    };
+  }
+
+  function refreshPreview() {
+    el('preview-title').textContent = titleInput.value.trim() || 'Title';
+    el('preview-body').textContent = bodyInput.value.trim() || 'Message';
+    el('title-count').textContent = `(${titleInput.value.length}/${MAX_TITLE})`;
+    el('body-count').textContent = `(${bodyInput.value.length}/${MAX_BODY})`;
+  }
+
+  function pickEvent() {
+    const e = events.find((x) => x.id === eventSelect.value);
+    if (e) {
+      const m = messageFor(e);
+      titleInput.value = m.title;
+      bodyInput.value = m.body;
+      urlInput.value = m.url;
+    }
+    refreshPreview();
+  }
+
+  function renderSends(sends: Send[]) {
+    const list = el('sends');
+    list.replaceChildren(
+      ...sends.map((s) => {
+        const card = document.createElement('div');
+        card.className = 'push-send rounded-2xl border border-border bg-surface p-4';
+        const head = document.createElement('div');
+        head.className = 'flex flex-wrap items-baseline justify-between gap-2';
+        const title = document.createElement('p');
+        title.className = 'font-semibold text-ink';
+        title.textContent = s.title;
+        const meta = document.createElement('p');
+        meta.className = 'text-xs text-muted';
+        meta.textContent = `${when.format(new Date(s.created_at))}${s.sent_by ? ` · ${s.sent_by}` : ''}`;
+        head.append(title, meta);
+        const body = document.createElement('p');
+        body.className = 'mt-1 text-sm text-ink/80';
+        body.textContent = s.body;
+        card.append(head, body, stats(s));
+        return card;
+      })
+    );
+    el('sends-empty').classList.toggle('hidden', sends.length > 0);
+  }
+
+  // How it did: reached (the push services took it), shown and opened (reported by the
+  // devices; a close guide, as an offline device can't report), and what went wrong.
+  function stats(s: Send): HTMLElement {
+    const line = document.createElement('p');
+    line.className = 'push-stats mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted';
+    const stat = (n: number, label: string, extra = '') => {
+      const item = document.createElement('span');
+      const strong = document.createElement('strong');
+      strong.className = 'font-semibold text-ink';
+      strong.textContent = String(n);
+      item.append(strong, ` ${label}${extra}`);
+      return item;
+    };
+    const rate = s.shown ? ` (${Math.round((s.opened / s.shown) * 100)}%)` : '';
+    line.append(stat(s.delivered, 'reached'), stat(s.shown, 'shown'), stat(s.opened, 'opened', rate));
+    if (s.failed) line.append(stat(s.failed, 'failed'));
+    if (s.removed) line.append(stat(s.removed, 'gone (removed)'));
+    const opens = document.createElement('span');
+    opens.textContent = `Opens ${s.url}`;
+    line.append(opens);
+    return line;
+  }
+
+  // The line under the heading: "12 devices get notifications (5 iPhone, 4 Android, 3 computers or other)."
+  function renderCount(subscribers: { total: number; ios: number; android: number; other: number }) {
+    subscriberTotal = subscribers.total;
+    const parts = [subscribers.ios && `${subscribers.ios} iPhone`, subscribers.android && `${subscribers.android} Android`, subscribers.other && `${subscribers.other} computer${subscribers.other === 1 ? '' : 's'} or other`].filter(Boolean);
+    el('subscriber-count').textContent = `${plural(subscribers.total, 'device')} ${subscribers.total === 1 ? 'gets' : 'get'} notifications${parts.length ? ` (${parts.join(', ')})` : ''}.`;
+  }
+
+  function addOption(e: UpcomingEvent) {
+    const option = document.createElement('option');
+    option.value = e.id;
+    option.textContent = `${e.title} · ${day.format(new Date(e.start_time))}${e.google_recurring_event_id ? ' (series)' : ''}`;
+    eventSelect.append(option);
+  }
+
+  async function load() {
+    const res = await fetch('/api/admin/push', { headers: await authHeader() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      el('load-error').textContent = data.error ?? `Couldn't load notifications (${res.status}).`;
+      el('load-error').classList.remove('hidden');
+      return false;
+    }
+    events = data.events;
+    renderCount(data.subscribers);
+    renderSends(data.sends);
+    el('not-configured').classList.toggle('hidden', data.configured);
+    sendButton.disabled = !data.configured;
+    events.forEach(addOption);
+    return true;
+  }
+
+  async function send(confirmRepeat = false): Promise<void> {
+    const payload = { title: titleInput.value, body: bodyInput.value, url: urlInput.value, eventId: eventSelect.value || null, confirmRepeat };
+    sendButton.disabled = true;
+    sendStatus.textContent = 'Sending…';
+    try {
+      const res = await fetch('/api/admin/push', { method: 'POST', headers: { ...(await authHeader()), 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && data.error === 'repeat') {
+        const last = data.lastSend as Send;
+        sendStatus.textContent = '';
+        if (confirm(`A notification about this was already sent ${when.format(new Date(last.created_at))} ("${last.title}"). Send another?`)) return send(true);
+        return;
+      }
+      if (!res.ok) {
+        sendStatus.textContent = data.error ?? `Sending failed (${res.status}).`;
+        return;
+      }
+      const s = data.send as Send;
+      sendStatus.textContent = `Sent to ${plural(s.delivered, 'device')}.${s.failed ? ` ${s.failed} couldn't be reached.` : ''}`;
+      const refreshed = await fetch('/api/admin/push', { headers: await authHeader() }).then((r) => r.json()).catch(() => null);
+      if (refreshed?.sends) {
+        renderSends(refreshed.sends);
+        renderCount(refreshed.subscribers);
+      }
+    } finally {
+      sendButton.disabled = false;
+    }
+  }
+
+  sendButton.addEventListener('click', () => {
+    if (!titleInput.value.trim() || !bodyInput.value.trim()) {
+      sendStatus.textContent = 'Write a title and a message first.';
+      return;
+    }
+    if (!confirm(`Send "${titleInput.value.trim()}" to ${plural(subscriberTotal, 'device')}?`)) return;
+    void send();
+  });
+  eventSelect.addEventListener('change', pickEvent);
+  titleInput.addEventListener('input', refreshPreview);
+  bodyInput.addEventListener('input', refreshPreview);
+
+  // The class or event the calendar's Notify link came from: its series' entry in
+  // the list, or added to it (a past or later occurrence).
+  async function choose(id: string) {
+    const res = await fetch(`/api/admin/push?event=${encodeURIComponent(id)}`, { headers: await authHeader() });
+    const event = res.ok ? ((await res.json()).event as UpcomingEvent | null) : null;
+    if (!event) return;
+    const listed = events.find((e) => e.id === event.id || (event.google_recurring_event_id && e.google_recurring_event_id === event.google_recurring_event_id));
+    if (!listed) {
+      events.push(event);
+      addOption(event);
+    }
+    eventSelect.value = (listed ?? event).id;
+  }
+
+  async function init() {
+    const gate = await checkAdminSession();
+    if (gate.status !== 'admin') return showPanel(gate.status);
+    showPanel(null);
+    if (!(await load())) return;
+    el('push-admin').classList.remove('hidden');
+    el('push-admin').classList.add('flex');
+    // From the calendar editor's Notify link.
+    const fromCalendar = new URL(location.href).searchParams.get('event');
+    if (fromCalendar) await choose(fromCalendar);
+    pickEvent();
+  }
+
+  init();
+</script>

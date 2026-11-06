@@ -1,5 +1,6 @@
 ---
 import { getSiteSettings } from '../lib/siteSettings';
+import InstallApp from './InstallApp.astro';
 
 // Site Visibility settings (Admin tab), loaded for each page by middleware.ts,
 // so the header arrives whole: no button or link popping in or out after load.
@@ -81,6 +82,9 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
         <span class="register-label-full">Register for Classes</span>
         <span class="register-label-short hidden">Classes</span>
       </a>
+
+      {/* The bell: push notifications, and (on phones) how to add the site to the home screen. Admins get their inbox here instead. */}
+      <InstallApp />
 
       <a
         href="/admin/inbox"
