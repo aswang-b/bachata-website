@@ -16,7 +16,7 @@ Tier 2 exists for `src/lib/`, `src/components/` and `tests/`. Tier 3 exists for 
 
 - **Astro/dev-server conventions, background dev server usage**: `CLAUDE.md`
 - **Tech stack, commands, full file tree, domain overview**: `project-structure.md`
-- **Contributor-facing quick start (generic Astro template)**: `README.md`
+- **Public overview (what the site does, admin tools, masked screenshots in `docs/screenshots/`; nothing sensitive)**: `README.md`
 - **Database schema history**: `supabase/migrations/*.sql`
 - **Netlify build/function config**: `netlify.toml`, `netlify/functions/`
 

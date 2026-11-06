@@ -32,11 +32,11 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR, site.webmanifest, sw.js service worker)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0068); a new table must be granted to service_role in its migration (see 0045)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0073); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
-│   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting)
-│   ├── middleware.ts                    # Loads the site time zone (and, for pages, Site Visibility settings into locals) per request; checks nothing
+│   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting, WhatsAppSetting; InstallApp bell)
+│   ├── middleware.ts                    # Loads the site time zone (and, for pages, Site Visibility settings and the WhatsApp link into locals) per request; checks nothing
 │   ├── layouts/
 │   │   └── BaseLayout.astro             # Page shell; banner + header share one sticky #site-top (height in --site-top-h)
 │   ├── lib/                             # Server-side helpers
@@ -57,6 +57,8 @@
 │   │   ├── duplicateFlag.ts / duplicateSubmissions.ts  # Auto-detect double-submitted sign-ups/check-ins → Recycling Bin
 │   │   ├── editLock.ts                  # Admin edit-lock (prevents concurrent edits)
 │   │   ├── email.ts                     # Transactional email sending
+│   │   ├── emailLayout.ts, adminAlertEmail.ts  # The shared email look (dark header/footer bands); the admins' contact-form alert
+│   │   ├── pageCache.ts                 # Short Netlify edge cache for pages that are the same for everyone (About, Contact, Privacy)
 │   │   ├── eventTimes.ts                # Event end-time rules (an end before the start is the next day), pure
 │   │   ├── eventColors.ts               # Event colors (legacy names or picked #rrggbb): styles, readable text, closest Google color, recent picks
 │   │   ├── errorDialog.ts               # Browser-only copyable error modal (sync/save failures)
@@ -90,7 +92,7 @@
 │   │   ├── siteSettings.ts              # Site settings persistence
 │   │   ├── supabase.ts / supabaseBrowser.ts  # Supabase clients (server/browser)
 │   │   ├── testMode.ts                  # Dev-server-only switches the e2e suite uses (email sink, Google off, no quotas, its own 'test' classes)
-│   └── pages/
+│   └── pages/                           # Every page renders per request (prerender = false; codebaseRules checks), so header and footer settings are live
 │       ├── index.astro (flyer blocks: each flyer beside its classes' live details), about.astro, contact.astro, contact/confirmation.astro, privacy-policy.astro, calendar.astro
 │       ├── register.astro, register/events.astro, register/confirmation.astro
 │       ├── check-in.astro, check-in/[eventId].astro, check-in/confirmation.astro, feedback/[token].astro (a feedback link: a dancer's own or the shared one)
