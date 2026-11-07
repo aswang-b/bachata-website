@@ -202,3 +202,84 @@ test('on a phone, the full-screen sign shows one code at a time and the page nev
   expect(await decode(halves.nth(1).locator('canvas'))).toBe(DANCE_WITH_B_VENMO);
   await context.close();
 });
+
+test("a sign's heading is its name: shown in the title bar, needed, and never another sign's; the check-in line can be changed, and its branded code made again in another look", async ({ page, adminPage }) => {
+  void adminPage;
+  const event = await seedEvent({ name: 'Door Sign Names', priceDropIn: 15 });
+  const run = event.title.split(' Door Sign')[0];
+  const name = `${run} Named sign`;
+  await page.goto('/admin/qr');
+  await expect(page.locator('#qr-admin')).toBeVisible();
+
+  // Heading and settings come first, then one block with what the two codes open (no numbered steps).
+  const sections = page.locator('#editor h3');
+  await expect(sections.first()).toHaveText('Heading and settings');
+  await expect(page.locator('#sign-content h3')).toHaveText(['Check in to', 'Pay on Venmo']);
+  await expect(page.locator('#editor')).not.toContainText(/\d\. (Check in|Pay|The sign)/);
+
+  // A new sign's title bar follows its heading.
+  await expect(page.locator('#editor-kind')).toHaveText('New sign');
+  await pickClass(page, event.title);
+  await page.locator('#sign-heading').fill(name);
+  await expect(page.locator('#editor-title')).toHaveText(name);
+
+  // The line over the check-in code is its own, on the sign and when it's opened again.
+  await page.locator('#sign-checkin-title').fill('Sign in here');
+  await expect(page.locator('#sign-preview .sign-half').first().locator('.sign-title')).toHaveText('Sign in here');
+  await page.locator('#sign-save').click();
+  await expect(page.locator('#sign-status')).toContainText('Saved');
+  await expect(page.locator('#editor-kind')).toHaveText('Editing saved sign');
+  await expect(page.locator('#editor-title')).toHaveText(name);
+  // Its branded code is made right after saving.
+  await expect(page.locator('#codes-status')).toContainText('ready');
+  await expect(page.locator('#codes-dialog')).toBeHidden();
+  await page.reload();
+  await card(page, name).getByRole('button', { name: 'Edit' }).click();
+  await expect(page.locator('#sign-checkin-title')).toHaveValue('Sign in here');
+  // A saved sign's title bar keeps its saved name while the heading is being changed.
+  await page.locator('#sign-heading').fill(`${name} renamed`);
+  await expect(page.locator('#editor-title')).toHaveText(name);
+
+  // A new sign: no heading can't be saved, nor another sign's (in any case).
+  await page.locator('#new-sign').click();
+  await expect(page.locator('#sign-heading')).not.toHaveValue(name);
+  await pickClass(page, event.title);
+  await page.locator('#sign-heading').fill('');
+  await expect(page.locator('#heading-error')).toContainText('Give the sign a heading');
+  await expect(page.locator('#sign-save')).toBeDisabled();
+  await page.locator('#sign-heading').fill(` ${name.toUpperCase()} `);
+  await expect(page.locator('#heading-error')).toContainText('already called');
+  await expect(page.locator('#sign-save')).toBeDisabled();
+  // The server refuses it too, before any link is pointed.
+  // (enabled and pressed in one go, before the page disables it again)
+  await page.locator('#sign-save').evaluate((b) => {
+    (b as HTMLButtonElement).disabled = false;
+    (b as HTMLButtonElement).click();
+  });
+  await expect(page.locator('#sign-status')).toContainText('already called');
+  await expect(card(page, name)).toHaveCount(1);
+
+  // A new branded code in another look: the old one is replaced, the short link stays.
+  await card(page, name).getByRole('button', { name: 'Edit' }).click();
+  const link = await linkOf(page, name);
+  await expect(page.locator('#new-code')).toHaveText('New branded code');
+  await page.locator('#new-code').click();
+  const dialog = page.locator('#style-dialog');
+  await expect(dialog).toBeVisible();
+  await dialog.getByText('Squares', { exact: true }).click();
+  await dialog.getByText('Round', { exact: true }).click();
+  await dialog.getByRole('button', { name: 'Make it' }).click();
+  await expect(page.locator('#codes-title')).toHaveText('Making a new branded code');
+  await expect(page.locator('#codes-status')).toContainText('1 branded code ready');
+  expect(await linkOf(page, name)).toBe(link);
+  await expect(page.locator('#codes-dialog')).toBeHidden();
+  // Opened again, it starts from the look the code now has.
+  await page.locator('#new-code').click();
+  await expect(dialog.locator('input[name="style-shape"]:checked')).toHaveValue('squares');
+  await expect(dialog.locator('input[name="style-eyes"]:checked')).toHaveValue('dot');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+
+  page.once('dialog', (d) => d.accept());
+  await card(page, name).getByRole('button', { name: 'Delete' }).click();
+  await expect(card(page, name)).toHaveCount(0);
+});

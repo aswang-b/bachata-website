@@ -16,6 +16,12 @@ import { locationHref } from '../lib/locationLink';
 import { PIN_SVG } from '../lib/locationPin';
 import { seriesBounds } from '../lib/flyerBlocks';
 import { rulesForSeries } from '../lib/linksStore';
+import { qrSvg } from '../lib/qrSvg';
+
+// Dance with B's Venmo: the code dancers scan and the Open in Venmo button go to
+// the same address. The code is drawn here (crisp at any size), with Venmo's logo.
+const VENMO_URL = 'https://venmo.com/code?user_id=2024335518728192092&created=1788834419';
+const venmoCode = qrSvg(VENMO_URL, { logo: '/venmo-logo.svg', label: 'Venmo QR code for @amumira' });
 
 interface Props {
   kind?: 'class' | 'event';
@@ -548,9 +554,9 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
                 Your subtotal (<span class="payment-amount font-semibold text-ink">$0</span>) is due before {isEvent ? 'the event' : 'class'} begins. Scan the code below or tap to open Venmo.
               </p>
               <p class="text-sm font-semibold text-ink">You are paying <span class="text-accent">@amumira</span></p>
-              <img src="/venmo-qr.png" alt="Venmo QR code" class="h-40 w-40" />
+              <div class="venmo-code h-40 w-40 overflow-hidden rounded-md" set:html={venmoCode} />
               <a
-                href="https://venmo.com/code?user_id=2024335518728192092&created=1788834419"
+                href={VENMO_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="gradient-accent rounded-full px-5 py-2 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"

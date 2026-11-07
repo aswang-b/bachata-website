@@ -29,7 +29,7 @@ export interface QrStudio {
   defaultVenmo: string | null;
 }
 
-// Dance with B's own account, from the Venmo code the registration page shows (public/venmo-qr.png).
+// Dance with B's own account, from the Venmo code the registration page shows (components/RegistrationForm.astro).
 export const DANCE_WITH_B_VENMO: SavedVenmo = { username: 'amumira', name: 'B Zh', userId: '2024335518728192092', picture: null, label: 'Dance with B' };
 
 const empty = (): QrStudio => ({ checkin: null, venmo: [DANCE_WITH_B_VENMO], defaultVenmo: DANCE_WITH_B_VENMO.username });

@@ -20,6 +20,8 @@ export interface DoorSign {
   created_at: string;
   updated_at: string;
   heading: string;
+  // The line over the check-in code (migration 0074).
+  checkin_title: string;
   event_ids: string[];
   titles: string[];
   create_registration: boolean;
@@ -30,7 +32,7 @@ export interface DoorSign {
   pointed_url: string | null;
 }
 
-export type SignFields = Pick<DoorSign, 'heading' | 'event_ids' | 'titles' | 'create_registration' | 'show_classes' | 'venmo'>;
+export type SignFields = Pick<DoorSign, 'heading' | 'checkin_title' | 'event_ids' | 'titles' | 'create_registration' | 'show_classes' | 'venmo'>;
 
 export class DoorSignError extends Error {
   constructor(
@@ -42,13 +44,26 @@ export class DoorSignError extends Error {
 }
 
 export const MAX_SIGNS = 40;
+export const DEFAULT_CHECKIN_TITLE = 'Check in for class';
 const KEY = /^door-sign-(\d+)$/;
 // The first check-in link was made with this label, before links had keys.
 export const LEGACY_LABEL = 'Class check-in (dancewithb.fun door sign)';
 const POOL_LABEL = 'Door sign (dancewithb.fun)';
 
 const memory: DoorSign[] = [];
-const storeError = (message: string) => new DoorSignError(`Couldn't reach the saved signs: ${message}.${/door_signs/.test(message) ? ' Run migration 0071 in Supabase first.' : ''}`, 500);
+const storeError = (message: string) =>
+  new DoorSignError(`Couldn't reach the saved signs: ${message}.${/checkin_title/.test(message) ? ' Run migration 0074 in Supabase first.' : /door_signs/.test(message) ? ' Run migration 0071 in Supabase first.' : ''}`, 500);
+
+// A sign's heading is also its name in Saved signs, so no two share one
+// (ignoring case and spaces at the ends; the database's index says the same).
+const nameKey = (heading: string) => heading.trim().toLowerCase();
+export const nameTaken = (heading: string) => new DoorSignError(`Another saved sign is already called "${heading.trim()}". Give this one a different heading.`, 409);
+// The saved sign (other than `exceptId`) that already has this heading, if any.
+export async function signNamed(heading: string, exceptId?: string): Promise<DoorSign | null> {
+  return (await listSigns()).find((s) => s.id !== exceptId && nameKey(s.heading) === nameKey(heading)) ?? null;
+}
+// Which unique index refused a write: the heading's, or the link's (another sign took it).
+const headingClash = (error: { code?: string; message: string }) => error.code === '23505' && /heading/.test(error.message);
 
 export async function listSigns(): Promise<DoorSign[]> {
   if (fakeQrServices()) return [...memory].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
@@ -68,12 +83,14 @@ export async function getSign(id: string): Promise<DoorSign | null> {
 export async function insertSign(fields: SignFields & Pick<DoorSign, 'link_code' | 'link_short' | 'pointed_url'>): Promise<DoorSign | null> {
   const now = new Date().toISOString();
   if (fakeQrServices()) {
+    if (memory.some((s) => nameKey(s.heading) === nameKey(fields.heading))) throw nameTaken(fields.heading);
     if (memory.some((s) => s.link_code === fields.link_code)) return null;
     const sign = { ...fields, id: crypto.randomUUID(), created_at: now, updated_at: now };
     memory.push(sign);
     return sign;
   }
   const { data, error } = await supabase.from('door_signs').insert(fields).select('*').single();
+  if (error && headingClash(error)) throw nameTaken(fields.heading);
   if (error?.code === '23505') return null;
   if (error) throw storeError(error.message);
   return data as DoorSign;
@@ -84,10 +101,12 @@ export async function updateSign(id: string, fields: Partial<SignFields> & { poi
   if (fakeQrServices()) {
     const sign = memory.find((s) => s.id === id);
     if (!sign) throw new DoorSignError('That sign was deleted.', 404);
+    if (fields.heading !== undefined && memory.some((s) => s.id !== id && nameKey(s.heading) === nameKey(fields.heading!))) throw nameTaken(fields.heading);
     Object.assign(sign, fields, { updated_at: now });
     return { ...sign };
   }
   const { data, error } = await supabase.from('door_signs').update({ ...fields, updated_at: now }).eq('id', id).select('*').maybeSingle();
+  if (error && fields.heading !== undefined && headingClash(error)) throw nameTaken(fields.heading);
   if (error) throw storeError(error.message);
   if (!data) throw new DoorSignError('That sign was deleted.', 404);
   return data as DoorSign;

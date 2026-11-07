@@ -225,6 +225,13 @@ test('admins get their inbox there instead (on a phone and on a computer), and t
   await page.goto('/');
   await expect(page.locator('#inbox-link')).toBeVisible();
   await expect(page.locator('#app-bell')).toHaveCount(0);
+  // On a phone the inbox is as tall as the register buttons beside it (it was a smaller circle), and lines up with them.
+  const box = async (selector: string) => (await page.locator(selector).first().boundingBox())!;
+  const [inbox, classes] = [await box('#inbox-link'), await box('#header-actions a[href="/register"]')];
+  expect(Math.abs(inbox.height - classes.height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(inbox.y - classes.y)).toBeLessThanOrEqual(1);
+  // Nothing in the header row runs past the screen.
+  expect(await page.evaluate(() => document.getElementById('site-header')!.scrollWidth <= window.innerWidth)).toBe(true);
 
   await page.evaluate(() => localStorage.setItem('bwb-preview-as-public', 'true'));
   await page.reload();

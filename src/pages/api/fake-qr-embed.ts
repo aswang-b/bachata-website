@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { fakeBatch } from '../../lib/brandedQr';
+import { cleanCodeStyle, fakeBatch } from '../../lib/brandedQr';
 import { fakeQrServices } from '../../lib/testMode';
 
 export const prerender = false;
@@ -13,7 +13,8 @@ export const GET: APIRoute = ({ url }) => {
   const links = (url.searchParams.get('links') ?? '').split(',').filter(Boolean);
   const parent = url.searchParams.get('parent') ?? '';
   const replace = url.searchParams.get('replace') === '1';
-  const results = fakeBatch(links, replace).map((pair) => {
+  const style = cleanCodeStyle({ shape: url.searchParams.get('shape'), eyes: url.searchParams.get('eyes') });
+  const results = fakeBatch(links, replace, undefined, style).map((pair) => {
     const [link, id] = pair.split(':');
     return { type: 'qr-progress', link, status: replace ? 'replaced' : 'saved', id: Number(id), contrast: '0.56' };
   });

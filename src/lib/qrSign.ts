@@ -6,7 +6,7 @@ import QRCode from 'qrcode';
 export interface SignContent {
   heading: string;
   // The classes the check-in code opens, one per line.
-  checkin: { branded: HTMLImageElement | null; text: string; classes: string[] } | null;
+  checkin: { branded: HTMLImageElement | null; text: string; classes: string[]; title?: string } | null;
   // `name` is the account's name on Venmo, what dancers see when paying.
   venmo: { text: string; name: string; username: string; logo: HTMLImageElement | null } | null;
 }
@@ -111,7 +111,7 @@ export async function signPng(content: SignContent): Promise<Blob> {
   if (content.checkin) {
     const cx = x + half / 2;
     centered(ctx, 'JUST ARRIVED?', cx, top - 70, '700 26px Inter, system-ui, sans-serif', ACCENT, half - 80);
-    centered(ctx, 'Check in for class', cx, top - 20, '800 48px Poppins, system-ui, sans-serif', INK, half - 80);
+    centered(ctx, content.checkin.title || 'Check in for class', cx, top - 20, '800 48px Poppins, system-ui, sans-serif', INK, half - 80);
     if (content.checkin.branded) {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(cx - code / 2, top + 10, code, code);

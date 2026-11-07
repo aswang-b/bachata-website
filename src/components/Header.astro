@@ -67,7 +67,7 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
         <a
           href="/register/events"
           aria-current={currentPath === '/register/events' ? 'page' : undefined}
-          class={`register-btn flex whitespace-nowrap rounded-md px-2 py-1.5 sm:px-2.5 text-[10px] font-semibold uppercase tracking-wide transition-colors md:px-4 md:text-xs md:tracking-wider ${eventsButtonClass}`}
+          class={`register-btn flex h-8 items-center whitespace-nowrap rounded-md px-2.5 text-[11px] font-semibold uppercase tracking-wide transition-colors md:h-auto md:px-4 md:py-1.5 md:text-xs md:tracking-wider ${eventsButtonClass}`}
         >
           <span class="register-label-full">Register for Events</span>
           <span class="register-label-short hidden">Events</span>
@@ -77,22 +77,23 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
       <a
         href="/register"
         aria-current={currentPath === '/register' ? 'page' : undefined}
-        class="register-btn flex whitespace-nowrap rounded-md border border-accent/40 bg-accent/10 px-2 py-1.5 sm:px-2.5 text-[10px] font-semibold uppercase tracking-wide text-accent transition-colors hover:border-accent/70 hover:bg-accent/20 md:px-4 md:text-xs md:tracking-wider"
+        class="register-btn flex h-8 items-center whitespace-nowrap rounded-md border border-accent/40 bg-accent/10 px-2.5 text-[11px] font-semibold uppercase tracking-wide text-accent transition-colors hover:border-accent/70 hover:bg-accent/20 md:h-auto md:px-4 md:py-1.5 md:text-xs md:tracking-wider"
       >
         <span class="register-label-full">Register for Classes</span>
         <span class="register-label-short hidden">Classes</span>
       </a>
 
-      {/* The bell: push notifications, and (on phones) how to add the site to the home screen. Admins get their inbox here instead. */}
+      {/* The bell: push notifications, and (on phones) how to add the site to the home screen. Admins get their inbox here instead.
+          On a phone the inbox and the register buttons share one height and corner, so the row lines up. */}
       <InstallApp />
 
       <a
         href="/admin/inbox"
         id="inbox-link"
         aria-label="Inbox"
-        class="admin-nav-link relative hidden h-6 w-6 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface md:h-9 md:w-9"
+        class="admin-nav-link relative hidden h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-ink transition-colors hover:bg-surface md:h-9 md:w-9 md:rounded-full"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 md:h-5 md:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 md:h-5 md:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 0 0 2.22 0L21 8M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z" />
         </svg>
         <span id="inbox-dot" class="absolute -right-0.5 -top-0.5 hidden h-2 w-2 rounded-full bg-red-500 ring-2 ring-bg md:h-2.5 md:w-2.5"></span>

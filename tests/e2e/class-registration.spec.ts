@@ -1,3 +1,5 @@
+import sharp from 'sharp';
+import jsQR from 'jsqr';
 import { test, expect, postForm } from './support/fixtures';
 import { db, seedEvent, spotCounts, sweepTestData, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
@@ -398,4 +400,19 @@ test('the payment wording reads properly (it once said "before classbegins")', a
   }
   await expect(page.locator('.dancer-block').first()).toBeVisible();
   expect(await page.locator('.dancer-block').first().textContent()).toContain('reach you about class changes,');
+});
+
+test("the Venmo code is drawn by the site (sharp at any size), and a phone scanning it gets the same Venmo page as the Open in Venmo button", async ({ page }) => {
+  await page.goto('/register');
+  await selectSeries(page, wholeOnly.key);
+  const venmo = page.locator('.payment-item[data-value="venmo"]');
+  await venmo.locator('.payment-toggle-btn').click();
+  const code = venmo.locator('.venmo-code svg');
+  await expect(code).toBeVisible();
+  await expect(venmo.locator('img[src="/venmo-qr.png"]')).toHaveCount(0);
+  // Read from a picture of it, as a phone camera would.
+  const { data, info } = await sharp(await code.screenshot()).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const scanned = jsQR(new Uint8ClampedArray(data), info.width, info.height)?.data;
+  expect(scanned).toBe(await venmo.getByRole('link', { name: 'Open in Venmo' }).getAttribute('href'));
+  expect(scanned).toMatch(/^https:\/\/venmo\.com\/code\?user_id=\d+/);
 });

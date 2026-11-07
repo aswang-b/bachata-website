@@ -31,11 +31,28 @@ export interface SavedCode {
   svg_url: string;
   link: { code: string; short: string; url: string | null } | null;
   // The generator settings it was made with (contrast "0.56" is Vivid colours).
-  meta?: { settings?: { contrast?: string } };
+  meta?: { settings?: { contrast?: string; shape?: string; eyes?: string } };
 }
 
 // Codes the site makes use the generator's "Vivid colours" contrast.
 export const VIVID = '0.56';
+
+// A code's look the admin can pick when remaking one (the generator's own
+// settings): the shape of its dots and of its three corner squares.
+export const CODE_SHAPES = ['dots', 'rounded', 'squares', 'connected'] as const;
+export const CODE_EYES = ['square', 'rounded', 'dot'] as const;
+export interface CodeStyle {
+  shape?: (typeof CODE_SHAPES)[number];
+  eyes?: (typeof CODE_EYES)[number];
+}
+// Only the known values; anything else is left to the code it's made from.
+export function cleanCodeStyle(raw: unknown): CodeStyle {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const style: CodeStyle = {};
+  if (CODE_SHAPES.includes(r.shape as never)) style.shape = r.shape as CodeStyle['shape'];
+  if (CODE_EYES.includes(r.eyes as never)) style.eyes = r.eyes as CodeStyle['eyes'];
+  return style;
+}
 export const isVivid = (code: Pick<SavedCode, 'meta'>) => code.meta?.settings?.contrast === VIVID;
 
 export class BrandedQrError extends Error {
@@ -142,9 +159,13 @@ export interface Ticket {
 }
 // Always in Vivid colours; with `replace`, links that already have a code get a new one
 // and their old codes are deleted (so `from` may be gone afterwards).
-export async function createTicket(linkCodes: string[], from: number | null, parent: string, replace = false): Promise<Ticket> {
-  if (fakeQrServices()) return { url: `${parent}/api/fake-qr-embed?links=${encodeURIComponent(linkCodes.join(','))}&parent=${encodeURIComponent(parent)}${replace ? '&replace=1' : ''}`, expires_at: Math.floor(Date.now() / 1000) + 600 };
-  return call<Ticket>('ticket.create', { links: linkCodes.slice(0, MAX_BATCH), name: 'Door sign {code}', parent, settings: { contrast: VIVID }, ...(from ? { from } : {}), ...(replace ? { replace: true } : {}) });
+// `style`: a look picked for these codes, over the `from` code's.
+export async function createTicket(linkCodes: string[], from: number | null, parent: string, replace = false, style: CodeStyle = {}): Promise<Ticket> {
+  if (fakeQrServices()) {
+    const extra = new URLSearchParams(style as Record<string, string>).toString();
+    return { url: `${parent}/api/fake-qr-embed?links=${encodeURIComponent(linkCodes.join(','))}&parent=${encodeURIComponent(parent)}${replace ? '&replace=1' : ''}${extra ? `&${extra}` : ''}`, expires_at: Math.floor(Date.now() / 1000) + 600 };
+  }
+  return call<Ticket>('ticket.create', { links: linkCodes.slice(0, MAX_BATCH), name: 'Door sign {code}', parent, settings: { contrast: VIVID, ...style }, ...(from ? { from } : {}), ...(replace ? { replace: true } : {}) });
 }
 // Where the embedded generator's messages come from (the test suite's stand-in is served by this site).
 export const embedOrigin = (siteOrigin: string) => (fakeQrServices() ? siteOrigin : new URL(base()).origin);
@@ -179,13 +200,13 @@ const FAKE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><r
 const FAKE_SVG_URL = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(FAKE_SVG)}`;
 
 // What the generator's batch does: a code for each link that has none. Returns "link:id" pairs.
-export function fakeBatch(linkCodes: string[], replace = false, contrast = VIVID): string[] {
+export function fakeBatch(linkCodes: string[], replace = false, contrast = VIVID, style: CodeStyle = {}): string[] {
   return linkCodes.map((code) => {
     const link = fakeState.links.find((l) => l.code === code)!;
     if (replace) fakeState.codes = fakeState.codes.filter((c) => c.link?.code !== code);
     let made = fakeState.codes.find((c) => c.link?.code === code);
     if (!made) {
-      made = { id: fakeState.nextId++, name: `Door sign ${code}`, created_at: Math.floor(Date.now() / 1000), svg_url: FAKE_SVG_URL, link: { code, short: link.short, url: link.url }, meta: { settings: { contrast } } };
+      made = { id: fakeState.nextId++, name: `Door sign ${code}`, created_at: Math.floor(Date.now() / 1000), svg_url: FAKE_SVG_URL, link: { code, short: link.short, url: link.url }, meta: { settings: { contrast, ...style } } };
       fakeState.codes.push(made);
     }
     return `${code}:${made.id}`;

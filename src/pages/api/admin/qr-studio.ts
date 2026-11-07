@@ -1,8 +1,8 @@
 import type { APIRoute } from 'astro';
 import { requireAdmin } from '../../../lib/admin';
 import { CheckinLinkError, buildCheckinLink, eventIdsFrom } from '../../../lib/checkinLink';
-import { BrandedQrError, MAX_BATCH, batchUrl, brandedQrConfigured, codeSvg, codesFor, createTicket, embedOrigin, isVivid, pointLink, readLink } from '../../../lib/brandedQr';
-import { DoorSignError, MAX_SIGNS, SPARE_LINKS, addPoolLink, deleteSign, getSign, insertSign, listSigns, poolLinks, updateSign, type DoorSign, type SignVenmo } from '../../../lib/doorSigns';
+import { BrandedQrError, MAX_BATCH, batchUrl, cleanCodeStyle, brandedQrConfigured, codeSvg, codesFor, createTicket, embedOrigin, isVivid, pointLink, readLink } from '../../../lib/brandedQr';
+import { DEFAULT_CHECKIN_TITLE, DoorSignError, MAX_SIGNS, nameTaken, signNamed, SPARE_LINKS, addPoolLink, deleteSign, getSign, insertSign, listSigns, poolLinks, updateSign, type DoorSign, type SignVenmo } from '../../../lib/doorSigns';
 import { QrStudioStoreError, loadQrStudio, updateQrStudio, type QrStudio } from '../../../lib/qrStudioStore';
 import { siteTimeZone } from '../../../lib/siteTime';
 import { VenmoLookupError, cleanVenmoUsername, lookupVenmo, venmoCodeUrl, venmoProfileUrl } from '../../../lib/venmo';
@@ -19,15 +19,18 @@ export const prerender = false;
 // need a branded code; ?fresh=1 skips the minute-long cache of codes;
 // ?svg=<sign id> → that sign's branded code as an SVG, for the PNG download.
 // POST 'preview' { eventIds, createRegistration } → the plain check-in address
-// for an unsaved pick; 'save' { id?, heading, eventIds, createRegistration,
+// for an unsaved pick; 'save' { id?, heading, checkinTitle, eventIds, createRegistration,
 // showClasses, venmo: { username, label } | null, confirm? } saves a sign
 // (409 { error: 'confirm', pointedAt } when it moves a link pointed elsewhere
 // in the last 6 hours, unless confirm; 409 { error: 'changed', opens } when the
-// link was repointed on the QR site meanwhile); 'delete' { id } frees its link;
+// link was repointed on the QR site meanwhile; a heading is needed, and is the
+// sign's name, so another sign's is refused with 409 before anything changes); 'delete' { id } frees its link;
 // 'codes' { remake? } → a ticket for the embedded generator (`embed: { url, origin, links }`)
 // that makes branded codes for every sign (and spare link) without one, and
 // the full-page generator's address (`url`) as the fallback; with remake, for
-// codes not yet in Vivid colours instead (no fallback); 'venmo-find' { username }; 'venmo-save'
+// codes not yet in Vivid colours instead (no fallback); with signId, a new code
+// for that sign alone, in its look or a picked `style` { shape, eyes } (the old
+// one is deleted; its short link, and so printed copies, stay the same); 'venmo-find' { username }; 'venmo-save'
 // { username, label }, 'venmo-remove' { username }, 'venmo-default' { username }.
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -37,6 +40,7 @@ const JUST_MADE_MS = 30 * 60 * 1000;
 const MAX_VENMO = 30;
 const MAX_LABEL = 60;
 const MAX_HEADING = 60;
+const MAX_CHECKIN_TITLE = 40;
 // It comes from another site: never run anything in it, even if opened directly.
 const SVG_HEADERS = {
   'Content-Type': 'image/svg+xml',
@@ -60,7 +64,7 @@ async function signView(sign: DoorSign, fresh: boolean) {
     return {
       ...view,
       link: link ? { code: link.code, short: link.short, url: link.url, hits: link.hits, updatedAt: link.updated_at, week: link.stats?.days ?? [] } : null,
-      code: code ? { id: code.id, name: code.name, svgUrl: code.svg_url, vivid: isVivid(code) } : null,
+      code: code ? { id: code.id, name: code.name, svgUrl: code.svg_url, vivid: isVivid(code), style: cleanCodeStyle(code.meta?.settings) } : null,
     };
   } catch (err) {
     return { ...view, link: null, code: null, error: (err as Error).message };
@@ -116,8 +120,14 @@ async function signVenmo(raw: unknown): Promise<SignVenmo | null> {
 
 async function save(request: Request, body: Record<string, unknown>): Promise<Response> {
   const link = await buildCheckinLink(siteOrigin(request), eventIdsFrom(body), body.createRegistration === true);
+  const heading = typeof body.heading === 'string' ? body.heading.trim().slice(0, MAX_HEADING) : '';
+  if (!heading) throw new DoorSignError('Give the sign a heading: it’s also its name in Saved signs.');
+  // Checked before any link is pointed, so a refused name changes nothing (the database checks again on saving).
+  if (await signNamed(heading, typeof body.id === 'string' ? body.id : undefined)) throw nameTaken(heading);
+  const checkinTitle = typeof body.checkinTitle === 'string' ? body.checkinTitle.trim().slice(0, MAX_CHECKIN_TITLE) : '';
   const fields = {
-    heading: typeof body.heading === 'string' ? body.heading.trim().slice(0, MAX_HEADING) : '',
+    heading,
+    checkin_title: checkinTitle || DEFAULT_CHECKIN_TITLE,
     event_ids: link.events.map((e) => e.id),
     titles: link.events.map((e) => e.title),
     create_registration: link.createRegistration,
@@ -196,6 +206,23 @@ async function codesUrl(request: Request, remake = false): Promise<Response> {
   }
 }
 
+// A new branded code for one saved sign, in the embedded generator: in its
+// current look (from its code) with any picked style over it. The old code is
+// deleted once the new one is saved; the short link doesn't change.
+async function newCodeFor(request: Request, signId: string, rawStyle: unknown): Promise<Response> {
+  const sign = await getSign(signId);
+  if (!sign) throw new DoorSignError('That sign was deleted.', 404);
+  const current = (await codesFor(sign.link_code, true))[0] ?? null;
+  const here = new URL(request.url).origin;
+  try {
+    const ticket = await createTicket([sign.link_code], current?.id ?? null, here, Boolean(current), cleanCodeStyle(rawStyle));
+    return json({ embed: { url: ticket.url, origin: embedOrigin(here), links: [sign.link_code] }, url: null });
+  } catch (err) {
+    console.error('QR ticket failed:', (err as Error).message);
+    return json({ url: null });
+  }
+}
+
 export const GET: APIRoute = async ({ request, url }) => {
   const { user, error: authError } = await requireAdmin(request);
   if (!user) return json({ error: authError }, 403);
@@ -238,7 +265,7 @@ export const POST: APIRoute = async ({ request }) => {
       return json({ state: await state() });
     }
 
-    if (action === 'codes') return await codesUrl(request, body.remake === true);
+    if (action === 'codes') return typeof body.signId === 'string' ? await newCodeFor(request, body.signId, body.style) : await codesUrl(request, body.remake === true);
 
     if (action === 'venmo-find') return json({ account: withLinks({ ...(await lookupVenmo(body.username)), label: '' }) });
 

@@ -245,8 +245,10 @@ test('the past flyers gallery only accepts images uploaded to the site', async (
 // panel, and a thumbnail on each list entry (a link on phones).
 async function calendarMonth(page: import('@playwright/test').Page, s: Seeded) {
   const { data } = await db.from('events').select('start_time').eq('id', s.ids[0]).single();
-  const d = new Date(data!.start_time);
-  await page.goto(`/calendar?month=${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
+  // The calendar's months are the site's (Central), not UTC's: a class at 1am UTC
+  // on the 1st is on the last day of the month before.
+  const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit' }).format(new Date(data!.start_time));
+  await page.goto(`/calendar?month=${month}`);
 }
 
 test("the calendar's detail panel offers See flyer only for a class with a flyer", async ({ page }) => {

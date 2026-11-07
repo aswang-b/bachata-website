@@ -62,53 +62,69 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
 
         <div id="editor" class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start">
           <div class="flex min-w-0 flex-col gap-6">
-            <h2 id="editor-title" class="font-display text-2xl font-extrabold text-ink">New sign</h2>
-            <section class={card}>
-              <h3 class="font-display text-lg font-bold text-ink">1. Check in to</h3>
-              <p id="selection-summary" class="min-h-4 text-xs font-semibold text-accent"></p>
-              <p id="no-classes" class="hidden rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-muted">No classes are scheduled for today or later.</p>
-              <div id="class-list" class="flex max-h-[28rem] flex-col gap-2 overflow-y-auto"></div>
-              <label class="flex items-start gap-3 rounded-xl border border-border bg-bg px-4 py-3 has-[:disabled]:opacity-50">
-                <input id="register-too" type="checkbox" disabled class="mt-0.5 h-4 w-4 shrink-0 accent-accent" />
-                <span class="flex flex-col gap-0.5">
-                  <span class="text-sm font-semibold text-ink">Also register attendees as drop-ins</span>
-                  <span id="register-too-hint" class="text-xs text-muted"></span>
-                </span>
-              </label>
-            </section>
+            {/* The sign's name as it's saved (its heading): what it's called in Saved signs. */}
+            <div id="editor-bar" class="flex flex-col gap-0.5 rounded-2xl border border-accent/40 bg-accent/10 px-5 py-4">
+              <p id="editor-kind" class="text-xs font-bold uppercase tracking-wider text-accent">New sign</p>
+              <h2 id="editor-title" class="font-display text-2xl font-extrabold text-ink break-words">Welcome to class!</h2>
+            </div>
 
             <section class={card}>
-              <h3 class="font-display text-lg font-bold text-ink">2. Pay on Venmo</h3>
-              <div id="venmo-choices" class="flex flex-col gap-2" role="radiogroup" aria-label="Venmo account on the sign"></div>
-              <div id="venmo-other" class="hidden flex-col gap-3">
-                <label class="flex flex-col gap-1">
-                  <span class="text-sm font-medium text-ink/80">Their Venmo username</span>
-                  <span class="flex gap-2">
-                    <input id="venmo-username" type="text" maxlength="31" placeholder="@username" autocomplete="off" class:list={[field, 'min-w-0 flex-1']} />
-                    <button id="venmo-find" type="button" class={pill}>Find</button>
-                  </span>
-                </label>
-                <div id="venmo-found" class="hidden"></div>
-                <p id="venmo-status" class="min-h-4 text-xs text-muted" role="status"></p>
-              </div>
-            </section>
-
-            <section class={card}>
-              <h3 class="font-display text-lg font-bold text-ink">3. The sign</h3>
+              <h3 class="font-display text-lg font-bold text-ink">Heading and settings</h3>
               <label class="flex flex-col gap-1">
                 <span class="text-sm font-medium text-ink/80">Heading</span>
-                <input id="sign-heading" type="text" maxlength="60" value="Welcome to class!" class={field} />
+                <input id="sign-heading" type="text" maxlength="60" value="Welcome to class!" required aria-describedby="heading-hint" class={field} />
+                <span id="heading-hint" class="text-xs text-muted">At the top of the sign, and its name in Saved signs, so each sign’s is different.</span>
+                <span id="heading-error" class="hidden text-xs font-semibold text-red-400" role="alert"></span>
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-ink/80">Over the check-in code</span>
+                <input id="sign-checkin-title" type="text" maxlength="40" value="Check in for class" placeholder="Check in for class" class={field} />
               </label>
               <label class="flex items-center gap-2 text-sm text-ink/80">
                 <input id="sign-classes" type="checkbox" checked class="accent-accent" />
                 Show the class names under the check-in code
               </label>
+            </section>
+
+            {/* What the sign's two codes open: one block, a section for each. */}
+            <section id="sign-content" class="flex flex-col rounded-2xl border border-border bg-surface">
+              <div class="flex flex-col gap-4 p-5">
+                <h3 class="font-display text-lg font-bold text-ink">Check in to</h3>
+                <p id="selection-summary" class="min-h-4 text-xs font-semibold text-accent"></p>
+                <p id="no-classes" class="hidden rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-muted">No classes are scheduled for today or later.</p>
+                <div id="class-list" class="flex max-h-[28rem] flex-col gap-2 overflow-y-auto"></div>
+                <label class="flex items-start gap-3 rounded-xl border border-border bg-bg px-4 py-3 has-[:disabled]:opacity-50">
+                  <input id="register-too" type="checkbox" disabled class="mt-0.5 h-4 w-4 shrink-0 accent-accent" />
+                  <span class="flex flex-col gap-0.5">
+                    <span class="text-sm font-semibold text-ink">Also register attendees as drop-ins</span>
+                    <span id="register-too-hint" class="text-xs text-muted"></span>
+                  </span>
+                </label>
+              </div>
+              <div class="flex flex-col gap-4 border-t border-border p-5">
+                <h3 class="font-display text-lg font-bold text-ink">Pay on Venmo</h3>
+                <div id="venmo-choices" class="flex flex-col gap-2" role="radiogroup" aria-label="Venmo account on the sign"></div>
+                <div id="venmo-other" class="hidden flex-col gap-3">
+                  <label class="flex flex-col gap-1">
+                    <span class="text-sm font-medium text-ink/80">Their Venmo username</span>
+                    <span class="flex gap-2">
+                      <input id="venmo-username" type="text" maxlength="31" placeholder="@username" autocomplete="off" class:list={[field, 'min-w-0 flex-1']} />
+                      <button id="venmo-find" type="button" class={pill}>Find</button>
+                    </span>
+                  </label>
+                  <div id="venmo-found" class="hidden"></div>
+                  <p id="venmo-status" class="min-h-4 text-xs text-muted" role="status"></p>
+                </div>
+              </div>
+            </section>
+
+            <div class="flex flex-col gap-2">
               <div class="flex flex-wrap items-center gap-3">
                 <button id="sign-save" type="button" disabled class={cta}>Save sign</button>
                 <button id="sign-cancel" type="button" class="hidden text-sm font-semibold text-ink/70 hover:text-ink">Stop editing</button>
               </div>
               <p id="sign-status" class="min-h-4 text-xs text-muted" role="status"></p>
-            </section>
+            </div>
           </div>
 
           <section class:list={[card, 'min-w-0 lg:sticky lg:top-24']}>
@@ -118,6 +134,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
               <button id="show-full" type="button" class={pill}>Show full screen</button>
               <button id="download-sign" type="button" class={pill}>Download sign (PNG)</button>
               <button id="copy-link" type="button" class={pill}>Copy check-in link</button>
+              <button id="new-code" type="button" class:list={[pill, 'hidden']}>New branded code</button>
             </div>
             <p id="opens" class="text-xs text-muted"></p>
           </section>
@@ -142,6 +159,26 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     </div>
     <div id="full-sign" class="sign-frame full flex-1"></div>
   </div>
+
+  {/* A new branded code for the sign being edited, in a picked look; the generator below makes it. */}
+  <dialog id="style-dialog" aria-labelledby="style-title" class="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-border bg-bg p-0 text-ink backdrop:bg-black/60">
+    <form method="dialog" class="flex flex-col gap-4 p-5">
+      <h2 id="style-title" class="font-display text-lg font-bold text-ink">New branded code</h2>
+      <p class="text-sm text-ink/80">Made again in the sign's colours and logo, in the look you pick. Its short link stays the same, so printed copies keep working; the old code is deleted.</p>
+      <fieldset class="flex flex-col gap-2">
+        <legend class="mb-1 text-sm font-medium text-ink/80">Dots</legend>
+        <div id="style-shape" class="flex flex-wrap gap-2"></div>
+      </fieldset>
+      <fieldset class="flex flex-col gap-2">
+        <legend class="mb-1 text-sm font-medium text-ink/80">Corners</legend>
+        <div id="style-eyes" class="flex flex-wrap gap-2"></div>
+      </fieldset>
+      <div class="flex flex-wrap items-center gap-3">
+        <button id="style-make" type="button" class={cta}>Make it</button>
+        <button value="cancel" class="text-sm font-semibold text-ink/70 hover:text-ink">Cancel</button>
+      </div>
+    </form>
+  </dialog>
 
   {/* The QR site's generator, embedded: it makes and saves the branded codes on its own, then reports back. */}
   <dialog id="codes-dialog" aria-labelledby="codes-title" class="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-border bg-bg p-0 text-ink backdrop:bg-black/60">
@@ -209,15 +246,18 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
 
   interface Account { username: string; name: string; userId: string; picture?: string | null; label: string; codeUrl: string; profileUrl: string }
   interface SavedSign {
-    id: string; heading: string; event_ids: string[]; titles: string[]; create_registration: boolean; show_classes: boolean;
+    id: string; heading: string; checkin_title?: string; event_ids: string[]; titles: string[]; create_registration: boolean; show_classes: boolean;
     venmo: Account | null; link_code: string; link_short: string; updated_at: string;
     link: { code: string; short: string; url: string; hits: number; updatedAt: number; week: { date: string; hits: number }[] } | null;
-    code: { id: number; name: string; svgUrl: string; vivid: boolean } | null;
+    code: { id: number; name: string; svgUrl: string; vivid: boolean; style: CodeStyle } | null;
     error?: string;
   }
   interface Studio { saved: boolean; connected: boolean; venmo: Account[]; defaultVenmo: string | null; signs: SavedSign[]; signsError: string | null; standardCodes: number }
   // What a sign shows, saved or being made.
-  interface SignModel { signId: string | null; heading: string; titles: string[]; showClasses: boolean; venmo: Account | null; checkin: string | null; branded: HTMLImageElement | null }
+  interface CodeStyle { shape?: string; eyes?: string }
+  // The line over the check-in code when a sign has none saved (before migration 0074).
+  const DEFAULT_CHECKIN_TITLE = 'Check in for class';
+  interface SignModel { signId: string | null; heading: string; checkinTitle: string; titles: string[]; showClasses: boolean; venmo: Account | null; checkin: string | null; branded: HTMLImageElement | null }
 
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
   const panels = { loading: $('loading'), signedOut: $('signed-out'), notAdmin: $('not-admin'), unavailable: $('admin-unavailable'), admin: $('qr-admin') };
@@ -339,7 +379,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
 
     const checkin = el('div', 'sign-half');
     checkin.dataset.hidden = String(full && fullShows !== 'checkin');
-    checkin.append(el('span', 'sign-step', 'Just arrived?'), el('span', 'sign-title', 'Check in for class'));
+    checkin.append(el('span', 'sign-step', 'Just arrived?'), el('span', 'sign-title', m.checkinTitle || DEFAULT_CHECKIN_TITLE));
     if (!m.checkin) {
       checkin.append(el('div', 'sign-empty', 'Pick the classes this sign checks in to.'));
     } else {
@@ -398,7 +438,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
   const eventIdsToSave = () => (pickIsSaved() ? editing!.event_ids : picker.eventIds());
 
   function savedModel(s: SavedSign): SignModel {
-    return { signId: s.id, heading: s.heading, titles: s.titles, showClasses: s.show_classes, venmo: s.venmo, checkin: s.link_short, branded: loaded.get(s.id) ?? null };
+    return { signId: s.id, heading: s.heading, checkinTitle: s.checkin_title || DEFAULT_CHECKIN_TITLE, titles: s.titles, showClasses: s.show_classes, venmo: s.venmo, checkin: s.link_short, branded: loaded.get(s.id) ?? null };
   }
 
   // The sign being made: once saved (and the pick unchanged), its own short link and branded code.
@@ -407,6 +447,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     return {
       signId: saved ? editing!.id : null,
       heading: $<HTMLInputElement>('sign-heading').value.trim(),
+      checkinTitle: $<HTMLInputElement>('sign-checkin-title').value.trim(),
       titles: saved ? editing!.titles : picker.titles(),
       showClasses: $<HTMLInputElement>('sign-classes').checked,
       venmo: venmoChoice,
@@ -431,7 +472,16 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
         : editing
           ? 'These classes aren’t saved yet: Save changes points its short link at them.'
           : 'A plain code for now. Saving gives the sign its own short link and branded code.';
-    $<HTMLButtonElement>('sign-save').disabled = eventIdsToSave().length === 0 || !studio.connected;
+    const problem = headingProblem();
+    $('heading-error').textContent = problem;
+    toggleShown($('heading-error'), Boolean(problem), 'block');
+    $('sign-heading').setAttribute('aria-invalid', String(Boolean(problem)));
+    // A new sign's title bar follows its heading; a saved one's shows its saved name until saved again.
+    if (!editing) $('editor-title').textContent = m.heading || 'New sign';
+    $<HTMLButtonElement>('sign-save').disabled = eventIdsToSave().length === 0 || !studio.connected || Boolean(problem);
+    // A saved sign's own code can be made again, in another look.
+    toggleShown($('new-code'), Boolean(editing && pickIsSaved() && editing.link), 'inline-block');
+    $('new-code').textContent = editing?.code ? 'New branded code' : 'Make its branded code';
     $<HTMLButtonElement>('copy-link').disabled = !m.checkin;
   }
 
@@ -509,9 +559,20 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     $('connection').textContent = studio.connected ? 'Connected to qr.dancewithb.fun as Dance With B.' : 'Not connected to qr.dancewithb.fun: add QR_API_TOKEN (the "Dance With B" author token) in Netlify to save signs.';
   }
 
+  // The heading is the sign's name in Saved signs: needed, and not another sign's.
+  const nameKey = (heading: string) => heading.trim().toLowerCase();
+  function headingProblem(): string {
+    const heading = $<HTMLInputElement>('sign-heading').value;
+    if (!heading.trim()) return 'Give the sign a heading: it’s also its name in Saved signs.';
+    const other = studio.signs.find((s) => s.id !== editing?.id && nameKey(s.heading) === nameKey(heading));
+    return other ? `Another saved sign is already called "${other.heading}". Give this one a different heading.` : '';
+  }
+
   function edit(s: SavedSign) {
     editing = s;
-    $('editor-title').textContent = `Editing: ${s.heading || 'Untitled sign'}`;
+    $('editor-kind').textContent = 'Editing saved sign';
+    $('editor-title').textContent = s.heading || 'Untitled sign';
+    $<HTMLInputElement>('sign-checkin-title').value = s.checkin_title || DEFAULT_CHECKIN_TITLE;
     $<HTMLInputElement>('sign-heading').value = s.heading;
     $<HTMLInputElement>('sign-classes').checked = s.show_classes;
     picker.select(s.event_ids, s.create_registration);
@@ -528,10 +589,20 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     $('editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  // A heading no saved sign has yet: the suggestion, or it with (2), (3), …
+  function freeHeading(suggestion: string): string {
+    const taken = new Set(studio.signs.map((s) => nameKey(s.heading)));
+    for (let n = 1; ; n++) {
+      const heading = n === 1 ? suggestion : `${suggestion} (${n})`;
+      if (!taken.has(nameKey(heading))) return heading;
+    }
+  }
+
   function newSign() {
     editing = null;
-    $('editor-title').textContent = 'New sign';
-    $<HTMLInputElement>('sign-heading').value = 'Welcome to class!';
+    $('editor-kind').textContent = 'New sign';
+    $<HTMLInputElement>('sign-heading').value = freeHeading('Welcome to class!');
+    $<HTMLInputElement>('sign-checkin-title').value = DEFAULT_CHECKIN_TITLE;
     $<HTMLInputElement>('sign-classes').checked = true;
     picker.select([], false);
     found = null;
@@ -581,6 +652,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
         heading: $<HTMLInputElement>('sign-heading').value,
         eventIds: eventIdsToSave(),
         createRegistration: $<HTMLInputElement>('register-too').checked,
+        checkinTitle: $<HTMLInputElement>('sign-checkin-title').value,
         showClasses: $<HTMLInputElement>('sign-classes').checked,
         venmo: venmoChoice ? { username: venmoChoice.username, label: venmoChoice.label } : null,
         confirm,
@@ -619,19 +691,22 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
 
   // `auto`: right after saving a sign without a code (says nothing when there's nothing to make).
   // `remake`: new vivid codes for the ones in standard colours.
+  // `one`: a new code for just that saved sign, in a picked look.
   let lastRemake = false;
-  async function makeCodes(auto = false, remake = false) {
+  let lastOne: { signId: string; style: CodeStyle } | undefined;
+  async function makeCodes(auto = false, remake = false, one?: { signId: string; style: CodeStyle }) {
     lastRemake = remake;
+    lastOne = one;
     let result: { embed?: { url: string; origin: string; links: string[] }; url?: string | null };
     try {
-      result = await api('POST', { action: 'codes', remake });
+      result = await api('POST', one ? { action: 'codes', signId: one.signId, style: one.style } : { action: 'codes', remake });
     } catch (err) {
       if (!auto) say((err as Error).message);
       return;
     }
     $<HTMLAnchorElement>('codes-fallback-link').href = result.url ?? '#';
     $('codes-fallback-other').classList.toggle('hidden', !result.url);
-    $('codes-title').textContent = remake ? 'Remaking codes in vivid colours' : 'Making branded codes';
+    $('codes-title').textContent = one ? 'Making a new branded code' : remake ? 'Remaking codes in vivid colours' : 'Making branded codes';
     if (!codesDialog.open) codesDialog.showModal();
     if (!result.embed) {
       codesFrom = null;
@@ -686,7 +761,40 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
       }
     }
   });
-  $('codes-retry').addEventListener('click', () => makeCodes(false, lastRemake));
+  $('codes-retry').addEventListener('click', () => makeCodes(false, lastRemake, lastOne));
+
+  // ---- A new branded code for the sign being edited, in a picked look ----
+  const styleDialog = $<HTMLDialogElement>('style-dialog');
+  const STYLE_CHOICES: Record<'shape' | 'eyes', [string, string][]> = {
+    shape: [['dots', 'Dots'], ['rounded', 'Rounded'], ['squares', 'Squares'], ['connected', 'Connected']],
+    eyes: [['square', 'Square'], ['rounded', 'Rounded'], ['dot', 'Round']],
+  };
+  function styleChoices(kind: 'shape' | 'eyes', current: string | undefined) {
+    $(`style-${kind}`).replaceChildren(
+      ...STYLE_CHOICES[kind].map(([value, label], i) => {
+        const option = el('label', 'cursor-pointer rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/80 has-[:checked]:border-accent has-[:checked]:bg-accent/15 has-[:checked]:text-ink has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent');
+        const input = el('input', 'sr-only') as HTMLInputElement;
+        input.type = 'radio';
+        input.name = `style-${kind}`;
+        input.value = value;
+        input.checked = current ? current === value : i === 0;
+        option.append(input, label);
+        return option;
+      })
+    );
+  }
+  $('new-code').addEventListener('click', () => {
+    if (!editing) return;
+    styleChoices('shape', editing.code?.style.shape);
+    styleChoices('eyes', editing.code?.style.eyes);
+    styleDialog.showModal();
+  });
+  $('style-make').addEventListener('click', () => {
+    if (!editing) return;
+    const picked = (kind: string) => styleDialog.querySelector<HTMLInputElement>(`input[name="style-${kind}"]:checked`)?.value;
+    styleDialog.close();
+    void makeCodes(false, false, { signId: editing.id, style: { shape: picked('shape'), eyes: picked('eyes') } });
+  });
   $('codes-close').addEventListener('click', () => codesDialog.close());
   // Closing it doesn't stop the generator: the iframe keeps working, and when it's
   // done the page updates (only a new run replaces it).
@@ -704,6 +812,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
     });
   }
   $('sign-heading').addEventListener('input', redrawSoon);
+  $('sign-checkin-title').addEventListener('input', redrawSoon);
   $('sign-classes').addEventListener('change', redraw);
 
   // ---- Venmo on the sign ----
@@ -926,7 +1035,7 @@ const card = 'flex flex-col gap-4 rounded-2xl border border-border bg-surface p-
       const branded = m.branded && m.signId ? await brandedForPng(m.signId) : null;
       const blob = await signPng({
         heading: m.heading,
-        checkin: m.checkin ? { branded, text: m.checkin, classes: m.showClasses ? m.titles : [] } : null,
+        checkin: m.checkin ? { branded, text: m.checkin, classes: m.showClasses ? m.titles : [], title: m.checkinTitle } : null,
         venmo: m.venmo ? { text: m.venmo.codeUrl, name: m.venmo.name, username: m.venmo.username, logo: venmoLogo } : null,
       });
       downloadBlob(blob, `${(m.heading || 'door-sign').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'door-sign'}.png`);
