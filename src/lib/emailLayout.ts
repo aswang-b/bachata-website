@@ -1,7 +1,8 @@
 import { SITE_URL } from './seoSchema';
 
-// The look every email to a dancer shares: a dark band with the Dance with B
-// wordmark and the heading, a thin red line, the content on a light body, and
+// The look every email to a dancer shares: a dark band with the heading (the
+// name is the sender's and the footer's, not repeated here), a thin red line,
+// the content on a light body, and
 // a dark footer with the wordmark and the site's social links (WhatsApp only
 // when a community link is set). Tables with bgcolor and inline styles, since
 // many email apps ignore anything else; icons are hosted PNGs (no SVG in email).
@@ -55,8 +56,7 @@ export function emailLayout(p: EmailLayoutParams): string {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;border-collapse:collapse;">
     <tr>
       <td bgcolor="${C.dark}" style="background:${C.dark};padding:24px 28px 22px;">
-        ${wordmark(20)}
-        <h1 style="margin:16px 0 0;font-family:${DISPLAY};font-size:24px;line-height:1.2;font-weight:800;color:${C.onDark};">${escapeAttr(p.heading)}</h1>
+        <h1 style="margin:0;font-family:${DISPLAY};font-size:24px;line-height:1.2;font-weight:800;color:${C.onDark};">${escapeAttr(p.heading)}</h1>
         ${p.subheading ? `<p style="margin:4px 0 0;font-family:${TEXT};font-size:15px;color:${C.mutedOnDark};">${escapeAttr(p.subheading)}</p>` : ''}
       </td>
     </tr>

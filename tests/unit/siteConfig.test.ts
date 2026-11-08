@@ -67,9 +67,12 @@ describe('the WhatsApp community link', () => {
     const base = { registrationTypeLabel: 'Group Lesson', createdAt: new Date('2026-11-06T18:00:00Z'), summaryRows: [['Jamie Rivera', 'leader · (555) 555-0100 · jamie@example.com']] as [string, string][], subtotal: null, faqs: [{ question: 'What to bring?', answer: 'Water.' }] };
     const without = buildRegistrationConfirmationEmailHtml(base);
     expect(without).not.toContain('whatsapp');
-    // The header (wordmark and heading) and footer bands, with Instagram and Spotify.
+    // The header (just the heading) and footer bands, with Instagram and Spotify;
+    // the wordmark is in the footer only, once.
     expect(without).toContain('bgcolor="#170f0d"');
-    expect(without).toContain('Dance with <span style="color:#ff5577;">B</span>');
+    const mark = 'Dance with <span style="color:#ff5577;">B</span>';
+    expect(without.split(mark)).toHaveLength(2);
+    expect(without.indexOf(mark)).toBeGreaterThan(without.indexOf('What to bring?'));
     expect(without).toContain('https://dancewithb.fun/email/instagram.png');
     expect(without).not.toContain('Join Our WhatsApp Community');
     expect(without).toContain('<a href="mailto:jamie@example.com"');
