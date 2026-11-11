@@ -53,6 +53,7 @@ Test data rules (`support/db.ts`):
 - Ad-hoc seeding outside the suite must follow the same rules (fake Google id, far future): a row without a `google_event_id` gets pushed to the public Google Calendar by the live sync.
 - Tests that change a shared setting (the community guidelines) restore it afterwards. Nothing ever empties the Recycling Bin.
 - Admin tests use a magic-link session made with the service role (`support/admin.ts`), always ended with a **local** sign-out.
+- Every test has 90s. A flow that needs more on a busy machine is split into a `test.describe.serial` pair sharing `beforeAll` seeds (`feedback`'s request from asking to closing, `qr`'s saved signs), not given a longer timeout. Anything a UI action saves is read with `expect.poll`, never once.
 
 | Spec | Covers |
 | --- | --- |

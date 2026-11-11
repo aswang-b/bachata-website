@@ -97,7 +97,8 @@ test('rules: includes with a default note, a custom note, and a contradiction re
   const wp = pair(workshop, practica);
   await wp.locator('select').selectOption({ label: `${workshop.title} includes ${practica.title}` });
   await expect(wp.locator('.linked-rule-reason')).toHaveAttribute('placeholder', `${practica.title} is included with ${workshop.title}, so you won't be charged for it twice.`);
-  expect(await rulesOf([workshop.key, practica.key])).toHaveLength(1);
+  // Saved by a request the select sends: polled, not read once (it could still be on its way).
+  await expect.poll(async () => (await rulesOf([workshop.key, practica.key])).length).toBe(1);
 
   // A custom note saves when the box is left.
   await wp.locator('.linked-rule-reason').fill('The practica comes with the workshop.');

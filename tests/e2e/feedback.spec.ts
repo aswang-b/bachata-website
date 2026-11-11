@@ -1,5 +1,5 @@
 import { test, expect } from './support/fixtures';
-import { db, seedEvent, seedSignup, sweepTestData, testTitle } from './support/db';
+import { db, seedEvent, seedSignup, sweepTestData, testTitle, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { recipients, sunkEmails } from './support/emails';
 import { bearer, signInBrowser } from './support/admin';
@@ -311,20 +311,30 @@ test('on a phone, dragging the dots reorders questions', async ({ browser, admin
   await context.close();
 });
 
-test('an admin asks who came with their own message; dancers answer from the email and WhatsApp, anonymously', async ({ page, context, request, adminPage, admin }) => {
-  void adminPage;
-  const klass = await seedEvent({ name: 'Feedback Class', occurrences: 2 });
-  const questionnaire = await seedQuestionnaire('Series Questions', [{ id: 'hello', kind: 'message', text: 'From the questionnaire' }, rating, focus, again, comment]);
-  // Ana signed up with her email and came twice (checking in by phone); Ben came once; Cat walked in; Dee never came.
-  await seedSignup(klass, [
-    { first: 'Ana', email: emailOf('ana'), phone: '6085550111' },
-    { first: 'Ben', phone: '6085550122' },
-    { first: 'Dee', email: emailOf('dee'), phone: '6085550144' },
-  ]);
-  const checkin = (first: string, phone: string, occurrence: number) => ({ first_name: `ZZZ${first}`, last_name: RUN_ID, phone, class_title: klass.title, event_id: klass.ids[occurrence] });
-  const { error } = await db.from('class_checkins').insert([checkin('Ana', '6085550111', 0), checkin('Ana', '6085550111', 1), checkin('Ben', '6085550122', 0), checkin('Cat', '6085550133', 1)]);
-  expect(error).toBeNull();
+// One request followed from asking to closing, in two tests that each get the
+// full time limit (as one test it ran past 90s on a busy machine): the second
+// carries on from what the first left in the database, so they run in order.
+test.describe.serial('an admin asks who came with their own message', () => {
+  let klass: Seeded;
+  let questionnaire: { id: string; name: string };
+  // Seeded once for both (the file's sweep removes it), since each test's own seeds go when it ends.
+  test.beforeAll(async () => {
+    klass = await seedEvent({ name: 'Feedback Class', occurrences: 2 });
+    questionnaire = await seedQuestionnaire('Series Questions', [{ id: 'hello', kind: 'message', text: 'From the questionnaire' }, rating, focus, again, comment]);
+    // Ana signed up with her email and came twice (checking in by phone); Ben came once; Cat walked in; Dee never came.
+    await seedSignup(klass, [
+      { first: 'Ana', email: emailOf('ana'), phone: '6085550111' },
+      { first: 'Ben', phone: '6085550122' },
+      { first: 'Dee', email: emailOf('dee'), phone: '6085550144' },
+    ]);
+    const checkin = (first: string, phone: string, occurrence: number) => ({ first_name: `ZZZ${first}`, last_name: RUN_ID, phone, class_title: klass.title, event_id: klass.ids[occurrence] });
+    const { error } = await db.from('class_checkins').insert([checkin('Ana', '6085550111', 0), checkin('Ana', '6085550111', 1), checkin('Ben', '6085550122', 0), checkin('Cat', '6085550133', 1)]);
+    expect(error).toBeNull();
+  });
+  const campaignOf = async () => (await db.from('feedback_campaigns').select('id').eq('class_title', klass.title).single()).data!.id as string;
 
+test('dancers answer from the email, anonymously', async ({ page, request, adminPage }) => {
+  void adminPage;
   await page.goto('/admin/feedback');
   const option = page.locator('#fb-target option', { hasText: klass.title }).filter({ hasText: 'whole series' });
   await page.locator('#fb-target').selectOption((await option.getAttribute('value'))!);
@@ -350,8 +360,7 @@ test('an admin asks who came with their own message; dancers answer from the ema
   expect(sent[0].html).toContain(`Hi ZZZAna! Last week of ${klass.title}, thank you.`);
   expect(sent[0].html).not.toContain('From the questionnaire');
 
-  const { data: campaign } = await db.from('feedback_campaigns').select('id, items').eq('class_title', klass.title).single();
-  const campaignId = campaign!.id as string;
+  const campaignId = await campaignOf();
 
   // A mail scanner following the email's links answers nothing.
   const link5 = tapLink(sent[0].html, '5');
@@ -403,7 +412,11 @@ test('an admin asks who came with their own message; dancers answer from the ema
   await page.keyboard.press('Tab');
   await expect(page.locator('#feedback-status')).toHaveText('Saved');
   await expect.poll(async () => (await responses(campaignId)).map((r) => r.answers.rate)).toEqual([3]);
+});
 
+test('then from WhatsApp; who answered never reaches the admin, and a closed request takes no answers', async ({ page, context, request, adminPage, admin }) => {
+  void adminPage;
+  const campaignId = await campaignOf();
   // Ben gets a WhatsApp message (the button opens it) with the custom message, answers, and shares his name.
   await context.route('https://wa.me/**', (route) => route.fulfill({ body: 'WhatsApp' }));
   await page.goto('/admin/feedback');
@@ -483,6 +496,7 @@ test('an admin asks who came with their own message; dancers answer from the ema
   await request.post('/api/admin/feedback-questionnaires', { headers: bearer(admin), data: { action: 'delete', id: questionnaire.id } });
   const { data: hidden } = await db.from('feedback_questionnaires').select('hidden_at').eq('id', questionnaire.id).single();
   expect(hidden!.hidden_at).not.toBeNull();
+});
 });
 
 test('the link anyone can use: no dancers needed, each browser answers once, and contact details are optional', async ({ page, browser, adminPage }) => {

@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import sharp from 'sharp';
 import jsQR from 'jsqr';
 import { test, expect } from './support/fixtures';
-import { db, seedEvent, sweepTestData } from './support/db';
+import { db, seedEvent, sweepTestData, type Seeded } from './support/db';
 import { signInBrowser } from './support/admin';
 
 // Door signs (/admin/qr). The test server fakes qr.dancewithb.fun and Venmo
@@ -39,11 +39,22 @@ async function saveNew(page: Page, heading: string, classTitle: string) {
   return linkOf(page, heading);
 }
 
-test('saved door signs: each gets its own short link and branded code, repoints with care, and frees its link when deleted', async ({ page, adminPage }) => {
+// Saved signs, from the first to a download, in two tests that each get the full
+// time limit (as one test it ran past 90s on a busy machine); the second carries
+// on with the first's signs (kept in the test server's memory), so they run in order.
+test.describe.serial('saved door signs', () => {
+  let first: Seeded;
+  let second: Seeded;
+  // Seeded once for both (the file's sweep removes them), since each test's own seeds go when it ends.
+  test.beforeAll(async () => {
+    first = await seedEvent({ name: 'Door Sign A', priceDropIn: 15 });
+    second = await seedEvent({ name: 'Door Sign B', priceDropIn: 15 });
+  });
+  const runOf = () => first.title.split(' Door Sign')[0];
+
+test('each gets its own short link and branded code, repoints with care, and frees its link when deleted', async ({ page, adminPage }) => {
   void adminPage;
-  const first = await seedEvent({ name: 'Door Sign A', priceDropIn: 15 });
-  const second = await seedEvent({ name: 'Door Sign B', priceDropIn: 15 });
-  const run = first.title.split(' Door Sign')[0];
+  const run = runOf();
   const monday = `${run} Monday`;
 
   // The old check-in QR address lands here.
@@ -127,10 +138,14 @@ test('saved door signs: each gets its own short link and branded code, repoints 
   await page.goto(`/admin/qr?qr_ids=${mondayLink.split('/c/')[1]}:1`);
   await expect(page.locator('#page-status')).toContainText('Made branded codes for 1 short link');
   await expect(page).toHaveURL(/\/admin\/qr$/);
+});
 
+test("a sign whose class has passed keeps it when renamed; a sign downloads as a picture named for its heading", async ({ page, adminPage }) => {
+  void adminPage;
+  const run = runOf();
   // Once a sign's class has passed it isn't listed to pick, but its heading can still be changed, keeping the class.
   const past = await seedEvent({ name: 'Door Sign Past', priceDropIn: 15 });
-  await page.reload();
+  await page.goto('/admin/qr');
   await expect(page.locator('#qr-admin')).toBeVisible();
   await saveNew(page, `${run} Thursday`, past.title);
   const yesterday = Date.now() - 24 * 60 * 60 * 1000;
@@ -148,6 +163,7 @@ test('saved door signs: each gets its own short link and branded code, repoints 
   const download = page.waitForEvent('download');
   await card(page, `${run} Tuesday`).getByRole('button', { name: 'Download' }).click();
   expect((await download).suggestedFilename()).toMatch(/tuesday\.png$/);
+});
 });
 
 test('Venmo on a sign: an artist found by username, remembered, then removed; or no Venmo code at all', async ({ page, adminPage }) => {
