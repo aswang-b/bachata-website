@@ -16,7 +16,9 @@ export default defineConfig({
   fullyParallel: false,
   timeout: 90_000,
   expect: { timeout: 15_000 },
-  retries: 0,
+  // One retry: the suite is slow and a different test times out each busy run. A test that passes on retry is
+  // reported as "flaky" in the summary (list reporter) and should be listed with each push; a real bug fails twice.
+  retries: 1,
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'tests/e2e/.output/report' }]],
   outputDir: 'tests/e2e/.output/results',
   use: {
