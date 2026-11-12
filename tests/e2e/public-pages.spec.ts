@@ -126,3 +126,41 @@ test("pages that are the same for everyone are kept at Netlify's edge for a minu
   // Admin pages are never cached for everyone.
   expect((await request.get('/admin')).headers()['netlify-cdn-cache-control']).toBeUndefined();
 });
+
+test('on a phone the menu button and the bell take taps from at least 44px tall (the bell as wide as the 8px gaps beside it allow)', async ({ browser }) => {
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await phone.newPage();
+  await page.goto('/');
+  // How far from its center a control still gets the tap, measured with real hit testing.
+  const hitSize = (selector: string) =>
+    page.locator(selector).evaluate((el) => {
+      const b = el.getBoundingClientRect();
+      const cx = b.x + b.width / 2;
+      const cy = b.y + b.height / 2;
+      const reach = (dx: number, dy: number) => {
+        let d = 0;
+        for (; d < 60; d += 0.5) {
+          const hit = document.elementFromPoint(cx + dx * d, cy + dy * d);
+          if (!hit || !(hit === el || el.contains(hit))) break;
+        }
+        return d;
+      };
+      return { width: reach(1, 0) + reach(-1, 0), height: reach(0, 1) + reach(0, -1) };
+    });
+  const menu = await hitSize('#nav-toggle');
+  expect(menu.width).toBeGreaterThanOrEqual(44);
+  expect(menu.height).toBeGreaterThanOrEqual(44);
+  const bell = await hitSize('#app-bell');
+  expect(bell.width).toBeGreaterThanOrEqual(39);
+  expect(bell.height).toBeGreaterThanOrEqual(44);
+  await phone.close();
+});
+
+test('smooth scrolling is off for visitors who ask for reduced motion', async ({ page }) => {
+  await page.goto('/');
+  const behavior = () => page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  expect(await behavior()).toBe('smooth');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(await behavior()).toBe('auto');
+});

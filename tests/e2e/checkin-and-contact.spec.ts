@@ -3,6 +3,7 @@ import { db, seedEvent, sweepTestData, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { emailsAbout, recipients } from './support/emails';
 import { bearer } from './support/admin';
+import { checkSendingState } from './support/forms';
 
 // Each test deletes the classes it seeded for itself (support/fixtures.ts);
 // what this file's tests share goes as soon as the file is done.
@@ -128,4 +129,24 @@ test('the inbox marks a message replied into a collapsed archive that only loads
   await expect(page.locator(`#messages-list .contact-message[data-id="${saved!.id}"]`)).toBeVisible();
   const { data: back } = await db.from('contact_messages').select('replied_at').eq('id', saved!.id).single();
   expect(back!.replied_at).toBeNull();
+});
+
+test('while a check-in is sending, the button is locked and says so, and comes back if the page is shown again', async ({ page }) => {
+  await page.goto(`/check-in/${klass.ids[0]}`);
+  await page.locator('input[name="first_name"]').fill('ZZZSending');
+  await page.locator('input[name="last_name"]').fill(RUN_ID);
+  await page.locator('input[name="phone"]').fill('6085550166');
+  await checkSendingState(page, '/api/submit-checkin', 'Checking in…', 'Check In');
+});
+
+test('while a contact message is sending, the button is locked and says so, and comes back if the page is shown again', async ({ page }) => {
+  await page.goto('/contact');
+  await page.locator('input[name="first_name"]').fill('ZZZSendingContact');
+  await page.locator('input[name="last_name"]').fill(RUN_ID);
+  await page.getByRole('button', { name: 'Email', exact: true }).click();
+  await page.locator('input[name="email"]').fill(`zzz-e2e-${RUN_ID.toLowerCase()}-sending@example.com`);
+  const phone = page.locator('input[name="phone"]');
+  if (await phone.isVisible()) await phone.fill('6085550155');
+  await page.locator('textarea[name="comments"]').fill(`ZZZ sending ${RUN_ID}`);
+  await checkSendingState(page, '/api/submit-intake', 'Sending…', 'Submit');
 });

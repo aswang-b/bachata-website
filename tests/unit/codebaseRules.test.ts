@@ -56,10 +56,14 @@ describe('codebase rules', () => {
     expect(read('src/lib/calendarSync.ts')).not.toMatch(/from\('events'\)\s*\.upsert/);
   });
 
-  it('the public sign-up and check-in forms never lock their submit button (the server catches duplicates instead)', () => {
-    for (const f of ['src/components/RegistrationForm.astro', 'src/components/IntakeForm.astro']) {
+  it('the public sign-up, contact and check-in forms lock their submit button only through submitState, which unlocks it when the page is shown again', () => {
+    const forms = ['src/components/RegistrationForm.astro', 'src/components/IntakeForm.astro', 'src/pages/check-in.astro', 'src/pages/check-in/[eventId].astro'];
+    for (const f of forms) {
       expect(read(f), f).not.toMatch(/(submit|Submit)\w*\.disabled\s*=\s*true/);
+      expect(read(f), f).toContain('trackSubmit(');
     }
+    // Back/forward restores the page with the button as it was left.
+    expect(read('src/scripts/submitState.ts')).toContain("addEventListener('pageshow'");
   });
 
   it('migrations are numbered uniquely and without gaps', () => {

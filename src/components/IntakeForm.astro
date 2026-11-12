@@ -138,6 +138,7 @@ const CONTACT_METHODS = [
 
 <script>
   import { attachEmailHint, emailsReadyToSubmit } from '../lib/emailHints';
+  import { trackSubmit } from '../scripts/submitState';
 
   const contactMethodButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.contact-method-btn'));
 
@@ -206,4 +207,6 @@ const CONTACT_METHODS = [
       });
     });
   }
+
+  trackSubmit(document.querySelector('form'), 'Sending…'); // after the checks above
 </script>

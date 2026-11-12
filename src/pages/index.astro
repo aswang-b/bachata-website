@@ -255,7 +255,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                           ) : <span />}
                           {/* Closed/Full is a little narrower on a phone, so a price like "Series: $160" beside it stays on one line. */}
                           {o.registrationClosed || full ? (
-                            <span class="shrink-0 rounded-full bg-border px-3 py-2 text-xs font-bold uppercase tracking-normal text-ink/60 sm:px-5 sm:tracking-wider">{o.registrationClosed ? 'Registration closed' : 'Full'}</span>
+                            <span class="shrink-0 rounded-full bg-border px-3 py-2 text-xs font-bold uppercase tracking-normal text-ink sm:px-5 sm:tracking-wider">{o.registrationClosed ? 'Registration closed' : 'Full'}</span>
                           ) : (
                             <a href={registerHref(o)} class="gradient-accent shrink-0 rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Register</a>
                           )}

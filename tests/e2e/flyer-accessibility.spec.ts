@@ -123,3 +123,27 @@ test.describe('the editor flyer upload', () => {
     expect(uploaded).toMatch(/name="height"\r\n\r\n1000\r\n/);
   });
 });
+
+test('the full-size flyer fades in and out (not at all under reduced motion); Escape and a backdrop click close it and focus goes back to the flyer', async ({ page }) => {
+  await page.goto('/');
+  const open = block(page, lone).locator('[data-flyer-open]');
+  const dialog = page.locator('#flyer-dialog');
+  const fade = () => dialog.evaluate((d) => ({ dialog: getComputedStyle(d).transitionDuration, backdrop: getComputedStyle(d, '::backdrop').transitionDuration }));
+
+  expect((await fade()).dialog).toContain('0.12s');
+  expect((await fade()).backdrop).toContain('0.12s');
+  await open.click();
+  await expect(dialog).toHaveJSProperty('open', true);
+  await expect.poll(() => dialog.evaluate((d) => getComputedStyle(d).opacity)).toBe('1');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveJSProperty('open', false);
+  await expect(open).toBeFocused();
+
+  await open.click();
+  await expect(dialog).toHaveJSProperty('open', true);
+  await page.mouse.click(2, 2);
+  await expect(dialog).toHaveJSProperty('open', false);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(await fade()).toEqual({ dialog: '0s', backdrop: '0s' });
+});

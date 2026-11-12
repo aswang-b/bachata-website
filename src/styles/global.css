@@ -28,8 +28,10 @@
   }
 }
 
-html {
-  scroll-behavior: smooth;
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 body {
@@ -118,5 +120,39 @@ body {
   :where(a[href], button, [role="button"], summary, input[type="submit"], input[type="button"]):not(:disabled, [aria-disabled="true"], [data-no-press]):active {
     transition: none;
     scale: none;
+  }
+}
+
+/* A form's submit button while its request is on the way (scripts/submitState.ts). */
+button[aria-busy="true"] {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+/* Tap targets: on touch screens a small control keeps its look but takes taps
+   from a 44x44px area around it (an invisible ::after; the element itself must
+   be positioned). Skipped where the control is already that big. */
+@media (pointer: coarse) {
+  .hit-44::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, calc((100% - 44px) / 2));
+  }
+  /* The header's bell and menu button sit 8px apart and beside the register
+     buttons, so each takes only the gap it can: the bell 40px wide, the menu
+     button 44px (growing toward the screen edge). Both 44px tall. */
+  #app-bell::after,
+  #nav-toggle::after {
+    content: "";
+    position: absolute;
+  }
+  #app-bell::after {
+    inset: -10px -8px;
+  }
+  #nav-toggle {
+    position: relative;
+  }
+  #nav-toggle::after {
+    inset: -10px -20px -10px 0;
   }
 }

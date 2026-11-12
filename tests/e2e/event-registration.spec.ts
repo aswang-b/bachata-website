@@ -2,7 +2,7 @@ import { test, expect, postForm } from './support/fixtures';
 import { db, seedEvent, sweepTestData, testTitle, track, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { emailsAbout } from './support/emails';
-import { confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
+import { checkSendingState, confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
 
 // Each test deletes the classes it seeded for itself (support/fixtures.ts);
 // what this file's tests share goes as soon as the file is done.
@@ -230,4 +230,11 @@ test('the payment and contact wording reads properly for an event, not just a cl
   }
   await expect(page.locator('.dancer-block').first()).toBeVisible();
   expect(await page.locator('.dancer-block').first().textContent()).toContain('reach you about changes,');
+});
+
+test('an event registration shows the same sending state', async ({ page }) => {
+  await page.goto('/register/events');
+  await selectSeries(page, free.key);
+  await fillDancer(page, 0, { first: 'SendingEvent' });
+  await checkSendingState(page, '/api/submit-intake', 'Registering…', 'Submit');
 });

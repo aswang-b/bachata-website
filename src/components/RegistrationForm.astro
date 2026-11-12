@@ -261,7 +261,7 @@ const place = placeLabel(loc);
           <div id="series-list" class="flex flex-col gap-2">
             {seriesList.map((s) => (
               <div
-                class={`series-item rounded-xl border bg-surface data-[selected=true]:border-accent ${s.registrationClosed ? 'border-border/60 opacity-60' : 'border-border'}`}
+                class={`series-item rounded-xl border data-[selected=true]:border-accent ${s.registrationClosed ? 'border-border/60' : 'border-border bg-surface'}`}
                 data-key={s.key}
                 data-title={s.title}
                 data-sub-label={s.subLabel}
@@ -293,7 +293,7 @@ const place = placeLabel(loc);
                       </>
                     )}
                     {s.registrationClosed && (
-                      <span class="rounded-full bg-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink/70">
+                      <span class="rounded-full bg-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">
                         {s.full ? 'Full' : 'Registration Closed'}
                       </span>
                     )}
@@ -597,6 +597,7 @@ const place = placeLabel(loc);
   import { applyDeals, suggestDeals, type Deal, type DealItem } from '../lib/deals';
   import { reasonText, resolvePicks, type LinkRule, type PickScope } from '../lib/linkRules';
   import { attachEmailHint, emailsReadyToSubmit } from '../lib/emailHints';
+  import { trackSubmit } from '../scripts/submitState';
 
   interface Dancer {
     firstName: string;
@@ -617,10 +618,10 @@ const place = placeLabel(loc);
       <div class="flex flex-col gap-1.5">
         <span class="text-sm font-medium text-ink/80">Role<span class="text-accent"> *</span></span>
         <div class="flex gap-2">
-          <button type="button" data-role="leader" aria-pressed="false" class="dancer-role-btn flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
+          <button type="button" data-role="leader" aria-pressed="false" class="dancer-role-btn hit-44 relative flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
             Leader
           </button>
-          <button type="button" data-role="follower" aria-pressed="false" class="dancer-role-btn flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
+          <button type="button" data-role="follower" aria-pressed="false" class="dancer-role-btn hit-44 relative flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
             Follower
           </button>
         </div>
@@ -1332,8 +1333,7 @@ const place = placeLabel(loc);
     return null;
   }
 
-  // Set once the email notes (a likely typo, or a domain that can't receive
-  // mail) have had their one chance to stop the submit.
+  // Set once the email notes (typo, domain that can't receive mail) have had their one chance to stop the submit.
   let emailsChecked = false;
 
   document.querySelector('form')?.addEventListener('submit', (e) => {
@@ -1417,12 +1417,12 @@ const place = placeLabel(loc);
     }
   });
 
+  trackSubmit(document.querySelector('form'), 'Registering…'); // after the checks above
   document.getElementById('agree-guidelines')?.addEventListener('change', (e) => {
     if ((e.target as HTMLInputElement).checked) document.getElementById('guidelines-error')?.classList.add('hidden');
   });
 
-  // Bootstrap the first dancer block now that updateSubtotal (and everything
-  // it depends on) is defined above.
+  // Bootstrap the first dancer block now that updateSubtotal (and what it depends on) is defined above.
   addDancerBlock();
   addDancerBtn.addEventListener('click', addDancerBlock);
 

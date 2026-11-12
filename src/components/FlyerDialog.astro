@@ -5,7 +5,7 @@
 // data-flyer-alt, else the image inside the button.
 ---
 
-<dialog id="flyer-dialog" class="m-auto max-h-[95vh] max-w-[95vw] rounded-2xl bg-transparent p-0 backdrop:bg-black/80">
+<dialog id="flyer-dialog" class="m-auto max-h-[95vh] max-w-[95vw] rounded-2xl bg-transparent p-0">
   <form method="dialog" class="flex flex-col items-end gap-2">
     <button class="rounded-full bg-black/70 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white">Close</button>
     <img id="flyer-dialog-img" alt="Flyer, full size" class="max-h-[85vh] w-auto rounded-2xl object-contain" />
@@ -28,3 +28,37 @@
     if (event.target === dialog) dialog.close();
   });
 </script>
+
+<style is:global>
+  /* A short fade in and out (a native dialog is display:none when closed, so
+     the discrete transitions keep it showing while it fades; browsers without
+     them just open and close at once). */
+  #flyer-dialog {
+    opacity: 0;
+    transition: opacity 120ms ease-out, display 120ms allow-discrete, overlay 120ms allow-discrete;
+  }
+  #flyer-dialog[open] {
+    opacity: 1;
+  }
+  #flyer-dialog::backdrop {
+    background-color: rgb(0 0 0 / 0);
+    transition: background-color 120ms ease-out, display 120ms allow-discrete, overlay 120ms allow-discrete;
+  }
+  #flyer-dialog[open]::backdrop {
+    background-color: rgb(0 0 0 / 0.8);
+  }
+  @starting-style {
+    #flyer-dialog[open] {
+      opacity: 0;
+    }
+    #flyer-dialog[open]::backdrop {
+      background-color: rgb(0 0 0 / 0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #flyer-dialog,
+    #flyer-dialog::backdrop {
+      transition: none;
+    }
+  }
+</style>

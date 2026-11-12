@@ -96,3 +96,9 @@ const inputClass =
     )}
   </div>
 </BaseLayout>
+
+<script>
+  import { trackSubmit } from '../../scripts/submitState';
+
+  trackSubmit(document.querySelector('form'), 'Checking in…');
+</script>

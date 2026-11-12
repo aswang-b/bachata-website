@@ -4,7 +4,7 @@ import { test, expect, postForm } from './support/fixtures';
 import { db, seedEvent, spotCounts, sweepTestData, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { emailsAbout, postResendEvent, recipients } from './support/emails';
-import { confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
+import { checkSendingState, confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
 import { bearer } from './support/admin';
 
 // Each test deletes the classes it seeded for itself (support/fixtures.ts);
@@ -415,4 +415,12 @@ test("the Venmo code is drawn by the site (sharp at any size), and a phone scann
   const scanned = jsQR(new Uint8ClampedArray(data), info.width, info.height)?.data;
   expect(scanned).toBe(await venmo.getByRole('link', { name: 'Open in Venmo' }).getAttribute('href'));
   expect(scanned).toMatch(/^https:\/\/venmo\.com\/code\?user_id=\d+/);
+});
+
+test('while a registration is sending, the button is locked and says so, and comes back if the page is shown again', async ({ page }) => {
+  await page.goto(`/register?series=${series.key}`);
+  await selectSeries(page, series.key);
+  await fillDancer(page, 0, { first: 'Sending', role: 'leader' });
+  await payCash(page);
+  await checkSendingState(page, '/api/submit-intake', 'Registering…', 'Submit');
 });
