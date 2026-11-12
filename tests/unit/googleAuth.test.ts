@@ -14,9 +14,12 @@ import {
   GoogleAuthError,
   GoogleAuthExpiredError,
   GoogleNotConnectedError,
+  insertCalendarEvent,
   listCalendarEvents,
   refreshAccessToken,
+  updateCalendarEvent,
 } from '../../src/lib/googleCalendar';
+import { setServerTimeZone } from '../../src/lib/siteTime';
 
 const CAL = 'https://www.googleapis.com/auth/calendar';
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -95,6 +98,24 @@ describe('Calendar API calls', () => {
   it("refuses an e2e 'test' row, which has no calendar, without calling Google", async () => {
     await expect(deleteCalendarEvent('t', 'test', 'zzz-e2e-1')).rejects.toThrow('no Google Calendar');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends an event in its own zone (so a series repeats at its own wall-clock time), else the site's", async () => {
+    setServerTimeZone('America/Los_Angeles');
+    fetchMock.mockImplementation(async () => json(200, { id: 'g1' }));
+    const event = { siteEventId: 's1', summary: 'Santa Fe', startTime: '2027-06-08T19:00:00', endTime: '2027-06-08T20:00:00' };
+    await insertCalendarEvent('t', 'public', { ...event, timeZone: 'America/Denver' });
+    await updateCalendarEvent('t', 'public', 'g1', { ...event, timeZone: 'America/Denver' });
+    await insertCalendarEvent('t', 'public', event);
+    await insertCalendarEvent('t', 'public', { ...event, timeZone: 'Not/AZone' });
+    const sent = fetchMock.mock.calls.map((c) => JSON.parse(String((c[1] as RequestInit).body)));
+    expect(sent.map((b) => [b.start.timeZone, b.end.timeZone])).toEqual([
+      ['America/Denver', 'America/Denver'],
+      ['America/Denver', 'America/Denver'],
+      ['America/Los_Angeles', 'America/Los_Angeles'],
+      ['America/Los_Angeles', 'America/Los_Angeles'],
+    ]);
+    setServerTimeZone('America/Chicago');
   });
 
   it('follows pagination', async () => {

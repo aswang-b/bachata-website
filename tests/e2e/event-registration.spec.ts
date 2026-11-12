@@ -1,5 +1,5 @@
 import { test, expect, postForm } from './support/fixtures';
-import { db, seedEvent, sweepTestData, testTitle, track, type Seeded } from './support/db';
+import { db, seedEvent, siteZone, sweepTestData, testTitle, track, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { emailsAbout } from './support/emails';
 import { checkSendingState, confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
@@ -92,7 +92,7 @@ test.describe.serial('with community guidelines', () => {
     const { data } = await db.from('intake_submissions').select('guidelines_agreed_at, created_at').eq('id', confirmationId(page.url())!).single();
     expect(data!.guidelines_agreed_at).not.toBeNull();
     // "Submitted …" is in the site's time zone, not the server's (UTC on Netlify, 5 hours ahead).
-    const submitted = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(data!.created_at));
+    const submitted = new Intl.DateTimeFormat('en-US', { timeZone: await siteZone(), month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(data!.created_at));
     await expect(body).toContainText(`Submitted ${submitted}`);
 
     const sent = emailsAbout('ZZZEventGuest').filter((e) => e.html.includes(RUN_ID));

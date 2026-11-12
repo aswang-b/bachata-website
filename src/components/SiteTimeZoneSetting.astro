@@ -1,32 +1,18 @@
 ---
-// Admin → Admin → Site Time Zone (src/lib/siteTime.ts): the zone every date
-// and time on the site is shown, grouped into days and entered in.
-const commonZones = [
-  ['America/New_York', 'Eastern'],
-  ['America/Chicago', 'Central'],
-  ['America/Denver', 'Mountain'],
-  ['America/Phoenix', 'Arizona'],
-  ['America/Los_Angeles', 'Pacific'],
-  ['America/Anchorage', 'Alaska'],
-  ['Pacific/Honolulu', 'Hawaii'],
-];
-const otherZones = Intl.supportedValuesOf('timeZone').filter((z) => !commonZones.some(([c]) => c === z));
+// Admin → Admin → Site Time Zone (src/lib/siteTime.ts): the zone the site's
+// days and "now" follow and new classes start in; each class keeps its own.
+import TimeZoneOptions from './TimeZoneOptions.astro';
 ---
 
 <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
   <p class="text-xs font-bold uppercase tracking-wider text-muted">Site Time Zone</p>
   <p class="text-xs text-muted">
-    Every date and time on the site is shown in this zone, wherever the visitor (or the server) is: the calendar, sign-up forms, confirmations
-    and emails, check-in, and the dashboard. The event editor's times are entered in it too. Changing it moves how existing events are shown,
-    not when they happen.
+    Dates and times on the site follow this zone, wherever the visitor (or the server) is: today's classes, deal dates, the dashboard. A new
+    class is scheduled in it unless the event editor picks a different time zone, and each class keeps the zone it was scheduled in, so
+    changing this doesn't move classes already on the calendar. A class in another zone shows its zone after its time ("7:00 PM MT").
   </p>
   <select id="site-time-zone" class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none sm:w-80">
-    <optgroup label="United States">
-      {commonZones.map(([zone, label]) => <option value={zone}>{label} ({zone})</option>)}
-    </optgroup>
-    <optgroup label="All time zones">
-      {otherZones.map((zone) => <option value={zone}>{zone}</option>)}
-    </optgroup>
+    <TimeZoneOptions />
   </select>
   <button
     id="site-time-zone-save"

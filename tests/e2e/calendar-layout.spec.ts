@@ -1,5 +1,5 @@
 import { test, expect } from './support/fixtures';
-import { db, seedEvent, sweepTestData, type Seeded } from './support/db';
+import { db, seedEvent, siteZone, sweepTestData, type Seeded } from './support/db';
 
 // Each test deletes the classes it seeded for itself (support/fixtures.ts);
 // what this file's tests share goes as soon as the file is done.
@@ -131,16 +131,17 @@ test('a calendar event can be reached with Tab and opened with Enter', async ({ 
 });
 
 test("an evening class shows on its own day in the site's time zone, though the server runs in UTC", async ({ page }) => {
-  // Seeded classes start at 1:00 AM UTC: the evening before, in Central time.
+  // Seeded classes start at 1:00 AM UTC: the evening before in US time zones.
+  const zone = await siteZone();
   const { data } = await db.from('events').select('start_time').eq('id', series.ids[0]).single();
   const start = new Date(data!.start_time);
-  const central = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(start);
-  const [y, m] = central.split('-');
+  const local = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(start);
+  const [y, m] = local.split('-');
   await page.goto(`/calendar?month=${y}-${m}`);
-  await expect(page.locator('meta[name="site-time-zone"]')).toHaveAttribute('content', 'America/Chicago');
+  await expect(page.locator('meta[name="site-time-zone"]')).toHaveAttribute('content', zone);
   const cell = page.locator('.calendar-cell', { has: page.locator('.event-banner', { hasText: series.title }) }).first();
-  await expect(cell).toHaveAttribute('data-date', central);
-  const time = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' }).format(start);
+  await expect(cell).toHaveAttribute('data-date', local);
+  const time = new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric', minute: '2-digit' }).format(start);
   await expect(cell.locator('.event-banner', { hasText: series.title }).first()).toContainText(time);
 });
 
@@ -150,11 +151,11 @@ test('a busy day on a phone shows its dots in even rows and lists every event wh
   const busy = await Promise.all([1, 2, 3, 4, 5].map((i) => seedEvent({ name: `Busy Day ${i}`, dayOffset: 70 })));
   await page.setViewportSize({ width: 375, height: 812 });
   const { data } = await db.from('events').select('start_time').eq('id', busy[0].ids[0]).single();
-  const central = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(data!.start_time));
-  const [y, m] = central.split('-');
+  const local = new Intl.DateTimeFormat('en-CA', { timeZone: await siteZone(), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(data!.start_time));
+  const [y, m] = local.split('-');
   await page.goto(`/calendar?month=${y}-${m}`);
   await page.locator('#view-toggle-calendar').click();
-  const cell = page.locator(`.calendar-cell[data-date="${central}"]`);
+  const cell = page.locator(`.calendar-cell[data-date="${local}"]`);
   // Five dots: a row of three over a row of two.
   await expect(cell.locator('.day-dots')).toHaveClass(/grid-cols-3/);
   await expect(cell.locator('.day-dots > span')).toHaveCount(5);

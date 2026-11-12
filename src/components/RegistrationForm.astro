@@ -11,7 +11,7 @@ import { getActivePrice, priceTierLabel, type ActivePriceResult } from '../lib/p
 import { getSpotsByOccurrence, publicSpotsLabel, remainingFor, seriesSpots } from '../lib/capacity';
 import { getCommunityGuidelines, hasGuidelines } from '../lib/communityGuidelines';
 import { listActiveDeals } from '../lib/dealsStore';
-import { siteFormatter, zonedDateKey } from '../lib/siteTime';
+import { occurrenceChoice, seriesSubLabel } from '../lib/registrationLabels';
 import { lateRegistrationCutoffIso } from '../lib/eventTimes';
 import { locationHref } from '../lib/locationLink';
 import { PIN_SVG } from '../lib/locationPin';
@@ -40,6 +40,7 @@ interface ClassOccurrence {
   location: string | null;
   start_time: string;
   end_time: string;
+  time_zone: string | null;
   color: string;
   google_recurring_event_id: string | null;
   price_whole_series: number | null;
@@ -69,7 +70,7 @@ const [guidelines, { data: classEvents, error }, activeDeals] = await Promise.al
   supabase
     .from('events')
     .select(
-      'id, title, description, location, start_time, end_time, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
+      'id, title, description, location, start_time, end_time, time_zone, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
     )
     .in('visibility', publicVisibilities())
     .eq('event_type', eventType)
@@ -100,10 +101,6 @@ const totalCountByKey = countOccurrencesByKey(seriesOccurrences ?? []);
 // Each series' first and last class, past ones included, for its date range.
 const bounds = seriesBounds(seriesOccurrences ?? []);
 
-const weekdayFormatter = { format: (d: Date) => siteFormatter({ weekday: 'long' }).format(d) };
-const timeFormatter = { format: (d: Date) => siteFormatter({ hour: 'numeric', minute: '2-digit' }).format(d) };
-const dateFormatter = { format: (d: Date) => siteFormatter({ month: 'short', day: 'numeric' }).format(d) };
-
 // Group occurrences into one button per series (or per standalone class).
 const seriesMap = new Map<string, ClassOccurrence[]>();
 for (const event of (classEvents ?? []) as ClassOccurrence[]) {
@@ -122,13 +119,6 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
   const occurrenceCount = totalCountByKey.get(key) ?? sorted.length;
   const isSeries = occurrenceCount > 1;
 
-  const weekday = weekdayFormatter.format(new Date(first.start_time));
-  const timeRange = `${timeFormatter.format(new Date(first.start_time))}–${timeFormatter.format(new Date(first.end_time))}`;
-  const whole = bounds.get(key);
-  const dateRange = isSeries
-    ? `${dateFormatter.format(new Date(whole?.first ?? first.start_time))}–${dateFormatter.format(new Date(whole?.last ?? last.start_time))}`
-    : dateFormatter.format(new Date(first.start_time));
-
   const spots = seriesSpots(
     spotsByOccurrence,
     sorted.map((occ) => occ.id)
@@ -137,9 +127,8 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     const s = spotsByOccurrence.get(occ.id);
     return {
       id: occ.id,
-      // Its day, for linked classes: a Drop-In only takes in what it includes that day.
-      day: zonedDateKey(occ.start_time),
-      label: `${dateFormatter.format(new Date(occ.start_time))}, ${timeFormatter.format(new Date(occ.start_time))}`,
+      // Its day (for linked classes: a Drop-In only takes in what it includes that day) and label.
+      ...occurrenceChoice(occ),
       full: s?.full ?? false,
       fullRoles: s ? (['leader', 'follower'] as const).filter((r) => remainingFor(s, r) === 0) : [],
     };
@@ -163,7 +152,7 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     isSeries,
     occurrenceCount,
     // A one-off event names its date rather than a weekly schedule.
-    subLabel: isEvent && !isSeries ? `${weekday}, ${dateRange}, ${timeRange}` : `${weekday}s, ${timeRange} (${dateRange})`,
+    subLabel: seriesSubLabel(first, last, bounds.get(key), isSeries, isEvent),
     description: first.description,
     location: first.location,
     // A full class or event can't be picked, just like a closed one.

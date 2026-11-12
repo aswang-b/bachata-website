@@ -18,7 +18,7 @@ import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
 import { capacityColumns } from '../../../lib/capacity';
 import { isValidEventColor } from '../../../lib/eventColors';
 import { seriesAnchorEndDate } from '../../../lib/eventTimes';
-import { zonedDateKey, zonedTimeOfDay } from '../../../lib/siteTime';
+import { eventZone, isValidTimeZone, zonedDateKey, zonedTimeOfDay } from '../../../lib/siteTime';
 import { applyFlyerToLinked } from '../../../lib/linksStore';
 import { renameSignups } from '../../../lib/classRegistrations';
 
@@ -39,6 +39,7 @@ async function pushRowToGoogle(
     location: string | null;
     start_time: string;
     end_time: string;
+    time_zone?: string | null;
     color: string;
     google_event_id: string | null;
   }
@@ -56,6 +57,7 @@ async function pushRowToGoogle(
       location: row.location,
       startTime: row.start_time,
       endTime: row.end_time,
+      timeZone: row.time_zone,
       color: row.color,
     });
     return row.google_event_id;
@@ -68,6 +70,7 @@ async function pushRowToGoogle(
     location: row.location,
     startTime: row.start_time,
     endTime: row.end_time,
+    timeZone: row.time_zone,
     color: row.color,
   });
   return created.id;
@@ -112,11 +115,18 @@ const handlePost: APIRoute = async ({ request }) => {
     hideLessonOverview,
     showEarlyBirdEnd,
     showFlashSaleEnd,
+    timeZone,
   } = body ?? {};
 
   if (!id || !title || !startTime || !endTime) {
     return new Response(JSON.stringify({ error: 'Missing id, title, startTime, or endTime.' }), { status: 400 });
   }
+
+  // The zone the times were typed in (migration 0076); left out, the stored one stays.
+  if (timeZone !== undefined && timeZone !== null && !isValidTimeZone(timeZone)) {
+    return new Response(JSON.stringify({ error: 'Unknown time zone.' }), { status: 400 });
+  }
+  const rowZoneColumns = isValidTimeZone(timeZone) ? { time_zone: timeZone } : {};
 
   // Shown on the public homepage, so only this site's own uploads (see eventImages.ts).
   for (const url of [imageUrl, flyerUrl]) {
@@ -127,7 +137,7 @@ const handlePost: APIRoute = async ({ request }) => {
 
   const { data: before, error: beforeError } = await supabase
     .from('events')
-    .select('title, visibility, google_event_id, google_recurring_event_id, flyer_url')
+    .select('title, visibility, google_event_id, google_recurring_event_id, flyer_url, time_zone')
     .eq('id', id)
     .maybeSingle();
 
@@ -214,12 +224,15 @@ const handlePost: APIRoute = async ({ request }) => {
     }
 
     const earliestStart = siblings.reduce((min, s) => (s.start_time < min ? s.start_time : min), siblings[0].start_time);
-    // The series' first date and the new times as the site's time zone sees
-    // them (the server's own zone is UTC, which shifted evening classes), sent
-    // to Google as wall-clock times in that zone.
-    const anchorDate = zonedDateKey(earliestStart);
-    const timePart = zonedTimeOfDay(startTime);
-    const endTimePart = zonedTimeOfDay(endTime);
+    // The series' first date as it was typed (its stored zone) and the new
+    // times in the zone they were typed in now (the editor's pick; the server's
+    // own zone is UTC, which shifted evening classes), sent to Google as
+    // wall-clock times in that zone, which every rebuilt class keeps.
+    const oldZone = eventZone(before);
+    const seriesZone = rowZoneColumns.time_zone ?? oldZone;
+    const anchorDate = zonedDateKey(earliestStart, oldZone);
+    const timePart = zonedTimeOfDay(startTime, seriesZone);
+    const endTimePart = zonedTimeOfDay(endTime, seriesZone);
     const anchorStart = `${anchorDate}T${timePart}:00`;
     // An end at or before the start time (e.g. ending at midnight) is on the next day.
     const anchorEndDate = seriesAnchorEndDate(anchorDate, timePart, endTimePart);
@@ -244,6 +257,7 @@ const handlePost: APIRoute = async ({ request }) => {
         location: location || null,
         startTime: anchorStart,
         endTime: anchorEnd,
+        timeZone: seriesZone,
         color: rowColor,
         recurrence: buildWeeklyRecurrenceRule({
           byDay: recurrence.byDay,
@@ -262,6 +276,8 @@ const handlePost: APIRoute = async ({ request }) => {
         .update({
           // The sync inserts new rows as 'event', so a class series must be set back.
           event_type: rowEventType,
+          // And in the site's zone: the series keeps its own.
+          time_zone: seriesZone,
           // The sync can only give the new rows Google's closest color; keep the picked one.
           color: rowColor,
           price_whole_series: rowPriceWholeSeries,
@@ -332,6 +348,7 @@ const handlePost: APIRoute = async ({ request }) => {
           color: rowColor,
           visibility: rowVisibility,
           google_event_id: visibilityChanged ? null : sibling.google_event_id,
+          ...rowZoneColumns,
           price_whole_series: rowPriceWholeSeries,
           price_drop_in: rowPriceDropIn,
           price_student: rowPriceStudent,
@@ -391,6 +408,7 @@ const handlePost: APIRoute = async ({ request }) => {
       google_event_id: visibilityChanged ? null : before.google_event_id,
       start_time: startTime,
       end_time: endTime,
+      ...rowZoneColumns,
       price_whole_series: rowPriceWholeSeries,
       price_drop_in: rowPriceDropIn,
       price_student: rowPriceStudent,

@@ -1,5 +1,5 @@
 import { test, expect, postForm } from './support/fixtures';
-import { db, seedEvent, sweepTestData, testTitle, track, type Seeded } from './support/db';
+import { db, seedEvent, siteZone, sweepTestData, testTitle, track, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { emailsAbout } from './support/emails';
 import { confirmationId, fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
@@ -186,7 +186,8 @@ test('the Deals list labels each deal, live ones first, and keeps an end date th
 
   // Editing and saving keeps the same last day, and saving again doesn't move it.
   const endOf = async () => (await db.from('deals').select('ends_at').eq('name', testTitle('Status Ended')).single()).data!.ends_at as string;
-  const lastDay = (iso: string) => new Date(Date.parse(iso) - 1).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const zone = await siteZone();
+  const lastDay = (iso: string) => new Date(Date.parse(iso) - 1).toLocaleDateString('en-CA', { timeZone: zone });
   for (let i = 0; i < 2; i++) {
     await item('Status Ended').locator('.deal-edit').click();
     await page.locator('#deal-save').click();

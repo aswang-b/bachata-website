@@ -422,3 +422,33 @@ describe('an admin edit keeps what unchanged classes were saved at', () => {
     expect(rows.map((r) => r.deal_name)).toEqual(['Zouk Bundle', 'Zouk Bundle', null]);
   });
 });
+
+describe("linked classes: a Drop-In covers what it includes on its own zone's day (migration 0076)", () => {
+  // A Mountain class at 11:30 PM on June 8 (12:30 AM June 9 in the site's
+  // Central time) includes a practica at 9 PM Mountain the same evening.
+  const WS = '00000000-0000-4000-8000-0000000000a1';
+  const PR = '00000000-0000-4000-8000-0000000000a2';
+  beforeEach(() => {
+    db.current.seed('events', [
+      { id: WS, event_type: 'class', google_recurring_event_id: 'ws', title: 'Late Workshop', price_whole_series: 80, price_drop_in: 25, visibility: 'public', start_time: '2027-06-09T05:30:00Z', end_time: '2027-06-09T06:30:00Z', time_zone: 'America/Denver' },
+      { id: PR, event_type: 'class', google_recurring_event_id: 'pr', title: 'Practica', price_whole_series: 40, price_drop_in: 10, visibility: 'public', start_time: '2027-06-09T03:00:00Z', end_time: '2027-06-09T05:00:00Z', time_zone: 'America/Denver' },
+    ]);
+    db.current.seed('event_links', [
+      { link_group_id: 'g', series_key: 'ws' },
+      { link_group_id: 'g', series_key: 'pr' },
+    ]);
+    db.current.seed('event_link_rules', [{ key_a: 'pr', key_b: 'ws', kind: 'b_includes_a', reason: null, count_headcount: true }]);
+  });
+
+  it('folds the practica into the workshop (both on June 8 in Mountain time), as the form shows it', async () => {
+    const prepared = await prepareRegistrationRows(
+      [
+        { key: 'ws', title: 'Late Workshop', label: 'x', mode: 'dropin', occurrenceEventId: WS },
+        { key: 'pr', title: 'Practica', label: 'y', mode: 'dropin', occurrenceEventId: PR },
+      ],
+      'class',
+      [{ firstName: 'Ana', lastName: 'Lee' }]
+    );
+    expect('rows' in prepared && prepared.rows.map((r) => r.series_key)).toEqual(['ws']);
+  });
+});

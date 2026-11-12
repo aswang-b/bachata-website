@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { siteFormatter } from './siteTime';
+import { eventZone, siteFormatter, zoneSuffix } from './siteTime';
 import type { ClassRegistrationRow } from './classRegistrations';
 
 // The itemized "receipt" a dancer sees after registering, on
@@ -21,8 +21,11 @@ export interface ReceiptLine {
   discount?: boolean;
 }
 
-// In the site's time zone, looked up when used (an admin can change it).
-const occurrenceFormatter = { format: (d: Date) => siteFormatter({ month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(d) };
+// "Oct 25, 1:00 PM" in the class's own zone (plus " MT" off the site's clock).
+function occurrenceText(e: { start_time: string; time_zone?: string | null }): string {
+  const tz = eventZone(e);
+  return `${siteFormatter({ month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }, 'en-US', tz).format(new Date(e.start_time))}${zoneSuffix(e.start_time, tz)}`;
+}
 
 export function formatPrice(value: number): string {
   const abs = Math.abs(value);
@@ -40,11 +43,11 @@ export async function buildReceiptLines(registrations: ClassRegistrationRow[]): 
   const live = registrations.filter((r) => !(r as ClassRegistrationRow & { deleted_at?: string | null }).deleted_at);
 
   const occurrenceIds = [...new Set(live.map((r) => r.occurrence_event_id).filter((id): id is string => Boolean(id)))];
-  const startById = new Map<string, string>();
+  const whenById = new Map<string, string>();
   if (occurrenceIds.length > 0) {
-    const { data, error } = await supabase.from('events').select('id, start_time').in('id', occurrenceIds);
+    const { data, error } = await supabase.from('events').select('id, start_time, time_zone').in('id', occurrenceIds);
     if (error) console.error('Failed to load drop-in dates for the receipt:', error.message);
-    for (const e of data ?? []) startById.set(e.id, e.start_time);
+    for (const e of data ?? []) whenById.set(e.id, occurrenceText(e));
   }
 
   const lines = new Map<string, ReceiptLine>();
@@ -52,8 +55,8 @@ export async function buildReceiptLines(registrations: ClassRegistrationRow[]): 
     const schedule = scheduleOf(r);
     let detail: string;
     if (r.series_mode === 'dropin') {
-      const start = r.occurrence_event_id ? startById.get(r.occurrence_event_id) : undefined;
-      detail = start ? `Drop In · ${occurrenceFormatter.format(new Date(start))}` : ['Drop In', schedule].filter(Boolean).join(' · ');
+      const when = r.occurrence_event_id ? whenById.get(r.occurrence_event_id) : undefined;
+      detail = when ? `Drop In · ${when}` : ['Drop In', schedule].filter(Boolean).join(' · ');
     } else if (r.series_mode === 'whole') {
       detail = ['Whole Series', schedule].filter(Boolean).join(' · ');
     } else {

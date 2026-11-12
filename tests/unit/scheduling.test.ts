@@ -3,16 +3,18 @@ import { calendarOrder, endAfterStart, registrationOpen, seriesAnchorEndDate, se
 import { getActivePrice, priceTierLabel } from '../../src/lib/pricing';
 import { buildWeeklyRecurrenceRule, googleColorIdToSiteColor, siteColorToGoogleColorId } from '../../src/lib/googleCalendar';
 import { eventTypeLabel } from '../../src/lib/classSeries';
+import { zonedToInstant } from '../../src/lib/siteTime';
 
 describe('event end times (Google rejects an end at or before the start)', () => {
   it('rolls an end earlier than the start (e.g. ending at midnight) to the next day', () => {
     const end = new Date(endAfterStart('2026-10-31', '20:00', '00:00')!);
-    const start = new Date('2026-10-31T20:00:00');
+    // In the site's zone, not the machine's (this only passed on a Central machine).
+    const start = zonedToInstant('2026-10-31', '20:00');
     expect(end.getTime() - start.getTime()).toBe(4 * 60 * 60 * 1000);
   });
 
   it('keeps a same-day end, and rejects an end equal to the start', () => {
-    expect(new Date(endAfterStart('2026-10-31', '19:00', '20:00')!).getTime()).toBe(new Date('2026-10-31T20:00:00').getTime());
+    expect(new Date(endAfterStart('2026-10-31', '19:00', '20:00')!).getTime()).toBe(zonedToInstant('2026-10-31', '20:00').getTime());
     expect(endAfterStart('2026-10-31', '19:00', '19:00')).toBeNull();
   });
 

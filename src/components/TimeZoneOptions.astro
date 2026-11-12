@@ -1,0 +1,23 @@
+---
+// The time zones offered by the site's zone (SiteTimeZoneSetting) and a
+// class's own zone (the event editor's Different time zone): the US ones by
+// name, then every zone. Each option carries a `data-name` for sentences
+// ("Mountain", or the zone id itself).
+const commonZones = [
+  ['America/New_York', 'Eastern'],
+  ['America/Chicago', 'Central'],
+  ['America/Denver', 'Mountain'],
+  ['America/Phoenix', 'Arizona'],
+  ['America/Los_Angeles', 'Pacific'],
+  ['America/Anchorage', 'Alaska'],
+  ['Pacific/Honolulu', 'Hawaii'],
+];
+const otherZones = Intl.supportedValuesOf('timeZone').filter((z) => !commonZones.some(([c]) => c === z));
+---
+
+<optgroup label="United States">
+  {commonZones.map(([zone, label]) => <option value={zone} data-name={label}>{label} ({zone})</option>)}
+</optgroup>
+<optgroup label="All time zones">
+  {otherZones.map((zone) => <option value={zone} data-name={zone}>{zone}</option>)}
+</optgroup>

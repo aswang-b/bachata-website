@@ -151,9 +151,9 @@ export function seriesBounds(rows: { id: string; google_recurring_event_id: stri
 }
 
 // "Oct 25 – Nov 15": the whole series, from its first class even once that
-// has passed (`bounds` from seriesBounds), or the one date.
+// has passed (`bounds` from seriesBounds), or the one date; in the series' own zone.
 export function dateRange(offering: ClassSeriesEntry, bounds?: Map<string, { first: string; last: string }>): string {
-  const fmt = siteFormatter({ month: 'short', day: 'numeric' });
+  const fmt = siteFormatter({ month: 'short', day: 'numeric' }, 'en-US', offering.timeZone);
   const whole = bounds?.get(offering.key);
   const first = whole?.first ?? offering.occurrences[0]?.startTime ?? offering.nextStartTime;
   const last = whole?.last ?? offering.occurrences[offering.occurrences.length - 1]?.startTime ?? first;

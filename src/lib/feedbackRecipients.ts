@@ -38,13 +38,14 @@ export interface FeedbackOption extends FeedbackTarget {
 // Every read is paged (fetchAll.ts): one response stops at 1000 rows, and the
 // classes are read oldest first, so the newest would be the ones cut.
 const MAX_OPTIONS = 300;
-const day = () => siteFormatter({ month: 'short', day: 'numeric' });
+// A class's date in its own zone (its series' timeZone).
+const day = (tz: string) => siteFormatter({ month: 'short', day: 'numeric' }, 'en-US', tz);
 
 async function loadSeries(eventType: 'class' | 'event'): Promise<ClassSeriesEntry[]> {
   const rows = await fetchAllRows<ClassOccurrenceRow>((from, to) =>
     supabase
       .from('events')
-      .select('id, title, start_time, end_time, google_recurring_event_id, event_type')
+      .select('id, title, start_time, end_time, time_zone, google_recurring_event_id, event_type')
       .in('visibility', allVisibilities())
       .eq('event_type', eventType)
       .order('start_time', { ascending: true })
@@ -83,7 +84,7 @@ async function loadOptions(): Promise<{ options: FeedbackOption[]; classes: Clas
   for (const s of classes) {
     const came = s.occurrences.filter((o) => checkinsByEvent.has(o.id) || hasHappened(o.startTime));
     for (const o of came) {
-      const title = `${s.title} · ${day().format(new Date(o.startTime))}`;
+      const title = `${s.title} · ${day(s.timeZone).format(new Date(o.startTime))}`;
       options.push({ scope: 'occurrence', seriesKey: s.key, eventId: o.id, classTitle: s.title, title, startTime: o.startTime, people: checkinsByEvent.get(o.id) ?? 0 });
     }
     if (s.isSeries && came.length > 0) {
@@ -94,7 +95,7 @@ async function loadOptions(): Promise<{ options: FeedbackOption[]; classes: Clas
         seriesKey: s.key,
         eventId: null,
         classTitle: s.title,
-        title: `${s.title} · ${day().format(new Date(first))}–${day().format(new Date(last))}`,
+        title: `${s.title} · ${day(s.timeZone).format(new Date(first))}–${day(s.timeZone).format(new Date(last))}`,
         startTime: came[came.length - 1].startTime,
         people: came.reduce((n, o) => n + (checkinsByEvent.get(o.id) ?? 0), 0),
       });
@@ -104,7 +105,7 @@ async function loadOptions(): Promise<{ options: FeedbackOption[]; classes: Clas
     const people = signupsBySeries.get(e.key) ?? 0;
     const start = e.occurrences[0].startTime;
     if (!people && !hasHappened(start)) continue;
-    options.push({ scope: 'event', seriesKey: e.key, eventId: e.occurrences[0].id, classTitle: e.title, title: `${e.title} · ${day().format(new Date(start))}`, startTime: start, people });
+    options.push({ scope: 'event', seriesKey: e.key, eventId: e.occurrences[0].id, classTitle: e.title, title: `${e.title} · ${day(e.timeZone).format(new Date(start))}`, startTime: start, people });
   }
   options.sort((a, b) => b.startTime.localeCompare(a.startTime) || Number(b.scope === 'series') - Number(a.scope === 'series'));
   return { options: options.slice(0, MAX_OPTIONS), classes };

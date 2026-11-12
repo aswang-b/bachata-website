@@ -4,7 +4,7 @@ export const prerender = false;
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { supabase } from '../../lib/supabase';
 import { allVisibilities } from '../../lib/testMode';
-import { siteFormatter } from '../../lib/siteTime';
+import { eventSchedule } from '../../lib/eventClock';
 import { getSiteSettings } from '../../lib/siteSettings';
 import { verifyCheckinRegisterToken } from '../../lib/checkinToken';
 
@@ -14,7 +14,7 @@ const { disable_checkin_page: checkinDisabled } = Astro.locals.siteSettings ?? (
 
 const { data: event } = checkinDisabled
   ? { data: null }
-  : await supabase.from('events').select('id, title, start_time, end_time, price_drop_in, registration_closed').eq('id', eventId).in('visibility', allVisibilities()).maybeSingle();
+  : await supabase.from('events').select('id, title, start_time, end_time, time_zone, price_drop_in, registration_closed').eq('id', eventId).in('visibility', allVisibilities()).maybeSingle();
 
 // Set by the admin QR's "also register attendees" option. Re-checked here so a
 // link tweaked onto a class with no drop-in price (or closed registration)
@@ -23,12 +23,8 @@ const registerToken = Astro.url.searchParams.get('register') ?? '';
 const registersToo =
   !!event && verifyCheckinRegisterToken(event.id, registerToken) && event.price_drop_in != null && !event.registration_closed;
 
-const dateFormatter = { format: (d: Date) => siteFormatter({ weekday: 'long', month: 'long', day: 'numeric' }).format(d) };
-const timeFormatter = { format: (d: Date) => siteFormatter({ hour: 'numeric', minute: '2-digit' }).format(d) };
-
-const scheduleLabel = event
-  ? `${dateFormatter.format(new Date(event.start_time))}, ${timeFormatter.format(new Date(event.start_time))}–${timeFormatter.format(new Date(event.end_time))}`
-  : '';
+// In the class's own zone.
+const scheduleLabel = event ? eventSchedule(event, { weekday: 'long', month: 'long', day: 'numeric' }) : '';
 
 const inputClass =
   'rounded-xl border border-border bg-surface px-3 py-2.5 text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20';

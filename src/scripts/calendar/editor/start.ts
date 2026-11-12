@@ -17,6 +17,7 @@ import { initSaveButtons } from './save';
 import { initSectionNav, initSummaryUpdates } from './sections';
 import { editor } from './state';
 import { initTabs } from './tabs';
+import { initTimeZonePicker } from './timeZone';
 
 export function startAdminEditor() {
   installRichTextShortcuts();
@@ -25,6 +26,7 @@ export function startAdminEditor() {
   initCapacityToggle();
   initSectionNav();
   initSummaryUpdates();
+  initTimeZonePicker();
   initImageUpload();
   initFlyerUpload();
   initEditorControls();

@@ -3,7 +3,8 @@ import { eventTypeLabel } from '../../lib/classSeries';
 import { eventDotStyle, eventTextStyle } from '../../lib/eventColors';
 import { locationHref } from '../../lib/locationLink';
 import { PIN_SVG } from '../../lib/locationPin';
-import { buildPriceLines, dateFormatter, spotsText, timeFormatter } from './format';
+import { eventDate, eventTimeRange } from '../../lib/eventClock';
+import { buildPriceLines, spotsText } from './format';
 import { shared } from './state';
 import type { SiteEvent } from './types';
 
@@ -33,7 +34,7 @@ export function showEventDetail(event: SiteEvent) {
   detailType.style.cssText = eventTextStyle(event.color);
   detailType.innerHTML = `<span class="h-2 w-2 rounded-full" style="${eventDotStyle(event.color)}"></span>${eventTypeLabel(event.event_type, event.weekNumber)}${event.weekNumber ? `<span class="font-bold text-ink">&middot; Week ${event.weekNumber}</span>` : ''}`;
   detailTitle.textContent = `${lock}${event.title}`;
-  detailDatetime.textContent = `${dateFormatter.format(new Date(event.start_time))} · ${timeFormatter.format(new Date(event.start_time))}–${timeFormatter.format(new Date(event.end_time))}`;
+  detailDatetime.textContent = `${eventDate(event)} · ${eventTimeRange(event)}`;
   detailDescription.innerHTML = event.description ?? '';
   detailDescription.classList.toggle('hidden', !event.description);
 

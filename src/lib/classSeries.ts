@@ -1,8 +1,11 @@
-import { addDaysToKey, siteFormatter, zonedDateKey, zonedToInstant } from './siteTime';
+import { addDaysToKey, eventZone, siteFormatter, zonedDateKey, zonedToInstant } from './siteTime';
+import { timeRange } from './eventClock';
 
 export interface ClassOccurrenceRow {
   id: string;
   title: string;
+  // The class's own zone (migration 0076); its date and times are shown in it.
+  time_zone?: string | null;
   start_time: string;
   end_time: string;
   google_recurring_event_id: string | null;
@@ -45,6 +48,8 @@ export interface SeriesKeyRow {
 export interface ClassSeriesEntry {
   key: string;
   title: string;
+  // The series' zone (its first listed occurrence's): every label is in it.
+  timeZone: string;
   isSeries: boolean;
   subLabel: string;
   singleEventId: string | null;
@@ -84,10 +89,15 @@ export interface ClassSeriesEntry {
   hideLessonOverview: boolean;
 }
 
-// In the site's time zone (siteTime.ts), looked up when used, since an admin can change it.
-const weekdayFormatter = () => siteFormatter({ weekday: 'long' });
-const dateFormatter = () => siteFormatter({ weekday: 'short', month: 'short', day: 'numeric' });
-const timeFormatter = () => siteFormatter({ hour: 'numeric', minute: '2-digit' });
+// In the class's own zone (siteTime.ts eventZone), with its zone after the
+// time when that differs from the site's clock.
+const weekdayFormatter = (tz: string) => siteFormatter({ weekday: 'long' }, 'en-US', tz);
+const dateFormatter = (tz: string) => siteFormatter({ weekday: 'short', month: 'short', day: 'numeric' }, 'en-US', tz);
+
+// "Tue, Nov 4, 7:00 PM" (plus " MT" when the class is on another clock).
+export function occurrenceLabel(start: string, tz: string): string {
+  return `${dateFormatter(tz).format(new Date(start))}, ${timeRange(start, null, tz)}`;
+}
 
 // Counts occurrences per recurring series (or per standalone class),
 // regardless of date — the basis for a series' true "whole series" size.
@@ -122,20 +132,22 @@ export function buildClassSeriesList(events: ClassOccurrenceRow[], allEventsForT
     const first = sorted[0];
     const totalOccurrences = totalCountByKey?.get(key) ?? sorted.length;
     const isSeries = totalOccurrences > 1;
-    const timeRange = `${timeFormatter().format(new Date(first.start_time))}–${timeFormatter().format(new Date(first.end_time))}`;
+    const tz = eventZone(first);
+    const times = timeRange(first.start_time, first.end_time, tz);
 
     return {
       key,
       title: first.title,
+      timeZone: tz,
       isSeries,
       totalOccurrences,
       subLabel: isSeries
-        ? `${weekdayFormatter().format(new Date(first.start_time))}s, ${timeRange}`
-        : `${dateFormatter().format(new Date(first.start_time))}, ${timeRange}`,
+        ? `${weekdayFormatter(tz).format(new Date(first.start_time))}s, ${times}`
+        : `${dateFormatter(tz).format(new Date(first.start_time))}, ${times}`,
       singleEventId: isSeries ? null : first.id,
       occurrences: sorted.map((occ) => ({
         id: occ.id,
-        label: `${dateFormatter().format(new Date(occ.start_time))}, ${timeFormatter().format(new Date(occ.start_time))}`,
+        label: occurrenceLabel(occ.start_time, tz),
         startTime: occ.start_time,
       })),
       priceWholeSeries: first.price_whole_series ?? null,

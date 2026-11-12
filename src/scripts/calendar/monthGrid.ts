@@ -5,10 +5,10 @@ import { eventBannerStyle, eventDotStyle, eventTextStyle } from '../../lib/event
 import { calendarOrder, seriesFirstOccurrences } from '../../lib/eventTimes';
 import { escapeAttr, locationHref } from '../../lib/locationLink';
 import { PIN_SVG } from '../../lib/locationPin';
-import { zonedDateKey } from '../../lib/siteTime';
+import { eventDate, eventDayKey, eventTimeRange } from '../../lib/eventClock';
 import { fitBannerLabels } from './bannerFit';
 import { showEventDetail } from './detailPanel';
-import { buildPriceLines, dateFormatter, escapeHtml, spotsText, timeFormatter } from './format';
+import { buildPriceLines, escapeHtml, spotsText } from './format';
 import { keepTooltipsOutOfTabOrder } from './tooltips';
 import type { SiteEvent } from './types';
 
@@ -29,7 +29,7 @@ function buildBannerHTML(event: SiteEvent, isCompact: boolean): string {
           ${event.weekNumber ? `<span class="font-bold text-ink">&middot; Week ${event.weekNumber}</span>` : ''}
         </p>
         <p class="mt-1 font-display font-bold text-ink">${escapeHtml(event.title)}</p>
-        <p class="mt-1 text-xs text-muted">${dateFormatter.format(new Date(event.start_time))} &middot; ${timeFormatter.format(new Date(event.start_time))}${event.end_time ? `–${timeFormatter.format(new Date(event.end_time))}` : ''}</p>
+        <p class="mt-1 text-xs text-muted">${eventDate(event)} &middot; ${eventTimeRange(event)}</p>
         ${event.description ? `<div class="tooltip-desc line-clamp-6 mt-1 text-xs text-ink/70 [&_a]:text-accent [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-4 [&_ul]:list-disc [&_ul]:pl-4">${event.description}</div><p class="tooltip-more mt-1 hidden text-[10px] font-bold uppercase tracking-wider text-accent">Click for full details</p>` : ''}
         ${buildPriceLines(event).main ? `<p class="mt-1 text-xs font-semibold text-ink">${buildPriceLines(event).main}</p>` : ''}
         ${buildPriceLines(event).student ? `<p class="text-xs font-semibold text-ink">${buildPriceLines(event).student}</p>` : ''}
@@ -69,7 +69,7 @@ export function toggleDayExpand(cell: HTMLElement) {
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'flex items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-bg';
-    item.innerHTML = `<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="${eventDotStyle(event.color)}"></span><span class="flex-1 truncate font-semibold text-ink">${escapeHtml(event.title)}</span><span class="shrink-0 text-xs text-muted">${timeFormatter.format(new Date(event.start_time))}${event.end_time ? `–${timeFormatter.format(new Date(event.end_time))}` : ''}</span>`;
+    item.innerHTML = `<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="${eventDotStyle(event.color)}"></span><span class="flex-1 truncate font-semibold text-ink">${escapeHtml(event.title)}</span><span class="shrink-0 text-xs text-muted">${eventTimeRange(event)}</span>`;
     item.addEventListener('click', () => {
       showEventDetail(event);
       closeDayExpandPanel();
@@ -114,8 +114,8 @@ export function rerenderWithMergedEvents(allEvents: SiteEvent[]) {
   document.querySelectorAll('.calendar-cell').forEach((cell) => {
     const dateKey = (cell as HTMLElement).dataset.date;
     if (!dateKey) return;
-    // The day it falls on in the site's time zone (each cell's key is already in this month).
-    const dayEvents = allEvents.filter((e) => zonedDateKey(e.start_time) === dateKey);
+    // The day it falls on in its own zone, as the server bucketed it (each cell's key is already in this month).
+    const dayEvents = allEvents.filter((e) => eventDayKey(e) === dateKey);
     const container = cell.querySelector('.day-banners')!;
     const MAX = 3;
     const isCompact = dayEvents.length > 2;

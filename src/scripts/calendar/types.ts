@@ -9,6 +9,8 @@ export interface SiteEvent {
   visibility: 'public' | 'private' | 'test';
   start_time: string;
   end_time: string;
+  // Its own zone (migration 0076): its day and times are shown in it (lib/eventClock.ts).
+  time_zone?: string | null;
   google_recurring_event_id: string | null;
   price_whole_series: number | null;
   price_drop_in: number | null;

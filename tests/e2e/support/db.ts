@@ -39,6 +39,8 @@ export interface SeedOptions {
   // Whether the homepage says when the early bird ends (the column's default: yes).
   showEarlyBirdEnd?: boolean;
   hideLessonOverview?: boolean;
+  // The class's own zone (migration 0076); left out, the database gives it the site's.
+  timeZone?: string;
 }
 
 export interface Seeded {
@@ -48,6 +50,19 @@ export interface Seeded {
 }
 
 export const testTitle = (name: string) => `${TEST_PREFIX} E2E ${RUN_ID} ${name}`;
+
+// The site's time zone as stored (site_config, migration 0051), for working
+// out the dates and times a page should show. Read only: the suite never
+// changes it, so it passes whichever zone the site is in.
+let storedZone: Promise<string> | null = null;
+export function siteZone(): Promise<string> {
+  storedZone ??= (async () => {
+    const { data, error } = await db.from('site_config').select('time_zone').eq('id', true).maybeSingle();
+    if (error) throw new Error(`Couldn't read the site's time zone: ${error.message}`);
+    return (data?.time_zone as string | undefined) ?? 'America/Chicago';
+  })();
+  return storedZone;
+}
 
 export async function seedEvent(o: SeedOptions): Promise<Seeded> {
   const title = testTitle(o.name);
@@ -77,6 +92,7 @@ export async function seedEvent(o: SeedOptions): Promise<Seeded> {
     early_bird_until: o.earlyBirdDays === undefined ? null : new Date(Date.now() + o.earlyBirdDays * DAY).toISOString(),
     ...(o.showEarlyBirdEnd === undefined ? {} : { show_early_bird_end: o.showEarlyBirdEnd }),
     hide_lesson_overview: o.hideLessonOverview ?? false,
+    ...(o.timeZone ? { time_zone: o.timeZone } : {}),
   }));
   const { data, error } = await db.from('events').insert(rows).select('id, start_time').order('start_time');
   if (error || !data) throw new Error(`Seeding "${title}" failed: ${error?.message}`);

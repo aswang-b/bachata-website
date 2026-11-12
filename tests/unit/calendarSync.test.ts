@@ -108,6 +108,36 @@ describe('pulling from Google', () => {
     expect(created).toMatchObject({ event_type: 'class', price_whole_series: 80, capacity_by_role: true, leader_capacity: 8, follower_capacity: 9, show_capacity: true, flyer_url: 'https://x/flyer.png' });
   });
 
+  it("gives a new instance of a series its siblings' zone, and a brand-new event none (the database's default)", async () => {
+    const { row } = linkedPair('a', { google_recurring_event_id: 'R', time_zone: 'America/Chicago' });
+    db.current.seed('events', [row]);
+    google.events.public = [
+      { id: 'g-a', summary: row.title, location: row.location, colorId: '10', start: { dateTime: row.start_time }, end: { dateTime: row.end_time }, recurringEventId: 'R' },
+      { id: 'g-next', summary: row.title, recurringEventId: 'R', start: { dateTime: at(14) }, end: { dateTime: at(14, 20) } },
+      { id: 'g-new', summary: 'Social', start: { dateTime: at(3) }, end: { dateTime: at(3, 22) } },
+    ];
+    await runCalendarSync();
+    const rows = db.current.rows('events');
+    expect(rows.find((r) => r.google_event_id === 'g-next')).toMatchObject({ time_zone: 'America/Chicago' });
+    expect(rows.find((r) => r.google_event_id === 'g-new')).not.toHaveProperty('time_zone');
+  });
+
+  it("never overwrites a stored zone, and pushes each event in its own zone", async () => {
+    const { row, gEvent } = linkedPair('a', { time_zone: 'America/Denver' });
+    db.current.seed('events', [row]);
+    google.events.public = [{ ...gEvent, summary: 'Moved on Google', updated: new Date(Date.now() + 1000).toISOString() }];
+    await runCalendarSync();
+    for (const call of db.current.callsTo('events', 'update')) expect(call.payload).not.toHaveProperty('time_zone');
+    expect(db.current.rows('events')[0].time_zone).toBe('America/Denver');
+
+    const pushed = linkedPair('b', { title: 'Edited', time_zone: 'America/Denver', updated_at: new Date().toISOString() });
+    db.current.seed('events', [pushed.row, { id: 'new', title: 'New', visibility: 'public', start_time: at(5), end_time: at(5, 20), google_event_id: null, time_zone: 'America/Denver' }]);
+    google.events.public = [{ ...pushed.gEvent, summary: 'B' }];
+    await runCalendarSync();
+    expect(google.updateCalendarEvent.mock.calls[0][3]).toMatchObject({ timeZone: 'America/Denver' });
+    expect(google.insertCalendarEvent.mock.calls[0][2]).toMatchObject({ timeZone: 'America/Denver' });
+  });
+
   it('pulls an edit made on Google when Google is newer and something mirrored changed', async () => {
     const { row, gEvent } = linkedPair('a');
     db.current.seed('events', [row]);

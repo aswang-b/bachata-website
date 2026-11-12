@@ -1,4 +1,4 @@
-import { siteTimeZone } from './siteTime';
+import { isValidTimeZone, siteTimeZone } from './siteTime';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from './env';
 import { supabase } from './supabase';
@@ -9,7 +9,10 @@ import { logSiteError } from './siteErrors';
 // Google requires an explicit timeZone alongside dateTime for recurring
 // events (it won't infer one from a bare "Z" UTC offset the way it does for
 // one-off events) — omitting it fails with "Missing time zone definition for
-// start time." Every event on this site is scheduled in this timezone.
+// start time." Each event is sent in its own zone (events.time_zone, migration
+// 0076: the zone it was typed in), so a series repeats at that wall-clock time;
+// the site's zone stands in when a caller has none.
+const googleZone = (tz: string | null | undefined) => (isValidTimeZone(tz) ? tz : siteTimeZone());
 
 const GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID');
 const GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET');
@@ -305,6 +308,7 @@ export async function insertCalendarEvent(
     location?: string | null;
     startTime: string;
     endTime: string;
+    timeZone?: string | null;
     color?: string | null;
     recurrence?: string[];
   }
@@ -319,8 +323,8 @@ export async function insertCalendarEvent(
       summary: event.summary,
       description: event.description ?? undefined,
       location: event.location ?? undefined,
-      start: { dateTime: event.startTime, timeZone: siteTimeZone() },
-      end: { dateTime: event.endTime, timeZone: siteTimeZone() },
+      start: { dateTime: event.startTime, timeZone: googleZone(event.timeZone) },
+      end: { dateTime: event.endTime, timeZone: googleZone(event.timeZone) },
       colorId: siteColorToGoogleColorId(event.color),
       recurrence: event.recurrence,
       extendedProperties: { private: { siteEventId: event.siteEventId } },
@@ -344,6 +348,7 @@ export async function updateCalendarEvent(
     location?: string | null;
     startTime: string;
     endTime: string;
+    timeZone?: string | null;
     color?: string | null;
   }
 ): Promise<GoogleCalendarEvent> {
@@ -357,8 +362,8 @@ export async function updateCalendarEvent(
       summary: event.summary,
       description: event.description ?? undefined,
       location: event.location ?? undefined,
-      start: { dateTime: event.startTime, timeZone: siteTimeZone() },
-      end: { dateTime: event.endTime, timeZone: siteTimeZone() },
+      start: { dateTime: event.startTime, timeZone: googleZone(event.timeZone) },
+      end: { dateTime: event.endTime, timeZone: googleZone(event.timeZone) },
       colorId: siteColorToGoogleColorId(event.color),
     }),
   });

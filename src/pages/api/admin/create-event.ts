@@ -17,6 +17,7 @@ import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
 import { capacityColumns } from '../../../lib/capacity';
 import { isValidEventColor } from '../../../lib/eventColors';
 import { isSeriesKey, linkSeries } from '../../../lib/linksStore';
+import { isValidTimeZone } from '../../../lib/siteTime';
 
 export const prerender = false;
 
@@ -60,11 +61,19 @@ const handlePost: APIRoute = async ({ request }) => {
     showEarlyBirdEnd,
     showFlashSaleEnd,
     linkTo,
+    timeZone,
   } = body ?? {};
 
   if (!title || !startTime || !endTime) {
     return new Response(JSON.stringify({ error: 'Missing title, startTime, or endTime.' }), { status: 400 });
   }
+
+  // The zone the times were typed in (migration 0076). Left out, the database
+  // gives the row the site's zone.
+  if (timeZone !== undefined && timeZone !== null && !isValidTimeZone(timeZone)) {
+    return new Response(JSON.stringify({ error: 'Unknown time zone.' }), { status: 400 });
+  }
+  const rowZoneColumns = isValidTimeZone(timeZone) ? { time_zone: timeZone } : {};
 
   // Shown on the public homepage, so only this site's own uploads (see eventImages.ts).
   for (const url of [imageUrl, flyerUrl]) {
@@ -131,6 +140,7 @@ const handlePost: APIRoute = async ({ request }) => {
         location: location || null,
         startTime,
         endTime,
+        timeZone: rowZoneColumns.time_zone,
         color: rowColor,
         recurrence: buildWeeklyRecurrenceRule({
           byDay: recurrence.byDay,
@@ -151,6 +161,7 @@ const handlePost: APIRoute = async ({ request }) => {
           event_type: rowEventType,
           // The sync can only give the new rows Google's closest color; keep the picked one.
           color: rowColor,
+          ...rowZoneColumns,
           price_whole_series: rowPriceWholeSeries,
           price_drop_in: rowPriceDropIn,
           price_student: rowPriceStudent,
@@ -196,6 +207,7 @@ const handlePost: APIRoute = async ({ request }) => {
       visibility: rowVisibility,
       start_time: startTime,
       end_time: endTime,
+      ...rowZoneColumns,
       price_whole_series: rowPriceWholeSeries,
       price_drop_in: rowPriceDropIn,
       price_student: rowPriceStudent,
@@ -235,6 +247,7 @@ const handlePost: APIRoute = async ({ request }) => {
       location: row.location,
       startTime: row.start_time,
       endTime: row.end_time,
+      timeZone: row.time_zone,
       color: row.color,
     });
     await supabase.from('events').update({ google_event_id: created.id }).eq('id', row.id);

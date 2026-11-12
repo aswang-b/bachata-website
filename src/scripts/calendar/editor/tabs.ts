@@ -18,6 +18,7 @@ import { linkedEditor } from './linked';
 import { openModal } from './modal';
 import type { SaveResponse } from './save';
 import { updateEditorSummaries, updateSeriesBanner } from './sections';
+import { syncTimeZoneField } from './timeZone';
 import { editor, seriesKeyOfEvent, type EditorDraft, type EditorTab } from './state';
 
 // ---- Tabs: one per linked class (src/lib/linkedClassesEditor.ts) ----
@@ -41,6 +42,7 @@ export function stashActiveDraft() {
 
 function applyDraft(d: EditorDraft) {
   applyFields(modal, d.fields);
+  syncTimeZoneField();
   editor.selectedType = d.type;
   editor.selectedColor = d.color;
   editor.capacityByRole = d.capacityByRole;

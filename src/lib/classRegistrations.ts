@@ -6,7 +6,7 @@ import { applyDeals, type Deal } from './deals';
 import { dealBundleSizes, listActiveDeals } from './dealsStore';
 import { lateRegistrationCutoffIso, registrationOpen } from './eventTimes';
 import { resolvePicks, type LinkRule, type PickScope } from './linkRules';
-import { zonedDateKey } from './siteTime';
+import { eventDayKey } from './eventClock';
 import { rulesForSeries } from './linksStore';
 
 export interface ParsedClassSelection {
@@ -341,18 +341,19 @@ async function foldLinkedClasses(
 
   // A Drop-In only takes in what it includes on its own day (linkRules.PickScope).
   const occurrenceIds = selections.flatMap((s) => (s.occurrenceEventId ? [s.occurrenceEventId] : []));
-  const startById = new Map<string, string>();
+  // Its day in its own zone (eventClock.eventDayKey), as the form computes it.
+  const dayById = new Map<string, string>();
   if (occurrenceIds.length > 0) {
-    const { data } = await supabase.from('events').select('id, start_time').in('id', occurrenceIds);
-    for (const e of data ?? []) startById.set(e.id, e.start_time);
+    const { data } = await supabase.from('events').select('id, start_time, time_zone').in('id', occurrenceIds);
+    for (const e of data ?? []) dayById.set(e.id, eventDayKey(e));
   }
   const scopeByKey = new Map<string, PickScope>();
   for (const s of selections) {
     const info = priceMap.get(s.key ?? s.title);
     if (!info) continue;
     const dropIn = info.eventType !== 'event' && info.dropIn != null && (s.mode === 'dropin' || info.whole == null);
-    const start = s.occurrenceEventId ? startById.get(s.occurrenceEventId) : undefined;
-    scopeByKey.set(info.seriesKey, dropIn ? (start ? zonedDateKey(start) : '') : null);
+    const day = s.occurrenceEventId ? dayById.get(s.occurrenceEventId) : undefined;
+    scopeByKey.set(info.seriesKey, dropIn ? (day ?? '') : null);
   }
 
   const resolved = resolvePicks(picked, rules, (k) => scopeByKey.get(k) ?? null);
@@ -763,7 +764,7 @@ export async function createCheckinDropInRegistration(params: {
 }): Promise<CheckinRegistrationResult> {
   const { data: event, error: eventError } = await supabase
     .from('events')
-    .select(`${PRICE_COLUMNS}, start_time, end_time, registration_closed`)
+    .select(`${PRICE_COLUMNS}, start_time, end_time, time_zone, registration_closed`)
     .eq('id', params.eventId)
     .maybeSingle();
   if (eventError || !event || event.registration_closed || event.price_drop_in == null) return 'skipped';
@@ -790,6 +791,7 @@ interface DropInEvent {
   title: string;
   start_time: string;
   end_time: string;
+  time_zone?: string | null;
   google_recurring_event_id: string | null;
   price_drop_in: number | null;
   price_drop_in_early_bird?: number | null;
@@ -811,7 +813,7 @@ async function insertDropInSignup(
     ? (
         await supabase
           .from('events')
-          .select('id, title, start_time, end_time, google_recurring_event_id')
+          .select('id, title, start_time, end_time, time_zone, google_recurring_event_id')
           .eq('google_recurring_event_id', event.google_recurring_event_id)
       ).data ?? []
     : [];
@@ -888,7 +890,7 @@ export async function createAdminDropInRegistration(params: {
 }): Promise<string> {
   const { data: event, error: eventError } = await supabase
     .from('events')
-    .select(`${PRICE_COLUMNS}, start_time, end_time`)
+    .select(`${PRICE_COLUMNS}, start_time, end_time, time_zone`)
     .eq('id', params.eventId)
     .eq('event_type', 'class')
     .maybeSingle();

@@ -1,6 +1,6 @@
 // The editor's section menu, each section's one-line summary, the status chips and the series banner.
-import { zonedToInstant } from '../../../lib/siteTime';
-import { timeFormatter } from '../format';
+import { siteFormatter, zonedToInstant, zoneSuffix } from '../../../lib/siteTime';
+import { editorZone } from './timeZone';
 import type { SiteEvent } from '../types';
 import {
   capacityInput,
@@ -78,8 +78,10 @@ export function initSectionNav() {
   });
 }
 
+// In the editor's picked zone (timeZone.ts), named when it isn't on the site's clock.
 const formatTimeOfDay = (date: string, time: string) =>
-  date && time ? timeFormatter.format(zonedToInstant(date, time)) : '';
+  date && time ? siteFormatter({ hour: 'numeric', minute: '2-digit' }, 'en-US', editorZone()).format(zonedToInstant(date, time, editorZone())) : '';
+const zoneNote = (date: string, time: string) => (date && time ? zoneSuffix(zonedToInstant(date, time, editorZone()), editorZone()) : '');
 const dollars = (v: string) => (v.trim() ? `$${v.trim()}` : '');
 
 // The one-line summary each section shows in the menu (and under its
@@ -105,7 +107,7 @@ export function updateEditorSummaries() {
   ].filter(Boolean);
   const overviewSet = lessonOverviewTitleInput.value.trim() || lessonOverviewBodyInput.textContent?.trim();
   const summaries: Record<string, string> = {
-    schedule: [date, `${formatTimeOfDay(dateInput.value, startTimeInput.value)}–${formatTimeOfDay(dateInput.value, endTimeInput.value)}`, repeatInput.checked ? 'repeats' : '']
+    schedule: [date, `${formatTimeOfDay(dateInput.value, startTimeInput.value)}–${formatTimeOfDay(dateInput.value, endTimeInput.value)}${zoneNote(dateInput.value, startTimeInput.value)}`, repeatInput.checked ? 'repeats' : '']
       .filter(Boolean)
       .join(' · '),
     details: locationInput.value.trim() || 'No location yet',

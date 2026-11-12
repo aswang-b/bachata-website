@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { siteFormatter } from './siteTime';
+import { eventSchedule } from './eventClock';
 import { createCheckinRegisterToken } from './checkinToken';
 
 // The check-in address for one or more classes, for the door sign
@@ -16,6 +16,7 @@ export interface CheckinEvent {
   title: string;
   start_time: string;
   end_time: string;
+  time_zone?: string | null;
   price_drop_in: number | null;
   registration_closed: boolean | null;
 }
@@ -50,10 +51,8 @@ export function checkinUrl(origin: string, eventIds: string[], tokens: string[])
   return `${origin}/check-in?events=${eventIds.join(',')}${register}`;
 }
 
-const dateFormatter = { format: (d: Date) => siteFormatter({ weekday: 'long', month: 'long', day: 'numeric' }).format(d) };
-const timeFormatter = { format: (d: Date) => siteFormatter({ hour: 'numeric', minute: '2-digit' }).format(d) };
-const scheduleOf = (e: CheckinEvent) =>
-  `${dateFormatter.format(new Date(e.start_time))}, ${timeFormatter.format(new Date(e.start_time))}–${timeFormatter.format(new Date(e.end_time))}`;
+// In the class's own zone.
+const scheduleOf = (e: CheckinEvent) => eventSchedule(e, { weekday: 'long', month: 'long', day: 'numeric' });
 
 // Throws CheckinLinkError (with the HTTP status to answer) for a bad request.
 export async function buildCheckinLink(origin: string, eventIds: string[], createRegistration: boolean): Promise<CheckinLink> {
@@ -62,7 +61,7 @@ export async function buildCheckinLink(origin: string, eventIds: string[], creat
 
   const { data: found, error } = await supabase
     .from('events')
-    .select('id, title, start_time, end_time, price_drop_in, registration_closed')
+    .select('id, title, start_time, end_time, time_zone, price_drop_in, registration_closed')
     .in('id', eventIds);
   if (error || !found || found.length !== eventIds.length) throw new CheckinLinkError('One of those classes could not be found.', 404);
   // Keep the order the admin picked them in.

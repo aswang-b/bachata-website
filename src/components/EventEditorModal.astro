@@ -1,5 +1,6 @@
 ---
 // The calendar's event editor, shown to admins (script: src/scripts/calendar/editor/).
+import TimeZoneOptions from './TimeZoneOptions.astro';
 ---
 
 {/* The event editor (above the cookie banner, below the image cropper): a header (title, type, color, status), a section menu
@@ -105,7 +106,17 @@
                 <input id="event-end-time" type="time" class="rounded-xl border border-border bg-surface px-3 py-2 text-ink focus:border-accent focus:outline-none" />
               </label>
             </div>
-            <p class="text-xs text-muted">Times use your browser's local timezone. An end time before the start is the next day.</p>
+            {/* A class keeps the zone its times are typed in (editor/timeZone.ts); the site's unless picked here. */}
+            <div class="flex flex-col gap-2">
+              <p id="event-time-zone-hint" class="text-xs text-muted">Times are in the site's time. An end time before the start is the next day.</p>
+              <button id="event-time-zone-toggle" type="button" class="self-start text-xs font-semibold text-accent underline">Different time zone</button>
+              <label id="event-time-zone-row" class="hidden flex-col gap-1.5">
+                <span class="text-xs font-semibold text-muted">Time zone</span>
+                <select id="event-time-zone" class="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none sm:w-80">
+                  <TimeZoneOptions />
+                </select>
+              </label>
+            </div>
 
             <div id="event-recurrence-row" class="flex flex-col gap-2 border-t border-border pt-3 text-sm text-ink/80">
               <label class="flex items-center gap-2">

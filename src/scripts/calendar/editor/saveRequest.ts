@@ -1,5 +1,6 @@
 // What a Save sends: the open tab's fields as a create or update request.
 import { endAfterStart } from '../../../lib/eventTimes';
+import { eventZone } from '../../../lib/siteTime';
 import { fromLocalDateTimeValue, fromLocalParts } from './dates';
 import {
   capacityInput,
@@ -39,6 +40,7 @@ import {
 } from './dom';
 import { flyerUrlInput } from './flyer';
 import { editor, WEEKDAY_CODES } from './state';
+import { editorZone } from './timeZone';
 
 export interface SaveRequest {
   endpoint: string;
@@ -54,7 +56,9 @@ export function buildSaveRequest(): SaveRequest | null {
     (!titleInput.value.trim() ? titleInput : dateInput).focus();
     return null;
   }
-  const endTimeIso = endAfterStart(dateInput.value, startTimeInput.value, endTimeInput.value);
+  // The typed date and times, read in the picked zone (timeZone.ts).
+  const timeZone = editorZone();
+  const endTimeIso = endAfterStart(dateInput.value, startTimeInput.value, endTimeInput.value, timeZone);
   if (!endTimeIso) {
     alert('The end time is the same as the start time — pick when the event ends.');
     return null;
@@ -92,8 +96,9 @@ export function buildSaveRequest(): SaveRequest | null {
     followerCapacity: followerCapacityInput.value.trim(),
     color: editor.selectedColor,
     visibility: privateInput.checked ? 'private' : 'public',
-    startTime: fromLocalParts(dateInput.value, startTimeInput.value),
+    startTime: fromLocalParts(dateInput.value, startTimeInput.value, timeZone),
     endTime: endTimeIso,
+    timeZone,
   };
 
   if (editor.selectedType === 'event') {
@@ -134,7 +139,9 @@ export function buildSaveRequest(): SaveRequest | null {
       endType === 'until' ||
       JSON.stringify([...currentByDay].sort()) !== JSON.stringify([...(editor.originalPattern?.byDay ?? [])].sort()) ||
       currentCount !== editor.originalPattern?.count ||
-      currentInterval !== editor.originalPattern?.interval;
+      currentInterval !== editor.originalPattern?.interval ||
+      // A new zone moves every class of the series, which only a rebuild does.
+      (editor.editingEvent != null && timeZone !== eventZone(editor.editingEvent));
 
     if (patternChanged) {
       if (endType === 'until' && !repeatUntilInput.value) {

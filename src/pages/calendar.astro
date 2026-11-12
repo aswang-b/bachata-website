@@ -15,7 +15,8 @@ import { scaledImageUrl } from '../lib/eventImages';
 import EventEditorModal from '../components/EventEditorModal.astro';
 import FlyerDialog from '../components/FlyerDialog.astro';
 import LinkPickerDialog from '../components/LinkPickerDialog.astro';
-import { siteFormatter, zonedDateKey, zonedParts, zonedToInstant } from '../lib/siteTime';
+import { addDaysToKey, eventZone, siteFormatter, zonedDateKey, zonedParts, zonedToInstant, zoneSuffix } from '../lib/siteTime';
+import { eventDate, eventDayKey, eventTimeRange, isEventToday } from '../lib/eventClock';
 import { calendarOrder, seriesFirstOccurrences } from '../lib/eventTimes';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -45,13 +46,15 @@ const monthKey = (y: number, m: number) => {
 const prevMonthParam = monthKey(year, month - 1);
 const nextMonthParam = monthKey(year, month + 1);
 
-const monthStart = zonedToInstant(`${monthKey(year, month)}-01`);
-const monthEnd = zonedToInstant(`${nextMonthParam}-01`);
+// A class sits on its own zone's day (eventClock.ts), so the query reaches a
+// day past the site's month on each side and keeps the classes whose own day is in it.
+const monthStart = zonedToInstant(addDaysToKey(`${monthKey(year, month)}-01`, -1));
+const monthEnd = zonedToInstant(addDaysToKey(`${nextMonthParam}-01`, 1));
 
 const EVENT_COLUMNS =
-  'id, title, description, location, event_type, color, visibility, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, flyer_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, show_early_bird_end, show_flash_sale_end, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity';
+  'id, title, description, location, event_type, color, visibility, start_time, end_time, time_zone, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, flyer_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, show_early_bird_end, show_flash_sale_end, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity';
 
-const { data: monthEvents, error: monthError } = await supabase
+const { data: monthRows, error: monthError } = await supabase
   .from('events')
   .select(EVENT_COLUMNS)
   .in('visibility', publicVisibilities())
@@ -68,6 +71,7 @@ const { data: upcomingEvents, error: upcomingError } = await supabase
   .limit(20);
 
 if (monthError) console.error('Failed to load month events:', monthError);
+const monthEvents = (monthRows ?? []).filter((e) => eventDayKey(e).startsWith(`${monthKey(year, month)}-`));
 if (upcomingError) console.error('Failed to load upcoming events:', upcomingError);
 
 // Spots remaining per occurrence as a label, sent to the page only where the
@@ -172,7 +176,7 @@ function buildPriceLines(event: PricedEvent & { event_type?: string }, weekNumbe
 
 const eventsByDate = new Map<string, typeof gridEvents>();
 for (const event of gridEvents) {
-  const key = zonedDateKey(event.start_time);
+  const key = eventDayKey(event);
   const existing = eventsByDate.get(key) ?? [];
   existing.push(event);
   eventsByDate.set(key, existing);
@@ -184,10 +188,8 @@ for (let i = 0; i < startWeekday; i++) cells.push({ date: null, day: 0 });
 for (let day = 1; day <= daysInMonth; day++) cells.push({ date: `${monthKey(year, month)}-${pad2(day)}`, day });
 
 const todayKey = zonedDateKey(new Date());
-const timeFormatter = siteFormatter({ hour: 'numeric', minute: '2-digit' });
-const dateFormatter = siteFormatter({ weekday: 'short', month: 'short', day: 'numeric' });
-const monthAbbrevFormatter = siteFormatter({ month: 'short' });
-const weekdayAbbrevFormatter = siteFormatter({ weekday: 'short' });
+// In each class's own zone (eventClock.ts); the grid's "today" stays the site's.
+const timeFormatter = (tz: string) => siteFormatter({ hour: 'numeric', minute: '2-digit' }, 'en-US', tz);
 const MAX_BANNERS_PER_DAY = 3;
 // Phone dots: rows of two for up to 4 events, rows of three for 5 or 6 (3 over 2,
 // 3 and 3). More than 6 shows 6; tapping the day lists them all.
@@ -305,7 +307,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                           </p>
                           <p class="mt-1 font-display font-bold text-ink">{event.title}</p>
                           <p class="mt-1 text-xs text-muted">
-                            {dateFormatter.format(new Date(event.start_time))} &middot; {timeFormatter.format(new Date(event.start_time))}{event.end_time && `–${timeFormatter.format(new Date(event.end_time))}`}
+                            {eventDate(event)} &middot; {eventTimeRange(event)}
                           </p>
                           {event.description && (
                             <>
@@ -409,14 +411,15 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
       ) : (
         gridEvents.map((event) => {
           const start = new Date(event.start_time);
-          const isToday = zonedDateKey(start) === todayKey;
+          const tz = eventZone(event);
+          const isToday = isEventToday(event);
           const weekNumber = weekNumberByEventId.get(event.id) ?? null;
           const priceLines = buildPriceLines(event, weekNumber);
           const seriesKey = event.google_recurring_event_id ?? event.id;
           const registerBase = event.event_type === 'event' ? '/register/events' : '/register';
           const registerHref = `${registerBase}?series=${encodeURIComponent(seriesKey)}`;
-          const monthAbbrev = monthAbbrevFormatter.format(start).toUpperCase();
-          const weekdayAbbrev = weekdayAbbrevFormatter.format(start).toUpperCase();
+          const monthAbbrev = eventDate(event, { month: 'short' }).toUpperCase();
+          const weekdayAbbrev = eventDate(event, { weekday: 'short' }).toUpperCase();
 
           return (
             <div class={`flex flex-col overflow-hidden rounded-2xl border sm:flex-row ${isToday ? 'border-accent' : 'border-border'} bg-bg`}>
@@ -427,7 +430,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                 }`}
               >
                 <span class="text-[10px] font-bold uppercase tracking-wider">{monthAbbrev}</span>
-                <span class="text-2xl font-extrabold">{zonedParts(start).day}</span>
+                <span class="text-2xl font-extrabold">{zonedParts(start, tz).day}</span>
                 <span class="text-[10px] font-bold uppercase tracking-wider">{weekdayAbbrev}</span>
               </div>
 
@@ -440,7 +443,7 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                   </p>
                 </div>
                 <p class="text-xs text-muted">
-                  {timeFormatter.format(start)}&ndash;{timeFormatter.format(new Date(event.end_time))}
+                  {timeFormatter(tz).format(start)}&ndash;{timeFormatter(tz).format(new Date(event.end_time))}{zoneSuffix(start, tz)}
                   {event.location && (
                     <>
                       {' '}

@@ -1,11 +1,8 @@
-// Text the calendar builds from an event: times and dates in the site zone,
-// prices (with any early bird or flash sale running), spots left.
+// Text the calendar builds from an event: prices (with any early bird or
+// flash sale running), spots left. Its date and times come from
+// lib/eventClock.ts, in the event's own zone.
 import { getActivePrice, priceTierLabel } from '../../lib/pricing';
-import { siteFormatter } from '../../lib/siteTime';
 import type { SiteEvent } from './types';
-
-export const timeFormatter = siteFormatter({ hour: 'numeric', minute: '2-digit' });
-export const dateFormatter = siteFormatter({ weekday: 'short', month: 'short', day: 'numeric' });
 
 function formatPrice(value: number): string {
   return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;

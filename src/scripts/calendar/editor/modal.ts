@@ -1,7 +1,7 @@
 // Opening and closing the editor on a class or event (or a new one).
 import { DEFAULT_QUICK_COLORS, recentEventColors } from '../../../lib/eventColors';
 import { offerPrevious } from '../../../lib/richTextHistory';
-import { zonedDateKey, zonedParts } from '../../../lib/siteTime';
+import { eventZone, zonedDateKey, zonedParts } from '../../../lib/siteTime';
 import { shared } from '../state';
 import type { SiteEvent } from '../types';
 import { toLocalDateTimeValue, toLocalParts } from './dates';
@@ -57,6 +57,7 @@ import { initLocationAutocomplete } from './places';
 import { prepareEditorSections, updateEditorSummaries } from './sections';
 import { editor, WEEKDAY_CODES } from './state';
 import { hasUnsaved, renderTabs } from './tabs';
+import { setEditorZone } from './timeZone';
 
 export function openModal(mode: 'add' | 'edit', event?: SiteEvent, presetDate?: string) {
   editor.editingId = event?.id || null;
@@ -124,7 +125,7 @@ export function openModal(mode: 'add' | 'edit', event?: SiteEvent, presetDate?: 
   editor.originalPattern = null;
 
   if (isSeriesOccurrence && event) {
-    const weekday = WEEKDAY_CODES[zonedParts(event.start_time).weekday];
+    const weekday = WEEKDAY_CODES[zonedParts(event.start_time, eventZone(event)).weekday];
     editor.selectedRepeatDays = new Set([weekday]);
     const siblingCount = editor.cachedAllEvents.filter((e) => e.google_recurring_event_id === editor.editingRecurringId).length || 1;
     repeatCountInput.value = String(siblingCount);
@@ -141,14 +142,16 @@ export function openModal(mode: 'add' | 'edit', event?: SiteEvent, presetDate?: 
     repeatInput.checked = false;
   }
 
+  // Its own zone (a new class: the site's; a linked copy: its source's).
+  setEditorZone(event?.time_zone);
   if (event) {
-    const start = toLocalParts(event.start_time);
-    const end = toLocalParts(event.end_time);
+    const start = toLocalParts(event.start_time, eventZone(event));
+    const end = toLocalParts(event.end_time, eventZone(event));
     dateInput.value = start.date;
     startTimeInput.value = start.time;
     endTimeInput.value = end.time;
     if (!isSeriesOccurrence) {
-      editor.selectedRepeatDays = new Set([WEEKDAY_CODES[zonedParts(event.start_time).weekday]]);
+      editor.selectedRepeatDays = new Set([WEEKDAY_CODES[zonedParts(event.start_time, eventZone(event)).weekday]]);
     }
   } else {
     // Today in the site's time zone; a "YYYY-MM-DD" day's weekday is plain calendar math.
@@ -210,7 +213,7 @@ export function openNewLinked(source: SiteEvent) {
     repeatInput.checked = true;
     repeatOptions.classList.remove('hidden');
     repeatOptions.classList.add('flex');
-    editor.selectedRepeatDays = new Set(remaining.map((o) => WEEKDAY_CODES[zonedParts(o.start_time).weekday]));
+    editor.selectedRepeatDays = new Set(remaining.map((o) => WEEKDAY_CODES[zonedParts(o.start_time, eventZone(o)).weekday]));
     repeatCountInput.value = String(remaining.length);
     renderRepeatDayButtons();
   }
