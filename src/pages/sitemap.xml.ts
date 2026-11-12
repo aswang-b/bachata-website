@@ -6,7 +6,8 @@ const SITE_URL = 'https://dancewithb.fun';
 // `prerender = false` (full SSR), so the official integration — which only
 // picks up statically-generated pages at build time — would emit an empty
 // sitemap. This lists the public, search-worthy routes by hand instead.
-const PUBLIC_PATHS = ['/', '/about', '/calendar', '/contact', '/register', '/register/events', '/check-in', '/privacy-policy'];
+// /about returns here when the page has real content.
+const PUBLIC_PATHS = ['/', '/calendar', '/contact', '/register', '/register/events', '/check-in', '/privacy-policy'];
 
 export async function GET() {
   const urlEntries = PUBLIC_PATHS.map((path) => `  <url><loc>${SITE_URL}${path}</loc></url>`).join('\n');
