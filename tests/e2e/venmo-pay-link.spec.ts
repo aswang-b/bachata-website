@@ -20,6 +20,13 @@ test.beforeAll(async () => {
   classB = await seedEvent({ name: 'Pay Link B', priceWhole: 25, dayOffset: 3 });
 });
 
+// The email sink keeps every email of the run, so each attempt (a retry, or --repeat-each) signs
+// up with its own address and finds only its own email.
+const attemptEmail = (name: string) => {
+  const { retry, repeatEachIndex } = test.info();
+  return `zzz-e2e-${RUN_ID.toLowerCase()}-${name}-${repeatEachIndex}-${retry}@example.com`;
+};
+
 const ACCOUNT_LINK = 'https://venmo.com/code?user_id=2024335518728192092&created=1788834419';
 const payLink = (page: Page) => page.locator('#venmo-pay-link');
 const payUrl = (amount: string, ...names: string[]) => `https://venmo.com/amumira?txn=pay&amount=${amount}&note=${encodeURIComponent(names.join(', '))}`;
@@ -79,7 +86,7 @@ test('the form\'s Venmo link follows the subtotal and class names, and the QR co
 });
 
 test('a Venmo sign-up\'s confirmation page and email say "Click here to pay." with the same amount as the receipt', async ({ page }) => {
-  const email = `zzz-e2e-${RUN_ID.toLowerCase()}-venmo@example.com`;
+  const email = attemptEmail('venmo');
   await page.goto(`/register?series=${classA.key}`);
   await selectSeries(page, classA.key);
   await fillDancer(page, 0, { first: 'PayLink', role: 'leader', email });
@@ -106,7 +113,7 @@ test('a Venmo sign-up\'s confirmation page and email say "Click here to pay." wi
 });
 
 test('a cash sign-up has no pay sentence on the confirmation page or in the email', async ({ page }) => {
-  const email = `zzz-e2e-${RUN_ID.toLowerCase()}-nopay@example.com`;
+  const email = attemptEmail('nopay');
   await page.goto(`/register?series=${classB.key}`);
   await selectSeries(page, classB.key);
   await fillDancer(page, 0, { first: 'NoPay', role: 'follower', email });

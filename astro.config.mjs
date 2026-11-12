@@ -13,7 +13,14 @@ export default defineConfig({
     plugins: [tailwindcss()],
     // Bundled for the browser up front: the door sign (/admin/qr) draws codes
     // client-side, and discovering it on first load serves a stale module.
-    optimizeDeps: { include: ['qrcode'] }
+    optimizeDeps: { include: ['qrcode'] },
+    // The e2e suite's output (Playwright traces, screenshots, the email sink) is
+    // written inside the project while its dev server runs. Vite ignores
+    // Playwright's default test-results/ folder but not this one, so every trace
+    // write was a file change for the dev server: ~26,000 in a full run, which
+    // bogged it down (requests waited up to 20 s before reaching the site's code)
+    // and, after any request that failed, made Astro reload every open page.
+    server: { watch: { ignored: ['**/tests/e2e/.output/**'] } }
   },
 
   // The site has no Netlify edge functions; starting their local dev server

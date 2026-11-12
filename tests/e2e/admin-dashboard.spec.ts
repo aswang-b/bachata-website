@@ -58,7 +58,9 @@ for (const [width, compact] of [
     await page.goto('/admin/analytics');
     const row = page.locator('#signups-body tr', { hasText: 'ZZZDashLead' });
     await expect(row).toBeVisible({ timeout: 30_000 });
-    expect(await row.evaluate((tr) => getComputedStyle(tr).display)).toBe(compact ? 'flex' : 'table-row');
+    // Polled: the table is drawn again as the rest of the data arrives, and a row read just as it's
+    // replaced is no longer on the page (its computed display reads "").
+    await expect.poll(() => row.evaluate((tr) => getComputedStyle(tr).display)).toBe(compact ? 'flex' : 'table-row');
     const picker = page.locator('#tab-panel-signups details', { hasText: 'Fields on each row' });
     // Phones and tablets get sort buttons only for the columns that get sorted there.
     const contactSort = page.locator('th[data-table="signups"][data-column="email"]');

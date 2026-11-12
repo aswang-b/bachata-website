@@ -27,6 +27,14 @@ async function pickClass(page: Page, title: string) {
   await page.locator('.class-item', { hasText: title }).locator('.class-select-btn').click();
 }
 
+// Saved signs live in the test server's memory for the whole run, and the sweep
+// can't reach them, so a failed attempt's signs are still there when it is
+// retried (or repeated with --repeat-each): each attempt names its signs apart (headings must be unique).
+const attempt = () => {
+  const { retry, repeatEachIndex } = test.info();
+  return `${retry ? ` R${retry}` : ''}${repeatEachIndex ? ` X${repeatEachIndex}` : ''}`;
+};
+
 const card = (page: Page, heading: string) => page.locator('.door-sign', { hasText: heading });
 const linkOf = async (page: Page, heading: string) => (await card(page, heading).textContent())!.match(SHORT)![0];
 
@@ -50,7 +58,7 @@ test.describe.serial('saved door signs', () => {
     first = await seedEvent({ name: 'Door Sign A', priceDropIn: 15 });
     second = await seedEvent({ name: 'Door Sign B', priceDropIn: 15 });
   });
-  const runOf = () => first.title.split(' Door Sign')[0];
+  const runOf = () => first.title.split(' Door Sign')[0] + attempt();
 
 test('each gets its own short link and branded code, repoints with care, and frees its link when deleted', async ({ page, adminPage }) => {
   void adminPage;
@@ -222,7 +230,7 @@ test('on a phone, the full-screen sign shows one code at a time and the page nev
 test("a sign's heading is its name: shown in the title bar, needed, and never another sign's; the check-in line can be changed, and its branded code made again in another look", async ({ page, adminPage }) => {
   void adminPage;
   const event = await seedEvent({ name: 'Door Sign Names', priceDropIn: 15 });
-  const run = event.title.split(' Door Sign')[0];
+  const run = event.title.split(' Door Sign')[0] + attempt();
   const name = `${run} Named sign`;
   await page.goto('/admin/qr');
   await expect(page.locator('#qr-admin')).toBeVisible();
@@ -246,8 +254,9 @@ test("a sign's heading is its name: shown in the title bar, needed, and never an
   await expect(page.locator('#sign-status')).toContainText('Saved');
   await expect(page.locator('#editor-kind')).toHaveText('Editing saved sign');
   await expect(page.locator('#editor-title')).toHaveText(name);
-  // Its branded code is made right after saving.
-  await expect(page.locator('#codes-status')).toContainText('ready');
+  // It has its branded code right after saving: made then, or already made for the spare link it took
+  // (on a retry, the failed attempt's spares are still in the server's memory). Making one is the first test's.
+  await expect(card(page, name)).toContainText('branded code ready');
   await expect(page.locator('#codes-dialog')).toBeHidden();
   await page.reload();
   await card(page, name).getByRole('button', { name: 'Edit' }).click();
