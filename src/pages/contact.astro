@@ -6,9 +6,15 @@ export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
 import IntakeForm from '../components/IntakeForm.astro';
-import { cacheSharedPage } from '../lib/pageCache';
+import { cacheContactPage } from '../lib/pageCache';
+import { findSpotClass, spotLine, spotPrefill } from '../lib/spotRequest';
 
-cacheSharedPage(Astro.response.headers);
+// Opened from an "Ask about a spot" link (askAboutSpot.ts): the class is looked
+// up from the id alone, and a page opened that way is never cached at the edge.
+// An id that isn't a public, upcoming class gives the ordinary page.
+const spotParam = Astro.url.searchParams.get('spot');
+cacheContactPage(Astro.response.headers, spotParam !== null);
+const spot = spotParam === null ? null : await findSpotClass(spotParam);
 const loc = Astro.locals.siteLocation ?? DEFAULT_LOCATION;
 const place = placeLabel(loc);
 ---
@@ -25,5 +31,8 @@ const place = placeLabel(loc);
     contactMethodPicker={true}
     requireAll={true}
     requireComments={true}
+    spotId={spot ? (spotParam ?? undefined) : undefined}
+    spotLine={spot ? spotLine(spot) : undefined}
+    commentsPrefill={spot ? spotPrefill(spot) : undefined}
   />
 </BaseLayout>

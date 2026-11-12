@@ -15,6 +15,7 @@ import { applyCardOrder, getHomepageSettings, type HomepageSection } from '../li
 import { listFaqs } from '../lib/faqs';
 import { listActiveDeals } from '../lib/dealsStore';
 import { getSpotsByOccurrence, publicSpotsLabel, seriesSpots } from '../lib/capacity';
+import { ASK_SPOT_CLASS, ASK_SPOT_LABEL, askAboutSpotHref, isAskable } from '../lib/askAboutSpot';
 import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesBounds, venueText } from '../lib/flyerBlocks';
 import PastFlyersGallery from '../components/PastFlyersGallery.astro';
 import FlyerDialog from '../components/FlyerDialog.astro';
@@ -43,9 +44,7 @@ const [{ lessonOverview, cardOrder, sectionOrder, galleryFlyers }, faqs, { data:
 ]);
 if (error) console.error('Failed to load current offerings:', error);
 
-// Every occurrence (past ones too) of the series on the page, for their full
-// dates and class counts, and the spots left; read together. Only those series,
-// not every event ever, so the page doesn't slow down as past classes pile up.
+// Every occurrence (past ones too) of the series on the page, for their full dates and class counts, and the spots left; read together. Only those series, not every event ever, so the page doesn't slow down as past classes pile up.
 const seriesKeys = [...new Set((events ?? []).flatMap((e) => (e.google_recurring_event_id ? [e.google_recurring_event_id] : [])))];
 const [{ data: seriesOccurrences, error: seriesError }, spotsByOccurrence] = await Promise.all([
   seriesKeys.length > 0
@@ -90,13 +89,13 @@ const showCapacityByKey = new Map((events ?? []).map((e) => [e.google_recurring_
 function spotsFor(offering: ClassSeriesEntry) {
   const spots = seriesSpots(spotsByOccurrence, offering.occurrences.map((o) => o.id));
   const shown = showCapacityByKey.get(offering.key) ?? false;
-  return { full: spots?.full ?? false, label: publicSpotsLabel(spots, shown), adminOnly: spots != null && !shown && !spots.full };
+  const ask = isAskable({ closed: offering.registrationClosed, spots, startTime: offering.nextStartTime, now });
+  return { full: spots?.full ?? false, label: publicSpotsLabel(spots, shown), adminOnly: spots != null && !shown && !spots.full, ask };
 }
 
 // Events sit under Upcoming Events, so only classes get a type tag.
 const typeLabel = (o: ClassSeriesEntry) => (o.eventType === 'event' ? '' : o.isSeries ? `${o.totalOccurrences}-week series` : 'Workshop');
-// For search engines only: each upcoming class/event as structured data, and
-// the first flyer as the link-preview image.
+// For search engines only: each upcoming class/event as structured data, and the first flyer as the link-preview image.
 const fullOccurrences = new Set([...spotsByOccurrence].filter(([, s]) => s.full).map(([id]) => id));
 const loc = Astro.locals.siteLocation ?? DEFAULT_LOCATION;
 const place = placeLabel(loc);
@@ -193,7 +192,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                 <div class="flex flex-col gap-3 p-3 sm:p-4">
 
                   {block.offerings.map((o) => {
-                    const { full, label, adminOnly } = spotsFor(o);
+                    const { full, label, adminOnly, ask } = spotsFor(o);
                     const prices = priceOptions(o, now);
                     const overviewBody = o.lessonOverviewBody ?? lessonOverview;
                     const showOverview = Boolean(overviewBody) && !o.hideLessonOverview;
@@ -260,6 +259,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                             <a href={registerHref(o)} class="gradient-accent shrink-0 rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Register</a>
                           )}
                         </div>
+                        {ask && <p class="text-right"><a href={askAboutSpotHref(o.key)} data-ask-spot class={ASK_SPOT_CLASS}>{ASK_SPOT_LABEL}</a></p>}
 
                         {inlineDetails && (
                           <div data-desc-preview class="group/desc mt-2 flex min-h-28 flex-col overflow-hidden rounded-xl border border-border bg-bg md:flex-1 data-[fits]:min-h-0 md:data-[fits]:flex-none">

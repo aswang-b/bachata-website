@@ -9,6 +9,7 @@ import { publicVisibilities } from '../lib/testMode';
 import { countOccurrencesByKey } from '../lib/classSeries';
 import { getActivePrice, priceTierLabel, type ActivePriceResult } from '../lib/pricing';
 import { getSpotsByOccurrence, publicSpotsLabel, remainingFor, seriesSpots } from '../lib/capacity';
+import { ASK_SPOT_CLASS, ASK_SPOT_LABEL, askAboutSpotHref, isAskable } from '../lib/askAboutSpot';
 import { getCommunityGuidelines, hasGuidelines } from '../lib/communityGuidelines';
 import { listActiveDeals } from '../lib/dealsStore';
 import { occurrenceChoice, seriesSubLabel } from '../lib/registrationLabels';
@@ -72,8 +73,7 @@ const [guidelines, { data: classEvents, error }, activeDeals] = await Promise.al
     )
     .in('visibility', publicVisibilities())
     .eq('event_type', eventType)
-    // Classes until they start; events until 30 minutes after they end, so
-    // people can register at the door (see eventTimes.registrationOpen).
+    // Classes until they start; events until 30 minutes after they end, so people can register at the door (see eventTimes.registrationOpen).
     .gte(isEvent ? 'end_time' : 'start_time', isEvent ? lateRegistrationCutoffIso() : new Date().toISOString())
     .order('start_time', { ascending: true }),
   listActiveDeals(),
@@ -81,9 +81,7 @@ const [guidelines, { data: classEvents, error }, activeDeals] = await Promise.al
 const showGuidelines = hasGuidelines(guidelines);
 
 if (error) console.error(`Failed to load ${eventType} events:`, error);
-// Every occurrence (past ones too) of the series on offer, for their class
-// counts and full dates, so a series doesn't shrink as its classes pass; only
-// those series, not every class ever (like the homepage). Read with the spots.
+// Every occurrence (past ones too) of the series on offer, for their class counts and full dates, so a series doesn't shrink as its classes pass; only those series, not every class ever (like the homepage). Read with the spots.
 const seriesKeys = [...new Set((classEvents ?? []).flatMap((e) => (e.google_recurring_event_id ? [e.google_recurring_event_id] : [])))];
 const [{ data: seriesOccurrences, error: totalsError }, spotsByOccurrence] = await Promise.all([
   seriesKeys.length > 0
@@ -131,12 +129,12 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
       fullRoles: s ? (['leader', 'follower'] as const).filter((r) => remainingFor(s, r) === 0) : [],
     };
   });
-  // A Whole Series needs room in every class, a Drop-In only in its own: when
-  // the fullest class is full, the series still takes Drop-Ins for the dates
-  // that have room.
+  // A Whole Series needs room in every class, a Drop-In only in its own: when the fullest class is full, the series still takes Drop-Ins for the dates that have room.
   const wholeFull = spots?.full ?? false;
   const openDropIns = !isEvent && isSeries && first.price_drop_in != null && dates.some((o) => !o.full);
   const full = wholeFull && !openDropIns;
+  // "Ask about a spot" for a class that is full, closed or full for one role: in its header, or with the choices when only the Whole Series is full (Drop-Ins open).
+  const askIn = !isAskable({ closed: first.registration_closed, spots, startTime: first.start_time, now }) ? null : first.registration_closed || full || !wholeFull ? 'header' : 'choices';
 
   const tieredInput = {
     earlyBirdUntil: first.early_bird_until,
@@ -155,7 +153,7 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     location: first.location, city: first.city, state: first.state,
     // A full class or event can't be picked, just like a closed one.
     registrationClosed: first.registration_closed || full,
-    full,
+    full, askIn,
     // Only Drop-Ins are left (see openDropIns above).
     wholeFull: wholeFull && !full,
     spotsText: wholeFull && !full ? 'Whole series full · Drop-ins open' : publicSpotsLabel(spots, first.show_capacity),
@@ -308,6 +306,7 @@ const place = placeLabel(loc);
                         </a>
                       </>
                     )}
+                    {s.askIn === 'header' && <a href={askAboutSpotHref(s.key)} data-ask-spot onclick="event.stopPropagation()" class={ASK_SPOT_CLASS}>{ASK_SPOT_LABEL}</a>}
                   </div>
                 </div>
 
@@ -440,6 +439,7 @@ const place = placeLabel(loc);
                         Student discount: <span set:html={priceDisplayHtml(s.priceStudent, s.isSeries ? '/class' : '')} />{s.dropInOnly ? '' : ' (whole series or drop-in)'}
                       </p>
                     )}
+                    {s.askIn === 'choices' && <a href={askAboutSpotHref(s.key)} data-ask-spot class={`${ASK_SPOT_CLASS} self-start`}>{ASK_SPOT_LABEL}</a>}
                   </div>
                 )}
               </div>

@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { publicVisibilities } from '../lib/testMode';
 import { getActivePrice, priceTierLabel } from '../lib/pricing';
 import { getSpotsByOccurrence, publicSpotsLabel, type SpotsInfo } from '../lib/capacity';
+import { isAskable } from '../lib/askAboutSpot';
 import { eventBannerStyle, eventDotStyle, eventTextStyle } from '../lib/eventColors';
 import { eventTypeLabel } from '../lib/classSeries';
 import { locationHref } from '../lib/locationLink';
@@ -87,6 +88,8 @@ try {
 const gridEvents = (monthEvents ?? []).map(({ capacity: _capacity, leader_capacity: _leaderCapacity, follower_capacity: _followerCapacity, ...event }) => ({
   ...event,
   spots_label: publicSpotsLabel(spotsByOccurrence.get(event.id) ?? null, event.show_capacity),
+  // Only on a class the panel calls full or closed and that is still to come (lib/askAboutSpot.ts); left out otherwise, so other events' data is unchanged.
+  ask_spot: isAskable({ closed: event.registration_closed, spots: spotsByOccurrence.get(event.id) ?? null, startTime: event.start_time }) || undefined,
 }));
 const sidebarEvents = upcomingEvents ?? [];
 

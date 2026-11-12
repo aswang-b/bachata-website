@@ -5,6 +5,7 @@ import { locationHref } from '../../lib/locationLink';
 import { PIN_SVG } from '../../lib/locationPin';
 import { awayCity, withAwayCity } from '../../lib/siteLocation';
 import { eventDate, eventTimeRange } from '../../lib/eventClock';
+import { ASK_SPOT_CLASS, ASK_SPOT_LABEL, askAboutSpotHref } from '../../lib/askAboutSpot';
 import { buildPriceLines, spotsText } from './format';
 import { shared } from './state';
 import type { SiteEvent } from './types';
@@ -66,6 +67,18 @@ export function showEventDetail(event: SiteEvent) {
     detailRegisterBtn.classList.add('gradient-accent', 'hover:opacity-90');
   } else {
     detailRegisterBtn.classList.add('hidden');
+  }
+
+  // A full or closed class still to come offers "Ask about a spot" for this very class date beside the button (the server decides: ask_spot,
+  // only in the public feed). Built here rather than in the page, so a class with spots left changes nothing.
+  document.getElementById('detail-ask-spot')?.remove();
+  if (event.ask_spot && !shared.adminModeActive) {
+    const ask = document.createElement('a');
+    ask.id = 'detail-ask-spot';
+    ask.href = askAboutSpotHref(event.id);
+    ask.className = ASK_SPOT_CLASS;
+    ask.textContent = ASK_SPOT_LABEL;
+    detailRegisterBtn.after(ask);
   }
 
   if (event.flyer_url) detailFlyerBtn.dataset.flyerOpen = event.flyer_url;

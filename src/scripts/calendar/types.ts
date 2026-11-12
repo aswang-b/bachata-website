@@ -43,6 +43,8 @@ export interface SiteEvent {
   // something is full); always for admins, with spots_admin_only when hidden.
   spots_label?: string | null;
   spots_admin_only?: boolean;
+  // Public feed only: the panel offers "Ask about a spot" (lib/askAboutSpot.ts).
+  ask_spot?: boolean;
   // Admin feed only: when the event was last edited (for the recent-color picks).
   updated_at?: string;
   weekNumber?: number | null;

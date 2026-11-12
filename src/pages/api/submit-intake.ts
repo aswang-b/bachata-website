@@ -19,6 +19,7 @@ import { buildContactAlertHtml } from '../../lib/adminAlertEmail';
 import { logSiteError } from '../../lib/siteErrors';
 import { capacityErrorMessage } from '../../lib/capacity';
 import { getCommunityGuidelines, hasGuidelines } from '../../lib/communityGuidelines';
+import { findSpotClass, withSpotPrefix } from '../../lib/spotRequest';
 
 export const prerender = false;
 
@@ -75,7 +76,7 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   const registrationType = String(formData.get('registration_type') ?? '').trim();
   const className = String(formData.get('class') ?? '').trim();
   const classSelectionsRaw = String(formData.get('class_selections') ?? '').trim();
-  const comments = String(formData.get('comments') ?? '').trim();
+  let comments = String(formData.get('comments') ?? '').trim();
   const paymentMethod = String(formData.get('payment_method') ?? '').trim();
 
   let firstName = '';
@@ -183,6 +184,14 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
 
   if (className.length > MAX_CLASS_LENGTH || comments.length > MAX_COMMENTS_LENGTH || classSelectionsRaw.length > MAX_CLASS_SELECTIONS_LENGTH) {
     return new Response('One of the fields is too long.', { status: 400 });
+  }
+
+  // A Contact message sent from an "Ask about a spot" link (lib/askAboutSpot.ts)
+  // is saved starting with the class it is about, looked up here from the id
+  // alone; any class text the browser sent is ignored.
+  if (registrationType === 'private') {
+    const spotClass = await findSpotClass(String(formData.get('spot') ?? '').trim());
+    if (spotClass) comments = withSpotPrefix(comments, spotClass);
   }
 
   // Loaded while the classes are checked (it never fails: blank on error).

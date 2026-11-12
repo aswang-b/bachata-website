@@ -58,7 +58,8 @@
 │   │   ├── editLock.ts                  # Admin edit-lock (prevents concurrent edits)
 │   │   ├── email.ts                     # Transactional email sending
 │   │   ├── emailLayout.ts, adminAlertEmail.ts  # The shared email look (dark header/footer bands); the admins' contact-form alert
-│   │   ├── pageCache.ts                 # Short Netlify edge cache for pages that are the same for everyone (About, Contact, Privacy)
+│   │   ├── pageCache.ts                 # Short Netlify edge cache for pages that are the same for everyone (About, Contact, Privacy); a Contact page opened with ?spot= is never cached
+│   │   ├── askAboutSpot.ts, spotRequest.ts  # "Ask about a spot" on a full or closed class: when the link shows (pure), and the server-side class lookup behind /contact?spot=<id> and the saved message's prefix
 │   │   ├── eventTimes.ts                # Event end-time rules (an end before the start is the next day), pure
 │   │   ├── eventColors.ts               # Event colors (legacy names or picked #rrggbb): styles, readable text, closest Google color, recent picks
 │   │   ├── errorDialog.ts               # Browser-only copyable error modal (sync/save failures)
