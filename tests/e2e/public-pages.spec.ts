@@ -20,6 +20,12 @@ for (const path of PAGES) {
   });
 }
 
+test('the homepage shows no cookie banner (the site sets no consent-dependent cookies)', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForTimeout(750);
+  await expect(page.locator('#cookie-consent, [aria-label="Cookie consent"]')).toHaveCount(0);
+});
+
 test('a confirmation link with no or an unknown id still renders', async ({ page }) => {
   for (const path of ['/register/confirmation', '/register/confirmation?id=00000000-0000-0000-0000-000000000000', '/check-in/confirmation']) {
     const res = await page.goto(path);

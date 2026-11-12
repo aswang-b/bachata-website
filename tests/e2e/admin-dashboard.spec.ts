@@ -183,7 +183,6 @@ test.describe('with the Event Registration lock taken', () => {
     // It's a switch (✗ / ✓) that marks the registration paid straight from the row.
     const paidSwitch = card.getByRole('switch', { name: 'Paid' });
     await expect(paidSwitch).not.toBeChecked();
-    await page.evaluate(() => document.getElementById('cookie-consent')?.remove());
     await paidSwitch.click();
     await expect(paidSwitch).toBeChecked();
     await expect(paidSwitch).toBeEnabled();
@@ -225,7 +224,6 @@ test.describe('with the Sign-Ups lock taken', () => {
     await expect(page.locator('#signups-lock-btn')).toHaveText(/Release/i, { timeout: 30_000 });
     const { data: lock } = await db.from('edit_locks').select('resource, locked_by').ilike('resource', '%signups%').maybeSingle();
     taken = lock;
-    await page.evaluate(() => document.getElementById('cookie-consent')?.remove());
     const row = page.locator('#signups-body tr', { hasText: 'ZZZDashLead' });
     await expect(row).toHaveAttribute('data-card-paid', 'no');
     await row.locator('td').first().click();
@@ -260,7 +258,6 @@ test.describe('with the Attendance lock taken', () => {
     await expect(page.locator('#attendance-lock-btn')).toHaveText(/Release/i, { timeout: 30_000 });
     const { data: lock } = await db.from('edit_locks').select('resource, locked_by').ilike('resource', '%attendance%').maybeSingle();
     taken = lock;
-    await page.evaluate(() => document.getElementById('cookie-consent')?.remove());
 
     for (const [body, name, buttons] of [
       ['#orphaned-signups-body', 'ZZZOrphanSign', ['Create Check-In', 'Mark No-Show']],

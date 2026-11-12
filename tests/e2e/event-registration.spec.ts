@@ -81,13 +81,12 @@ test.describe.serial('with community guidelines', () => {
     await expect(contactLine).toHaveText(email);
 
     // Printed on white paper, the text is dark (it was once the site's cream,
-    // all but invisible) and the cookie banner stays off the page. The heading
+    // all but invisible). The heading
     // moves into the dark header band the email has, light on dark there.
     await page.emulateMedia({ media: 'print' });
     await expect(page.getByText('You agreed to pay with cash.')).toHaveCSS('color', 'rgb(26, 18, 16)');
     await expect(page.locator('.print-brand').first()).toContainText('Your Registration is Confirmed!');
     await expect(page.locator('.print-brand').first().locator('p', { hasText: 'Your Registration is Confirmed!' })).toHaveCSS('color', 'rgb(245, 236, 233)');
-    await expect(page.locator('#cookie-consent')).toBeHidden();
     await page.emulateMedia({ media: 'screen' });
 
     const { data } = await db.from('intake_submissions').select('guidelines_agreed_at, created_at').eq('id', confirmationId(page.url())!).single();
