@@ -63,6 +63,9 @@ export interface EventSchemaRow {
   title: string;
   description?: string | null;
   location?: string | null;
+  // Where the class is held (migration 0077); its address when set, else the site's.
+  city?: string | null;
+  state?: string | null;
   start_time: string;
   end_time: string;
   event_type?: string;
@@ -106,6 +109,8 @@ export function eventSchemas(rows: EventSchemaRow[], now: Date, full: Set<string
     .slice(0, limit)
     .map((r) => {
       const isEvent = r.event_type === 'event';
+      const own = r.city?.trim() ? { city: r.city.trim(), state: r.state?.trim() ?? '', note: '' } : location;
+      const classPlace = own === location ? place : placeLabel(own);
       const key = r.google_recurring_event_id ?? r.id;
       const register = `${SITE_URL}${isEvent ? '/register/events' : '/register'}?series=${encodeURIComponent(key)}`;
       const availability = r.registration_closed || full.has(r.id) ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock';
@@ -123,15 +128,15 @@ export function eventSchemas(rows: EventSchemaRow[], now: Date, full: Set<string
         '@context': 'https://schema.org',
         '@type': 'DanceEvent',
         name: r.title,
-        description: plainText(r.description) || `${r.title} with B in ${place}.`,
+        description: plainText(r.description) || `${r.title} with B in ${classPlace}.`,
         startDate: r.start_time,
         endDate: r.end_time,
         eventStatus: 'https://schema.org/EventScheduled',
         eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
         location: {
           '@type': 'Place',
-          name: r.location || place,
-          address: { '@type': 'PostalAddress', addressLocality: location.city, ...(location.state ? { addressRegion: location.state } : {}), addressCountry: 'US' },
+          name: r.location || classPlace,
+          address: { '@type': 'PostalAddress', addressLocality: own.city, ...(own.state ? { addressRegion: own.state } : {}), addressCountry: 'US' },
         },
         image: [r.flyer_url || DEFAULT_SHARE_IMAGE],
         organizer: { '@type': 'Organization', name: 'Dance with B', url: SITE_URL },

@@ -18,6 +18,7 @@ import { normalizeLessonOverviewOverride } from '../../../lib/homepageContent';
 import { capacityColumns } from '../../../lib/capacity';
 import { isValidEventColor } from '../../../lib/eventColors';
 import { seriesAnchorEndDate } from '../../../lib/eventTimes';
+import { placeColumns } from '../../../lib/siteLocation';
 import { eventZone, isValidTimeZone, zonedDateKey, zonedTimeOfDay } from '../../../lib/siteTime';
 import { applyFlyerToLinked } from '../../../lib/linksStore';
 import { renameSignups } from '../../../lib/classRegistrations';
@@ -116,6 +117,8 @@ const handlePost: APIRoute = async ({ request }) => {
     showEarlyBirdEnd,
     showFlashSaleEnd,
     timeZone,
+    city,
+    state,
   } = body ?? {};
 
   if (!id || !title || !startTime || !endTime) {
@@ -127,6 +130,8 @@ const handlePost: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'Unknown time zone.' }), { status: 400 });
   }
   const rowZoneColumns = isValidTimeZone(timeZone) ? { time_zone: timeZone } : {};
+  // Where it is held (migration 0077), shared by a series like its location; left out, the stored place stays.
+  const rowPlaceColumns = placeColumns(city, state);
 
   // Shown on the public homepage, so only this site's own uploads (see eventImages.ts).
   for (const url of [imageUrl, flyerUrl]) {
@@ -278,6 +283,7 @@ const handlePost: APIRoute = async ({ request }) => {
           event_type: rowEventType,
           // And in the site's zone: the series keeps its own.
           time_zone: seriesZone,
+          ...rowPlaceColumns,
           // The sync can only give the new rows Google's closest color; keep the picked one.
           color: rowColor,
           price_whole_series: rowPriceWholeSeries,
@@ -349,6 +355,7 @@ const handlePost: APIRoute = async ({ request }) => {
           visibility: rowVisibility,
           google_event_id: visibilityChanged ? null : sibling.google_event_id,
           ...rowZoneColumns,
+          ...rowPlaceColumns,
           price_whole_series: rowPriceWholeSeries,
           price_drop_in: rowPriceDropIn,
           price_student: rowPriceStudent,
@@ -409,6 +416,7 @@ const handlePost: APIRoute = async ({ request }) => {
       start_time: startTime,
       end_time: endTime,
       ...rowZoneColumns,
+      ...rowPlaceColumns,
       price_whole_series: rowPriceWholeSeries,
       price_drop_in: rowPriceDropIn,
       price_student: rowPriceStudent,

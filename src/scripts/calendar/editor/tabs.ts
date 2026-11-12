@@ -29,7 +29,7 @@ const tabsEl = document.getElementById('event-tabs')!;
 const saveAllBtn = document.getElementById('event-save-all')!;
 
 function snapshot(): EditorDraft {
-  return { fields: captureFields(modal), type: editor.selectedType, color: editor.selectedColor, capacityByRole: editor.capacityByRole, repeatDays: [...editor.selectedRepeatDays].sort() };
+  return { fields: captureFields(modal), type: editor.selectedType, color: editor.selectedColor, capacityByRole: editor.capacityByRole, repeatDays: [...editor.selectedRepeatDays].sort(), place: { ...editor.place } };
 }
 
 const activeHasChanges = () => editor.editorTabs.length > 0 && JSON.stringify(snapshot()) !== editor.pristine;
@@ -47,6 +47,7 @@ function applyDraft(d: EditorDraft) {
   editor.selectedColor = d.color;
   editor.capacityByRole = d.capacityByRole;
   editor.selectedRepeatDays = new Set(d.repeatDays);
+  editor.place = { ...d.place };
   repeatOptions.classList.toggle('hidden', !repeatInput.checked);
   repeatOptions.classList.toggle('flex', repeatInput.checked);
   renderTypeButtons();

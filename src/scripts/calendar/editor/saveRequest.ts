@@ -41,6 +41,7 @@ import {
 import { flyerUrlInput } from './flyer';
 import { editor, WEEKDAY_CODES } from './state';
 import { editorZone } from './timeZone';
+import { editorPlace } from './place';
 
 export interface SaveRequest {
   endpoint: string;
@@ -69,6 +70,8 @@ export function buildSaveRequest(): SaveRequest | null {
     title: titleInput.value.trim(),
     description: descriptionInput.innerHTML.trim(),
     location: locationInput.value.trim(),
+    // The venue's city and state, while the Location still reads as when they were found (place.ts).
+    ...editorPlace(locationInput.value),
     priceWholeSeries: priceWholeSeriesInput.value.trim(),
     priceDropIn: priceDropInInput.value.trim(),
     priceStudent: priceStudentInput.value.trim(),

@@ -3,6 +3,7 @@ import { eventTypeLabel } from '../../lib/classSeries';
 import { eventDotStyle, eventTextStyle } from '../../lib/eventColors';
 import { locationHref } from '../../lib/locationLink';
 import { PIN_SVG } from '../../lib/locationPin';
+import { awayCity, withAwayCity } from '../../lib/siteLocation';
 import { eventDate, eventTimeRange } from '../../lib/eventClock';
 import { buildPriceLines, spotsText } from './format';
 import { shared } from './state';
@@ -19,6 +20,8 @@ const detailPriceStudent = document.getElementById('detail-price-student')!;
 const detailRegisterBtn = document.getElementById('detail-register-btn') as HTMLAnchorElement;
 const detailFlyerBtn = document.getElementById('detail-flyer-btn') as HTMLButtonElement;
 const detailLocation = document.getElementById('detail-location') as HTMLAnchorElement;
+// The home city, written into the panel by the server (calendar.astro): a class held elsewhere names its city.
+const home = { city: detailLocation.dataset.homeCity ?? '', state: detailLocation.dataset.homeState ?? '', note: '' };
 const detailSpots = document.getElementById('detail-spots')!;
 const detailAdminActions = document.getElementById('detail-admin-actions')!;
 const detailDeleteSeriesBtn = document.getElementById('detail-delete-series-btn')!;
@@ -71,15 +74,16 @@ export function showEventDetail(event: SiteEvent) {
   detailFlyerBtn.classList.toggle('hidden', !event.flyer_url);
   detailFlyerBtn.classList.toggle('inline-flex', Boolean(event.flyer_url));
 
-  if (event.location) {
-    detailLocation.href = locationHref(event.location);
+  const place = withAwayCity(event.location, awayCity(event, home));
+  if (place) {
+    detailLocation.href = locationHref(event.location || place);
     // Only the location name is underlined, not the pin.
     const pin = document.createElement('span');
     pin.setAttribute('aria-hidden', 'true');
     pin.innerHTML = PIN_SVG;
     const label = document.createElement('span');
     label.className = 'underline';
-    label.textContent = event.location;
+    label.textContent = place;
     detailLocation.replaceChildren(pin, label);
     detailLocation.classList.remove('hidden');
   } else {

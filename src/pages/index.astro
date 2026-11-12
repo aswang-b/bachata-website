@@ -15,7 +15,7 @@ import { applyCardOrder, getHomepageSettings, type HomepageSection } from '../li
 import { listFaqs } from '../lib/faqs';
 import { listActiveDeals } from '../lib/dealsStore';
 import { getSpotsByOccurrence, publicSpotsLabel, seriesSpots } from '../lib/capacity';
-import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesBounds } from '../lib/flyerBlocks';
+import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesBounds, venueText } from '../lib/flyerBlocks';
 import PastFlyersGallery from '../components/PastFlyersGallery.astro';
 import FlyerDialog from '../components/FlyerDialog.astro';
 import { eventSchemas } from '../lib/seoSchema';
@@ -33,7 +33,7 @@ const [{ lessonOverview, cardOrder, sectionOrder, galleryFlyers }, faqs, { data:
   supabase
     .from('events')
     .select(
-      'id, title, description, location, start_time, end_time, time_zone, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, flyer_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, show_early_bird_end, show_flash_sale_end, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
+      'id, title, description, location, city, state, start_time, end_time, time_zone, google_recurring_event_id, event_type, price_whole_series, price_drop_in, price_student, image_url, flyer_url, color, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, show_early_bird_end, show_flash_sale_end, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
     )
     .in('visibility', publicVisibilities())
     .in('event_type', ['class', 'event'])
@@ -217,9 +217,9 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                           {/* Filled in for admins by the script below when the count is hidden from the public. */}
                           {adminOnly && <span data-admin-spots-key={o.key} class="ml-2 hidden rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent"></span>}
                         </p>
-                        {o.location && (
-                          <a href={locationHref(o.location)} target="_blank" rel="noopener noreferrer" class="pin-link mt-1 text-sm font-semibold text-accent hover:opacity-80">
-                            <Fragment set:html={PIN_SVG} /><span class="underline underline-offset-2">{o.location}</span>
+                        {venueText(o, loc) && (
+                          <a href={locationHref(o.location || venueText(o, loc))} target="_blank" rel="noopener noreferrer" class="pin-link mt-1 text-sm font-semibold text-accent hover:opacity-80">
+                            <Fragment set:html={PIN_SVG} /><span class="underline underline-offset-2">{venueText(o, loc)}</span>
                           </a>
                         )}
 

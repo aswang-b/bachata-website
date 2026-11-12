@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
+import { awayCity, DEFAULT_LOCATION, placeLabel, withAwayCity } from '../lib/siteLocation';
 import { supabase } from '../lib/supabase';
 import { publicVisibilities } from '../lib/testMode';
 import { getActivePrice, priceTierLabel } from '../lib/pricing';
@@ -52,7 +52,7 @@ const monthStart = zonedToInstant(addDaysToKey(`${monthKey(year, month)}-01`, -1
 const monthEnd = zonedToInstant(addDaysToKey(`${nextMonthParam}-01`, 1));
 
 const EVENT_COLUMNS =
-  'id, title, description, location, event_type, color, visibility, start_time, end_time, time_zone, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, flyer_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, show_early_bird_end, show_flash_sale_end, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity';
+  'id, title, description, location, city, state, event_type, color, visibility, start_time, end_time, time_zone, google_recurring_event_id, price_whole_series, price_drop_in, price_student, image_url, flyer_url, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, show_early_bird_end, show_flash_sale_end, lesson_overview_title, lesson_overview_body, hide_lesson_overview, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity';
 
 const { data: monthRows, error: monthError } = await supabase
   .from('events')
@@ -367,6 +367,8 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
             <a
               id="detail-location"
               href="#"
+              data-home-city={loc.city}
+              data-home-state={loc.state}
               target="_blank"
               rel="noopener noreferrer"
               class="pin-link hidden text-sm font-semibold text-accent"
@@ -444,12 +446,12 @@ const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2'
                 </div>
                 <p class="text-xs text-muted">
                   {timeFormatter(tz).format(start)}&ndash;{timeFormatter(tz).format(new Date(event.end_time))}{zoneSuffix(start, tz)}
-                  {event.location && (
+                  {withAwayCity(event.location, awayCity(event, loc)) && (
                     <>
                       {' '}
                       &middot;{' '}
-                      <a href={locationHref(event.location)} target="_blank" rel="noopener noreferrer" class="pin-link text-accent">
-                        <Fragment set:html={PIN_SVG} /><span class="underline">{event.location}</span>
+                      <a href={locationHref(event.location || awayCity(event, loc) || '')} target="_blank" rel="noopener noreferrer" class="pin-link text-accent">
+                        <Fragment set:html={PIN_SVG} /><span class="underline">{withAwayCity(event.location, awayCity(event, loc))}</span>
                       </a>
                     </>
                   )}

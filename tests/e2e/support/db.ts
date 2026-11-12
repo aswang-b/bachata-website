@@ -41,6 +41,9 @@ export interface SeedOptions {
   hideLessonOverview?: boolean;
   // The class's own zone (migration 0076); left out, the database gives it the site's.
   timeZone?: string;
+  // The city and state the class is held in (migration 0077); left out, null.
+  city?: string;
+  state?: string;
 }
 
 export interface Seeded {
@@ -62,6 +65,18 @@ export function siteZone(): Promise<string> {
     return (data?.time_zone as string | undefined) ?? 'America/Chicago';
   })();
   return storedZone;
+}
+
+// Where the site is based (site_config, migration 0075), read only like siteZone():
+// Madison, WI until a city is set.
+let storedHome: Promise<{ city: string; state: string }> | null = null;
+export function siteHome(): Promise<{ city: string; state: string }> {
+  storedHome ??= (async () => {
+    const { data, error } = await db.from('site_config').select('home_city, home_state').eq('id', true).maybeSingle();
+    if (error) return { city: 'Madison', state: 'WI' };
+    return { city: (data?.home_city as string | null)?.trim() || 'Madison', state: data?.home_city ? ((data?.home_state as string | null) ?? '') : 'WI' };
+  })();
+  return storedHome;
 }
 
 export async function seedEvent(o: SeedOptions): Promise<Seeded> {
@@ -93,6 +108,7 @@ export async function seedEvent(o: SeedOptions): Promise<Seeded> {
     ...(o.showEarlyBirdEnd === undefined ? {} : { show_early_bird_end: o.showEarlyBirdEnd }),
     hide_lesson_overview: o.hideLessonOverview ?? false,
     ...(o.timeZone ? { time_zone: o.timeZone } : {}),
+    ...(o.city ? { city: o.city, state: o.state ?? null } : {}),
   }));
   const { data, error } = await db.from('events').insert(rows).select('id, start_time').order('start_time');
   if (error || !data) throw new Error(`Seeding "${title}" failed: ${error?.message}`);

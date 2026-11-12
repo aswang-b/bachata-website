@@ -18,6 +18,7 @@ import { capacityColumns } from '../../../lib/capacity';
 import { isValidEventColor } from '../../../lib/eventColors';
 import { isSeriesKey, linkSeries } from '../../../lib/linksStore';
 import { isValidTimeZone } from '../../../lib/siteTime';
+import { placeColumns } from '../../../lib/siteLocation';
 
 export const prerender = false;
 
@@ -62,6 +63,8 @@ const handlePost: APIRoute = async ({ request }) => {
     showFlashSaleEnd,
     linkTo,
     timeZone,
+    city,
+    state,
   } = body ?? {};
 
   if (!title || !startTime || !endTime) {
@@ -74,6 +77,8 @@ const handlePost: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'Unknown time zone.' }), { status: 400 });
   }
   const rowZoneColumns = isValidTimeZone(timeZone) ? { time_zone: timeZone } : {};
+  // Where it is held (migration 0077), shared by a series like its location.
+  const rowPlaceColumns = placeColumns(city, state);
 
   // Shown on the public homepage, so only this site's own uploads (see eventImages.ts).
   for (const url of [imageUrl, flyerUrl]) {
@@ -162,6 +167,7 @@ const handlePost: APIRoute = async ({ request }) => {
           // The sync can only give the new rows Google's closest color; keep the picked one.
           color: rowColor,
           ...rowZoneColumns,
+          ...rowPlaceColumns,
           price_whole_series: rowPriceWholeSeries,
           price_drop_in: rowPriceDropIn,
           price_student: rowPriceStudent,
@@ -208,6 +214,7 @@ const handlePost: APIRoute = async ({ request }) => {
       start_time: startTime,
       end_time: endTime,
       ...rowZoneColumns,
+      ...rowPlaceColumns,
       price_whole_series: rowPriceWholeSeries,
       price_drop_in: rowPriceDropIn,
       price_student: rowPriceStudent,

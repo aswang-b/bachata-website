@@ -3,6 +3,7 @@ import { getActivePrice, priceTierLabel } from './pricing';
 import { dealHomepageDefault, type Deal } from './deals';
 import { siteFormatter, zonedDateKey, zonedTimeOfDay } from './siteTime';
 import { COUNTDOWN_MS, countdown } from './countdown';
+import { awayCity, withAwayCity, type SiteLocation } from './siteLocation';
 
 // The flyer homepage (/test while it's being tried out): offerings advertised
 // on the same flyer (the same flyer_url, migration 0055) share one block, with
@@ -30,6 +31,13 @@ export function groupByFlyer(offerings: ClassSeriesEntry[]): FlyerBlock[] {
     blocks.push(block);
   }
   return blocks;
+}
+
+// The venue line under a class's dates: "Venue · Santa Fe" when the class is
+// away from home, just the venue (as always) otherwise, just the city when
+// there is no venue text.
+export function venueText(offering: ClassSeriesEntry, home: SiteLocation): string {
+  return withAwayCity(offering.location, awayCity(offering, home));
 }
 
 export function formatPrice(value: number): string {

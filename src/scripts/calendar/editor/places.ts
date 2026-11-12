@@ -1,6 +1,7 @@
 // The editor's Location field: Google Places suggestions, or plain text when Places is unavailable.
 import { withAuthHeader } from './api';
 import { locationInput, setLocationInput } from './dom';
+import { placeCityState, setEditorPlace } from './place';
 
 declare const google: any;
 let mapsBootstrapped = false;
@@ -95,11 +96,14 @@ export async function initLocationAutocomplete() {
 
     installPlacesAuthFailureFallback();
     locationAutocomplete = new Autocomplete(locationInput, {
-      fields: ['name', 'formatted_address'],
+      fields: ['name', 'formatted_address', 'address_components'],
     });
     locationAutocomplete.addListener('place_changed', () => {
       const place = locationAutocomplete.getPlace();
       locationInput.value = place?.name || place?.formatted_address || locationInput.value;
+      // The venue's city and state ride along with the pick (no field for them); typing over the location later drops them.
+      const { city, state } = placeCityState(place?.address_components);
+      setEditorPlace(city, state, locationInput.value);
     });
   } catch (err) {
     console.error('Failed to initialize location autocomplete:', err);

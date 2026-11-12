@@ -3,7 +3,7 @@
 // (/register/events). Events sell one ticket per event (no Whole Series /
 // Drop In choice) and don't ask for a Leader/Follower role.
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
+import { awayCity, DEFAULT_LOCATION, placeLabel, withAwayCity } from '../lib/siteLocation';
 import { supabase } from '../lib/supabase';
 import { publicVisibilities } from '../lib/testMode';
 import { countOccurrencesByKey } from '../lib/classSeries';
@@ -37,7 +37,7 @@ interface ClassOccurrence {
   id: string;
   title: string;
   description: string | null;
-  location: string | null;
+  location: string | null; city?: string | null; state?: string | null;
   start_time: string;
   end_time: string;
   time_zone: string | null;
@@ -70,7 +70,7 @@ const [guidelines, { data: classEvents, error }, activeDeals] = await Promise.al
   supabase
     .from('events')
     .select(
-      'id, title, description, location, start_time, end_time, time_zone, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
+      'id, title, description, location, city, state, start_time, end_time, time_zone, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
     )
     .in('visibility', publicVisibilities())
     .eq('event_type', eventType)
@@ -154,7 +154,7 @@ const seriesList = Array.from(seriesMap.entries()).map(([key, occurrences]) => {
     // A one-off event names its date rather than a weekly schedule.
     subLabel: seriesSubLabel(first, last, bounds.get(key), isSeries, isEvent),
     description: first.description,
-    location: first.location,
+    location: first.location, city: first.city, state: first.state,
     // A full class or event can't be picked, just like a closed one.
     registrationClosed: first.registration_closed || full,
     full,
@@ -297,16 +297,16 @@ const place = placeLabel(loc);
                   <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span id={`series-sub-${s.key}`} class="text-xs text-muted">{s.subLabel}</span>
                     {/* No "·" before the location: it would dangle at the line's end when the location wraps, and the pin already sets it apart. */}
-                    {s.location && (
+                    {withAwayCity(s.location, awayCity(s, loc)) && (
                       <>
                         <a
-                          href={locationHref(s.location)}
+                          href={locationHref(s.location || awayCity(s, loc) || '')}
                           target="_blank"
                           rel="noopener noreferrer"
                           onclick="event.stopPropagation()"
                           class="pin-link text-xs font-semibold text-accent"
                         >
-                          <Fragment set:html={PIN_SVG} /><span class="underline">{s.location}</span>
+                          <Fragment set:html={PIN_SVG} /><span class="underline">{withAwayCity(s.location, awayCity(s, loc))}</span>
                         </a>
                       </>
                     )}

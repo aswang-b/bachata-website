@@ -14,6 +14,9 @@ export interface ClassOccurrenceRow {
   price_student?: number | null;
   description?: string | null;
   location?: string | null;
+  // Where the class is held (migration 0077); shown only when away from home.
+  city?: string | null;
+  state?: string | null;
   image_url?: string | null;
   flyer_url?: string | null;
   event_type?: string;
@@ -64,6 +67,8 @@ export interface ClassSeriesEntry {
   priceStudent: number | null;
   description: string | null;
   location: string | null;
+  city: string | null;
+  state: string | null;
   imageUrl: string | null;
   // The uncropped flyer (migration 0055); classes on the same flyer share it.
   flyerUrl: string | null;
@@ -155,6 +160,8 @@ export function buildClassSeriesList(events: ClassOccurrenceRow[], allEventsForT
       priceStudent: first.price_student ?? null,
       description: first.description ?? null,
       location: first.location ?? null,
+      city: first.city ?? null,
+      state: first.state ?? null,
       imageUrl: first.image_url ?? null,
       flyerUrl: first.flyer_url ?? null,
       eventType: first.event_type ?? 'class',

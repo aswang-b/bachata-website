@@ -87,7 +87,7 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
   const { data: existingRows, error: rowsError } = await supabase
     .from('events')
     .select(
-      'id, title, description, location, color, event_type, start_time, end_time, time_zone, google_event_id, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, show_early_bird_end, show_flash_sale_end, lesson_overview_title, lesson_overview_body, hide_lesson_overview, flyer_url, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity, updated_at'
+      'id, title, description, location, color, event_type, start_time, end_time, time_zone, city, state, google_event_id, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, show_early_bird_end, show_flash_sale_end, lesson_overview_title, lesson_overview_body, hide_lesson_overview, flyer_url, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity, updated_at'
     )
     .eq('visibility', visibility)
     // The same window Google was asked for: a linked row past it would look
@@ -115,6 +115,9 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
       // The zone the series was typed in (migration 0076): a new instance keeps
       // it, so a series still repeating after the site moves keeps its clock.
       timeZone: string | null;
+      // Where the series is held (migration 0077): a new instance keeps it; a brand-new event has none.
+      city: string | null;
+      state: string | null;
       priceWholeSeries: number | null;
       priceDropIn: number | null;
       priceStudent: number | null;
@@ -146,6 +149,8 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
         eventType: r.event_type,
         color: r.color,
         timeZone: r.time_zone,
+        city: r.city,
+        state: r.state,
         priceWholeSeries: r.price_whole_series,
         priceDropIn: r.price_drop_in,
         priceStudent: r.price_student,
@@ -224,6 +229,7 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
           google_recurring_event_id: gEvent.recurringEventId ?? null,
           // Its series' zone; a brand-new event is left to the database's default (the site's zone).
           ...(seriesMeta?.timeZone ? { time_zone: seriesMeta.timeZone } : {}),
+          ...(seriesMeta?.city ? { city: seriesMeta.city, state: seriesMeta.state } : {}),
           price_whole_series: seriesMeta?.priceWholeSeries ?? null,
           price_drop_in: seriesMeta?.priceDropIn ?? null,
           price_student: seriesMeta?.priceStudent ?? null,
@@ -292,6 +298,8 @@ async function syncCalendar(accessToken: string, visibility: EventVisibility): P
           title: gEvent.summary ?? existing.title,
           description: gEvent.description ? sanitizeEventDescriptionHtml(gEvent.description) : null,
           location: gEvent.location ?? null,
+          // A venue changed on Google is no longer the one the stored city was looked up for.
+          ...((existing.location ?? null) !== (gEvent.location ?? null) ? { city: null, state: null } : {}),
           start_time: startTime,
           end_time: endTime,
           // A picked color Google can only approximate stays as picked.

@@ -3,6 +3,13 @@
 import type { FieldValues } from '../../../lib/editorDrafts';
 import type { SiteEvent } from '../types';
 
+export interface PlaceState {
+  city: string | null;
+  state: string | null;
+  // The Location text they were found for.
+  forText: string;
+}
+
 // A tab of the editor (tabs.ts) and the changes it keeps while another is open.
 export interface EditorDraft {
   fields: FieldValues;
@@ -10,6 +17,8 @@ export interface EditorDraft {
   color: string;
   capacityByRole: boolean;
   repeatDays: string[];
+  // The venue's city and state (place.ts) go with the Location text in the draft.
+  place: PlaceState;
 }
 export interface EditorTab {
   key: string;
@@ -32,6 +41,8 @@ export const editor = {
   // linked class" copy, the series it gets linked to when saved.
   editingEvent: null as SiteEvent | null,
   pendingLinkTo: null as string | null,
+  // The open class's venue city and state (place.ts); no field of their own.
+  place: { city: null, state: null, forText: '' } as PlaceState,
   capacityByRole: false,
   // A flyer picked or removed while the editor is open (undefined: untouched).
   // Linked classes have one flyer, so every tab shows it, and whichever tab

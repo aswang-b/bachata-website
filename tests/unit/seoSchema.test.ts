@@ -81,6 +81,20 @@ describe('structured data for search engines', () => {
     expect(eventSchemas([row()], now, new Set(), 40, seattle)[0].location.name).toBe('Dance Life Studio and Fitness');
   });
 
+  it("uses a class's own city and state for its address when set, else the home location", () => {
+    const home = { city: 'Madison', state: 'WI', note: '' };
+    const away = eventSchemas([row({ location: 'Moxie Studio', city: ' Santa Fe ', state: 'NM' })], now, new Set(), 40, home)[0];
+    expect(away.location).toEqual({ '@type': 'Place', name: 'Moxie Studio', address: { '@type': 'PostalAddress', addressLocality: 'Santa Fe', addressRegion: 'NM', addressCountry: 'US' } });
+    const bare = eventSchemas([row({ description: '', location: '', city: 'Santa Fe', state: 'NM' })], now, new Set(), 40, home)[0];
+    expect(bare.description).toBe('Bachata Sensual Focus II with B in Santa Fe, NM.');
+    expect(bare.location.name).toBe('Santa Fe, NM');
+    // A city without a state never borrows the home state.
+    const noState = eventSchemas([row({ city: 'Taos', state: null })], now, new Set(), 40, home)[0];
+    expect(noState.location.address).toEqual({ '@type': 'PostalAddress', addressLocality: 'Taos', addressCountry: 'US' });
+    // No city: the home location, as before.
+    expect(eventSchemas([row({ city: null })], now, new Set(), 40, home)[0].location.address).toMatchObject({ addressLocality: 'Madison', addressRegion: 'WI' });
+  });
+
   it('leaves the region out when there is no state', () => {
     const nowhere = { city: 'Reykjavik', state: '', note: '' };
     expect(JSON.stringify(siteSchema([], nowhere))).toContain('"name":"Reykjavik"');

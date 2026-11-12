@@ -54,6 +54,7 @@ import { flyerError, flyerUrlInput, updateFlyerPreview } from './flyer';
 import { updateImagePreview } from './images';
 import { linkedEditor } from './linked';
 import { initLocationAutocomplete } from './places';
+import { setEditorPlace } from './place';
 import { prepareEditorSections, updateEditorSummaries } from './sections';
 import { editor, WEEKDAY_CODES } from './state';
 import { hasUnsaved, renderTabs } from './tabs';
@@ -73,6 +74,7 @@ export function openModal(mode: 'add' | 'edit', event?: SiteEvent, presetDate?: 
   titleInput.value = event?.title ?? '';
   descriptionInput.innerHTML = event?.description ?? '';
   locationInput.value = event?.location ?? '';
+  setEditorPlace(event?.city, event?.state, locationInput.value);
   priceWholeSeriesInput.value = event?.price_whole_series != null ? String(event.price_whole_series) : '';
   priceDropInInput.value = event?.price_drop_in != null ? String(event.price_drop_in) : '';
   priceStudentInput.value = event?.price_student != null ? String(event.price_student) : '';

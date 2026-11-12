@@ -4,6 +4,9 @@ export interface SiteEvent {
   title: string;
   description: string | null;
   location: string | null;
+  // Where it is held (migration 0077); named only when away from home (lib/siteLocation.ts).
+  city?: string | null;
+  state?: string | null;
   event_type: string;
   color: string;
   visibility: 'public' | 'private' | 'test';

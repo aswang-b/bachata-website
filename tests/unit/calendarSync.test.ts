@@ -138,6 +138,39 @@ describe('pulling from Google', () => {
     expect(google.insertCalendarEvent.mock.calls[0][2]).toMatchObject({ timeZone: 'America/Denver' });
   });
 
+  it("gives a new instance of a series its siblings' city and state, and a brand-new event none", async () => {
+    const { row } = linkedPair('a', { google_recurring_event_id: 'R', city: 'Santa Fe', state: 'NM' });
+    db.current.seed('events', [row]);
+    google.events.public = [
+      { id: 'g-a', summary: row.title, location: row.location, colorId: '10', start: { dateTime: row.start_time }, end: { dateTime: row.end_time }, recurringEventId: 'R' },
+      { id: 'g-next', summary: row.title, recurringEventId: 'R', start: { dateTime: at(14) }, end: { dateTime: at(14, 20) } },
+      { id: 'g-new', summary: 'Social', start: { dateTime: at(3) }, end: { dateTime: at(3, 22) } },
+    ];
+    await runCalendarSync();
+    const rows = db.current.rows('events');
+    expect(rows.find((r) => r.google_event_id === 'g-next')).toMatchObject({ city: 'Santa Fe', state: 'NM' });
+    expect(rows.find((r) => r.google_event_id === 'g-new')).not.toHaveProperty('city');
+  });
+
+  it('never overwrites a stored city, clears it when Google changes the location, and pushes nothing about it', async () => {
+    const same = linkedPair('a', { city: 'Santa Fe', state: 'NM' });
+    db.current.seed('events', [same.row]);
+    google.events.public = [{ ...same.gEvent, summary: 'Renamed on Google', updated: new Date(Date.now() + 1000).toISOString() }];
+    await runCalendarSync();
+    for (const call of db.current.callsTo('events', 'update')) expect(call.payload).not.toHaveProperty('city');
+    expect(db.current.rows('events')[0]).toMatchObject({ title: 'Renamed on Google', city: 'Santa Fe', state: 'NM' });
+
+    google.events.public = [{ ...same.gEvent, summary: 'Renamed on Google', location: 'Elsewhere Hall', updated: new Date(Date.now() + 5000).toISOString() }];
+    await runCalendarSync();
+    expect(db.current.rows('events')[0]).toMatchObject({ location: 'Elsewhere Hall', city: null, state: null });
+
+    const pushed = linkedPair('b', { title: 'Edited', city: 'Santa Fe', state: 'NM', updated_at: new Date().toISOString() });
+    db.current.seed('events', [pushed.row]);
+    google.events.public = [{ ...pushed.gEvent, summary: 'B' }];
+    await runCalendarSync();
+    expect(JSON.stringify(google.updateCalendarEvent.mock.calls)).not.toContain('Santa Fe');
+  });
+
   it('pulls an edit made on Google when Google is newer and something mirrored changed', async () => {
     const { row, gEvent } = linkedPair('a');
     db.current.seed('events', [row]);
