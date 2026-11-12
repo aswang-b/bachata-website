@@ -484,6 +484,33 @@ test('wider up, tabbing to a past flyer out of view brings it to the middle', as
   await expect.poll(() => far.evaluate((el) => Number(el.style.opacity || 1)), { timeout: 5000 }).toBeGreaterThan(0.9);
 });
 
+// Most flyers' file names don't store their size, so a flyer only gets its width
+// when its image arrives. One arriving after a flyer was tabbed to moved every
+// flyer after it without a scroll: the flyer slid away from the middle and the
+// fading stayed where it was, leaving an empty middle (it failed whole runs).
+test('wider up, a past flyer tabbed to stays in the middle, and shown, when a flyer before it changes width', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/');
+  const real = page.locator('#past-flyers [data-gallery-flyer]:not([aria-hidden])');
+  test.skip((await real.count()) < 3, 'Too few flyers to have one out of view.');
+  await page.locator('#past-flyers').scrollIntoViewIfNeeded();
+  const far = real.last();
+  await far.focus();
+  await expect.poll(() => far.evaluate((el) => Number(el.style.opacity || 1)), { timeout: 5000 }).toBeGreaterThan(0.9);
+  // The flyer before it gets wider, as when its image arrives.
+  await real.first().locator('img').evaluate((img) => {
+    (img as HTMLImageElement).style.width = `${(img as HTMLImageElement).offsetWidth + 160}px`;
+  });
+  const offCenter = () =>
+    far.evaluate((node) => {
+      const el = node as HTMLElement;
+      const g = el.parentElement!;
+      return Math.abs(el.offsetLeft + el.offsetWidth / 2 - (g.scrollLeft + g.clientWidth / 2));
+    });
+  await expect.poll(offCenter, { timeout: 5000 }).toBeLessThan(20);
+  await expect.poll(() => far.evaluate((el) => Number(el.style.opacity || 1)), { timeout: 5000 }).toBeGreaterThan(0.9);
+});
+
 // Scroll snapping waited (on some phones) for the coast to stop, then jumped
 // to a flyer. Now a flick carries the row on past where the finger let go and
 // eases to a stop with a flyer centered, all in one glide.
