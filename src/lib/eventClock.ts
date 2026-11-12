@@ -44,3 +44,15 @@ export function isEventToday(event: ZonedEvent, now: Date = new Date()): boolean
   const tz = eventZone(event);
   return zonedDateKey(event.start_time, tz) === zonedDateKey(now, tz);
 }
+
+const STAMP: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' };
+
+// When a class starts, for admin lists ("Nov 4, 2026, 7:00 PM MT"): in its own
+// zone (`tz`; the site's when missing), with its zone off the site's clock;
+// "—" without a start. Options without a time print no zone.
+export function classStamp(start: string | null | undefined, tz?: string | null, options: Intl.DateTimeFormatOptions = STAMP): string {
+  if (!start) return '—';
+  const zone = eventZone({ time_zone: tz });
+  const timed = options.hour !== undefined || options.timeStyle !== undefined;
+  return `${siteFormatter(options, 'en-US', zone).format(new Date(start))}${timed ? zoneSuffix(start, zone) : ''}`;
+}

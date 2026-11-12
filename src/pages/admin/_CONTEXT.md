@@ -24,3 +24,5 @@ Each file is a standalone Astro page gated by `requireAdmin`-style client checks
 ## Architecture
 
 Every page here links back to `/admin` (the main dashboard) rather than nesting a shared admin layout — navigation is a manual back-link, not a route-group layout.
+
+**Dates**: a class's own date and time (the Dashboard's check-in Class Date, Attendance dates and Recycling Bin class dates, the door sign's class picker, a notification's picker and message, the Deals class list, the calendar editor's linked-class labels) are shown in the class's zone (`events.time_zone`; each feed selects it), with "MT" after a time only when its clock differs from the site's (`classStamp`/`eventDate`/`timeRange` in `src/lib/eventClock.ts`, or the zone-aware labels of `classSeries.ts`). When something happened (signed up, checked in, sent, deleted, a lock's expiry, a deal's Starts/Ends) stays in the site zone.

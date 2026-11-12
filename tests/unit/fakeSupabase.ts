@@ -25,6 +25,9 @@ export class FakeSupabase {
   // Run once just before the next matching operation: `${table}.${op}` → callback
   // (e.g. another admin's write landing between a read and a write).
   beforeNext = new Map<string, () => void>();
+  // Answer a select with only the columns it names (an embedded `table!inner(...)`
+  // keeps that key), as PostgREST does, so a test can catch a column left out.
+  projectColumns = false;
   private nextId = 1;
 
   seed(table: string, rows: Row[]): this {
@@ -79,6 +82,22 @@ const cmp = (a: unknown, b: unknown) => {
 };
 
 // `column->>key`: one key of a JSON column as text (null when missing), as PostgREST reads it.
+// The top-level names in a select list ("id, start_time, other!inner(a, b)" → id, start_time, other).
+const selectedColumns = (cols: string): string[] => {
+  const names: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of cols + ',') {
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) {
+      names.push(current.trim().split(/[!(:]/)[0].trim());
+      current = '';
+    } else current += ch;
+  }
+  return names.filter(Boolean);
+};
+
 const jsonText = (row: Row, path: string): string | null => {
   const [col, key] = path.split('->>');
   const value = (row[col] as Record<string, unknown> | null | undefined)?.[key];
@@ -95,6 +114,7 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
   private limitN: number | null = null;
   private offset = 0;
   private countOnly = false;
+  private columns: string[] | null = null;
 
   constructor(
     private db: FakeSupabase,
@@ -102,8 +122,9 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
   ) {}
 
   // { count: 'exact', head: true } answers with just the count, as PostgREST does.
-  select(_cols?: string, opts?: { count?: string; head?: boolean }) {
+  select(cols?: string, opts?: { count?: string; head?: boolean }) {
     if (this.op !== 'select') this.returnRows = true;
+    if (cols && cols.trim() !== '*' && this.db.projectColumns) this.columns = selectedColumns(cols);
     if (opts?.head) this.countOnly = true;
     return this;
   }
@@ -145,6 +166,16 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
   }
   not(col: string, op: string, v: unknown) {
     if (op === 'is') this.filters.push((r) => (r[col] ?? null) !== v);
+    return this;
+  }
+  // jsonb containment for arrays of objects: every object in `v` is matched by one in the column.
+  contains(col: string, v: unknown) {
+    const parsed = typeof v === 'string' ? JSON.parse(v) : v;
+    const wanted = (Array.isArray(parsed) ? parsed : [parsed]) as Row[];
+    this.filters.push((r) => {
+      const have = Array.isArray(r[col]) ? (r[col] as Row[]) : [];
+      return wanted.every((w) => have.some((h) => Object.entries(w).every(([k, x]) => h?.[k] === x)));
+    });
     return this;
   }
   in(col: string, vs: unknown[]) {
@@ -261,7 +292,8 @@ class QueryBuilder implements PromiseLike<{ data: unknown; error: FakeError | nu
     if (this.limitN != null) out = out.slice(this.offset, this.offset + this.limitN);
 
     if (this.countOnly) return { data: null, error: null, count: out.length } as { data: unknown; error: FakeError | null };
-    const copy = out.map((r) => ({ ...r }));
+    const columns = this.columns;
+    const copy = out.map((r) => (columns ? Object.fromEntries(columns.filter((c) => c in r).map((c) => [c, r[c]])) : { ...r }));
     if (this.singleMode) {
       if (copy.length === 0) return this.singleMode === 'maybe' ? { data: null, error: null } : { data: null, error: { message: 'no rows' } };
       return { data: copy[0], error: null };

@@ -98,6 +98,7 @@ const buttonClass =
 <script>
   import { supabaseBrowser } from '../lib/supabaseBrowser';
   import { addDaysToKey, siteFormatter, zonedDateKey, zonedToInstant } from '../lib/siteTime';
+  import { classStamp } from '../lib/eventClock';
   import { dealHomepageDefault, dealSummary, type DealKind } from '../lib/deals';
   import type { DealRecord } from '../lib/dealsStore';
 
@@ -110,6 +111,7 @@ const buttonClass =
     last: string;
     price: number | null;
     upcoming: boolean;
+    timeZone: string;
   }
 
   const list = document.getElementById('deals-list')!;
@@ -146,7 +148,9 @@ const buttonClass =
   }
 
   function optionLabel(o: DealOption): string {
-    const when = o.count > 1 ? `${o.count} classes · ${dateFormatter.format(new Date(o.first))}–${dateFormatter.format(new Date(o.last))}` : dateFormatter.format(new Date(o.first));
+    // A class's dates on its own days (its zone); a deal's own dates below stay in the site's.
+    const day = (iso: string) => classStamp(iso, o.timeZone, { month: 'short', day: 'numeric' });
+    const when = o.count > 1 ? `${o.count} classes · ${day(o.first)}–${day(o.last)}` : day(o.first);
     const kind = o.type === 'event' ? 'Event' : o.count > 1 ? 'Series' : 'Workshop';
     return [kind, when, o.price != null ? money(o.price) : null, o.upcoming ? null : 'past'].filter(Boolean).join(' · ');
   }

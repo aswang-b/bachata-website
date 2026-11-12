@@ -44,7 +44,7 @@ export const GET: APIRoute = async ({ request }) => {
       .limit(ROW_LIMIT),
     supabase
       .from('events')
-      .select('id, title, start_time, end_time, google_recurring_event_id, event_type')
+      .select('id, title, start_time, end_time, time_zone, google_recurring_event_id, event_type')
       .in('visibility', allVisibilities())
       .eq('event_type', 'class')
       .order('start_time', { ascending: true }),

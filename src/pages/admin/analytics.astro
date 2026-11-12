@@ -437,6 +437,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   import { DUPLICATE_DELETED_BY } from '../../lib/duplicateFlag';
   import { checkAdminSession } from '../../lib/adminSession';
   import { siteFormatter } from '../../lib/siteTime';
+  import { classStamp } from '../../lib/eventClock';
   import { createClassFilterGroup } from '../../lib/classFilterGroup';
 
   // The index signatures below exist only so sortRows()'s generic
@@ -486,7 +487,9 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     phone: string;
     classTitle: string;
     eventId: string | null;
+    // The class's start, shown in its own zone (classTimeZone).
     classDate: string | null;
+    classTimeZone: string | null;
     [key: string]: unknown;
   }
 
@@ -494,6 +497,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     classRegistrationId: string;
     occurrenceEventId: string | null;
     occurrenceDate: string | null;
+    occurrenceTimeZone: string | null;
     firstName: string;
     lastName: string;
     phone: string | null;
@@ -1788,7 +1792,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
             <td class="px-4 py-2.5 text-ink">${escapeHtml(c.lastName)}</td>
             <td class="px-4 py-2.5 text-ink/70">${escapeHtml(c.phone)}</td>
             <td class="px-4 py-2.5 text-ink/70">${escapeHtml(c.classTitle)}</td>
-            <td class="px-4 py-2.5 text-ink/70">${c.classDate ? dateFormatter.format(new Date(c.classDate)) : '—'}</td>
+            <td class="px-4 py-2.5 text-ink/70">${classStamp(c.classDate, c.classTimeZone)}</td>
             <td class="px-4 py-2.5 text-ink/70">${dateFormatter.format(new Date(c.createdAt))}</td>
             ${
               isLockedByMe
@@ -1931,10 +1935,6 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   const attendanceMatchesEmpty = document.getElementById('attendance-matches-empty')!;
   const attendanceMatchesCount = document.getElementById('attendance-matches-count')!;
 
-  function formatEntryDate(iso: string | null): string {
-    return iso ? dateFormatter.format(new Date(iso)) : '—';
-  }
-
   function renderAttendance() {
     const nameQuery = attendanceNameSearch.value.trim();
     const isLockedByMe = attendanceLock.isLocked();
@@ -1999,7 +1999,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
         const optionsHtml = candidateCheckins
           .map(
             (c) =>
-              `<option value="${escapeAttr(c.id)}">${escapeHtml(`${c.first_name} ${c.last_name}`)} — ${escapeHtml(c.phone || '—')} — ${formatEntryDate(c.created_at)}</option>`
+              `<option value="${escapeAttr(c.id)}">${escapeHtml(`${c.first_name} ${c.last_name}`)} — ${escapeHtml(c.phone || '—')} — ${dateFormatter.format(new Date(c.created_at))}</option>`
           )
           .join('');
         return `
@@ -2012,7 +2012,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
               ? ' <span class="font-bold text-orange-600" title="Could not find this Whole-Series sign-up\'s class series (it may have been deleted) — matching by class title alone instead of a specific date.">⚠</span>'
               : ''
           }</td>
-          <td class="px-3 py-2.5 text-ink/70">${formatEntryDate(e.occurrenceDate)}</td>
+          <td class="px-3 py-2.5 text-ink/70">${classStamp(e.occurrenceDate, e.occurrenceTimeZone)}</td>
           ${
             isLockedByMe
               ? `<td class="px-3 py-2.5">
@@ -2079,7 +2079,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
         <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.phone || '—')}</td>
         <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.email || '—')}</td>
         <td class="px-3 py-2.5 text-ink/70">${escapeHtml(c.class_title)}${c.event_id ? '' : ' <span class="text-xs text-orange-600" title="Not linked to a specific class date.">(no date)</span>'}</td>
-        <td class="px-3 py-2.5 text-ink/70">${formatEntryDate(c.created_at)}</td>
+        <td class="px-3 py-2.5 text-ink/70">${dateFormatter.format(new Date(c.created_at))}</td>
         ${isLockedByMe ? linkCheckinCellHtml(c) : ''}
       </tr>`
       )
@@ -2224,7 +2224,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
             ? ' <span class="font-bold text-orange-600" title="Could not find this Whole-Series sign-up\'s class series (it may have been deleted) — this status is a degraded guess, matched by class title alone rather than a specific date.">⚠</span>'
             : ''
         }</td>
-        <td class="px-4 py-2.5 text-ink/70">${formatEntryDate(e.occurrenceDate)}</td>
+        <td class="px-4 py-2.5 text-ink/70">${classStamp(e.occurrenceDate, e.occurrenceTimeZone)}</td>
         <td class="px-4 py-2.5">${statusLabel(e.status)}</td>
       </tr>`
       )
@@ -2347,7 +2347,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     deletedAt: string;
     deletedBy: string | null;
     name: string;
-    classes: { title: string; mode: 'whole' | 'dropin' | null; date: string | null }[];
+    classes: { title: string; mode: 'whole' | 'dropin' | null; date: string | null; timeZone: string | null }[];
     [key: string]: unknown;
   }
   let recyclingBinItems: RecyclingBinItem[] = [];
@@ -2359,7 +2359,6 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   const recyclingTabCount = document.getElementById('recycling-tab-count')!;
   const emptyBinBtn = document.getElementById('empty-recycling-btn') as HTMLButtonElement;
   const binDateFormatter = siteFormatter({ month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const binClassDateFormatter = siteFormatter({ weekday: 'short', month: 'short', day: 'numeric' });
 
   const BIN_KIND_LABELS: Record<RecyclingBinItem['kind'], string> = {
     signup: 'Sign-up',
@@ -2384,7 +2383,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     return item.classes
       .map((c) => {
         const mode = c.mode === 'whole' ? 'Whole Series' : c.mode === 'dropin' ? 'Drop In' : '';
-        const date = c.date ? binClassDateFormatter.format(new Date(c.date)) : '';
+        const date = c.date ? classStamp(c.date, c.timeZone, { weekday: 'short', month: 'short', day: 'numeric' }) : '';
         const detail = [mode, date].filter(Boolean).join(', ');
         return `<div>${escapeHtml(c.title)}${detail ? ` <span class="text-xs text-muted">(${escapeHtml(detail)})</span>` : ''}</div>`;
       })

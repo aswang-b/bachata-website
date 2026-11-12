@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { eventZone } from './siteTime';
 
 // The dancer dashboard's Recycling Bin. Deletes there never remove rows
 // directly: they flag them (deleted_at/deleted_by), and every row flagged by
@@ -87,7 +88,8 @@ export interface RecyclingBinItem {
   deletedAt: string;
   deletedBy: string | null;
   name: string;
-  classes: { title: string; mode: 'whole' | 'dropin' | null; date: string | null }[];
+  // date: the class's start, shown on its own day in its own zone (timeZone, migration 0076).
+  classes: { title: string; mode: 'whole' | 'dropin' | null; date: string | null; timeZone: string | null }[];
 }
 
 interface FlaggedRegistration {
@@ -145,9 +147,13 @@ export async function listRecyclingBin(): Promise<{ items: RecyclingBinItem[]; t
     ...new Set([...(checkins.data ?? []).map((c) => c.event_id), ...regs.map((r) => r.occurrence_event_id)].filter((id): id is string => Boolean(id))),
   ];
   const startById = new Map<string, string>();
+  const zoneById = new Map<string, string>();
   if (eventIds.length > 0) {
-    const { data: events } = await supabase.from('events').select('id, start_time').in('id', eventIds);
-    for (const e of events ?? []) startById.set(e.id, e.start_time);
+    const { data: events } = await supabase.from('events').select('id, start_time, time_zone').in('id', eventIds);
+    for (const e of events ?? []) {
+      startById.set(e.id, e.start_time);
+      zoneById.set(e.id, eventZone(e));
+    }
   }
 
   const regsByDeletion = new Map<string, FlaggedRegistration[]>();
@@ -157,6 +163,7 @@ export async function listRecyclingBin(): Promise<{ items: RecyclingBinItem[]; t
       title: r.class_title,
       mode: r.series_mode,
       date: r.occurrence_event_id ? startById.get(r.occurrence_event_id) ?? null : null,
+      timeZone: r.occurrence_event_id ? zoneById.get(r.occurrence_event_id) ?? null : null,
     }));
 
   const items: RecyclingBinItem[] = [];
@@ -203,7 +210,7 @@ export async function listRecyclingBin(): Promise<{ items: RecyclingBinItem[]; t
       deletedAt: c.deleted_at,
       deletedBy: c.deleted_by,
       name: fullName(c.first_name, c.last_name),
-      classes: [{ title: c.class_title, mode: null, date: c.event_id ? startById.get(c.event_id) ?? null : null }],
+      classes: [{ title: c.class_title, mode: null, date: c.event_id ? startById.get(c.event_id) ?? null : null, timeZone: c.event_id ? zoneById.get(c.event_id) ?? null : null }],
     });
   }
 

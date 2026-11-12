@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { requireAdmin } from '../../../lib/admin';
 import { supabase } from '../../../lib/supabase';
 import { publicVisibilities } from '../../../lib/testMode';
+import { eventZone } from '../../../lib/siteTime';
 import { deleteDeal, listDeals, saveDeal, validateDeal } from '../../../lib/dealsStore';
 
 export const prerender = false;
@@ -18,12 +19,14 @@ interface DealOption {
   last: string;
   price: number | null;
   upcoming: boolean;
+  // Its own zone (events.time_zone, migration 0076): its dates are shown in it.
+  timeZone: string;
 }
 
 // The upcoming public classes and events (only those take public sign-ups),
 // plus any past ones a deal still names, so its list reads properly.
 async function loadOptions(dealKeys: string[]): Promise<DealOption[]> {
-  const columns = 'id, title, event_type, start_time, google_recurring_event_id, price_whole_series, price_drop_in';
+  const columns = 'id, title, event_type, start_time, time_zone, google_recurring_event_id, price_whole_series, price_drop_in';
   const now = new Date().toISOString();
   const ids = dealKeys.filter((k) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k));
   const [upcoming, byRecurring, byId] = await Promise.all([
@@ -53,6 +56,7 @@ async function loadOptions(dealKeys: string[]): Promise<DealOption[]> {
         last: e.start_time,
         price: e.price_whole_series ?? e.price_drop_in ?? null,
         upcoming: isUpcoming,
+        timeZone: eventZone(e),
       });
       continue;
     }

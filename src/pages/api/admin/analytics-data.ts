@@ -5,6 +5,7 @@ import { requireAdmin } from '../../../lib/admin';
 import { buildClassSeriesList } from '../../../lib/classSeries';
 import { isDeletedDancer } from '../../../lib/recyclingBin';
 import { rulesForSeries } from '../../../lib/linksStore';
+import { eventZone } from '../../../lib/siteTime';
 
 export const prerender = false;
 
@@ -105,7 +106,7 @@ export const GET: APIRoute = async ({ request }) => {
     // class date below, so those don't need their own queries.
     supabase
       .from('events')
-      .select('id, title, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in')
+      .select('id, title, start_time, end_time, time_zone, google_recurring_event_id, price_whole_series, price_drop_in')
       .in('visibility', allVisibilities())
       .eq('event_type', 'class')
       .order('start_time', { ascending: true }),
@@ -115,7 +116,7 @@ export const GET: APIRoute = async ({ request }) => {
     // The Event Registration tab's edit row lets an admin switch a dancer's event.
     supabase
       .from('events')
-      .select('id, title, start_time, end_time, google_recurring_event_id, price_whole_series, price_drop_in')
+      .select('id, title, start_time, end_time, time_zone, google_recurring_event_id, price_whole_series, price_drop_in')
       .in('visibility', allVisibilities())
       .eq('event_type', 'event')
       .order('start_time', { ascending: true }),
@@ -243,15 +244,18 @@ export const GET: APIRoute = async ({ request }) => {
   const signups = allSignups.filter((s) => s.registrationType !== 'events');
   const eventRegistrations = allSignups.filter((s) => s.registrationType === 'events');
 
-  // Look up the specific scheduled date/time of the class each check-in was for.
-  const eventDateById = new Map<string, string>((allClassEvents ?? []).map((e) => [e.id, e.start_time]));
+  // Look up the specific scheduled date/time of the class each check-in was
+  // for, and the class's own zone it's shown in (migration 0076).
+  type ClassWhen = { start: string; timeZone: string };
+  const whenOf = (e: { start_time: string; time_zone?: string | null }): ClassWhen => ({ start: e.start_time, timeZone: eventZone(e) });
+  const eventDateById = new Map<string, ClassWhen>((allClassEvents ?? []).map((e) => [e.id, whenOf(e)]));
 
   // Nearly always empty: a check-in only points at a class event, which is
   // already in the map. Only an id outside it (e.g. a non-class event) costs a query.
   const missingEventIds = [...new Set((checkinRows ?? []).map((r) => r.event_id).filter((id): id is string => Boolean(id) && !eventDateById.has(id as string)))];
   if (missingEventIds.length > 0) {
-    const { data: otherEvents } = await supabase.from('events').select('id, start_time').in('id', missingEventIds);
-    for (const e of otherEvents ?? []) eventDateById.set(e.id, e.start_time);
+    const { data: otherEvents } = await supabase.from('events').select('id, start_time, time_zone').in('id', missingEventIds);
+    for (const e of otherEvents ?? []) eventDateById.set(e.id, whenOf(e));
   }
 
   const checkins = (checkinRows ?? []).map((row) => ({
@@ -262,7 +266,8 @@ export const GET: APIRoute = async ({ request }) => {
     phone: row.phone,
     classTitle: row.class_title,
     eventId: row.event_id,
-    classDate: row.event_id ? eventDateById.get(row.event_id) ?? null : null,
+    classDate: row.event_id ? eventDateById.get(row.event_id)?.start ?? null : null,
+    classTimeZone: row.event_id ? eventDateById.get(row.event_id)?.timeZone ?? null : null,
   }));
 
   const classTitles = [...new Set((allClassEvents ?? []).map((e) => e.title))].sort((a, b) => a.localeCompare(b));

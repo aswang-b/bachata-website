@@ -113,7 +113,7 @@ describe('codebase rules', () => {
     // then, so it can't grow. Lower a ceiling when a file is split, and remove
     // its entry once the file is under the default.
     const CEILINGS: Record<string, number> = {
-      'src/pages/admin/analytics.astro': 3007,
+      'src/pages/admin/analytics.astro': 3006,
       'src/components/RegistrationForm.astro': 1426,
       'src/pages/admin.astro': 1207,
       'src/pages/admin/qr.astro': 1093,

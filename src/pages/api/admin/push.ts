@@ -11,7 +11,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const UUID = /^[0-9a-f-]{36}$/i;
 const failed = (e: unknown) => (e instanceof PushError ? json({ error: e.message }, e.status) : json({ error: e instanceof Error ? e.message : 'Something went wrong.' }, 500));
 
-const EVENT_COLUMNS = 'id, title, event_type, start_time, end_time, location, google_recurring_event_id';
+const EVENT_COLUMNS = 'id, title, event_type, start_time, end_time, time_zone, location, google_recurring_event_id';
 
 // Upcoming public classes and events a notification can be about (the next 120 days), one per series.
 async function upcomingEvents() {

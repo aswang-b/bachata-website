@@ -99,7 +99,8 @@ const label = 'text-xs font-bold uppercase tracking-wider text-muted';
 
 <script>
   import { checkAdminSession } from '../../lib/adminSession';
-  import { siteFormatter } from '../../lib/siteTime';
+  import { eventZone, siteFormatter } from '../../lib/siteTime';
+  import { eventDate, timeRange } from '../../lib/eventClock';
   import { supabaseBrowser } from '../../lib/supabaseBrowser';
 
   interface Send {
@@ -124,6 +125,8 @@ const label = 'text-xs font-bold uppercase tracking-wider text-muted';
     event_type: string;
     start_time: string;
     end_time: string;
+    // Its own zone (migration 0076): the date and time in a notification are in it.
+    time_zone: string | null;
     location: string | null;
     google_recurring_event_id: string | null;
   }
@@ -142,8 +145,6 @@ const label = 'text-xs font-bold uppercase tracking-wider text-muted';
   let subscriberTotal = 0;
 
   const when = siteFormatter({ dateStyle: 'medium', timeStyle: 'short' });
-  const day = siteFormatter({ weekday: 'short', month: 'short', day: 'numeric' });
-  const time = siteFormatter({ hour: 'numeric', minute: '2-digit' });
   const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
   const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
@@ -162,9 +163,8 @@ const label = 'text-xs font-bold uppercase tracking-wider text-muted';
 
   // The message a class or event starts with.
   function messageFor(e: UpcomingEvent) {
-    const start = new Date(e.start_time);
     const kind = e.event_type === 'class' ? 'class' : 'event';
-    const date = `${e.google_recurring_event_id ? 'Starts ' : ''}${day.format(start)}, ${time.format(start)}`;
+    const date = `${e.google_recurring_event_id ? 'Starts ' : ''}${eventDate(e)}, ${timeRange(e.start_time, null, eventZone(e))}`;
     return {
       title: clip(`New ${kind}: ${e.title}`, MAX_TITLE),
       body: clip(`${date}${e.location ? ` at ${e.location.split(',')[0]}` : ''}. Tap to register.`, MAX_BODY),
@@ -279,7 +279,7 @@ const label = 'text-xs font-bold uppercase tracking-wider text-muted';
   function addOption(e: UpcomingEvent) {
     const option = document.createElement('option');
     option.value = e.id;
-    option.textContent = `${e.title} · ${day.format(new Date(e.start_time))}${e.google_recurring_event_id ? ' (series)' : ''}`;
+    option.textContent = `${e.title} · ${eventDate(e)}${e.google_recurring_event_id ? ' (series)' : ''}`;
     eventSelect.append(option);
   }
 

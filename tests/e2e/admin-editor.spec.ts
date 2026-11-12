@@ -1,5 +1,5 @@
 import { test, expect } from './support/fixtures';
-import { db, seedEvent, seedSignup, sweepTestData, type Seeded } from './support/db';
+import { db, seedEvent, seedSignup, siteZone, sweepTestData, type Seeded } from './support/db';
 import { RUN_ID } from './support/env';
 import { bearer } from './support/admin';
 import type { Page } from '@playwright/test';
@@ -19,9 +19,10 @@ test.beforeAll(async () => {
 });
 
 async function openEditor(page: Page, s: Seeded) {
-  const { data } = await db.from('events').select('start_time').eq('id', s.ids[0]).single();
-  const d = new Date(data!.start_time);
-  const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  // The month the calendar shows it in: its day in its own zone, never the test machine's.
+  const { data } = await db.from('events').select('start_time, time_zone').eq('id', s.ids[0]).single();
+  const zone = (data!.time_zone as string | null) ?? (await siteZone());
+  const month = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit' }).format(new Date(data!.start_time));
   await page.goto(`/calendar?month=${month}`);
   // Clicked as soon as the admin controls appear — before the admin copy of the
   // events may have loaded, which once opened an editor with blank capacities.

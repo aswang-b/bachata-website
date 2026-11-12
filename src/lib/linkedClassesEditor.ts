@@ -5,7 +5,8 @@
 
 import { combinations, defaultReason, findConflicts, REASON_MAX_LENGTH, ruleFor, type LinkRule } from './linkRules';
 import { escapeAttr } from './locationLink';
-import { siteFormatter, zonedDateKey } from './siteTime';
+import { eventZone } from './siteTime';
+import { eventDate, eventDayKey, timeRange } from './eventClock';
 
 export interface LinkableEvent {
   id: string;
@@ -13,6 +14,8 @@ export interface LinkableEvent {
   event_type: string;
   start_time: string;
   end_time: string;
+  // Its own zone (migration 0076): labels and its day are in it.
+  time_zone?: string | null;
   google_recurring_event_id: string | null;
   flyer_url: string | null;
 }
@@ -40,9 +43,6 @@ export interface LinkedEditorHooks<E extends LinkableEvent> {
 
 export const seriesKeyOf = (e: { id: string; google_recurring_event_id: string | null }) => e.google_recurring_event_id ?? e.id;
 
-const timeFormatter = siteFormatter({ hour: 'numeric', minute: '2-digit' });
-const dateFormatter = siteFormatter({ month: 'short', day: 'numeric' });
-const weekdayFormatter = siteFormatter({ weekday: 'long' });
 const esc = escapeAttr;
 
 const RULE_CHOICES = ['both', 'exclusive', 'a-includes-b', 'b-includes-a'] as const;
@@ -87,18 +87,20 @@ export function initLinkedEditor<E extends LinkableEvent>(hooks: LinkedEditorHoo
   // day, else its next one, else its last.
   function occurrenceFor(key: string, near: E | null): E | undefined {
     const occ = occurrencesOf(key);
-    const sameDay = near ? occ.find((o) => zonedDateKey(o.start_time) === zonedDateKey(near.start_time)) : undefined;
+    // Each on its own zone's day, as the linked-class same-day rule counts it.
+    const sameDay = near ? occ.find((o) => eventDayKey(o) === eventDayKey(near)) : undefined;
     return sameDay ?? occ.find((o) => Date.parse(o.end_time) >= Date.now()) ?? occ[occ.length - 1];
   }
 
+  // In the series' own zone ("Tuesdays, 7:00 PM MT · 4 classes · Jun 9–Jun 30").
   function seriesLabel(key: string): string {
     const occ = occurrencesOf(key);
     if (occ.length === 0) return '';
-    const first = new Date(occ[0].start_time);
-    const time = timeFormatter.format(first);
-    if (occ.length === 1) return `${dateFormatter.format(first)}, ${time}`;
-    const last = new Date(occ[occ.length - 1].start_time);
-    return `${weekdayFormatter.format(first)}s, ${time} · ${occ.length} classes · ${dateFormatter.format(first)}–${dateFormatter.format(last)}`;
+    const first = occ[0];
+    const time = timeRange(first.start_time, null, eventZone(first));
+    const date = (e: E) => eventDate(e, { month: 'short', day: 'numeric' });
+    if (occ.length === 1) return `${date(first)}, ${time}`;
+    return `${eventDate(first, { weekday: 'long' })}s, ${time} · ${occ.length} classes · ${date(first)}–${date(occ[occ.length - 1])}`;
   }
 
   function groupKeys(key: string): string[] {
