@@ -1,4 +1,5 @@
 import { getActivePrice } from './pricing';
+import { DEFAULT_LOCATION, placeLabel, type SiteLocation } from './siteLocation';
 
 // Structured data (schema.org JSON-LD) for search engines; nothing here shows
 // on the page. It describes Dance with B and B as the instructor and
@@ -10,13 +11,14 @@ export const SITE_URL = 'https://dancewithb.fun';
 export const DEFAULT_SHARE_IMAGE = `${SITE_URL}/icon-512.png`;
 const ORG_ID = `${SITE_URL}/#organization`;
 const PERSON_ID = `${SITE_URL}/#b`;
-// The area served, for local searches; city level only.
-const AREA = { '@type': 'City', name: 'Madison, WI' };
 // B goes by B Li; Belinda Li (her legal name) is used in some marketing, so
 // search engines should know both as the same person.
 const B = { name: 'B Li', alternateName: ['Belinda Li', 'B'] };
 
-export function siteSchema(sameAs: string[]) {
+// `location` is where the business is now (Admin → Where we are); the area
+// served is city level only, for local searches.
+export function siteSchema(sameAs: string[], location: SiteLocation = DEFAULT_LOCATION) {
+  const AREA = { '@type': 'City', name: placeLabel(location) };
   return {
     '@context': 'https://schema.org',
     '@graph': [
@@ -36,7 +38,7 @@ export function siteSchema(sameAs: string[]) {
         alternateName: ['DanceWithB', 'Dance with B Li', 'Dance with Belinda Li'],
         url: SITE_URL,
         logo: DEFAULT_SHARE_IMAGE,
-        description: 'Bachata and sensual bachata classes, workshops, and social dance events in Madison, WI, taught and organized by B Li (Belinda Li).',
+        description: `Bachata and sensual bachata classes, workshops, and social dance events in ${placeLabel(location)}, taught and organized by B Li (Belinda Li).`,
         founder: { '@id': PERSON_ID },
         areaServed: AREA,
         sameAs,
@@ -96,7 +98,8 @@ export function plainText(html: string | null | undefined, max = 300): string {
 // One schema.org Event per upcoming class/event occurrence, soonest first:
 // today's prices (early bird / flash sale applied), its venue, flyer and
 // register link. `full` holds the occurrence ids with no spots left.
-export function eventSchemas(rows: EventSchemaRow[], now: Date, full: Set<string>, limit = 40) {
+export function eventSchemas(rows: EventSchemaRow[], now: Date, full: Set<string>, limit = 40, location: SiteLocation = DEFAULT_LOCATION) {
+  const place = placeLabel(location);
   return [...rows]
     .filter((r) => Date.parse(r.start_time) >= now.getTime())
     .sort((a, b) => a.start_time.localeCompare(b.start_time))
@@ -120,15 +123,15 @@ export function eventSchemas(rows: EventSchemaRow[], now: Date, full: Set<string
         '@context': 'https://schema.org',
         '@type': 'DanceEvent',
         name: r.title,
-        description: plainText(r.description) || `${r.title} with B in Madison, WI.`,
+        description: plainText(r.description) || `${r.title} with B in ${place}.`,
         startDate: r.start_time,
         endDate: r.end_time,
         eventStatus: 'https://schema.org/EventScheduled',
         eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
         location: {
           '@type': 'Place',
-          name: r.location || 'Madison, WI',
-          address: { '@type': 'PostalAddress', addressLocality: 'Madison', addressRegion: 'WI', addressCountry: 'US' },
+          name: r.location || place,
+          address: { '@type': 'PostalAddress', addressLocality: location.city, ...(location.state ? { addressRegion: location.state } : {}), addressCountry: 'US' },
         },
         image: [r.flyer_url || DEFAULT_SHARE_IMAGE],
         organizer: { '@type': 'Organization', name: 'Dance with B', url: SITE_URL },

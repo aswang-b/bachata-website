@@ -58,4 +58,35 @@ describe('structured data for search engines', () => {
     expect(plainText('</script><script>alert(1)</script>')).not.toContain('<');
     expect(jsonLd({ d: '</script>' })).not.toContain('</script>');
   });
+
+  it('names the location: Madison, WI by default, or the one passed in', () => {
+    const seattle = { city: 'Seattle', state: 'WA', note: '' };
+    const text = (v: unknown) => JSON.stringify(v);
+
+    const mad = text(siteSchema([]));
+    expect(mad).toContain('"name":"Madison, WI"');
+    expect(mad).toContain('events in Madison, WI, taught');
+    const madEvent = eventSchemas([row({ description: '', location: '' })], now, new Set())[0];
+    expect(madEvent.description).toBe('Bachata Sensual Focus II with B in Madison, WI.');
+    expect(madEvent.location).toEqual({ '@type': 'Place', name: 'Madison, WI', address: { '@type': 'PostalAddress', addressLocality: 'Madison', addressRegion: 'WI', addressCountry: 'US' } });
+
+    const sea = text(siteSchema([], seattle));
+    expect(sea).toContain('"name":"Seattle, WA"');
+    expect(sea).toContain('events in Seattle, WA, taught');
+    expect(sea).not.toContain('Madison');
+    const seaEvent = eventSchemas([row({ description: '', location: '' })], now, new Set(), 40, seattle)[0];
+    expect(seaEvent.description).toBe('Bachata Sensual Focus II with B in Seattle, WA.');
+    expect(seaEvent.location).toEqual({ '@type': 'Place', name: 'Seattle, WA', address: { '@type': 'PostalAddress', addressLocality: 'Seattle', addressRegion: 'WA', addressCountry: 'US' } });
+    // A class with its own venue keeps that name.
+    expect(eventSchemas([row()], now, new Set(), 40, seattle)[0].location.name).toBe('Dance Life Studio and Fitness');
+  });
+
+  it('leaves the region out when there is no state', () => {
+    const nowhere = { city: 'Reykjavik', state: '', note: '' };
+    expect(JSON.stringify(siteSchema([], nowhere))).toContain('"name":"Reykjavik"');
+    const e = eventSchemas([row({ location: '' })], now, new Set(), 40, nowhere)[0];
+    expect(e.location.name).toBe('Reykjavik');
+    expect(e.location.address).toEqual({ '@type': 'PostalAddress', addressLocality: 'Reykjavik', addressCountry: 'US' });
+    expect(e.location.address).not.toHaveProperty('addressRegion');
+  });
 });

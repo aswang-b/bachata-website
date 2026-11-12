@@ -32,11 +32,11 @@
 ├── netlify/functions/
 │   └── scheduled-calendar-sync.mts      # Scheduled Netlify function
 ├── public/                              # Static assets (favicon, venmo QR, site.webmanifest, sw.js service worker)
-├── supabase/migrations/                 # Numbered SQL migrations (0001-0074); a new table must be granted to service_role in its migration (see 0045)
+├── supabase/migrations/                 # Numbered SQL migrations (0001-0075); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
-│   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting, WhatsAppSetting; InstallApp bell)
-│   ├── middleware.ts                    # Loads the site time zone (and, for pages, Site Visibility settings and the WhatsApp link into locals) per request; checks nothing
+│   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting, WhereWeAreSetting, WhatsAppSetting; InstallApp bell)
+│   ├── middleware.ts                    # Loads the site time zone (and, for pages, Site Visibility settings the WhatsApp link and the site location into locals) per request; checks nothing
 │   ├── layouts/
 │   │   └── BaseLayout.astro             # Page shell; banner + header share one sticky #site-top (height in --site-top-h)
 │   ├── lib/                             # Server-side helpers
@@ -71,7 +71,7 @@
 │   │   ├── contactMessages.ts           # Contact form messages (own table, not sign-ups), with double-submit check
 │   │   ├── emailTypos.ts, emailHints.ts, emailDomain.ts  # Mistyped-email suggestions and domain checks on the forms
 │   │   ├── siteErrors.ts                # The dashboard's Errors workqueue: bounces, Google API errors, failed emails and sign-ups
-│   │   ├── siteTime.ts, siteConfig.ts   # The site time zone every date follows (admin setting; loaded by src/middleware.ts)
+│   │   ├── siteTime.ts, siteConfig.ts, siteLocation.ts   # The site time zone every date follows and the city it names (admin settings; loaded by src/middleware.ts)
 │   │   ├── resendWebhook.ts             # Resend webhook signature check; bounces flagged on the dashboard
 │   │   ├── confirmationAdminCopy.ts     # Admins' confirmation copy, sent once Resend reports the dancers' emails
 │   │   ├── registrationConfirmation.ts  # Builds the sign-up confirmation email (sent on sign-up, resent by admins)

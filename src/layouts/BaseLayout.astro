@@ -7,6 +7,7 @@ import PreviewBanner from '../components/PreviewBanner.astro';
 import AnnouncementBanner from '../components/AnnouncementBanner.astro';
 import { siteTimeZone } from '../lib/siteTime';
 import { DEFAULT_SHARE_IMAGE, jsonLd, siteSchema } from '../lib/seoSchema';
+import { DEFAULT_LOCATION } from '../lib/siteLocation';
 
 interface Props {
   title: string;
@@ -31,7 +32,7 @@ const canonicalUrl = new URL(Astro.url.pathname, 'https://dancewithb.fun').toStr
 
 // Search engines see Dance with B and B as the instructor and organizer
 // (lib/seoSchema.ts), with no studio address, since the venue changes.
-const siteStructuredData = siteSchema(['https://www.instagram.com/ohmytofuu/', 'https://open.spotify.com/playlist/15WaYTwjYFwQ2yq33c9Gh8']);
+const siteStructuredData = siteSchema(['https://www.instagram.com/ohmytofuu/', 'https://open.spotify.com/playlist/15WaYTwjYFwQ2yq33c9Gh8'], Astro.locals.siteLocation ?? DEFAULT_LOCATION);
 ---
 
 <!doctype html>

@@ -4,12 +4,15 @@
 export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
 import { cacheSharedPage } from '../lib/pageCache';
 
 cacheSharedPage(Astro.response.headers);
+const loc = Astro.locals.siteLocation ?? DEFAULT_LOCATION;
+const place = placeLabel(loc);
 ---
 
 <BaseLayout
-  title="About B Li — Bachata Instructor in Madison, WI"
-  description="Meet B Li (Belinda Li), Madison's sensual bachata instructor and dance event organizer, with over a decade of ballroom and bachata experience, plus zouk and salsa."
+  title={`About B Li — Bachata Instructor in ${place}`}
+  description={`Meet B Li (Belinda Li), ${loc.city}'s sensual bachata instructor and dance event organizer, with over a decade of ballroom and bachata experience, plus zouk and salsa.`}
 />

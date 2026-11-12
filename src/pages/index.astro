@@ -19,6 +19,7 @@ import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesB
 import PastFlyersGallery from '../components/PastFlyersGallery.astro';
 import FlyerDialog from '../components/FlyerDialog.astro';
 import { eventSchemas } from '../lib/seoSchema';
+import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
 import { locationHref } from '../lib/locationLink';
 import { PIN_SVG } from '../lib/locationPin';
 import { flyerSize, flyerSrcset, scaledImageUrl } from '../lib/eventImages';
@@ -97,14 +98,16 @@ const typeLabel = (o: ClassSeriesEntry) => (o.eventType === 'event' ? '' : o.isS
 // For search engines only: each upcoming class/event as structured data, and
 // the first flyer as the link-preview image.
 const fullOccurrences = new Set([...spotsByOccurrence].filter(([, s]) => s.full).map(([id]) => id));
-const structuredData = eventSchemas(events ?? [], now, fullOccurrences);
+const loc = Astro.locals.siteLocation ?? DEFAULT_LOCATION;
+const place = placeLabel(loc);
+const structuredData = eventSchemas(events ?? [], now, fullOccurrences, 40, loc);
 const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyerUrl ?? undefined;
 const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/register/events' : '/register'}?series=${encodeURIComponent(o.key)}`;
 ---
 
 <BaseLayout
-  title="Bachata Classes in Madison, WI"
-  description="Bachata and sensual bachata classes, workshops, private coaching, and social dance events in Madison, WI with B. Beginner-friendly — no partner or experience required."
+  title={`Bachata Classes in ${place}`}
+  description={`Bachata and sensual bachata classes, workshops, private coaching, and social dance events in ${place} with B. Beginner-friendly — no partner or experience required.`}
   image={shareImage}
   structuredData={structuredData}
 >
@@ -118,9 +121,14 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
       <path d="M13.5 2.5 5 13.5h6.5l-1 8 8.5-11h-6.5z" />
     </symbol>
   </svg>
-  <section class="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
-    {/* For search engines and screen readers only; the page itself leads with the flyers. */}
-    <h1 class="sr-only">Bachata classes and social dance events in Madison, WI with B Li (Belinda Li)</h1>
+  <section class="mx-auto max-w-6xl px-4 pb-14 pt-6 sm:px-6 sm:pb-20 sm:pt-10">
+    {/* A quiet line for someone arriving from a shared link, so they know which city this is; the page itself leads with the flyers. */}
+    <div class="mb-6 text-center sm:mb-8">
+      <h1 class="text-sm font-medium text-muted">
+        Bachata with B · {loc.city}<span class="sr-only">: classes and social dance events in {place} with B Li (Belinda Li)</span>
+      </h1>
+      {loc.note && <p id="location-note" class="mt-1 text-sm text-ink">{loc.note}</p>}
+    </div>
     {sections.length === 0 && <p class="mx-auto max-w-md text-center text-sm text-muted">No upcoming classes or events right now — check back soon!</p>}
 
     {sections.length > 0 && (

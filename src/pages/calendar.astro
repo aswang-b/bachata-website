@@ -2,6 +2,7 @@
 export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
 import { supabase } from '../lib/supabase';
 import { publicVisibilities } from '../lib/testMode';
 import { getActivePrice, priceTierLabel } from '../lib/pricing';
@@ -188,13 +189,15 @@ const weekdayAbbrevFormatter = siteFormatter({ weekday: 'short' });
 const MAX_BANNERS_PER_DAY = 3;
 // Phone dots: rows of two for up to 4 events, rows of three for 5 or 6 (3 over 2,
 // 3 and 3). More than 6 shows 6; tapping the day lists them all.
+const loc = Astro.locals.siteLocation ?? DEFAULT_LOCATION;
+const place = placeLabel(loc);
 const MAX_DOTS = 6;
 const dotColumns = (count: number) => (count > 4 ? 'grid-cols-3' : 'grid-cols-2');
 ---
 
 <BaseLayout
   title="Class & Event Calendar"
-  description="Browse upcoming bachata classes, workshops, and social dance events in Madison, WI, and register directly from the calendar."
+  description={`Browse upcoming bachata classes, workshops, and social dance events in ${place}, and register directly from the calendar.`}
 >
   <div class="mx-auto max-w-[1700px] px-6 py-16">
     <div class="mb-10 flex flex-col items-center gap-4">

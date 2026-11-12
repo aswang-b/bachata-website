@@ -1,5 +1,8 @@
 import { supabase } from './supabase';
 import { DEFAULT_TIME_ZONE, isValidTimeZone } from './siteTime';
+import { DEFAULT_LOCATION, type SiteLocation } from './siteLocation';
+
+export { DEFAULT_LOCATION, placeLabel, type SiteLocation } from './siteLocation';
 
 // The saved site time zone (site_config, migration 0051). Cached for a minute
 // per server instance, since every request needs it (src/middleware.ts).
@@ -76,4 +79,63 @@ export async function saveWhatsappUrl(raw: unknown): Promise<string | null> {
   if (error) throw new Error(`Failed to save the WhatsApp link: ${error.message}${/whatsapp_url/.test(error.message) ? '. Run migration 0072 in Supabase first.' : ''}`);
   whatsappCached = { url, at: Date.now() };
   return url;
+}
+
+// ---- Where we are (migration 0075) ----
+// The city and state the homepage, page titles and search results name, and an
+// optional homepage note. Read on its own query (so the time zone and WhatsApp
+// link still load before the migration), cached a minute, keeping the last
+// good value on a failed read.
+
+function cleanLocationField(raw: unknown, label: string, max: number, required: boolean): { value: string } | { error: string } {
+  if (raw == null || raw === '') raw = '';
+  if (typeof raw !== 'string') return { error: `${label} must be text.` };
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f-\u009f<>]/.test(raw.replace(/\s+/g, ' '))) return { error: `${label} can only be plain text (no < or > or control characters).` };
+  const value = raw.replace(/\s+/g, ' ').trim();
+  if (required && !value) return { error: `${label} is required.` };
+  if (value.length > max) return { error: `${label} can be at most ${max} characters.` };
+  return { value };
+}
+
+export function cleanSiteLocation(input: unknown): { value: SiteLocation } | { error: string } {
+  const body = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+  const city = cleanLocationField(body.city, 'City', 60, true);
+  if ('error' in city) return city;
+  const state = cleanLocationField(body.state, 'State', 30, false);
+  if ('error' in state) return state;
+  const note = cleanLocationField(body.note, 'The note', 80, false);
+  if ('error' in note) return note;
+  return { value: { city: city.value, state: state.value, note: note.value } };
+}
+
+let locationCached: { loc: SiteLocation; at: number } | null = null;
+
+export async function loadSiteLocation(): Promise<SiteLocation> {
+  if (locationCached && Date.now() - locationCached.at < CACHE_MS) return locationCached.loc;
+  const { data, error } = await supabase.from('site_config').select('home_city, home_state, location_note').eq('id', true).maybeSingle();
+  if (error) {
+    // Before migration 0075 there are no columns; otherwise keep the last good value and try again next time.
+    if (!/home_city|home_state|location_note/.test(error.message)) console.error('Failed to load the site location:', error.message);
+    return locationCached?.loc ?? DEFAULT_LOCATION;
+  }
+  const city = typeof data?.home_city === 'string' ? data.home_city.trim() : '';
+  const note = typeof data?.location_note === 'string' ? data.location_note.trim() : '';
+  const loc: SiteLocation = city
+    ? { city, state: typeof data?.home_state === 'string' ? data.home_state.trim() : '', note }
+    : { city: DEFAULT_LOCATION.city, state: DEFAULT_LOCATION.state, note };
+  locationCached = { loc, at: Date.now() };
+  return loc;
+}
+
+export async function saveSiteLocation(input: unknown): Promise<SiteLocation> {
+  const cleaned = cleanSiteLocation(input);
+  if ('error' in cleaned) throw new Error(cleaned.error);
+  const loc = cleaned.value;
+  const { error } = await supabase
+    .from('site_config')
+    .upsert({ id: true, home_city: loc.city, home_state: loc.state, location_note: loc.note, updated_at: new Date().toISOString() });
+  if (error) throw new Error(`Failed to save the location: ${error.message}${/home_city|home_state|location_note/.test(error.message) ? '. Run migration 0075 in Supabase first.' : ''}`);
+  locationCached = { loc, at: Date.now() };
+  return loc;
 }

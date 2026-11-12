@@ -1,0 +1,90 @@
+---
+// Admin → Admin → Where we are (lib/siteConfig.ts): the city and state the
+// homepage, page titles and search results name, and an optional homepage note.
+---
+
+<div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
+  <p class="text-xs font-bold uppercase tracking-wider text-muted">Where we are</p>
+  <p class="text-xs text-muted">Shown on the homepage and in page titles and search results. Moving? Change this and the Site Time Zone below.</p>
+  <div class="flex flex-col gap-2 sm:flex-row">
+    <label class="flex flex-1 flex-col gap-1 text-xs text-muted">
+      City
+      <input
+        id="site-location-city"
+        type="text"
+        maxlength="60"
+        required
+        autocomplete="off"
+        class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+      />
+    </label>
+    <label class="flex flex-col gap-1 text-xs text-muted sm:w-32">
+      State
+      <input
+        id="site-location-state"
+        type="text"
+        maxlength="30"
+        autocomplete="off"
+        class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+      />
+    </label>
+  </div>
+  <label class="flex flex-col gap-1 text-xs text-muted">
+    Note on the homepage (optional)
+    <input
+      id="site-location-note"
+      type="text"
+      maxlength="80"
+      placeholder="Santa Fe all February"
+      autocomplete="off"
+      class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+    />
+  </label>
+  <button
+    id="site-location-save"
+    type="button"
+    class="self-start rounded-full border border-accent px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-white disabled:opacity-50"
+  >
+    Save Location
+  </button>
+  <p id="site-location-status" class="min-h-4 text-xs text-muted" role="status"></p>
+</div>
+
+<script>
+  import { supabaseBrowser } from '../lib/supabaseBrowser';
+
+  const city = document.getElementById('site-location-city') as HTMLInputElement;
+  const state = document.getElementById('site-location-state') as HTMLInputElement;
+  const note = document.getElementById('site-location-note') as HTMLInputElement;
+  const save = document.getElementById('site-location-save') as HTMLButtonElement;
+  const status = document.getElementById('site-location-status')!;
+
+  async function headers(): Promise<Record<string, string>> {
+    const { data } = await supabaseBrowser.auth.getSession();
+    return { Authorization: `Bearer ${data.session?.access_token ?? ''}`, 'Content-Type': 'application/json' };
+  }
+
+  async function load() {
+    const res = await fetch('/api/admin/location', { headers: await headers() });
+    if (!res.ok) return;
+    const body = await res.json();
+    city.value = body.city ?? '';
+    state.value = body.state ?? '';
+    note.value = body.note ?? '';
+  }
+
+  save.addEventListener('click', async () => {
+    save.disabled = true;
+    status.textContent = 'Saving…';
+    const res = await fetch('/api/admin/location', {
+      method: 'POST',
+      headers: await headers(),
+      body: JSON.stringify({ city: city.value, state: state.value, note: note.value }),
+    });
+    const body = await res.json().catch(() => ({}));
+    save.disabled = false;
+    status.textContent = res.ok ? 'Saved. Pages update within a minute.' : (body.error ?? 'Failed to save.');
+  });
+
+  load();
+</script>

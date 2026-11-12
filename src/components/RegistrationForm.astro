@@ -3,6 +3,7 @@
 // (/register/events). Events sell one ticket per event (no Whole Series /
 // Drop In choice) and don't ask for a Leader/Follower role.
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
 import { supabase } from '../lib/supabase';
 import { publicVisibilities } from '../lib/testMode';
 import { countOccurrencesByKey } from '../lib/classSeries';
@@ -222,14 +223,16 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   if (result.display === 'original') return `${formatPrice(result.originalPrice)}${suffix}`;
   return `<s class="text-muted">${formatPrice(result.originalPrice)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
 }
+const loc = Astro.locals.siteLocation ?? DEFAULT_LOCATION;
+const place = placeLabel(loc);
 ---
 
 <BaseLayout
   title={isEvent ? 'Register — Bachata Socials & Events' : 'Register — Group Bachata Classes'}
   description={
     isEvent
-      ? 'Register for bachata social dance events and workshops in Madison, WI.'
-      : 'Sign up for group bachata classes in Madison, WI at Dance Life Studio. Multi-week series and drop-in options available.'
+      ? `Register for bachata social dance events and workshops in ${place}.`
+      : `Sign up for group bachata classes in ${place}. Multi-week series and drop-in options available.`
   }
 >
   <div class="mx-auto max-w-xl px-6 py-16">

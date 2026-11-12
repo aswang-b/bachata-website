@@ -2,12 +2,16 @@
 export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
 import { supabase } from '../lib/supabase';
 import { allVisibilities, publicVisibilities } from '../lib/testMode';
 import { buildClassSeriesList, siteDayBoundsUtcIso } from '../lib/classSeries';
 import { getSiteSettings } from '../lib/siteSettings';
 import { siteFormatter } from '../lib/siteTime';
 import { verifyCheckinRegisterToken } from '../lib/checkinToken';
+
+const loc = Astro.locals.siteLocation ?? DEFAULT_LOCATION;
+const place = placeLabel(loc);
 
 const { disable_checkin_page: checkinDisabled } = Astro.locals.siteSettings ?? (await getSiteSettings());
 
@@ -82,7 +86,7 @@ const inputClass =
 
 <BaseLayout
   title="Class Check-In"
-  description="Check in for your bachata class at Dance Life Studio, Madison, WI."
+  description={`Check in for your bachata class with B in ${place}.`}
 >
   <div class="mx-auto max-w-xl px-6 py-16">
     <h1 class="font-display text-3xl font-bold text-ink">Check In for Class</h1>

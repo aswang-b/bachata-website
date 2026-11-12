@@ -6,6 +6,7 @@ export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import DealsAdmin from '../components/DealsAdmin.astro';
 import GalleryFlyersAdmin from '../components/GalleryFlyersAdmin.astro';
+import WhereWeAreSetting from '../components/WhereWeAreSetting.astro';
 import SiteTimeZoneSetting from '../components/SiteTimeZoneSetting.astro';
 import WhatsAppSetting from '../components/WhatsAppSetting.astro';
 ---
@@ -433,6 +434,7 @@ import WhatsAppSetting from '../components/WhatsAppSetting.astro';
           <p id="checkin-cap-status" class="min-h-4 text-xs text-muted"></p>
         </div>
 
+        <WhereWeAreSetting />
         <SiteTimeZoneSetting />
         <WhatsAppSetting />
       </section>

@@ -8,7 +8,7 @@ vi.mock('../../src/lib/supabase', () => ({
   },
 }));
 
-import { cleanWhatsappUrl, loadSiteTimeZone, loadWhatsappUrl, saveWhatsappUrl } from '../../src/lib/siteConfig';
+import { cleanSiteLocation, cleanWhatsappUrl, DEFAULT_LOCATION, loadSiteLocation, loadSiteTimeZone, loadWhatsappUrl, placeLabel, saveSiteLocation, saveWhatsappUrl } from '../../src/lib/siteConfig';
 import { buildRegistrationConfirmationEmailHtml } from '../../src/lib/registrationEmail';
 
 describe('loading the site time zone', () => {
@@ -101,5 +101,71 @@ describe('the confirmation email', () => {
     expect(html).not.toContain('tel:5555550199');
     expect(html).not.toContain('tel:2026');
     expect(emailLayout({ heading: 'Bachata <a href="https://evil.example">x</a>', bodyHtml: '' })).not.toContain('<a href="https://evil.example">');
+  });
+});
+
+describe('where we are', () => {
+  it('checks the city, state and note: plain text, lengths, spaces collapsed', () => {
+    expect(cleanSiteLocation({ city: '  Santa   Fe ', state: ' NM ', note: ' Santa Fe   all February ' })).toEqual({ value: { city: 'Santa Fe', state: 'NM', note: 'Santa Fe all February' } });
+    expect(cleanSiteLocation({ city: 'Seattle' })).toEqual({ value: { city: 'Seattle', state: '', note: '' } });
+    for (const bad of [{ city: '' }, { city: '   ' }, {}, null, { city: 'x'.repeat(61) }, { city: 'A', state: 'x'.repeat(31) }, { city: 'A', note: 'x'.repeat(81) }, { city: '<script>alert(1)</script>' }, { city: 'A', note: 'a > b' }, { city: 'A\u0007B' }, { city: 42 }]) {
+      expect(cleanSiteLocation(bad), JSON.stringify(bad)).toHaveProperty('error');
+    }
+    expect(cleanSiteLocation({ city: 'x'.repeat(60), state: 'y'.repeat(30), note: 'z'.repeat(80) })).toHaveProperty('value');
+  });
+
+  it('names the place with or without a state', () => {
+    expect(placeLabel({ city: 'Seattle', state: 'WA', note: '' })).toBe('Seattle, WA');
+    expect(placeLabel({ city: 'Seattle', state: '', note: '' })).toBe('Seattle');
+    expect(placeLabel(DEFAULT_LOCATION)).toBe('Madison, WI');
+  });
+
+  it('is Madison, WI before the columns exist and when no city is saved (the note is kept)', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.advanceTimersByTime(61_000);
+      db.current = new FakeSupabase().seed('site_config', [{ id: true, time_zone: 'America/Chicago' }]);
+      db.current.failNext.set('site_config.select', { message: 'column site_config.home_city does not exist' });
+      expect(await loadSiteLocation()).toEqual(DEFAULT_LOCATION);
+
+      vi.advanceTimersByTime(61_000);
+      db.current.rows('site_config')[0].home_city = null;
+      db.current.rows('site_config')[0].home_state = 'OR';
+      db.current.rows('site_config')[0].location_note = 'Back in March';
+      expect(await loadSiteLocation()).toEqual({ city: 'Madison', state: 'WI', note: 'Back in March' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('saves and reads back without touching the time zone or WhatsApp link, and keeps the saved value through a failed read', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.advanceTimersByTime(61_000);
+      db.current = new FakeSupabase().seed('site_config', [{ id: true, time_zone: 'America/Chicago', whatsapp_url: 'https://chat.whatsapp.com/AbC123' }]);
+      await expect(saveSiteLocation({ city: '' })).rejects.toThrow('City is required');
+      expect(db.current.callsTo('site_config', 'upsert')).toHaveLength(0);
+
+      expect(await saveSiteLocation({ city: 'Seattle', state: 'WA', note: 'Here until June' })).toEqual({ city: 'Seattle', state: 'WA', note: 'Here until June' });
+      const row = db.current.rows('site_config')[0];
+      expect([row.home_city, row.home_state, row.location_note]).toEqual(['Seattle', 'WA', 'Here until June']);
+      expect(row.time_zone).toBe('America/Chicago');
+      expect(row.whatsapp_url).toBe('https://chat.whatsapp.com/AbC123');
+
+      vi.advanceTimersByTime(61_000);
+      expect(await loadSiteLocation()).toEqual({ city: 'Seattle', state: 'WA', note: 'Here until June' });
+
+      vi.advanceTimersByTime(61_000);
+      db.current.failNext.set('site_config.select', { message: 'timeout' });
+      expect(await loadSiteLocation()).toEqual({ city: 'Seattle', state: 'WA', note: 'Here until June' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says to run the migration when the columns are missing', async () => {
+    db.current = new FakeSupabase().seed('site_config', [{ id: true }]);
+    db.current.failNext.set('site_config.upsert', { message: "Could not find the 'home_city' column of 'site_config'" });
+    await expect(saveSiteLocation({ city: 'Seattle' })).rejects.toThrow('Run migration 0075 in Supabase first.');
   });
 });

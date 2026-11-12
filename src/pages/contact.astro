@@ -4,15 +4,18 @@
 export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
 import IntakeForm from '../components/IntakeForm.astro';
 import { cacheSharedPage } from '../lib/pageCache';
 
 cacheSharedPage(Astro.response.headers);
+const loc = Astro.locals.siteLocation ?? DEFAULT_LOCATION;
+const place = placeLabel(loc);
 ---
 
 <BaseLayout
-  title="Contact — Private Lessons in Madison, WI"
-  description="Book private bachata coaching or ask about class schedules in Madison, WI. Fill out the form and I'll be in touch soon."
+  title={`Contact — Private Lessons in ${place}`}
+  description={`Book private bachata coaching or ask about class schedules in ${place}. Fill out the form and I'll be in touch soon.`}
 >
   <IntakeForm
     registrationType="private"
