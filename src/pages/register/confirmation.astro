@@ -9,7 +9,7 @@ import { listFaqs } from '../../lib/faqs';
 import { getCommunityGuidelines, guidelineSections } from '../../lib/communityGuidelines';
 import { getClassRegistrationsForSubmission } from '../../lib/classRegistrations';
 import { registrationCalendarLink } from '../../lib/registrationCalendar';
-import { buildReceiptLines, formatPrice, paymentAgreementText, quantityNote, receiptHeading, receiptSubtotal } from '../../lib/registrationReceipt';
+import { buildReceiptLines, formatPrice, paymentAgreementText, quantityNote, receiptHeading, receiptSubtotal, venmoPayLink } from '../../lib/registrationReceipt';
 
 interface Dancer {
   firstName?: string;
@@ -57,6 +57,7 @@ const classRegistrations = id && submission ? await getClassRegistrationsForSubm
 // registration rows fall back to the plain class text below.
 const receiptLines = await buildReceiptLines(classRegistrations);
 const subtotal = receiptSubtotal(receiptLines);
+const payUrl = submission ? venmoPayLink(submission.payment_method, receiptLines, subtotal) : null;
 // "Add to calendar": the upcoming class dates this sign-up covers (none: no link).
 const calendarLink = await registrationCalendarLink(classRegistrations);
 
@@ -164,7 +165,17 @@ const dateFormatter = siteFormatter({ month: 'long', day: 'numeric', year: 'nume
               )
             )}
 
-            {paymentAgreementText(submission.payment_method) && <p>{paymentAgreementText(submission.payment_method)}</p>}
+            {paymentAgreementText(submission.payment_method) && (
+              <p>
+                {paymentAgreementText(submission.payment_method)}
+                {payUrl && (
+                  <>
+                    {' '}
+                    <a id="venmo-pay-link" href={payUrl} class="font-semibold text-accent underline">Click here to pay</a>.
+                  </>
+                )}
+              </p>
+            )}
 
             {submission.comments && (
               <div class="flex flex-col">

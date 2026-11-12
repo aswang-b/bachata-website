@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { eventZone, siteFormatter, zoneSuffix } from './siteTime';
 import type { ClassRegistrationRow } from './classRegistrations';
+import { venmoNote, venmoPayUrl } from './venmoPay';
 
 // The itemized "receipt" a dancer sees after registering, on
 // /register/confirmation and in the confirmation email — the same breakdown
@@ -111,4 +112,11 @@ export function paymentAgreementText(method: string | null | undefined): string 
   if (method === 'venmo') return 'You agreed to pay with Venmo.';
   if (method === 'cash') return 'You agreed to pay with cash.';
   return null;
+}
+
+// "Click here to pay." after a Venmo agreement: the link opens Venmo's pay screen with
+// the sign-up's subtotal and class names filled in (the plain account link when there
+// is no subtotal). null for any other payment method.
+export function venmoPayLink(method: string | null | undefined, lines: ReceiptLine[], subtotal: number | null): string | null {
+  return method === 'venmo' ? venmoPayUrl({ amount: subtotal, note: venmoNote(lines.filter((l) => !l.discount).map((l) => l.title)) }) : null;
 }

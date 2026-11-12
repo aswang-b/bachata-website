@@ -3,7 +3,7 @@ import { env } from './env';
 import { getClassRegistrationsForSubmission } from './classRegistrations';
 import { listFaqs } from './faqs';
 import { buildRegistrationConfirmationEmailHtml } from './registrationEmail';
-import { buildReceiptLines, paymentAgreementText, receiptSubtotal } from './registrationReceipt';
+import { buildReceiptLines, paymentAgreementText, receiptSubtotal, venmoPayLink } from './registrationReceipt';
 import { getCommunityGuidelines, guidelineSections } from './communityGuidelines';
 import { loadWhatsappUrl } from './siteConfig';
 import { registrationCalendarLink } from './registrationCalendar';
@@ -98,6 +98,7 @@ export async function buildRegistrationConfirmation(submissionId: string, opts: 
     subtotal,
     isEvent,
     paymentNote: paymentAgreementText(row.payment_method),
+    payUrl: venmoPayLink(row.payment_method, receiptLines, subtotal),
     calendarUrl: calendarLink?.url ?? null,
     faqs: reminders,
     faqsHeading: isEvent ? 'Our Community Guidelines' : undefined,

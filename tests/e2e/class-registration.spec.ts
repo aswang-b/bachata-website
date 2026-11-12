@@ -402,7 +402,7 @@ test('the payment wording reads properly (it once said "before classbegins")', a
   expect(await page.locator('.dancer-block').first().textContent()).toContain('reach you about class changes,');
 });
 
-test("the Venmo code is drawn by the site (sharp at any size), and a phone scanning it gets the same Venmo page as the Open in Venmo button", async ({ page }) => {
+test("the Venmo code is drawn by the site (sharp at any size), and a phone scanning it gets the account's code link; the Open in Venmo link (tapped, not scanned) is the same account with the amount filled in", async ({ page }) => {
   await page.goto('/register');
   await selectSeries(page, wholeOnly.key);
   const venmo = page.locator('.payment-item[data-value="venmo"]');
@@ -413,7 +413,9 @@ test("the Venmo code is drawn by the site (sharp at any size), and a phone scann
   // Read from a picture of it, as a phone camera would.
   const { data, info } = await sharp(await code.screenshot()).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const scanned = jsQR(new Uint8ClampedArray(data), info.width, info.height)?.data;
-  expect(scanned).toBe(await venmo.getByRole('link', { name: 'Open in Venmo' }).getAttribute('href'));
+  // The scanner reads the account code (no amount); the link a dancer taps is a pay link (venmo-pay-link.spec.ts).
+  expect(await venmo.getByRole('link', { name: 'Open in Venmo' }).getAttribute('href')).toMatch(/^https:\/\/venmo\.com\/amumira\?txn=pay&amount=40\.00&note=/);
+  expect(scanned).toBe('https://venmo.com/code?user_id=2024335518728192092&created=1788834419');
   expect(scanned).toMatch(/^https:\/\/venmo\.com\/code\?user_id=\d+/);
 });
 

@@ -18,11 +18,9 @@ import { PIN_SVG } from '../lib/locationPin';
 import { seriesBounds } from '../lib/flyerBlocks';
 import { rulesForSeries } from '../lib/linksStore';
 import { qrSvg } from '../lib/qrSvg';
+import { VENMO_URL, VENMO_USERNAME } from '../lib/venmoPay';
 
-// Dance with B's Venmo: the code dancers scan and the Open in Venmo button go to
-// the same address. The code is drawn here (crisp at any size), with Venmo's logo.
-const VENMO_URL = 'https://venmo.com/code?user_id=2024335518728192092&created=1788834419';
-const venmoCode = qrSvg(VENMO_URL, { logo: '/venmo-logo.svg', label: 'Venmo QR code for @amumira' });
+const venmoCode = qrSvg(VENMO_URL, { logo: '/venmo-logo.svg', label: `Venmo QR code for @${VENMO_USERNAME}` });
 
 interface Props {
   kind?: 'class' | 'event';
@@ -548,7 +546,7 @@ const place = placeLabel(loc);
               <p class="text-sm font-semibold text-ink">You are paying <span class="text-accent">@amumira</span></p>
               <div class="venmo-code h-40 w-40 overflow-hidden rounded-md" set:html={venmoCode} />
               <a
-                href={VENMO_URL}
+                href={VENMO_URL} id="venmo-pay-link"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="gradient-accent rounded-full px-5 py-2 text-sm font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
@@ -588,6 +586,7 @@ const place = placeLabel(loc);
   import { attachEmailHint, emailsReadyToSubmit } from '../lib/emailHints';
   import { trackSubmit } from '../scripts/submitState';
   import { initRememberDancer } from '../scripts/rememberDancer';
+  import { venmoNote, venmoPayUrl } from '../lib/venmoPay';
   import { ROLE_PICKER_HTML } from '../scripts/dancerRolePicker';
 
   interface Dancer {
@@ -992,6 +991,7 @@ const place = placeLabel(loc);
       }
     }
     document.querySelectorAll('.payment-amount').forEach((el) => (el.textContent = formatPrice(total)));
+    (document.getElementById('venmo-pay-link') as HTMLAnchorElement).href = venmoPayUrl({ amount: total, note: venmoNote(charged().map((sel) => sel.title)) });
     renderSubtotalItems(dancerCountNow, dealResult.applied);
     renderDealSuggestions(dancerCountNow);
     renderLinkNotes();

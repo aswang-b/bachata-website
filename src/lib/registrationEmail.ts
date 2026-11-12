@@ -29,6 +29,8 @@ export interface RegistrationEmailParams {
   isEvent?: boolean;
   // e.g. "You agreed to pay with Venmo.", shown under the classes.
   paymentNote?: string | null;
+  // A Venmo sign-up's pay link (registrationReceipt.ts's venmoPayLink): "Click here to pay." follows the note.
+  payUrl?: string | null;
   // The "Add to calendar" link (lib/registrationCalendar.ts), a line under the details; none when no class date is upcoming.
   calendarUrl?: string | null;
   // FAQ-style items under faqsHeading (default "A Few Reminders"). Events pass
@@ -122,7 +124,7 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
           ${subtotalRowHtml}
         </table>
         ${hasReceipt ? receiptHtml(params.receiptLines!, params.subtotal, Boolean(params.isEvent)) : ''}
-        ${params.paymentNote ? `<p style="margin:12px 0 0;font-size:14px;color:${C.ink};">${escapeHtml(params.paymentNote)}</p>` : ''}
+        ${params.paymentNote ? `<p style="margin:12px 0 0;font-size:14px;color:${C.ink};">${escapeHtml(params.paymentNote)}${params.payUrl ? ` <a href="${escapeHtml(params.payUrl)}" style="${LINK}">Click here to pay</a>.` : ''}</p>` : ''}
       </div>`;
 
   const calendarHtml = params.calendarUrl
