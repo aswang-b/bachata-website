@@ -118,7 +118,7 @@ describe('codebase rules', () => {
       'src/pages/admin.astro': 1207,
       'src/pages/admin/qr.astro': 1093,
       'src/pages/admin/feedback.astro': 759,
-      'src/pages/index.astro': 629,
+      'src/pages/index.astro': 628,
     };
     const lineCount = (f: string) => {
       const text = read(f);

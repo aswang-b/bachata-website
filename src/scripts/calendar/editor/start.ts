@@ -16,6 +16,7 @@ import { openModal } from './modal';
 import { initSaveButtons } from './save';
 import { initSectionNav, initSummaryUpdates } from './sections';
 import { editor } from './state';
+import { initShareFlyer } from './shareFlyer';
 import { initTabs } from './tabs';
 import { initTimeZonePicker } from './timeZone';
 
@@ -27,6 +28,7 @@ export function startAdminEditor() {
   initSectionNav();
   initSummaryUpdates();
   initTimeZonePicker();
+  initShareFlyer();
   initImageUpload();
   initFlyerUpload();
   initEditorControls();

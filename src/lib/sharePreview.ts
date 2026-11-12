@@ -2,9 +2,9 @@
 // iMessage or Facebook (/register?series=<key>, /register/events?series=<key>):
 // the class's flyer, name, schedule and city, instead of the generic site
 // preview. Pure, so it is unit-tested.
-import { eventDate, eventTimeRange } from './eventClock';
-import { flyerSize, scaledImageUrl } from './eventImages';
-import { seriesSubLabel } from './registrationLabels';
+import { scheduleLine } from './classSchedule';
+import { scaledImageUrl } from './eventImages';
+import { previewImageWith } from './flyerImage';
 import { placeLabel, type SiteLocation } from './siteLocation';
 
 export interface PreviewOccurrence {
@@ -30,27 +30,11 @@ export interface SharePreview {
   canonical: string;
 }
 
-// Link previews: WhatsApp wants an image under 600 KB (some sources say 300 KB, so
-// stay under that) and at least 300 px wide; 1200 px is the usual large size.
-const PREVIEW_WIDTH = 1200;
-const PREVIEW_QUALITY = 70;
 const MAX_DESCRIPTION = 200;
 
-// The flyer through the image transforms, sized for previews, never scaled up
-// when its width is known (its file name carries it). A crawler that doesn't
-// ask for WebP gets the upload's own format back, which is a JPEG for a JPEG or
-// WebP upload but a very large PNG for a PNG one, so a PNG is requested as WebP.
+// The flyer sized for previews (rule and reasons: flyerImage.previewImageWith), through this site's bucket only.
 export function previewImage(flyerUrl: string): { url: string; width?: number; height?: number } | null {
-  const size = flyerSize(flyerUrl);
-  const width = size ? Math.min(PREVIEW_WIDTH, size.width) : PREVIEW_WIDTH;
-  const scaled = scaledImageUrl(flyerUrl, width);
-  // Not in the site's bucket (can't be scaled): used as it is when it is a secure link, else not at all.
-  if (scaled === flyerUrl) return flyerUrl.startsWith('https://') ? { url: flyerUrl } : null;
-  const asWebp = /\.png$/i.test(flyerUrl) ? '&format=webp' : '';
-  return {
-    url: `${scaled}&quality=${PREVIEW_QUALITY}${asWebp}`,
-    ...(size ? { width, height: Math.round((size.height * width) / size.width) } : {}),
-  };
+  return previewImageWith(flyerUrl, scaledImageUrl);
 }
 
 // At most `max` characters, cut at a word boundary with an ellipsis.
@@ -75,11 +59,7 @@ export function classSharePreview(opts: {
   const rows = [...opts.rows].sort((a, b) => Date.parse(a.start_time) - Date.parse(b.start_time));
   const first = rows[0];
   if (!first) return null;
-  const last = rows[rows.length - 1];
-  const isSeries = (opts.total ?? rows.length) > 1;
-  const schedule = isSeries
-    ? seriesSubLabel(first, last, opts.whole, true, opts.isEvent)
-    : `${eventDate(first)} · ${eventTimeRange(first)}`;
+  const schedule = scheduleLine({ rows, whole: opts.whole, total: opts.total, isEvent: opts.isEvent });
   const city = (first.city ?? '').trim();
   const place = city ? (first.state?.trim() ? `${city}, ${first.state.trim()}` : city) : placeLabel(opts.home);
   const description = capOnWord([schedule, first.location?.trim(), place].filter(Boolean).join(' · '));

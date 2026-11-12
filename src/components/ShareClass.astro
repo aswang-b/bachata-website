@@ -1,0 +1,28 @@
+---
+// "Share" under a class's Register button on the homepage: a quiet text button
+// that passes the class's own link on (scripts/share.ts). The data it needs
+// rides on the button, so the page is complete before any script runs.
+import type { ClassSeriesEntry } from '../lib/classSeries';
+import { dateRange } from '../lib/flyerBlocks';
+
+interface Props {
+  offering: ClassSeriesEntry;
+  bounds?: Map<string, { first: string; last: string }>;
+}
+const { offering: o, bounds } = Astro.props;
+// The wording the block already shows: the day and time, with a series' dates.
+const text = `${o.title} · ${o.isSeries ? `${o.subLabel} · ${dateRange(o, bounds)}` : o.subLabel}`;
+---
+
+<div data-share-row class="mt-1 flex flex-wrap items-center justify-end gap-x-2">
+  <span data-share-status role="status" class="text-xs font-semibold text-muted"></span>
+  <button type="button" data-share data-share-key={o.key} data-share-type={o.eventType} data-share-title={o.title} data-share-text={text} class="hit-44 relative inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline">
+    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3" /><path d="m7 8 5-5 5 5" /><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" /></svg>
+    Share
+  </button>
+</div>
+
+<script>
+  import { initShareButtons } from '../scripts/share';
+  initShareButtons();
+</script>

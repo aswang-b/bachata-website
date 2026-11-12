@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { flyerSize } from './flyerImage';
 
 // Images in the event-images storage bucket (admin uploads: class/event
 // images and flyers). Flyers are shown on the public homepage, so only URLs
@@ -21,14 +22,9 @@ export function eventImagePath(id: string, extension: string, size?: { width: nu
   return size ? `${id}_${size.width}x${size.height}.${extension}` : `${id}.${extension}`;
 }
 
-// The pixel size in a flyer's file name, if it has one (flyers uploaded before it don't).
-export function flyerSize(url: string): { width: number; height: number } | null {
-  const m = /_(\d{1,5})x(\d{1,5})\.[a-z]+$/i.exec(url);
-  if (!m) return null;
-  const width = Number(m[1]);
-  const height = Number(m[2]);
-  return width > 0 && height > 0 ? { width, height } : null;
-}
+// The pixel size in a flyer's file name, if it has one (flyers uploaded before it
+// don't); the rule lives in flyerImage.ts, which the browser can import too.
+export { flyerSize };
 
 // Widths the homepage asks for: its flyer column is about 380px wide (on a
 // phone, the screen's width), at 1x to 3x.

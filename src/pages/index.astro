@@ -19,6 +19,8 @@ import { ASK_SPOT_CLASS, ASK_SPOT_LABEL, askAboutSpotHref, isAskable } from '../
 import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesBounds, venueText } from '../lib/flyerBlocks';
 import PastFlyersGallery from '../components/PastFlyersGallery.astro';
 import FlyerDialog from '../components/FlyerDialog.astro';
+import ShareClass from '../components/ShareClass.astro';
+import { classPath } from '../lib/classLink';
 import { eventSchemas } from '../lib/seoSchema';
 import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
 import { locationHref } from '../lib/locationLink';
@@ -101,9 +103,7 @@ const loc = Astro.locals.siteLocation ?? DEFAULT_LOCATION;
 const place = placeLabel(loc);
 const structuredData = eventSchemas(events ?? [], now, fullOccurrences, 40, loc);
 const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyerUrl ?? undefined;
-const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/register/events' : '/register'}?series=${encodeURIComponent(o.key)}`;
 ---
-
 <BaseLayout
   title={`Bachata Classes in ${place}`}
   description={`Bachata and sensual bachata classes, workshops, private coaching, and social dance events in ${place} with B. Beginner-friendly — no partner or experience required.`}
@@ -188,9 +188,7 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                 ) : (
                   <img src={fallbackImage} alt="" class="h-28 w-full object-cover sm:h-36" />
                 )}
-
                 <div class="flex flex-col gap-3 p-3 sm:p-4">
-
                   {block.offerings.map((o) => {
                     const { full, label, adminOnly, ask } = spotsFor(o);
                     const prices = priceOptions(o, now);
@@ -256,10 +254,11 @@ const registerHref = (o: ClassSeriesEntry) => `${o.eventType === 'event' ? '/reg
                           {o.registrationClosed || full ? (
                             <span class="shrink-0 rounded-full bg-border px-3 py-2 text-xs font-bold uppercase tracking-normal text-ink sm:px-5 sm:tracking-wider">{o.registrationClosed ? 'Registration closed' : 'Full'}</span>
                           ) : (
-                            <a href={registerHref(o)} class="gradient-accent shrink-0 rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Register</a>
+                            <a href={classPath(o.eventType, o.key)} class="gradient-accent shrink-0 rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90">Register</a>
                           )}
                         </div>
                         {ask && <p class="text-right"><a href={askAboutSpotHref(o.key)} data-ask-spot class={ASK_SPOT_CLASS}>{ASK_SPOT_LABEL}</a></p>}
+                        <ShareClass offering={o} bounds={bounds} />
 
                         {inlineDetails && (
                           <div data-desc-preview class="group/desc mt-2 flex min-h-28 flex-col overflow-hidden rounded-xl border border-border bg-bg md:flex-1 data-[fits]:min-h-0 md:data-[fits]:flex-none">

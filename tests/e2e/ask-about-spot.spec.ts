@@ -131,6 +131,8 @@ test('a class that is closed but already past offers no link, and neither does t
 
   // Signed in as the admin, a class that is still to come and closed has none either.
   await calendarMonth(page, closed);
+  // The panel decides on its admin buttons when a class is opened, so wait for admin mode first.
+  await expect(page.locator('#add-event-btn')).toBeVisible();
   await page.locator('.event-banner', { hasText: closed.title }).first().click();
   await expect(page.locator('#detail-register-btn')).toHaveText('Registration Closed');
   await expect(page.locator('#detail-ask-spot')).toHaveCount(0);
