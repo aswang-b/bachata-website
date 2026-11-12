@@ -375,6 +375,28 @@ test('on a wider screen the past flyers have arrows, and no swipe hint', async (
   await expect(page.locator('#past-flyers-hint')).toBeHidden();
 });
 
+test('past flyers are served scaled (a srcset, not the raw upload), lazily, and reserve their space when the size is stored', async ({ page }) => {
+  await page.goto('/');
+  test.skip((await page.locator('#past-flyers').count()) === 0, 'The gallery is empty right now.');
+  const imgs = await page.locator('#past-flyers img').evaluateAll((list) =>
+    (list as HTMLImageElement[]).map((i) => ({ src: i.getAttribute('src')!, srcset: i.getAttribute('srcset'), sizes: i.getAttribute('sizes'), loading: i.loading, decoding: i.decoding, width: i.getAttribute('width'), height: i.getAttribute('height') }))
+  );
+  expect(imgs.length).toBeGreaterThan(0);
+  for (const img of imgs) {
+    expect(img.loading).toBe('lazy');
+    expect(img.decoding).toBe('async');
+    expect(img.srcset, 'a scaled srcset').toContain('/render/image/');
+    expect(img.sizes).toBeTruthy();
+    expect(img.src).not.toContain('/object/public/');
+    // The size is in the file name (<id>_<w>x<h>.<ext>) for flyers uploaded since it was added.
+    const stored = /_(d+)x(d+).[a-z]+/i.exec(decodeURIComponent(img.src));
+    if (stored) {
+      expect(img.width).toBe(stored[1]);
+      expect(img.height).toBe(stored[2]);
+    }
+  }
+});
+
 test('on a narrow phone, "Registration closed" leaves room for a three-digit price on one line', async ({ page }) => {
   const closed = await seedEvent({ name: 'Closed Wide Price', occurrences: 2, priceWhole: 160, registrationClosed: true, dayOffset: 43 });
   await page.setViewportSize({ width: 352, height: 800 });

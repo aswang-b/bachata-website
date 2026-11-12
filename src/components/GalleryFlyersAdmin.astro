@@ -99,17 +99,17 @@
   }
 
   // Flyers upload uncropped, scaled down so the long side is at most 2000px.
-  async function shrink(file: File): Promise<File> {
+  async function shrink(file: File): Promise<{ file: File; width: number; height: number }> {
     const bitmap = await createImageBitmap(file);
     const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
-    if (scale === 1 && file.size <= 2 * 1024 * 1024) return file;
+    if (scale === 1 && file.size <= 2 * 1024 * 1024) return { file, width: bitmap.width, height: bitmap.height };
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(bitmap.width * scale);
     canvas.height = Math.round(bitmap.height * scale);
     canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
     if (!blob) throw new Error("That file couldn't be read as an image.");
-    return new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'flyer'}-flyer.jpg`, { type: 'image/jpeg' });
+    return { file: new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'flyer'}-flyer.jpg`, { type: 'image/jpeg' }), width: canvas.width, height: canvas.height };
   }
 
   fileInput.addEventListener('change', async () => {
@@ -121,7 +121,11 @@
     try {
       for (const file of files) {
         const body = new FormData();
-        body.append('file', await shrink(file));
+        // The pixel size goes in the file name, so the homepage row reserves the flyer's space.
+        const shrunk = await shrink(file);
+        body.append('file', shrunk.file);
+        body.append('width', String(shrunk.width));
+        body.append('height', String(shrunk.height));
         const res = await fetch('/api/admin/upload-event-image', { method: 'POST', headers: { Authorization: `Bearer ${await token()}` }, body });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error ?? `Failed to upload ${file.name}.`);

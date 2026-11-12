@@ -43,13 +43,41 @@ export function scaledImageUrl(url: string, width: number): string {
   return `${scaled}?width=${width}&resize=contain`;
 }
 
-// Never scaled up: a flyer narrower than a width is offered at its own size
-// instead. None for an image outside the bucket (it can't be scaled).
+// Never scaled up: a flyer narrower than a width is offered at its own width
+// instead, still through the image transforms (the same picture compressed;
+// the raw upload is several times the bytes). The full-size view
+// (FlyerDialog) opens the original URL itself. None for an image outside the
+// bucket (it can't be scaled).
 export function flyerSrcset(url: string): string | undefined {
   if (!url.startsWith(publicPrefix())) return undefined;
+  return scaledCandidates(url, FLYER_WIDTHS);
+}
+
+function scaledCandidates(url: string, steps: number[]): string {
   const size = flyerSize(url);
-  const widths = size ? FLYER_WIDTHS.filter((w) => w < size.width) : FLYER_WIDTHS;
-  const candidates = widths.map((w) => `${scaledImageUrl(url, w)} ${w}w`);
-  if (size && widths.length < FLYER_WIDTHS.length) candidates.push(`${url} ${size.width}w`);
-  return candidates.join(', ');
+  const widths = size ? steps.filter((w) => w < size.width) : [...steps];
+  if (size && widths.length < steps.length) widths.push(size.width);
+  return widths.map((w) => `${scaledImageUrl(url, w)} ${w}w`).join(', ');
+}
+
+// The past-flyers row shows each flyer at a fixed height (16rem, 20rem from
+// 640px wide) with its width following the picture.
+const GALLERY_HEIGHTS = { phone: 256, wide: 320 };
+const GALLERY_WIDTHS = [320, 480, 640, 800];
+
+// What the gallery's <img> needs: scaled candidates that match the rendered
+// size, and the stored pixel size (when the file name has one) so the row
+// reserves each flyer's width before it loads. Without a stored size, `sizes`
+// assumes the widest a flyer can be (square), so a sharp screen is never
+// served less than it shows.
+export function galleryImageAttrs(url: string): { src: string; srcset?: string; sizes?: string; width?: number; height?: number } {
+  if (!url.startsWith(publicPrefix())) return { src: url };
+  const size = flyerSize(url);
+  const ratio = size ? size.width / size.height : 1;
+  return {
+    src: scaledImageUrl(url, 640),
+    srcset: scaledCandidates(url, GALLERY_WIDTHS),
+    sizes: `(min-width: 640px) ${Math.round(GALLERY_HEIGHTS.wide * ratio)}px, ${Math.round(GALLERY_HEIGHTS.phone * ratio)}px`,
+    ...size,
+  };
 }

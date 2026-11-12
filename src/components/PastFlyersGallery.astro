@@ -5,10 +5,14 @@
 // homepage's flyer dialog (data-flyer-open).
 // On phones the row follows the finger and, let go, glides on and settles
 // with the nearest flyer centered (the script below).
+import { galleryImageAttrs } from '../lib/eventImages';
+
 interface Props {
   flyers: string[];
 }
 const { flyers } = Astro.props;
+// Scaled to the size they show at (not the raw uploads); width/height when the file name stores them.
+const images = new Map(flyers.map((url) => [url, galleryImageAttrs(url)]));
 
 // The loop: the flyers are repeated in identical copies, the row starts on the
 // middle copy, and whenever scrolling stops near either end it jumps back by
@@ -42,7 +46,7 @@ const arrowClass =
                 aria-hidden={real ? undefined : 'true'}
                 tabindex={real ? undefined : -1}
               >
-                <img src={url} alt={real ? 'Flyer from a past class or event' : ''} loading="lazy" class="h-64 w-auto max-w-none rounded-2xl border border-border shadow-[0_12px_32px_rgba(0,0,0,0.45)] sm:h-80" />
+                <img {...images.get(url)} alt={real ? 'Flyer from a past class or event' : ''} loading="lazy" decoding="async" class="h-64 w-auto max-w-none rounded-2xl border border-border shadow-[0_12px_32px_rgba(0,0,0,0.45)] sm:h-80" />
               </button>
             );
           })
