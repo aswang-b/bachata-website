@@ -35,7 +35,7 @@
 ├── supabase/migrations/                 # Numbered SQL migrations (0001-0075); a new table must be granted to service_role in its migration (see 0045)
 ├── src/
 │   ├── assets/                          # Image assets (highlights, stock)
-│   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting, WhereWeAreSetting, WhatsAppSetting; InstallApp bell)
+│   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting, WhereWeAreSetting, WhatsAppSetting; InstallApp bell; the calendar's EventEditorModal and LinkPickerDialog)
 │   ├── middleware.ts                    # Loads the site time zone (and, for pages, Site Visibility settings the WhatsApp link and the site location into locals) per request; checks nothing
 │   ├── layouts/
 │   │   └── BaseLayout.astro             # Page shell; banner + header share one sticky #site-top (height in --site-top-h)
@@ -92,8 +92,9 @@
 │   │   ├── siteSettings.ts              # Site settings persistence
 │   │   ├── supabase.ts / supabaseBrowser.ts  # Supabase clients (server/browser)
 │   │   ├── testMode.ts                  # Dev-server-only switches the e2e suite uses (email sink, Google off, no quotas, its own 'test' classes)
+│   ├── scripts/calendar/                # /calendar's browser script, one job per module; editor/ (the admin event editor) loads only for admins (CONTEXT.md)
 │   └── pages/                           # Every page renders per request (prerender = false; codebaseRules checks), so header and footer settings are live
-│       ├── index.astro (flyer blocks: each flyer beside its classes' live details), about.astro, contact.astro, contact/confirmation.astro, privacy-policy.astro, calendar.astro
+│       ├── index.astro (flyer blocks: each flyer beside its classes' live details), about.astro, contact.astro, contact/confirmation.astro, privacy-policy.astro, calendar.astro (script in src/scripts/calendar/)
 │       ├── register.astro, register/events.astro, register/confirmation.astro
 │       ├── check-in.astro, check-in/[eventId].astro, check-in/confirmation.astro, feedback/[token].astro (a feedback link: a dancer's own or the shared one)
 │       ├── admin.astro, admin/analytics.astro, admin/qr.astro (door sign; admin/checkin-qr.astro forwards to it), admin/inbox.astro, admin/feedback.astro, admin/notifications.astro

@@ -102,6 +102,32 @@ describe('codebase rules', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('no page, component or browser script grows past 600 lines (the calendar page reached 2,916 and could no longer be maintained)', () => {
+    // Split a big file into modules under src/scripts/ and components instead.
+    const DEFAULT_MAX_LINES = 600;
+    // Files that were already over the limit, each pinned at its line count
+    // then, so it can't grow. Lower a ceiling when a file is split, and remove
+    // its entry once the file is under the default.
+    const CEILINGS: Record<string, number> = {
+      'src/pages/admin/analytics.astro': 3007,
+      'src/components/RegistrationForm.astro': 1437,
+      'src/pages/admin.astro': 1207,
+      'src/pages/admin/qr.astro': 1093,
+      'src/pages/admin/feedback.astro': 759,
+      'src/pages/index.astro': 629,
+    };
+    const lineCount = (f: string) => {
+      const text = read(f);
+      return text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
+    };
+    const files = [...filesUnder('src/pages', ['.astro']), ...filesUnder('src/components', ['.astro']), ...filesUnder('src/scripts', ['.ts'])].map((f) => f.replace(/\\/g, '/'));
+    const tooLong = files.filter((f) => lineCount(f) > (CEILINGS[f] ?? DEFAULT_MAX_LINES)).map((f) => `${f}: ${lineCount(f)} lines (limit ${CEILINGS[f] ?? DEFAULT_MAX_LINES})`);
+    expect(tooLong).toEqual([]);
+    // An entry for a file that's gone or now fits the default is stale: remove it.
+    const stale = Object.keys(CEILINGS).filter((f) => !files.includes(f) || lineCount(f) <= DEFAULT_MAX_LINES);
+    expect(stale).toEqual([]);
+  });
+
   it("every e2e spec sweeps its own test data when it's done, instead of leaving it for the end of the run", () => {
     const missing = filesUnder('tests/e2e', ['.spec.ts']).filter((f) => !/^test\.afterAll\(sweepTestData\);$/m.test(read(f)));
     expect(missing).toEqual([]);
