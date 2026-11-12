@@ -38,7 +38,7 @@
 │   ├── components/                      # Astro components (Header, Footer, forms, banners, calendar picker, PastFlyersGallery; admin DealsAdmin, ErrorsQueue, GalleryFlyersAdmin, SiteTimeZoneSetting, WhereWeAreSetting, WhatsAppSetting; InstallApp bell; the calendar's EventEditorModal and LinkPickerDialog)
 │   ├── middleware.ts                    # Loads the site time zone (and, for pages, Site Visibility settings the WhatsApp link and the site location into locals) per request; checks nothing
 │   ├── layouts/
-│   │   └── BaseLayout.astro             # Page shell; banner + header share one sticky #site-top (height in --site-top-h)
+│   │   └── BaseLayout.astro             # Page shell; optional per-class link-preview props (ogTitle, imageWidth/Height/Alt, canonical); banner + header share one sticky #site-top (height in --site-top-h)
 │   ├── lib/                             # Server-side helpers
 │   │   ├── admin.ts                     # Admin auth/session helpers
 │   │   ├── adminSession.ts              # Browser-only shared admin check (refreshes stale sessions, local sign-out)

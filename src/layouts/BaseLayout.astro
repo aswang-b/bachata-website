@@ -13,6 +13,12 @@ interface Props {
   description?: string;
   // Link-preview image (absolute URL); the site icon when not given.
   image?: string;
+  // A class's own link preview (lib/sharePreview.ts): its title replaces "<title> | Dance with B", the flyer's pixel size and alt text, and the class's own link (path and ?series=) as the canonical.
+  ogTitle?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  imageAlt?: string;
+  canonical?: string;
   // Extra schema.org JSON-LD for search engines (e.g. the homepage's classes); never shown.
   structuredData?: unknown[];
   // Kept out of search results (e.g. a dancer's own feedback link).
@@ -23,11 +29,17 @@ const {
   title,
   description = 'Bachata lessons, private coaching, and social events.',
   image = DEFAULT_SHARE_IMAGE,
+  ogTitle,
+  imageWidth,
+  imageHeight,
+  imageAlt,
+  canonical,
   structuredData = [],
   noindex = false,
 } = Astro.props;
 
-const canonicalUrl = new URL(Astro.url.pathname, 'https://dancewithb.fun').toString();
+const canonicalUrl = new URL(canonical ?? Astro.url.pathname, 'https://dancewithb.fun').toString();
+const shareTitle = ogTitle ?? `${title} | Dance with B`;
 
 // Search engines see Dance with B and B as the instructor and organizer
 // (lib/seoSchema.ts), with no studio address, since the venue changes.
@@ -50,18 +62,22 @@ const siteStructuredData = siteSchema(['https://www.instagram.com/ohmytofuu/', '
     <meta name="apple-mobile-web-app-title" content="Dance with B" />
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex" />}
-    <title>{title} | Dance with B</title>
+    <title>{shareTitle}</title>
     <link rel="canonical" href={canonicalUrl} />
 
     <meta property="og:type" content="website" />
-    <meta property="og:title" content={`${title} | Dance with B`} />
+    <meta property="og:title" content={shareTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:site_name" content="Dance with B" />
     <meta property="og:image" content={image} />
+    {imageWidth && imageHeight && <meta property="og:image:width" content={String(imageWidth)} />}
+    {imageWidth && imageHeight && <meta property="og:image:height" content={String(imageHeight)} />}
+    {imageAlt && <meta property="og:image:alt" content={imageAlt} />}
     <meta name="twitter:card" content={image === DEFAULT_SHARE_IMAGE ? 'summary' : 'summary_large_image'} />
     <meta name="twitter:image" content={image} />
-    <meta name="twitter:title" content={`${title} | Dance with B`} />
+    {imageAlt && <meta name="twitter:image:alt" content={imageAlt} />}
+    <meta name="twitter:title" content={shareTitle} />
     <meta name="twitter:description" content={description} />
 
     <script type="application/ld+json" set:html={jsonLd(siteStructuredData)} />

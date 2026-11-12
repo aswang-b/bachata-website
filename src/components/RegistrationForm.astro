@@ -17,26 +17,23 @@ import { lateRegistrationCutoffIso } from '../lib/eventTimes';
 import { locationHref } from '../lib/locationLink';
 import { PIN_SVG } from '../lib/locationPin';
 import { seriesBounds } from '../lib/flyerBlocks';
+import { classSharePreview } from '../lib/sharePreview';
 import { rulesForSeries } from '../lib/linksStore';
 import { qrSvg } from '../lib/qrSvg';
 import { VENMO_URL, VENMO_USERNAME } from '../lib/venmoPay';
 
 const venmoCode = qrSvg(VENMO_URL, { logo: '/venmo-logo.svg', label: `Venmo QR code for @${VENMO_USERNAME}` });
 
-interface Props {
-  kind?: 'class' | 'event';
-}
+interface Props { kind?: 'class' | 'event' }
 
 const { kind = 'class' } = Astro.props;
-const isEvent = kind === 'event';
-const eventType = isEvent ? 'event' : 'class';
-
+const isEvent = kind === 'event', eventType = isEvent ? 'event' : 'class';
 
 interface ClassOccurrence {
   id: string;
   title: string;
   description: string | null;
-  location: string | null; city?: string | null; state?: string | null;
+  location: string | null; city?: string | null; state?: string | null; flyer_url?: string | null;
   start_time: string;
   end_time: string;
   time_zone: string | null;
@@ -69,7 +66,7 @@ const [guidelines, { data: classEvents, error }, activeDeals] = await Promise.al
   supabase
     .from('events')
     .select(
-      'id, title, description, location, city, state, start_time, end_time, time_zone, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
+      'id, title, description, location, city, state, flyer_url, start_time, end_time, time_zone, color, google_recurring_event_id, price_whole_series, price_drop_in, price_student, registration_closed, price_whole_series_early_bird, price_drop_in_early_bird, price_student_early_bird, early_bird_until, price_whole_series_flash_sale, price_drop_in_flash_sale, price_student_flash_sale, flash_sale_until, capacity, show_capacity, capacity_by_role, leader_capacity, follower_capacity'
     )
     .in('visibility', publicVisibilities())
     .eq('event_type', eventType)
@@ -208,17 +205,20 @@ function priceDisplayHtml(result: ActivePriceResult, suffix = ''): string {
   if (result.display === 'original') return `${formatPrice(result.originalPrice)}${suffix}`;
   return `<s class="text-muted">${formatPrice(result.originalPrice)}</s> ${formatPrice(result.activePrice!)}${suffix} <span class="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">${priceTierLabel(result.tag)}</span>`;
 }
-const loc = Astro.locals.siteLocation ?? DEFAULT_LOCATION;
-const place = placeLabel(loc);
+const loc = Astro.locals.siteLocation ?? DEFAULT_LOCATION, place = placeLabel(loc);
+// A link with a class's own key (?series=) previews that class (flyer, name, schedule, city) where it is pasted; any other request keeps the site's.
+const previewKey = Astro.url.searchParams.get('series') ?? '';
+const shared = seriesMap.has(previewKey) ? classSharePreview({ path: Astro.url.pathname, key: previewKey, rows: seriesMap.get(previewKey)!, whole: bounds.get(previewKey), total: totalCountByKey.get(previewKey), isEvent, home: loc }) : null;
 ---
 
 <BaseLayout
   title={isEvent ? 'Register — Bachata Socials & Events' : 'Register — Group Bachata Classes'}
   description={
-    isEvent
+    shared ? shared.description : isEvent
       ? `Register for bachata social dance events and workshops in ${place}.`
       : `Sign up for group bachata classes in ${place}. Multi-week series and drop-in options available.`
   }
+  {...(shared && { ogTitle: shared.title, image: shared.image, imageWidth: shared.imageWidth, imageHeight: shared.imageHeight, imageAlt: shared.imageAlt, canonical: shared.canonical })}
 >
   <div class="mx-auto max-w-xl px-6 py-16">
     <h1 class="font-display text-3xl font-bold text-ink">{isEvent ? 'Register for an Event' : 'Register for a Group Lesson'}</h1>
