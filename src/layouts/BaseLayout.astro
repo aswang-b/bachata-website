@@ -79,6 +79,8 @@ const siteStructuredData = siteSchema(['https://www.instagram.com/ohmytofuu/', '
       if (siteTop) new ResizeObserver(() => document.documentElement.style.setProperty('--site-top-h', `${siteTop.offsetHeight}px`)).observe(siteTop);
       // Makes the site installable (public/sw.js caches nothing).
       if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+      // iOS Safari only paints :active (the pressed look, global.css) once the page has a touch listener.
+      document.addEventListener('touchstart', () => {}, { passive: true });
     </script>
     <PreviewBanner />
     {/* The announcement banner sticks to the top with the nav header. Its height goes in --site-top-h for anything that sticks just below them. */}

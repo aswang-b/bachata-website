@@ -47,6 +47,27 @@ test('on a phone, Register for Events appears once (the header button), not agai
   await expect(page.locator('#mobile-nav a[href="/register"]')).toHaveCount(0);
 });
 
+test('a button shows it is pressed (dimmed and slightly smaller) while held, and returns on release; no layout moves', async ({ page }) => {
+  await page.goto('/');
+  const button = page.locator('header a[href="/register"]').first();
+  await expect(button).toBeVisible();
+  const state = () => button.evaluate((el) => ({ filter: getComputedStyle(el).filter, scale: getComputedStyle(el).scale, top: (el.parentElement as HTMLElement).offsetHeight, width: (el as HTMLElement).offsetWidth }));
+  const resting = await state();
+  expect(resting.filter).toBe('none');
+  const box = (await button.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect.poll(async () => (await state()).filter).not.toBe('none');
+  await expect.poll(async () => (await state()).scale).toBe('0.98'); // it eases in over ~90ms
+  const pressed = await state();
+  // Scaling is visual only: its layout box and its container's height are unchanged.
+  expect(pressed.width).toBe(resting.width);
+  expect(pressed.top).toBe(resting.top);
+  await page.mouse.move(2, 2); // let go off the button, so nothing is followed
+  await page.mouse.up();
+  await expect.poll(async () => (await state()).filter).toBe('none');
+});
+
 test('both register buttons stay in the header on the register pages, each marked when it is the current page', async ({ page }) => {
   // The events button follows its Site Visibility setting (off unless an admin turned it on).
   const { data } = await db.from('site_settings').select('enabled').eq('key', 'show_register_events_nav').maybeSingle();

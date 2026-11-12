@@ -84,3 +84,39 @@ body {
     text-indent: -0.925em;
   }
 }
+
+/* Pressed feedback. Hover doesn't exist on a phone, and a tapped link can sit
+   unchanged for a moment until the next page arrives, so every control dims
+   (and, if it is a button or a link styled as one, settles in a touch) while a
+   finger is down. One rule set, outside any layer so it beats the utilities'
+   transitions and hovers, and never layout: `scale` and `filter` move no
+   neighbours. `scale` is its own property, so it composes with the
+   translate/transform other classes and scripts set (the past-flyers row
+   turns its flyers with an inline transform). Skipped: disabled controls and
+   anything with data-no-press.
+   - Text links (nav items, links in a paragraph): dim only.
+   - Buttons, [role=button], summary, and links with a rounded shape (buttons,
+     cards, rows): dim a little and scale to 0.98.
+   - Flyers (data-flyer-open): dim only; scaling artwork looks wrong.
+   The grey flash a phone paints on a tap is turned off for these same
+   elements, since this is what shows instead. */
+:where(a[href], button, [role="button"], summary, input[type="submit"], input[type="button"]):not(:disabled, [aria-disabled="true"], [data-no-press]) {
+  -webkit-tap-highlight-color: transparent;
+}
+:where(a[href], button, [role="button"], summary, input[type="submit"], input[type="button"]):not(:disabled, [aria-disabled="true"], [data-no-press]):active {
+  filter: brightness(0.7);
+  transition: filter 90ms ease-out, scale 90ms ease-out;
+}
+:where(button, [role="button"], summary, input[type="submit"], input[type="button"], a[href][class*="rounded"]):not(:disabled, [aria-disabled="true"], [data-no-press], [data-flyer-open], [data-gallery-flyer]):active {
+  filter: brightness(0.82);
+  scale: 0.98;
+}
+[data-flyer-open]:not(:disabled):active {
+  filter: brightness(0.85);
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(a[href], button, [role="button"], summary, input[type="submit"], input[type="button"]):not(:disabled, [aria-disabled="true"], [data-no-press]):active {
+    transition: none;
+    scale: none;
+  }
+}
