@@ -27,7 +27,8 @@ test('the homepage names the stored city in its heading and title', async ({ pag
   expect(res.status()).toBe(200);
   const loc = await res.json();
   await page.goto('/');
-  await expect(page.locator('h1')).toContainText(`Bachata with B · ${loc.city}`);
+  // The page's own heading: the Astro dev toolbar (outside <main>) has <h1>s of its own once it loads.
+  await expect(page.locator('main h1')).toContainText(`Bachata with B · ${loc.city}`);
   expect(await page.title()).toContain(place(loc));
 });
 
