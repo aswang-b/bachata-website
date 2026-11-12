@@ -587,6 +587,8 @@ const place = placeLabel(loc);
   import { reasonText, resolvePicks, type LinkRule, type PickScope } from '../lib/linkRules';
   import { attachEmailHint, emailsReadyToSubmit } from '../lib/emailHints';
   import { trackSubmit } from '../scripts/submitState';
+  import { initRememberDancer } from '../scripts/rememberDancer';
+  import { ROLE_PICKER_HTML } from '../scripts/dancerRolePicker';
 
   interface Dancer {
     firstName: string;
@@ -602,19 +604,6 @@ const place = placeLabel(loc);
   // Events sell one ticket per event and don't ask for a Leader/Follower role.
   const isEvent = document.querySelector<HTMLFormElement>('form[data-kind]')?.dataset.kind === 'event';
   const personLabel = 'Dancer';
-
-  const ROLE_PICKER_HTML = `
-      <div class="flex flex-col gap-1.5">
-        <span class="text-sm font-medium text-ink/80">Role<span class="text-accent"> *</span></span>
-        <div class="flex gap-2">
-          <button type="button" data-role="leader" aria-pressed="false" class="dancer-role-btn hit-44 relative flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
-            Leader
-          </button>
-          <button type="button" data-role="follower" aria-pressed="false" class="dancer-role-btn hit-44 relative flex-1 rounded-full border border-border px-3 py-1.5 text-sm font-semibold text-ink/70 transition-colors">
-            Follower
-          </button>
-        </div>
-      </div>`;
 
   const MAX_DANCERS = 5;
   const dancersContainer = document.getElementById('dancers-container')!;
@@ -1414,6 +1403,7 @@ const place = placeLabel(loc);
   // Bootstrap the first dancer block now that updateSubtotal (and what it depends on) is defined above.
   addDancerBlock();
   addDancerBtn.addEventListener('click', addDancerBlock);
+  initRememberDancer(document.querySelector('form')); // after the first block and the checks above
 
   // Preselect a class when arriving via a homepage offering panel's
   // "Register Now" link (?series=<key>).

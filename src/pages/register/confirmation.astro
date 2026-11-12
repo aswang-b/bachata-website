@@ -103,7 +103,7 @@ const dateFormatter = siteFormatter({ month: 'long', day: 'numeric', year: 'nume
       <p class="mt-3 text-muted print:hidden">{isEvent ? 'See you there!' : 'See you in class!'}</p>
 
       {submission && (
-        <div class="mt-8 w-full rounded-2xl border border-border bg-surface p-6 text-left">
+        <div class="mt-8 w-full rounded-2xl border border-border bg-surface p-6 text-left" data-signup-saved>
           <p class="text-xs font-bold uppercase tracking-wider text-accent">
             {REGISTRATION_TYPE_LABELS[submission.registration_type] ?? submission.registration_type}
           </p>
@@ -252,5 +252,9 @@ const dateFormatter = siteFormatter({ month: 'long', day: 'numeric', year: 'nume
 </BaseLayout>
 
 <script>
+  import { commitParkedDancerInBrowser } from '../../scripts/rememberDancer';
+
+  // Only a sign-up the server saved shows this card: keep the first dancer's details for next time.
+  if (document.querySelector('[data-signup-saved]')) commitParkedDancerInBrowser();
   document.getElementById('print-btn')?.addEventListener('click', () => window.print());
 </script>
