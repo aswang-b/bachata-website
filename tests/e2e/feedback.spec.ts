@@ -80,9 +80,19 @@ test('the builder: Add question opens the types, picking one makes the question,
   expect(await kinds()).toEqual(['message', 'faces', 'multi', 'text']);
   await expect(page.locator('.fb-item[data-kind="multi"] .fb-move-up')).toBeFocused();
 
-  // Dragging the dots.
+  // Dragging the dots, as a person does: a window tall enough to show the whole
+  // list, the last block scrolled into view, and both ends checked to be on
+  // screen. Where the page happened to be scrolled after the arrow click above
+  // used to decide whether the dots were under the pointer at all.
+  await page.setViewportSize({ width: 1280, height: 1100 });
+  const gripOf = page.locator('.fb-item[data-kind="text"] .fb-grip');
+  await gripOf.scrollIntoViewIfNeeded();
+  await page.locator('.fb-item').first().scrollIntoViewIfNeeded();
+  await expect(gripOf).toBeInViewport();
+  await expect(page.locator('.fb-item').first()).toBeInViewport();
   const first = await page.locator('.fb-item').first().boundingBox();
-  const grip = await page.locator('.fb-item[data-kind="text"] .fb-grip').boundingBox();
+  const grip = await gripOf.boundingBox();
+  expect(first!.y).toBeGreaterThanOrEqual(0);
   await page.mouse.move(grip!.x + grip!.width / 2, grip!.y + grip!.height / 2);
   await page.mouse.down();
   await page.mouse.move(grip!.x + grip!.width / 2, first!.y + 2, { steps: 8 });
