@@ -29,6 +29,8 @@ export interface RegistrationEmailParams {
   isEvent?: boolean;
   // e.g. "You agreed to pay with Venmo.", shown under the classes.
   paymentNote?: string | null;
+  // The "Add to calendar" link (lib/registrationCalendar.ts), a line under the details; none when no class date is upcoming.
+  calendarUrl?: string | null;
   // FAQ-style items under faqsHeading (default "A Few Reminders"). Events pass
   // their community guidelines here; an item with no question is just its text.
   faqs: { question: string; answer: string }[];
@@ -123,10 +125,14 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
         ${params.paymentNote ? `<p style="margin:12px 0 0;font-size:14px;color:${C.ink};">${escapeHtml(params.paymentNote)}</p>` : ''}
       </div>`;
 
+  const calendarHtml = params.calendarUrl
+    ? `<p style="margin:16px 0 0;font-size:14px;text-align:center;"><a href="${escapeHtml(params.calendarUrl)}" style="${LINK}">Add to calendar</a></p>`
+    : '';
+
   return emailLayout({
     heading: 'Your Registration is Confirmed!',
     subheading: params.isEvent ? 'See you there!' : 'See you in class!',
-    bodyHtml: (params.noticeHtml ?? '') + card + faqsHtml,
+    bodyHtml: (params.noticeHtml ?? '') + card + calendarHtml + faqsHtml,
     whatsappUrl: params.whatsappUrl,
   });
 }

@@ -8,6 +8,7 @@ import { siteFormatter } from '../../lib/siteTime';
 import { listFaqs } from '../../lib/faqs';
 import { getCommunityGuidelines, guidelineSections } from '../../lib/communityGuidelines';
 import { getClassRegistrationsForSubmission } from '../../lib/classRegistrations';
+import { registrationCalendarLink } from '../../lib/registrationCalendar';
 import { buildReceiptLines, formatPrice, paymentAgreementText, quantityNote, receiptHeading, receiptSubtotal } from '../../lib/registrationReceipt';
 
 interface Dancer {
@@ -56,6 +57,8 @@ const classRegistrations = id && submission ? await getClassRegistrationsForSubm
 // registration rows fall back to the plain class text below.
 const receiptLines = await buildReceiptLines(classRegistrations);
 const subtotal = receiptSubtotal(receiptLines);
+// "Add to calendar": the upcoming class dates this sign-up covers (none: no link).
+const calendarLink = await registrationCalendarLink(classRegistrations);
 
 // Event tickets are worded as such rather than as classes.
 const isEvent = submission?.registration_type === 'events';
@@ -220,7 +223,16 @@ const dateFormatter = siteFormatter({ month: 'long', day: 'numeric', year: 'nume
 
     <PrintBrandBand kind="footer" />
 
-    <div class="mt-8 flex gap-3 print:hidden">
+    <div class="mt-8 flex flex-wrap justify-center gap-3 print:hidden">
+      {calendarLink && (
+        <a
+          href={calendarLink.path}
+          download="dance-with-b.ics"
+          class="inline-flex min-h-11 items-center rounded-full border border-border px-6 py-2 text-sm font-semibold text-ink/70 transition-colors hover:bg-surface"
+        >
+          Add to calendar
+        </a>
+      )}
       {submission && (
         <button
           id="print-btn"

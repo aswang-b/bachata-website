@@ -6,6 +6,7 @@ import { buildRegistrationConfirmationEmailHtml } from './registrationEmail';
 import { buildReceiptLines, paymentAgreementText, receiptSubtotal } from './registrationReceipt';
 import { getCommunityGuidelines, guidelineSections } from './communityGuidelines';
 import { loadWhatsappUrl } from './siteConfig';
+import { registrationCalendarLink } from './registrationCalendar';
 
 // The confirmation email for a class or event sign-up, built from what's
 // saved for it (so a resend from the dashboard matches what was first sent,
@@ -68,7 +69,9 @@ export async function buildRegistrationConfirmation(submissionId: string, opts: 
   }
 
   // Itemized classes + subtotal, same as /register/confirmation shows.
-  const receiptLines = await buildReceiptLines(await getClassRegistrationsForSubmission(submissionId));
+  const registrations = await getClassRegistrationsForSubmission(submissionId);
+  const receiptLines = await buildReceiptLines(registrations);
+  const calendarLink = await registrationCalendarLink(registrations);
   const subtotal = receiptSubtotal(receiptLines);
   if (receiptLines.length === 0) {
     // No saved registration rows to itemize: fall back to the class text,
@@ -95,6 +98,7 @@ export async function buildRegistrationConfirmation(submissionId: string, opts: 
     subtotal,
     isEvent,
     paymentNote: paymentAgreementText(row.payment_method),
+    calendarUrl: calendarLink?.url ?? null,
     faqs: reminders,
     faqsHeading: isEvent ? 'Our Community Guidelines' : undefined,
     whatsappUrl: await loadWhatsappUrl(),
