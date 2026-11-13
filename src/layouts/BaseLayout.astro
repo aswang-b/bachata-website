@@ -1,5 +1,7 @@
 ---
 import '../styles/global.css';
+import interLatin from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url';
+import poppins800Latin from '@fontsource/poppins/files/poppins-latin-800-normal.woff2?url';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import PreviewBanner from '../components/PreviewBanner.astro';
@@ -82,12 +84,9 @@ const siteStructuredData = siteSchema(['https://www.instagram.com/ohmytofuu/', '
 
     <script type="application/ld+json" set:html={jsonLd(siteStructuredData)} />
     {structuredData.map((data) => <script type="application/ld+json" set:html={jsonLd(data)} />)}
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@600;700;800&display=swap"
-      rel="stylesheet"
-    />
+    {/* Only the two files the first screen needs: the body font (Inter, every weight in one file) and the logo (Poppins 800). Others load when a page shows them. */}
+    <link rel="preload" as="font" type="font/woff2" href={interLatin} crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href={poppins800Latin} crossorigin />
   </head>
   <body class="flex min-h-screen flex-col">
     <script>

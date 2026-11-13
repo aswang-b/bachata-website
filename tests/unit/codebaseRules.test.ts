@@ -132,6 +132,12 @@ describe('codebase rules', () => {
     expect(stale).toEqual([]);
   });
 
+  it("fonts come from the site itself: no layout, page, component or stylesheet names Google Fonts (its stylesheet held the first paint back about 0.7 s)", () => {
+    const files = [...filesUnder('src/layouts', ['.astro']), ...filesUnder('src/pages', ['.astro', '.ts']), ...filesUnder('src/components', ['.astro', '.ts']), ...filesUnder('src/styles', ['.css'])];
+    const offenders = files.filter((f) => /fonts\.(googleapis|gstatic)\.com/.test(read(f)));
+    expect(offenders).toEqual([]);
+  });
+
   it("every e2e spec sweeps its own test data when it's done, instead of leaving it for the end of the run", () => {
     const missing = filesUnder('tests/e2e', ['.spec.ts']).filter((f) => !/^test\.afterAll\(sweepTestData\);$/m.test(read(f)));
     expect(missing).toEqual([]);

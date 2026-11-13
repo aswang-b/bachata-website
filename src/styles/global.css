@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./fonts.css";
 
 /* Dark is the only look for the site now — no light-mode toggle. */
 @theme {

@@ -6,6 +6,7 @@
 
 - **Framework**: Astro 7 (SSR, `@astrojs/netlify` adapter)
 - **Styling**: Tailwind CSS 4 (`@tailwindcss/vite`)
+- **Fonts**: self-hosted, no Google Fonts: Inter (variable, 400-600) and Poppins (600/700/800), Latin + Latin Extended WOFF2 from `@fontsource-variable/inter` and `@fontsource/poppins` (SIL OFL 1.1), declared in `src/styles/fonts.css`; `BaseLayout.astro` preloads the two first-screen files (Inter Latin, Poppins 800 Latin). Emails keep their system-font stacks.
 - **Database/Auth**: Supabase (`@supabase/supabase-js`)
 - **Hosting**: Netlify (see `netlify.toml`, `netlify/functions/`). In `astro dev`, the adapter's local edge-functions server is off (`devFeatures.edgeFunctions: false` in `astro.config.mjs`): the site has no edge functions.
 - **Language**: TypeScript
@@ -39,6 +40,7 @@
 │   ├── middleware.ts                    # Loads the site time zone (and, for pages, Site Visibility settings the WhatsApp link and the site location into locals) per request; checks nothing
 │   ├── layouts/
 │   │   └── BaseLayout.astro             # Page shell; optional per-class link-preview props (ogTitle, imageWidth/Height/Alt, canonical); banner + header share one sticky #site-top (height in --site-top-h)
+│   ├── styles/                          # global.css (theme tokens, Tailwind) and fonts.css (self-hosted @font-face rules)
 │   ├── lib/                             # Server-side helpers
 │   │   ├── admin.ts                     # Admin auth/session helpers
 │   │   ├── adminSession.ts              # Browser-only shared admin check (refreshes stale sessions, local sign-out)
