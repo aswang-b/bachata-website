@@ -54,6 +54,7 @@
 │   │   ├── checkinToken.ts              # Signed per-event token authorizing check-in auto-registration (QR link)
 │   │   ├── classRegistrations.ts        # One-row-per-(dancer,class) registration records with snapshotted prices
 │   │   ├── classFilterGroup.ts          # Browser-only multi-row class filter for the dancer dashboard
+│   │   ├── classFilterOptions.ts        # Its entries and matching: one per class series (by series key), never by title
 │   │   ├── classSeries.ts               # Recurring class series logic
 │   │   ├── recyclingBin.ts              # Soft delete / restore / empty for the dashboard Recycling Bin
 │   │   ├── duplicateFlag.ts / duplicateSubmissions.ts  # Auto-detect double-submitted sign-ups/check-ins → Recycling Bin
