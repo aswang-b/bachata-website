@@ -19,7 +19,7 @@ import { buildContactAlertHtml } from '../../lib/adminAlertEmail';
 import { logSiteError } from '../../lib/siteErrors';
 import { capacityErrorMessage } from '../../lib/capacity';
 import { getCommunityGuidelines, hasGuidelines } from '../../lib/communityGuidelines';
-import { findSpotClass, withSpotPrefix } from '../../lib/spotRequest';
+import { findSpotClass, MAX_COMMENTS_LENGTH, withSpotPrefix } from '../../lib/spotRequest';
 
 export const prerender = false;
 
@@ -40,7 +40,6 @@ const EMAIL_DAILY_CAP = Number(env('RESEND_DAILY_CAP')) || 200;
 const MAX_DANCERS = 5;
 const MAX_NAME_LENGTH = 100;
 const MAX_CONTACT_LENGTH = 200;
-const MAX_COMMENTS_LENGTH = 2000;
 const MAX_CLASS_LENGTH = 200;
 const MAX_CLASS_SELECTIONS_LENGTH = 10000;
 const MAX_DANCERS_LENGTH = 10000;
@@ -192,6 +191,8 @@ export const POST: APIRoute = async ({ request, redirect, clientAddress }) => {
   if (registrationType === 'private') {
     const spotClass = await findSpotClass(String(formData.get('spot') ?? '').trim());
     if (spotClass) comments = withSpotPrefix(comments, spotClass);
+    // The cap is on what is saved, prefix included. The form's own limit leaves room for it (spotCommentsLimit), so a dancer typing the most it allows is never refused.
+    if (comments.length > MAX_COMMENTS_LENGTH) return new Response('One of the fields is too long.', { status: 400 });
   }
 
   // Loaded while the classes are checked (it never fails: blank on error).

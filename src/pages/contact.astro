@@ -7,7 +7,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
 import IntakeForm from '../components/IntakeForm.astro';
 import { cacheContactPage } from '../lib/pageCache';
-import { findSpotClass, spotLine, spotPrefill } from '../lib/spotRequest';
+import { findSpotClass, spotCommentsLimit, spotLine, spotPrefill } from '../lib/spotRequest';
 
 // Opened from an "Ask about a spot" link (askAboutSpot.ts): the class is looked
 // up from the id alone, and a page opened that way is never cached at the edge.
@@ -34,5 +34,6 @@ const place = placeLabel(loc);
     spotId={spot ? (spotParam ?? undefined) : undefined}
     spotLine={spot ? spotLine(spot) : undefined}
     commentsPrefill={spot ? spotPrefill(spot) : undefined}
+    commentsMaxLength={spot ? spotCommentsLimit(spot) : undefined}
   />
 </BaseLayout>

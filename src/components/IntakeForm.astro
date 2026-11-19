@@ -24,6 +24,8 @@ interface Props {
   spotId?: string;
   spotLine?: string;
   commentsPrefill?: string;
+  // The longest message that still fits once the spot line is put in front of it.
+  commentsMaxLength?: number;
 }
 
 const {
@@ -39,6 +41,7 @@ const {
   spotId,
   spotLine,
   commentsPrefill,
+  commentsMaxLength,
 } = Astro.props;
 
 const inputClass =
@@ -133,7 +136,7 @@ const CONTACT_METHODS = [
 
     <label class="flex flex-col gap-1.5">
       <span class="text-sm font-medium text-ink/80">{commentsLabel}{requireComments && <span class="text-accent"> *</span>}</span>
-      <textarea name="comments" rows="4" required={requireComments} class={inputClass}>{commentsPrefill}</textarea>
+      <textarea name="comments" rows="4" required={requireComments} maxlength={commentsMaxLength} class={inputClass}>{commentsPrefill}</textarea>
     </label>
 
     <button

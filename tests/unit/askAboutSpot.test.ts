@@ -17,7 +17,7 @@ vi.mock('../../src/lib/contactMessages', () => ({
 }));
 
 import { askAboutSpotHref, isAskable, validSpotId } from '../../src/lib/askAboutSpot';
-import { findSpotClass, spotLine, spotMessagePrefix, spotPrefill, withSpotPrefix } from '../../src/lib/spotRequest';
+import { findSpotClass, MAX_COMMENTS_LENGTH, spotCommentsLimit, spotLine, spotMessagePrefix, spotPrefill, withSpotPrefix } from '../../src/lib/spotRequest';
 import { cacheContactPage, cacheSharedPage, SHARED_PAGE_CACHE } from '../../src/lib/pageCache';
 import { POST } from '../../src/pages/api/submit-intake';
 import type { SpotsInfo } from '../../src/lib/capacity';
@@ -162,6 +162,32 @@ describe('the saved message', () => {
     expect(res.status).toBe(303);
     expect(savedMessage()).toMatch(/^\[Spot request: Bachata 1, [A-Z][a-z]{2} \d+\]\nAny chance\?$/);
     expect(savedMessage()).not.toContain('Fake Class');
+  });
+
+  // The cap is on the saved message, line in front included; the form's own limit leaves room for that line.
+  it('saves the most the form allows, and refuses one more character, so a saved message never passes the cap', async () => {
+    const found = (await findSpotClass(CLASS))!;
+    const limit = spotCommentsLimit(found);
+    expect(limit).toBe(MAX_COMMENTS_LENGTH - spotMessagePrefix(found).length - 1);
+    expect(limit).toBeLessThan(MAX_COMMENTS_LENGTH);
+
+    const res = await send({ spot: CLASS, comments: 'x'.repeat(limit) });
+    expect(res.status).toBe(303);
+    expect(savedMessage()).toHaveLength(MAX_COMMENTS_LENGTH);
+
+    contact.saved.length = 0;
+    const over = await send({ spot: CLASS, comments: 'x'.repeat(limit + 1) });
+    expect(over.status).toBe(400);
+    expect(await over.text()).toBe('One of the fields is too long.');
+    expect(contact.saved).toHaveLength(0);
+  });
+
+  it('keeps the plain cap for a message with no spot class', async () => {
+    expect((await send({ comments: 'x'.repeat(MAX_COMMENTS_LENGTH) })).status).toBe(303);
+    expect(savedMessage()).toHaveLength(MAX_COMMENTS_LENGTH);
+    contact.saved.length = 0;
+    expect((await send({ comments: 'x'.repeat(MAX_COMMENTS_LENGTH + 1) })).status).toBe(400);
+    expect(contact.saved).toHaveLength(0);
   });
 
   it('is saved as typed when the id is garbage, unknown or not public', async () => {

@@ -79,10 +79,16 @@ export function spotPrefill(c: SpotClass): string {
   return `I'd like to ask about a spot in ${c.title} (${c.date}).`;
 }
 
+// The longest saved message (the dancer's words plus, for a spot request, the line in front).
+export const MAX_COMMENTS_LENGTH = 2000;
+
 // Put in front of the saved message, so the inbox shows which class it is about.
 export function spotMessagePrefix(c: SpotClass): string {
   return `[Spot request: ${c.title}, ${c.date}]`;
 }
+
+// The most the dancer can type so the saved message, with its prefix line and the newline after it, still fits.
+export const spotCommentsLimit = (c: SpotClass): number => MAX_COMMENTS_LENGTH - spotMessagePrefix(c).length - 1;
 
 export function withSpotPrefix(message: string, c: SpotClass): string {
   return message ? `${spotMessagePrefix(c)}\n${message}` : spotMessagePrefix(c);

@@ -204,6 +204,8 @@ test('the link opens the contact form naming the class, with the message started
   expect(text.slice(prefix.length)).toMatch(/^[A-Z][a-z]+day, [A-Z][a-z]+ \d{1,2}, \d{1,2}:\d{2} [AP]M–\d{1,2}:\d{2} [AP]M$/);
   const message = page.locator('textarea[name="comments"]');
   await expect(message).toHaveValue(`I'd like to ask about a spot in ${full.title} (${date}).`);
+  // The most it takes leaves room for the line saved in front of it.
+  await expect(message).toHaveAttribute('maxlength', String(2000 - `[Spot request: ${full.title}, ${date}]`.length - 1));
   // Only the id goes back with the form.
   await expect(page.locator('input[name="spot"]')).toHaveValue(full.key);
   expect(await page.locator('form input[type="hidden"]').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).name))).toEqual(['registration_type', 'spot']);
