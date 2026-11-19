@@ -439,6 +439,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   import { siteFormatter } from '../../lib/siteTime';
   import { classStamp } from '../../lib/eventClock';
   import { createClassFilterGroup } from '../../lib/classFilterGroup';
+  import { eventFilterOptions, eventNoteLabel, matchesEventFilter } from '../../lib/eventRegistrationFilter';
 
   // The index signatures below exist only so sortRows()'s generic
   // `T extends Record<string, unknown>` constraint is satisfied — they don't
@@ -532,7 +533,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   interface ClassSeriesEntry {
     key: string;
     title: string;
-    isSeries: boolean;
+    isSeries: boolean; timeZone: string; nextStartTime: string;
     subLabel: string;
     singleEventId: string | null;
     occurrences: ClassSeriesOccurrence[];
@@ -607,7 +608,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   let classSeries: ClassSeriesEntry[] = [];
   // Events, for the Event Registration tab's edit row.
   let eventSeries: ClassSeriesEntry[] = [];
-  // Event title -> events whose sign-ups count in its headcount (linked classes).
+  // Event series key -> events whose sign-ups count in its headcount (linked classes).
   let headcountFrom: Record<string, { key: string; title: string }[]> = {};
   let attendanceEntries: AttendanceEntry[] = [];
   let attendanceOrphanedCheckins: OrphanedCheckin[] = [];
@@ -1504,14 +1505,13 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
 
   // The filter lists the events that have registrations (or headcount from a
   // linked event, for its "+ N from …" note), keeping the current pick.
+  // Options go by the event's series key and show its date (eventRegistrationFilter.ts).
   function refreshEventFilterOptions() {
     const current = eventRegistrationsEventFilter.value;
-    const titles = [...new Set([...allEventRegistrations.flatMap((s) => s.classRegistrations.map((e) => e.classTitle)), ...Object.keys(headcountFrom)].filter(Boolean))].sort((a, b) =>
-      a.localeCompare(b)
-    );
+    const options = eventFilterOptions(allEventRegistrations, eventSeries, Object.keys(headcountFrom));
     eventRegistrationsEventFilter.innerHTML =
-      '<option value="">All events</option>' + titles.map((t) => `<option value="${escapeAttr(t)}">${escapeHtml(t)}</option>`).join('');
-    eventRegistrationsEventFilter.value = titles.includes(current) ? current : '';
+      '<option value="">All events</option>' + options.map((o) => `<option value="${escapeAttr(o.value)}">${escapeHtml(o.label)}</option>`).join('');
+    eventRegistrationsEventFilter.value = options.some((o) => o.value === current) ? current : '';
   }
 
   // Edit row for one dancer's event registration. The event checkboxes start
@@ -1556,7 +1556,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     const isLockedByMe = eventRegistrationsLock.isLocked();
 
     const filtered = allEventRegistrations.filter(
-      (s) => matchesName(s.firstName, s.lastName, nameQuery) && (!eventFilter || s.classRegistrations.some((e) => e.classTitle === eventFilter))
+      (s) => matchesName(s.firstName, s.lastName, nameQuery) && matchesEventFilter(s.classRegistrations, eventFilter)
     );
     const sorted = sortRows(filtered, eventRegistrationSort);
 
@@ -1735,11 +1735,11 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     // one per dancer listed for the including event (as its own filter shows
     // them), leaving out anyone already counted in this event's own results.
     const dancerKey = (s: (typeof allEventRegistrations)[number]) => `${s.submissionId}:${s.dancerIndex ?? ''}`;
-    const counted = new Set(allEventRegistrations.filter((s) => s.classRegistrations.some((e) => e.classTitle === eventFilter)).map(dancerKey));
+    const counted = new Set(allEventRegistrations.filter((s) => matchesEventFilter(s.classRegistrations, eventFilter)).map(dancerKey));
     const extra = (headcountFrom[eventFilter] ?? [])
       .map((from) => {
         const dancers = new Set(allEventRegistrations.filter((s) => s.classRegistrations.some((e) => e.seriesKey === from.key)).map(dancerKey));
-        return { title: from.title, n: [...dancers].filter((k) => !counted.has(k)).length };
+        return { title: eventNoteLabel(from.key, from.title, eventSeries), n: [...dancers].filter((k) => !counted.has(k)).length };
       })
       .filter((x) => x.n > 0);
     eventRegistrationsCount.textContent =

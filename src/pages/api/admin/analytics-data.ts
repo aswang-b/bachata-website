@@ -133,7 +133,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   const classSeries = buildClassSeriesList(allClassEvents ?? []);
   const eventSeries = buildClassSeriesList(allEventEvents ?? []);
-  // Event (by title, like the tab's filter) -> the events whose sign-ups count
+  // Event (by series key, like the tab's filter) -> the events whose sign-ups count
   // in its headcount (linked, migration 0062), by series key, since a sign-up
   // keeps the title the event had when it was made. For its "+ N from …" note.
   // Like spot_counts_with_linked, only an event that overlaps it in time counts.
@@ -150,7 +150,7 @@ export const GET: APIRoute = async ({ request }) => {
     const to = eventTitleByKey.get(r.to);
     const from = eventTitleByKey.get(r.from);
     if (r.kind !== 'includes' || r.countHeadcount === false || !to || !from || !overlap(r.from, r.to)) continue;
-    headcountFrom[to] = [...(headcountFrom[to] ?? []), { key: r.from, title: from }];
+    headcountFrom[r.to] = [...(headcountFrom[r.to] ?? []), { key: r.from, title: from }];
   }
 
   // Group each submission's class registrations by dancer (dancer_index, or

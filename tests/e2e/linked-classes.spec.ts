@@ -403,7 +403,7 @@ test("the Event Registration tab lists an included event in its filter and count
 
   await page.goto('/admin/analytics');
   await page.locator('.tab-btn[data-tab="event-registration"]').click();
-  await page.locator('#event-registrations-event-filter').selectOption(practica.title);
+  await page.locator('#event-registrations-event-filter').selectOption(practica.key);
   await expect(page.locator('#event-registrations-count')).toHaveText(`0 results · +1 from ${workshop.title} Renamed`);
 });
 
@@ -574,7 +574,7 @@ test('the Event Registration tab\'s "+N from" leaves out an including event that
 
   await page.goto('/admin/analytics');
   await page.locator('.tab-btn[data-tab="event-registration"]').click();
-  await page.locator('#event-registrations-event-filter').selectOption(after.title);
+  await page.locator('#event-registrations-event-filter').selectOption(after.key);
   await expect(page.locator('#event-registrations-count')).toHaveText(`0 results · +2 from ${gala.title}`);
   // The later event doesn't overlap the gala, so nothing counts toward it: it isn't even offered as a filter.
   await expect(page.locator('#event-registrations-event-filter option', { hasText: later.title })).toHaveCount(0);
