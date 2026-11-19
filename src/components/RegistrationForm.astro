@@ -1403,7 +1403,7 @@ const shared = seriesMap.has(previewKey) ? classSharePreview({ path: Astro.url.p
   // Bootstrap the first dancer block now that updateSubtotal (and what it depends on) is defined above.
   addDancerBlock();
   addDancerBtn.addEventListener('click', addDancerBlock);
-  initRememberDancer(document.querySelector('form')); // after the first block and the checks above
+  initRememberDancer(document.querySelector<HTMLFormElement>('form[data-kind]')); // after the first block and the checks above
 
   // Preselect a class when arriving via a homepage offering panel's
   // "Register Now" link (?series=<key>).
