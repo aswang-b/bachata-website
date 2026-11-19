@@ -3,7 +3,7 @@
 // rename), never by title: two socials with the same name on different dates
 // are two options, and a recurring series stays one. Pure, so it's unit-tested.
 import type { ClassSeriesEntry } from './classSeries';
-import { dateRange } from './flyerBlocks';
+import { dateRange } from './classSchedule';
 import { siteFormatter } from './siteTime';
 
 export type EventFilterSeries = Pick<ClassSeriesEntry, 'key' | 'title' | 'timeZone' | 'isSeries' | 'occurrences' | 'nextStartTime'>;

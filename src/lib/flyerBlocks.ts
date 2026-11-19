@@ -5,6 +5,9 @@ import { siteFormatter, zonedDateKey, zonedTimeOfDay } from './siteTime';
 import { COUNTDOWN_MS, countdown } from './countdown';
 import { awayCity, withAwayCity, type SiteLocation } from './siteLocation';
 
+// Lives in classSchedule.ts so the dashboard's filter can use it without this file's pricing and deals; kept here for the homepage's imports.
+export { dateRange } from './classSchedule';
+
 // The flyer homepage (/test while it's being tried out): offerings advertised
 // on the same flyer (the same flyer_url, migration 0055) share one block, with
 // the flyer shown whole beside live details. Pure, so it's unit-tested.
@@ -156,16 +159,4 @@ export function seriesBounds(rows: { id: string; google_recurring_event_id: stri
     }
   }
   return bounds;
-}
-
-// "Oct 25 – Nov 15": the whole series, from its first class even once that
-// has passed (`bounds` from seriesBounds), or the one date; in the series' own zone.
-export function dateRange(offering: Pick<ClassSeriesEntry, 'key' | 'timeZone' | 'occurrences' | 'nextStartTime'>, bounds?: Map<string, { first: string; last: string }>): string {
-  const fmt = siteFormatter({ month: 'short', day: 'numeric' }, 'en-US', offering.timeZone);
-  const whole = bounds?.get(offering.key);
-  const first = whole?.first ?? offering.occurrences[0]?.startTime ?? offering.nextStartTime;
-  const last = whole?.last ?? offering.occurrences[offering.occurrences.length - 1]?.startTime ?? first;
-  const a = fmt.format(new Date(first));
-  const b = fmt.format(new Date(last));
-  return a === b ? a : `${a} – ${b}`;
 }
