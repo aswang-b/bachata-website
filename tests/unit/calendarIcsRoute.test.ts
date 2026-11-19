@@ -54,6 +54,23 @@ describe('GET /calendar/ics', () => {
     expect(body).toContain('DTSTART:20270610T010000Z\r\n');
   });
 
+  it('links each class date to its own class page, which needs the route to select its series key and type', async () => {
+    db.current.projectColumns = true; // answer with only the columns the route asked for
+    db.current.seed('events', [
+      event(11, { google_recurring_event_id: 'ser-key', event_type: 'class' }),
+      event(12, { google_recurring_event_id: 'ser-key', event_type: 'class', start_time: '2027-06-17T01:00:00.000Z' }),
+      event(13, { google_recurring_event_id: null, event_type: 'event' }),
+    ]);
+    const body = await (await get(`${id(11)},${id(12)},${id(13)}`)).text();
+    const urls = body.replace(/\r\n /g, '').split('\r\n').filter((l) => l.startsWith('URL:'));
+    expect([...urls].sort()).toEqual([
+      `URL:https://dancewithb.fun/register/events?series=${id(13)}`,
+      'URL:https://dancewithb.fun/register?series=ser-key',
+      'URL:https://dancewithb.fun/register?series=ser-key',
+    ]);
+    expect(body).not.toContain('/calendar\r\n');
+  });
+
   it('leaves out private, draft and (off the test server) test classes; 404 when none are left', async () => {
     const mixed = await (await get(`${id(1)},${id(2)},${id(3)},${id(4)}`)).text();
     expect(mixed.match(/BEGIN:VEVENT/g)).toHaveLength(1);

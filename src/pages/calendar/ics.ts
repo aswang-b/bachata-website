@@ -21,7 +21,7 @@ export const GET: APIRoute = async ({ url }) => {
 
   const { data, error } = await supabase
     .from('events')
-    .select('id, title, start_time, end_time, location, city, state')
+    .select('id, title, start_time, end_time, location, city, state, event_type, google_recurring_event_id')
     .in('id', [...new Set(ids.map((id) => id.toLowerCase()))])
     .in('visibility', publicVisibilities())
     .order('start_time', { ascending: true });

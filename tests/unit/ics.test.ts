@@ -98,7 +98,7 @@ describe('buildIcs', () => {
     expect(buildIcs([cls({ location: null })], HOME, NOW)).not.toContain('LOCATION');
   });
 
-  it('has a stable UID per class date, a stamp from now, the class name and the calendar link, and no alarm', () => {
+  it('has a stable UID per class date, a stamp from now, the class name and the class link, and no alarm', () => {
     const a = buildIcs([cls()], HOME, NOW);
     const b = buildIcs([cls()], HOME, new Date('2028-01-01T00:00:00Z'));
     expect(icsUid(cls().id)).toBe('00000000-0000-4000-8000-000000000001@dancewithb.fun');
@@ -106,8 +106,30 @@ describe('buildIcs', () => {
     expect(unfolded(a).find((l) => l.startsWith('UID:'))).toBe(unfolded(b).find((l) => l.startsWith('UID:')));
     expect(has(a, 'DTSTAMP:20270105T123045Z')).toBe(true);
     expect(has(a, 'SUMMARY:Bachata Basics')).toBe(true);
-    expect(has(a, 'URL:https://dancewithb.fun/calendar')).toBe(true);
+    expect(has(a, `URL:https://dancewithb.fun/register?series=${cls().id}`)).toBe(true);
     expect(a).not.toContain('VALARM');
+  });
+
+  it('links each entry to its own class: a series by its recurring key, an event on the events page, a lone class by its id', () => {
+    const ics = buildIcs(
+      [
+        cls({ id: 'a', google_recurring_event_id: 'series_key@google', event_type: 'class' }),
+        cls({ id: 'b', google_recurring_event_id: 'series_key@google', event_type: 'class' }),
+        cls({ id: 'c', google_recurring_event_id: null, event_type: 'event' }),
+        cls({ id: 'd', google_recurring_event_id: null, event_type: 'class' }),
+      ],
+      HOME,
+      NOW
+    );
+    const urls = unfolded(ics).filter((l) => l.startsWith('URL:'));
+    expect(urls).toEqual([
+      'URL:https://dancewithb.fun/register?series=series_key%40google',
+      'URL:https://dancewithb.fun/register?series=series_key%40google',
+      'URL:https://dancewithb.fun/register/events?series=c',
+      'URL:https://dancewithb.fun/register?series=d',
+    ]);
+    expect(ics).not.toContain('URL:https://dancewithb.fun/calendar');
+    expect(ics.split('\r\n').every((l) => bytes(l) <= 75)).toBe(true);
   });
 
   it('escapes and folds a long, awkward title; no line is over 75 octets', () => {

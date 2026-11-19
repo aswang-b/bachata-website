@@ -44,6 +44,9 @@ test('a confirmation page offers the series dates as a calendar file, and so doe
   for (const secret of ['ZZZCal', email, '6085550100', submissionId]) expect(body).not.toContain(secret);
   expect(body).toContain(`SUMMARY:${series.title}\r\n`);
   expect(body).toContain('LOCATION:ZZZ Test Studio\\, ZZZ Faraway\r\n');
+  // Each date links to the series' own registration page, not the calendar.
+  const urls = body.replace(/\r\n /g, '').split('\r\n').filter((l) => l.startsWith('URL:'));
+  expect(urls).toEqual([`URL:https://dancewithb.fun/register?series=${encodeURIComponent(series.key)}`, `URL:https://dancewithb.fun/register?series=${encodeURIComponent(series.key)}`]);
 
   const { data: rows } = await db.from('events').select('id, start_time, end_time').in('id', series.ids).order('start_time');
   expect(rows).toHaveLength(2);

@@ -1,4 +1,5 @@
 import { awayCity, type SiteLocation } from './siteLocation';
+import { classPath } from './classLink';
 import { SITE_URL } from './seoSchema';
 
 // An iCalendar (.ics) file for class occurrences, served by /calendar/ics for
@@ -19,6 +20,9 @@ export interface IcsClass {
   location?: string | null;
   city?: string | null;
   state?: string | null;
+  // What the entry's link needs: the class's own page is its series key (the recurring id, else its id) and its type.
+  google_recurring_event_id?: string | null;
+  event_type?: string | null;
 }
 
 // RFC 5545 TEXT: backslash, semicolon and comma are escaped, line breaks become \n.
@@ -90,8 +94,8 @@ function eventLines(c: IcsClass, home: SiteLocation, stamp: string): string[] | 
     `DTEND:${icsUtcStamp(end)}`,
     `SUMMARY:${escapeIcsText(c.title)}`,
     ...(where ? [`LOCATION:${escapeIcsText(where)}`] : []),
-    // There is no page per class, so the link is the calendar.
-    `URL:${SITE_URL}/calendar`,
+    // The class's own registration page, as the homepage's Register button links it.
+    `URL:${SITE_URL}${classPath(c.event_type, c.google_recurring_event_id ?? c.id)}`,
     'END:VEVENT',
   ];
 }
