@@ -14,6 +14,11 @@
 // or corrupt store leaves the form exactly as it was.
 //
 // Stored text is only ever assigned to input values, never written as HTML.
+//
+// A device that might belong to a signed-in admin (an instructor signing several
+// dancers up on their own phone) neither fills nor remembers anyone, and drops
+// a record that is there: see rememberOnThisDevice.
+import { mightBeSignedIn } from '../lib/sessionHint';
 
 export const SAVED_KEY = 'dwb.dancer.v1';
 export const PENDING_KEY = 'dwb.dancer.pending.v1';
@@ -140,6 +145,16 @@ export function commitParkedDancerInBrowser(): void {
   if (session && local) commitParkedDancer(session, local);
 }
 
+// Whether this device remembers dancers. An admin's own phone gets one dancer
+// after another, so the last one's details must not fill the next; when the
+// visitor might be signed in (sessionHint, no library download) nothing is
+// filled or kept, and a saved record is removed. Ordinary visitors are unchanged.
+export function rememberOnThisDevice(local: StorageLike | null, mightBeAdmin: boolean): boolean {
+  if (!mightBeAdmin) return true;
+  if (local) clearSavedDancer(local);
+  return false;
+}
+
 const ROLE_ACTIVE = ['gradient-accent', 'text-white', 'border-transparent'];
 const ROLE_IDLE = ['text-ink/70', 'border-border'];
 
@@ -178,6 +193,7 @@ export function initRememberDancer(form: HTMLFormElement | null): void {
 
   // Anything left parked belongs to a submit that did not reach a confirmation.
   if (session) dropParkedDancer(session);
+  if (!rememberOnThisDevice(local, mightBeSignedIn())) return;
   if (session) {
     form.addEventListener('submit', (e) => {
       if (e.defaultPrevented) return; // stopped by a check; trackSubmit does the same

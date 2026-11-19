@@ -1,5 +1,6 @@
 import { test, expect } from './support/fixtures';
 import { seedEvent, sweepTestData, type Seeded } from './support/db';
+import { authStorageKey } from './support/admin';
 import { RUN_ID, TEST_PREFIX } from './support/env';
 import { fillDancer, payCash, selectSeries, submitRegistration } from './support/forms';
 
@@ -165,6 +166,33 @@ test('details the page already holds are not overwritten', async ({ page }) => {
   await expect(first(page)).toHaveValue('ZZZTyped');
   await expect(page.locator('.dancer-block').first().locator('.dancer-email')).toHaveValue('');
   await expect(page.locator(NOTE)).toHaveCount(0);
+});
+
+// An instructor signs several dancers up on their own phone: with a stored
+// session present (a placeholder, never a real token) the last dancer must not
+// fill the next form, and the sign-up leaves nothing saved.
+test('a device that might be an admin\'s fills nothing, saves nothing and drops a saved dancer', async ({ page, context }) => {
+  // Written on every load: the header's sign-in check removes a dead session.
+  await context.addInitScript((key) => localStorage.setItem(key, JSON.stringify({ access_token: 'zzz-not-a-real-token', refresh_token: 'zzz-not-a-real-token', expires_at: 1 })), authStorageKey());
+  await page.goto(`/register?series=${classA.key}`);
+  await page.evaluate(() => localStorage.setItem('dwb.dancer.v1', JSON.stringify({ firstName: 'ZZZOld', lastName: 'Saved', email: 'old@example.com', phone: '6085550111', role: 'leader', savedAt: 1 })));
+  await page.reload();
+  const block = page.locator('.dancer-block').first();
+  await expect(block).toBeVisible();
+  await expect(first(page)).toHaveValue('');
+  await expect(block.locator('.dancer-email')).toHaveValue('');
+  await expect(block.locator('.dancer-role-btn[aria-pressed="true"]')).toHaveCount(0);
+  await expect(page.locator(NOTE)).toHaveCount(0);
+  expect(await stored(page)).toBeNull();
+
+  await selectSeries(page, classA.key);
+  await fillDancer(page, 0, { first: 'Remember', role: 'follower', phone: '6085550177', email: EMAIL });
+  await payCash(page);
+  await submitRegistration(page);
+  await page.waitForURL(/\/register\/confirmation\?id=/);
+  await expect(page.locator('body')).toContainText(`${TEST_PREFIX}Remember ${RUN_ID}`);
+  expect(await stored(page)).toBeNull();
+  expect(await page.evaluate(() => sessionStorage.getItem('dwb.dancer.pending.v1'))).toBeNull();
 });
 
 test.describe('on a phone', () => {

@@ -9,6 +9,7 @@ import {
   clearSavedDancer,
   commitParkedDancer,
   parkDancer,
+  rememberOnThisDevice,
   readSavedDancer,
   saveDancer,
   type StorageLike,
@@ -132,5 +133,30 @@ describe('details parked at submit and kept on the confirmation page', () => {
       expect(local.data).toEqual({});
       expect(session.data).toEqual({});
     }
+  });
+});
+
+// An instructor signs several dancers up on their own phone: the last dancer's
+// details must not fill the next form, and none is kept.
+describe('a device that might be an admin\'s', () => {
+  it('remembers nothing and drops a saved dancer', () => {
+    const local = memory();
+    saveDancer(local, dancer, 1);
+    expect(rememberOnThisDevice(local, true)).toBe(false);
+    expect(local.data).toEqual({});
+    expect(readSavedDancer(local)).toBeNull();
+  });
+
+  it('leaves an ordinary visitor\'s saved dancer alone', () => {
+    const local = memory();
+    saveDancer(local, dancer, 1);
+    expect(rememberOnThisDevice(local, false)).toBe(true);
+    expect(readSavedDancer(local)).toEqual({ ...dancer, savedAt: 1 });
+  });
+
+  it('copes with no storage, or one that throws on remove', () => {
+    expect(rememberOnThisDevice(null, true)).toBe(false);
+    expect(rememberOnThisDevice(null, false)).toBe(true);
+    expect(rememberOnThisDevice(throwing('remove'), true)).toBe(false);
   });
 });
