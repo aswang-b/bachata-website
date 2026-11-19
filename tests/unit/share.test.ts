@@ -3,7 +3,7 @@ import { setServerTimeZone } from '../../src/lib/siteTime';
 import { shareCaption, type CaptionEvent } from '../../src/lib/shareCaption';
 import { previewImageWith, scaleBucketUrl } from '../../src/lib/flyerImage';
 import { classShareUrl, shareLink, type ShareNav } from '../../src/scripts/share';
-import { flyerFileName, seriesOf, shareFlyer, type FlyerNav } from '../../src/scripts/calendar/editor/shareFlyer';
+import { createObjectUrlHolder, flyerFileName, seriesOf, shareFlyer, type FlyerNav } from '../../src/scripts/calendar/editor/shareFlyer';
 import type { SiteEvent } from '../../src/scripts/calendar/types';
 
 afterEach(() => setServerTimeZone('America/Chicago'));
@@ -180,5 +180,45 @@ describe('seriesOf', () => {
     expect(s.upcoming.map((e) => e.id)).toEqual(['b', 'c']);
     expect(s.total).toBe(3);
     expect(s.whole).toEqual({ first: '2026-01-01T00:00:00Z', last: '2026-09-08T00:00:00Z' });
+  });
+});
+
+// The "Download flyer" link's blob address is held by the page until revoked.
+describe('createObjectUrlHolder', () => {
+  const fakeUrls = () => {
+    let n = 0;
+    const live = new Set<string>();
+    return {
+      live,
+      createObjectURL: vi.fn(() => {
+        const url = `blob:fake/${++n}`;
+        live.add(url);
+        return url;
+      }),
+      revokeObjectURL: vi.fn((url: string) => void live.delete(url)),
+    };
+  };
+  const blob = new Blob(['x']);
+
+  it('revokes the previous address when a new one is made, so only the newest stays', () => {
+    const urls = fakeUrls();
+    const holder = createObjectUrlHolder(urls);
+    expect(holder.make(blob)).toBe('blob:fake/1');
+    expect(holder.make(blob)).toBe('blob:fake/2');
+    expect(urls.revokeObjectURL).toHaveBeenCalledTimes(1);
+    expect(urls.revokeObjectURL).toHaveBeenCalledWith('blob:fake/1');
+    expect([...urls.live]).toEqual(['blob:fake/2']);
+  });
+
+  it('revokes the last one when its link is removed, once, and does nothing with none', () => {
+    const urls = fakeUrls();
+    const holder = createObjectUrlHolder(urls);
+    holder.release();
+    expect(urls.revokeObjectURL).not.toHaveBeenCalled();
+    holder.make(blob);
+    holder.release();
+    holder.release();
+    expect(urls.revokeObjectURL).toHaveBeenCalledTimes(1);
+    expect(urls.live.size).toBe(0);
   });
 });

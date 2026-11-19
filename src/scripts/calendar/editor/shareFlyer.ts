@@ -89,6 +89,25 @@ export async function shareFlyer(
   return file ? { message: note, download: file } : { message: note };
 }
 
+// The address of the picture behind the "Download flyer" link. A page holds each
+// one until it is revoked, so only the newest is kept: the one before goes when
+// a new one is made, and the last when its link is removed (release).
+export function createObjectUrlHolder(urls: Pick<typeof URL, 'createObjectURL' | 'revokeObjectURL'>) {
+  let current: string | null = null;
+  const release = () => {
+    if (current) urls.revokeObjectURL(current);
+    current = null;
+  };
+  return {
+    release,
+    make(blob: Blob): string {
+      release();
+      current = urls.createObjectURL(blob);
+      return current;
+    },
+  };
+}
+
 export function initShareFlyer() {
   const actions = document.getElementById('detail-admin-actions');
   if (!actions || document.getElementById('detail-share-flyer-btn')) return;
@@ -104,6 +123,7 @@ export function initShareFlyer() {
   status.className = 'basis-full text-xs font-semibold text-muted';
   actions.prepend(button);
   actions.append(status);
+  const flyerUrl = createObjectUrlHolder(URL);
 
   button.addEventListener('click', async () => {
     const event = shared.detailEvent;
@@ -113,6 +133,7 @@ export function initShareFlyer() {
     button.textContent = 'Preparing…';
     window.clearTimeout(Number(status.dataset.timer));
     status.replaceChildren();
+    flyerUrl.release(); // its link was just removed
     try {
       // The series' other classes come from the admin copy of the events: wait for it, as Edit does.
       await editor.adminEventsReady;
@@ -122,7 +143,7 @@ export function initShareFlyer() {
         // Stays until the next tap: it is the only way to the picture.
         status.textContent = outcome.message;
         const link = document.createElement('a');
-        link.href = URL.createObjectURL(outcome.download);
+        link.href = flyerUrl.make(outcome.download);
         link.download = outcome.download.name;
         link.textContent = 'Download flyer';
         link.className = 'ml-2 font-bold text-accent underline';

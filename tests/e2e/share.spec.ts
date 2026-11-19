@@ -189,6 +189,47 @@ test('Share flyer with no share sheet leaves the caption copied and offers the f
   await expect(status.locator('a[download]')).toHaveText('Download flyer');
 });
 
+test('each tap on Share flyer lets go of the previous download address', async ({ page, adminPage }) => {
+  void adminPage;
+  await page.route('**/storage/v1/render/image/**', (route) => route.fulfill({ status: 200, contentType: 'image/jpeg', body: JPEG, headers: { 'access-control-allow-origin': '*' } }));
+  await stubSharing(page, { share: false });
+  // Records the page's blob addresses without changing what they do.
+  await page.addInitScript(() => {
+    const log = { created: [] as string[], revoked: [] as string[] };
+    (window as unknown as { __urls: typeof log }).__urls = log;
+    const create = URL.createObjectURL.bind(URL);
+    const revoke = URL.revokeObjectURL.bind(URL);
+    URL.createObjectURL = (o: Blob | MediaSource) => {
+      const url = create(o);
+      log.created.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url: string) => {
+      log.revoked.push(url);
+      revoke(url);
+    };
+  });
+  await openDetails(page, withFlyer);
+  const link = page.locator('#detail-share-flyer-status a[download]');
+  const urls = () => page.evaluate(() => (window as unknown as { __urls: { created: string[]; revoked: string[] } }).__urls);
+
+  await page.locator('#detail-share-flyer-btn').click();
+  await expect(link).toHaveText('Download flyer');
+  const afterFirst = await urls();
+  expect(afterFirst.created).toHaveLength(1);
+  expect(afterFirst.revoked).toEqual([]);
+  await expect(link).toHaveAttribute('href', afterFirst.created[0]);
+
+  await page.locator('#detail-share-flyer-btn').click();
+  await expect(link).toHaveAttribute('href', /^blob:/);
+  await expect.poll(async () => (await urls()).created.length).toBe(2);
+  const afterSecond = await urls();
+  expect(afterSecond.created[1]).not.toBe(afterSecond.created[0]);
+  // Only the newest is still held.
+  expect(afterSecond.revoked).toEqual([afterSecond.created[0]]);
+  await expect(link).toHaveAttribute('href', afterSecond.created[1]);
+});
+
 test('a class with no flyer shares its caption and link only', async ({ page, adminPage }) => {
   void adminPage;
   await stubSharing(page);
