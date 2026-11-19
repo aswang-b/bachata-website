@@ -338,8 +338,8 @@ const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyer
 </BaseLayout>
 
 <script>
-  import { supabaseBrowser } from '../lib/supabaseBrowser';
-  import { checkAdminSession } from '../lib/adminSession';
+  // The Supabase client only comes down for a visitor with a stored session (lib/sessionHint.ts).
+  import { checkAdminSessionIfStored, loadSupabaseBrowser } from '../lib/sessionHint';
   import { isPreviewingAsPublic } from '../lib/previewMode';
   import { COUNTDOWN_MS, countdown } from '../lib/countdown';
 
@@ -347,7 +347,7 @@ const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyer
   async function revealAdminSpots() {
     const tags = Array.from(document.querySelectorAll<HTMLElement>('[data-admin-spots-key]'));
     if (tags.length === 0 || isPreviewingAsPublic()) return;
-    const gate = await checkAdminSession();
+    const gate = await checkAdminSessionIfStored();
     if (gate.status !== 'admin') return;
     try {
       const res = await fetch('/api/admin/series-spots', { headers: { Authorization: `Bearer ${gate.session.access_token}` } });
@@ -424,7 +424,7 @@ const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyer
     try {
       const {
         data: { session: current },
-      } = await supabaseBrowser.auth.getSession();
+      } = await (await loadSupabaseBrowser()).auth.getSession();
       if (!current || !(await saveOrder(current.access_token, buildBody()))) throw new Error('save failed');
       showStatus('Saved.');
     } catch {
@@ -438,7 +438,7 @@ const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyer
 
   async function revealReorderControlsIfAdmin() {
     if (!sectionsEl || offeringKeys().length === 0 || isPreviewingAsPublic()) return;
-    const gate = await checkAdminSession();
+    const gate = await checkAdminSessionIfStored();
     if (gate.status !== 'admin') return;
 
     hint?.classList.remove('hidden');

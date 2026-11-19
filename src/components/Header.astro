@@ -1,6 +1,7 @@
 ---
 import { getSiteSettings } from '../lib/siteSettings';
 import InstallApp from './InstallApp.astro';
+import { headerCss } from '../lib/headerFit';
 
 // Site Visibility settings (Admin tab), loaded for each page by middleware.ts,
 // so the header arrives whole: no button or link popping in or out after load.
@@ -20,7 +21,14 @@ const currentPath = Astro.url.pathname;
 const isAdminPage = currentPath === '/admin';
 // Lavender, to set it apart from the accent-colored Register for Classes button.
 const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-violet-300 hover:border-violet-300/70 hover:bg-violet-300/20';
+
+// Menu or nav links, short or long register labels: picked by CSS from the
+// screen width, at the widths where these very links and buttons fit
+// (lib/headerFit.ts), so the first frame is the last.
+const layoutCss = headerCss({ navLabels: navItems.map((item) => item.label), showEvents: Boolean(showEventsButton) });
 ---
+
+<style is:inline set:html={layoutCss}></style>
 
 <header id="site-header" class="border-b border-border bg-bg/90 backdrop-blur print:hidden">
   <div id="header-row" class="mx-auto grid max-w-6xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 sm:gap-4 sm:px-6">
@@ -28,13 +36,13 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
       Dance with <span class="text-gradient-accent inline-block align-baseline">B</span>
     </a>
 
-    <nav id="desktop-nav" class="hidden items-center justify-center gap-8 md:flex">
+    <nav id="desktop-nav" class="items-center justify-center gap-8">
       {navItems.map((item) => {
         const isActive = currentPath === item.href;
         return (
           <a
             href={item.href}
-            class={`text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
+            class={`whitespace-nowrap text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
               isActive ? 'text-accent' : 'text-ink/70'
             }`}
           >
@@ -44,7 +52,7 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
       })}
       <a
         href="/admin"
-        class={`admin-nav-link hidden text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
+        class={`admin-nav-link hidden whitespace-nowrap text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
           isAdminPage ? 'text-accent' : 'text-ink/70'
         }`}
       >
@@ -52,7 +60,7 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
       </a>
       <a
         href="/admin/analytics"
-        class={`admin-nav-link hidden text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
+        class={`admin-nav-link hidden whitespace-nowrap text-sm font-semibold uppercase tracking-wider transition-colors hover:text-accent ${
           currentPath === '/admin/analytics' ? 'text-accent' : 'text-ink/70'
         }`}
       >
@@ -62,7 +70,7 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
 
     <div id="header-actions" class="flex items-center justify-end gap-2 md:gap-4">
       {/* Off until an admin turns it on (Admin → Site Visibility). */}
-      {/* Both register buttons show on every page (the register pages too) and at every width; the script below swaps in the short label when the full one doesn't fit. */}
+      {/* Both register buttons show on every page (the register pages too) and at every width; the inline style above picks the long or short label by the screen width. */}
       {showEventsButton && (
         <a
           href="/register/events"
@@ -70,7 +78,7 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
           class={`register-btn flex h-8 items-center whitespace-nowrap rounded-md px-2.5 text-[11px] font-semibold uppercase tracking-wide transition-colors md:h-auto md:px-4 md:py-1.5 md:text-xs md:tracking-wider ${eventsButtonClass}`}
         >
           <span class="register-label-full">Register for Events</span>
-          <span class="register-label-short hidden">Events</span>
+          <span class="register-label-short">Events</span>
         </a>
       )}
 
@@ -80,7 +88,7 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
         class="register-btn flex h-8 items-center whitespace-nowrap rounded-md border border-accent/40 bg-accent/10 px-2.5 text-[11px] font-semibold uppercase tracking-wide text-accent transition-colors hover:border-accent/70 hover:bg-accent/20 md:h-auto md:px-4 md:py-1.5 md:text-xs md:tracking-wider"
       >
         <span class="register-label-full">Register for Classes</span>
-        <span class="register-label-short hidden">Classes</span>
+        <span class="register-label-short">Classes</span>
       </a>
 
       {/* The bell: push notifications, and (on phones) how to add the site to the home screen. Admins get their inbox here instead.
@@ -101,7 +109,7 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
 
       <button
         id="nav-toggle"
-        class="text-ink md:hidden"
+        class="text-ink"
         aria-label="Toggle navigation menu"
         aria-expanded="false"
         aria-controls="mobile-nav"
@@ -113,7 +121,7 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
     </div>
   </div>
 
-  <nav id="mobile-nav" class="hidden flex-col gap-1 border-t border-border px-6 py-4 md:hidden">
+  <nav id="mobile-nav" class="hidden flex-col gap-1 border-t border-border px-6 py-4">
     {navItems.map((item) => (
       <a
         href={item.href}
@@ -138,54 +146,83 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
 </header>
 
 <style>
-  /* Compact (set by fitRegisterLabels): the phone layout at any width. */
-  #site-header[data-compact] #desktop-nav {
+  /* Which layout and labels show by screen width is the inline style above
+     (lib/headerFit.ts). data-fit (the script below) only overrides it when the
+     row really runs past its edge: an admin's extra links, or a visitor's own
+     larger minimum font size. */
+  #site-header[data-fit~='short'] .register-label-full,
+  #site-header[data-fit~='long'] .register-label-short {
     display: none;
   }
-  #site-header[data-compact] #nav-toggle {
-    display: block;
-  }
-  #site-header[data-compact] #mobile-nav.flex {
-    display: flex;
+  #site-header[data-fit~='short'] .register-label-short,
+  #site-header[data-fit~='long'] .register-label-full {
+    display: inline;
   }
 </style>
 
 <script>
-  import { checkAdminSession } from '../lib/adminSession';
+  import { checkAdminSessionIfStored } from '../lib/sessionHint';
   import { isPreviewingAsPublic } from '../lib/previewMode';
 
   const toggle = document.getElementById('nav-toggle');
   const mobileNav = document.getElementById('mobile-nav');
-
-  // Register buttons show "Register for Classes/Events" when the header row
-  // has room, and just "Classes"/"Events" when it doesn't. If even that
-  // overflows (a tablet with the admin links showing), the links move into
-  // the menu, as on a phone. Re-run whenever the row's contents change
-  // (resize, or the admin links appearing).
   const siteHeader = document.getElementById('site-header');
   const headerRow = document.getElementById('header-row');
   const headerActions = document.getElementById('header-actions');
 
-  function setShortLabels(short: boolean) {
-    document.querySelectorAll('.register-label-full').forEach((el) => el.classList.toggle('hidden', short));
-    document.querySelectorAll('.register-label-short').forEach((el) => el.classList.toggle('hidden', !short));
+  // The style above picks the layout by width. Only if the row then really
+  // runs past its edge (an admin's Admin, Dashboard and inbox, or a visitor's
+  // own minimum font size) does this force a smaller one, in the order the
+  // header always stepped down: short labels, then the menu with long labels,
+  // then the menu with short ones. Only boxes in the row's flow count: the
+  // bell's and inbox's dots and the menu button's tap area stick out on purpose
+  // (the bell's dot, 2px past the bell, was what sent desktops to the phone
+  // layout). With the width's own layout fitting, it changes nothing.
+  type Fit = { compact: boolean; short: boolean };
+  const rank = ({ compact, short }: Fit) => Number(compact) * 2 + Number(short);
+  const STEPS: Fit[] = [
+    { compact: false, short: true },
+    { compact: true, short: false },
+    { compact: true, short: true },
+  ];
+  const shown = (el: Element | null) => !!el && getComputedStyle(el).display !== 'none';
+
+  function overflowing(): boolean {
+    if (!headerRow) return false;
+    const edge = headerRow.getBoundingClientRect().right + 0.5;
+    const boxes = [...headerRow.children, ...(headerActions?.children ?? [])].filter((el) => el.tagName !== 'DIALOG' && el.getClientRects().length > 0);
+    return boxes.some((el) => el.getBoundingClientRect().right > edge);
   }
 
-  function fitRegisterLabels() {
-    if (!headerRow || !headerActions) return;
-    const overflowing = () => headerRow.scrollWidth > headerRow.clientWidth || headerActions.scrollWidth > headerActions.clientWidth;
-    siteHeader?.toggleAttribute('data-compact', false);
-    setShortLabels(false);
-    if (!overflowing()) return;
-    setShortLabels(true);
-    if (!overflowing()) return;
-    siteHeader?.toggleAttribute('data-compact', true);
-    setShortLabels(false);
-    if (overflowing()) setShortLabels(true);
+  function setFit(fit: Fit | null) {
+    if (!siteHeader) return;
+    const value = fit ? `${fit.compact ? 'compact' : 'full'} ${fit.short ? 'short' : 'long'}` : null;
+    if (siteHeader.getAttribute('data-fit') === value) return;
+    if (value) siteHeader.setAttribute('data-fit', value);
+    else siteHeader.removeAttribute('data-fit');
   }
 
-  if (headerRow) new ResizeObserver(fitRegisterLabels).observe(headerRow);
-  fitRegisterLabels();
+  function fitHeader() {
+    if (!siteHeader || !headerRow) return;
+    const before = siteHeader.getAttribute('data-fit');
+    siteHeader.removeAttribute('data-fit');
+    const byWidth: Fit = { compact: !shown(document.getElementById('desktop-nav')), short: shown(siteHeader.querySelector('.register-label-short')) };
+    let fit: Fit | null = null;
+    if (overflowing()) {
+      const smaller = STEPS.filter((step) => rank(step) > rank(byWidth));
+      for (const step of smaller) {
+        fit = step;
+        setFit(step);
+        if (!overflowing()) break;
+      }
+    }
+    // Put back what was there before deciding, so an unchanged answer is no change at all.
+    if (before) siteHeader.setAttribute('data-fit', before);
+    setFit(fit);
+  }
+
+  if (headerRow) new ResizeObserver(() => fitHeader()).observe(headerRow);
+  document.fonts?.addEventListener('loadingdone', () => fitHeader());
 
   toggle?.addEventListener('click', () => {
     const isHidden = mobileNav?.classList.contains('hidden');
@@ -197,13 +234,13 @@ const eventsButtonClass = 'border border-violet-300/40 bg-violet-300/10 text-vio
   async function revealAdminNavLinkIfAdmin() {
     if (isPreviewingAsPublic()) return;
 
-    const gate = await checkAdminSession();
+    const gate = await checkAdminSessionIfStored();
     if (gate.status !== 'admin') return;
     const { session } = gate;
 
     document.querySelectorAll('.admin-nav-link').forEach((el) => el.classList.remove('hidden'));
     document.getElementById('inbox-link')?.classList.add('flex');
-    fitRegisterLabels();
+    fitHeader();
 
     try {
       const countRes = await fetch('/api/admin/unseen-count', {

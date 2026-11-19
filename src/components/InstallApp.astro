@@ -139,7 +139,7 @@ const badge = 'your-phone ml-2 hidden rounded-full bg-accent/15 px-2 py-0.5 alig
 </style>
 
 <script>
-  import { checkAdminSession } from '../lib/adminSession';
+  import { checkAdminSessionIfStored } from '../lib/sessionHint';
   import { isPreviewingAsPublic } from '../lib/previewMode';
   import { phonePlatform, pushState, pushSupported, turnOff, turnOn, type PushState } from '../lib/pushClient';
 
@@ -174,7 +174,7 @@ const badge = 'your-phone ml-2 hidden rounded-full bg-accent/15 px-2 py-0.5 alig
 
   // Admins have their inbox there instead, unless previewing as the public.
   if (!isPreviewingAsPublic()) {
-    checkAdminSession()
+    checkAdminSessionIfStored()
       .then((gate) => {
         if (gate.status === 'admin') bell.remove();
       })

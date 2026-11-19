@@ -12,8 +12,11 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     // Bundled for the browser up front: the door sign (/admin/qr) draws codes
-    // client-side, and discovering it on first load serves a stale module.
-    optimizeDeps: { include: ['qrcode'] },
+    // client-side, and discovering it on first load serves a stale module. Same
+    // for the Supabase client, which public pages import only when a session
+    // might be stored (lib/sessionHint.ts): found that late, the re-bundle failed
+    // here (OneDrive holds the folder) and the admin check never loaded.
+    optimizeDeps: { include: ['qrcode', '@supabase/supabase-js'] },
     // The e2e suite's output (Playwright traces, screenshots, the email sink) is
     // written inside the project while its dev server runs. Vite ignores
     // Playwright's default test-results/ folder but not this one, so every trace
