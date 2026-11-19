@@ -11,6 +11,8 @@ export interface AttendanceRegistrationRow {
   email: string | null;
   phone: string | null;
   class_title: string;
+  // The series the sign-up is for (google_recurring_event_id ?? id), when it was recorded.
+  series_key?: string | null;
   series_mode: 'whole' | 'dropin' | null;
   price: number | null;
   // The specific occurrence a Drop-In registrant chose at registration
@@ -44,6 +46,9 @@ export interface AttendanceEntry {
   phone: string | null;
   email: string | null;
   classTitle: string;
+  // Its series, which the Attendance tab's class filter matches by: the sign-up's own,
+  // else the series its dates were found in; null when neither is known.
+  seriesKey: string | null;
   seriesMode: 'whole' | 'dropin' | null;
   price: number | null;
   // True only when a Whole-Series registration couldn't be expanded to its
@@ -100,14 +105,14 @@ export function expandRegistrationsToEntries(
       const series = pickClosestSeries(candidates, reg.created_at);
       if (series) {
         for (const occ of series.occurrences) {
-          entries.push({ ...base, occurrenceEventId: occ.id, occurrenceDate: occ.startTime, occurrenceTimeZone: series.timeZone });
+          entries.push({ ...base, seriesKey: reg.series_key ?? series.key, occurrenceEventId: occ.id, occurrenceDate: occ.startTime, occurrenceTimeZone: series.timeZone });
         }
         continue;
       }
       // No matching series found at all (e.g. deleted after the fact) —
       // fall back to a single unexpandable entry rather than losing it
       // entirely, flagged so the UI can show this is a degraded match.
-      entries.push({ ...base, occurrenceEventId: null, occurrenceDate: null, occurrenceTimeZone: null, expansionFailed: true });
+      entries.push({ ...base, seriesKey: reg.series_key ?? null, occurrenceEventId: null, occurrenceDate: null, occurrenceTimeZone: null, expansionFailed: true });
       continue;
     }
 
@@ -121,14 +126,20 @@ export function expandRegistrationsToEntries(
       const candidates = classSeriesList.filter((s) => s.title === reg.class_title);
       const series = pickClosestSeries(candidates, reg.created_at);
       const occ = series?.occurrences.find((o) => o.id === reg.occurrence_event_id) ?? null;
-      entries.push({ ...base, occurrenceEventId: reg.occurrence_event_id, occurrenceDate: occ?.startTime ?? null, occurrenceTimeZone: occ ? series?.timeZone ?? null : null });
+      entries.push({
+        ...base,
+        seriesKey: reg.series_key ?? series?.key ?? null,
+        occurrenceEventId: reg.occurrence_event_id,
+        occurrenceDate: occ?.startTime ?? null,
+        occurrenceTimeZone: occ ? series?.timeZone ?? null : null,
+      });
       continue;
     }
 
     const candidates = classSeriesList.filter((s) => s.title === reg.class_title);
     const series = pickClosestSeries(candidates, reg.created_at);
     const lastOccurrence = series?.occurrences[series.occurrences.length - 1] ?? null;
-    entries.push({ ...base, occurrenceEventId: null, occurrenceDate: lastOccurrence?.startTime ?? null, occurrenceTimeZone: series?.timeZone ?? null });
+    entries.push({ ...base, seriesKey: reg.series_key ?? series?.key ?? null, occurrenceEventId: null, occurrenceDate: lastOccurrence?.startTime ?? null, occurrenceTimeZone: series?.timeZone ?? null });
   }
 
   return entries;

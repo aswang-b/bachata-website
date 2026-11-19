@@ -34,7 +34,7 @@ export const GET: APIRoute = async ({ request }) => {
     hideTestRows(
       supabase
         .from('class_registrations')
-        .select('id, first_name, last_name, email, phone, class_title, series_mode, price, occurrence_event_id, created_at, intake_submissions!inner(registration_type)')
+        .select('id, first_name, last_name, email, phone, class_title, series_key, series_mode, price, occurrence_event_id, created_at, intake_submissions!inner(registration_type)')
     )
       .is('deleted_at', null)
       .neq('intake_submissions.registration_type', 'events')
@@ -81,7 +81,12 @@ export const GET: APIRoute = async ({ request }) => {
     manualNoShows
   );
 
-  return new Response(JSON.stringify({ entries: resolved, orphanedCheckins }), {
+  // An orphaned check-in's series, from the class date it was recorded against (none when it has no date):
+  // what the Attendance tab's class filter matches by.
+  const seriesKeyByEventId = new Map((events ?? []).map((e) => [e.id, e.google_recurring_event_id ?? e.id]));
+  const orphans = orphanedCheckins.map((c) => ({ ...c, seriesKey: c.event_id ? seriesKeyByEventId.get(c.event_id) ?? null : null }));
+
+  return new Response(JSON.stringify({ entries: resolved, orphanedCheckins: orphans }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });

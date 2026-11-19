@@ -74,7 +74,7 @@ for (const [width, compact] of [
     // Android dropped the choice when that dropdown was swapped for a new one).
     const classSelect = page.locator('#signups-class-filters select').first();
     await classSelect.evaluate((el) => ((el as HTMLSelectElement & { keep?: boolean }).keep = true));
-    await classSelect.selectOption(klass.title);
+    await classSelect.selectOption(klass.key);
     await expect(page.locator('#signups-body tr', { hasText: 'ZZZDashLead' })).toBeVisible();
     expect(await page.locator('#signups-class-filters select').first().evaluate((el) => (el as HTMLSelectElement & { keep?: boolean }).keep)).toBe(true);
     await page.locator('#signups-clear-filters').click();

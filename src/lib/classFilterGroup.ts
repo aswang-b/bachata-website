@@ -1,23 +1,26 @@
 // Browser-only. The dancer dashboard's "Filter by class" control: one or more
 // rows of [class] [date], a "+" on the last row to add another, and a remove
 // button once there's more than one. A record passes when there are no
-// filters, or when it matches ANY row (rows are OR'd together).
+// filters, or when it matches ANY row (rows are OR'd together). A row's class
+// is one entry of classFilterOptions.ts (a series key, or an exact title for
+// rows that carry none), never a bare title.
 
 export interface ClassFilter {
-  classTitle: string;
+  // The entry picked (a series key, or "title:<title>"); '' = no class.
+  value: string;
   // '' = every date of that class.
   occurrenceId: string;
 }
 
 interface SeriesLike {
-  title: string;
+  key: string;
   isSeries: boolean;
   occurrences: { id: string; label: string }[];
 }
 
 interface Options {
   container: HTMLElement;
-  getClassTitles: () => string[];
+  getOptions: () => { value: string; label: string }[];
   getSeries: () => SeriesLike[];
   onChange: () => void;
 }
@@ -26,9 +29,9 @@ const SELECT_CLASS = 'min-w-0 flex-1 rounded-xl border border-border bg-bg px-3 
 const ICON_BUTTON_CLASS =
   'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-lg font-bold text-ink/70 transition-colors hover:bg-bg disabled:cursor-not-allowed disabled:opacity-40';
 
-const emptyFilter = (): ClassFilter => ({ classTitle: '', occurrenceId: '' });
+const emptyFilter = (): ClassFilter => ({ value: '', occurrenceId: '' });
 
-export function createClassFilterGroup({ container, getClassTitles, getSeries, onChange }: Options) {
+export function createClassFilterGroup({ container, getOptions, getSeries, onChange }: Options) {
   let filters: ClassFilter[] = [emptyFilter()];
 
   function option(value: string, label: string, selected: boolean): HTMLOptionElement {
@@ -45,7 +48,7 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
   function rowControls(index: number): HTMLElement[] {
     const filter = filters[index];
     const controls: HTMLElement[] = [];
-    const series = getSeries().find((s) => s.title === filter.classTitle && s.isSeries);
+    const series = getSeries().find((s) => s.key === filter.value && s.isSeries);
     if (series) {
       const occurrenceSelect = document.createElement('select');
       occurrenceSelect.className = SELECT_CLASS;
@@ -82,8 +85,8 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
       add.className = ICON_BUTTON_CLASS;
       add.textContent = '+';
       add.setAttribute('aria-label', 'Add another class filter');
-      add.title = filter.classTitle ? 'Also show another class' : 'Pick a class first';
-      add.disabled = !filter.classTitle;
+      add.title = filter.value ? 'Also show another class' : 'Pick a class first';
+      add.disabled = !filter.value;
       add.dataset.focusKey = 'add';
       add.addEventListener('click', () => {
         filters.push(emptyFilter());
@@ -101,7 +104,7 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
     const active = document.activeElement;
     const keepKey = active instanceof HTMLElement && container.contains(active) ? active.dataset.focusKey : undefined;
     container.replaceChildren();
-    const titles = getClassTitles();
+    const choices = getOptions();
 
     filters.forEach((_, index) => {
       const row = document.createElement('div');
@@ -111,9 +114,9 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
       classSelect.className = SELECT_CLASS;
       classSelect.setAttribute('aria-label', 'Class');
       classSelect.dataset.focusKey = `class-${index}`;
-      classSelect.append(option('', 'All classes', !filters[index].classTitle), ...titles.map((t) => option(t, t, t === filters[index].classTitle)));
+      classSelect.append(option('', 'All classes', !filters[index].value), ...choices.map((c) => option(c.value, c.label, c.value === filters[index].value)));
       classSelect.addEventListener('change', () => {
-        filters[index] = { classTitle: classSelect.value, occurrenceId: '' };
+        filters[index] = { value: classSelect.value, occurrenceId: '' };
         // Only the rest of the row is redrawn: Firefox on Android drops the
         // choice when the dropdown it was picked in is swapped for a new one.
         row.replaceChildren(classSelect, ...rowControls(index));
@@ -132,7 +135,7 @@ export function createClassFilterGroup({ container, getClassTitles, getSeries, o
   return {
     // True when `test` accepts any active filter, or no filter is set.
     matches(test: (filter: ClassFilter) => boolean): boolean {
-      const active = filters.filter((f) => f.classTitle);
+      const active = filters.filter((f) => f.value);
       return active.length === 0 || active.some(test);
     },
     reset() {

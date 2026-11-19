@@ -440,6 +440,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   import { classStamp } from '../../lib/eventClock';
   import { createClassFilterGroup } from '../../lib/classFilterGroup';
   import { eventFilterOptions, eventNoteLabel, matchesEventFilter } from '../../lib/eventRegistrationFilter';
+  import { classFilterOptions, classFilterRows, rowMatchesClassPick, signupMatchesClassPick } from '../../lib/classFilterOptions';
 
   // The index signatures below exist only so sortRows()'s generic
   // `T extends Record<string, unknown>` constraint is satisfied — they don't
@@ -487,6 +488,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     lastName: string;
     phone: string;
     classTitle: string;
+    // The class's series (what the class filter matches by); null with no class date.
+    seriesKey: string | null;
     eventId: string | null;
     // The class's start, shown in its own zone (classTimeZone).
     classDate: string | null;
@@ -504,6 +507,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     phone: string | null;
     email: string | null;
     classTitle: string;
+    seriesKey: string | null;
     seriesMode: 'whole' | 'dropin' | null;
     price: number | null;
     expansionFailed: boolean;
@@ -519,6 +523,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     phone: string;
     email: string | null;
     class_title: string;
+    seriesKey: string | null;
     event_id: string | null;
     created_at: string;
     [key: string]: unknown;
@@ -868,19 +873,26 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   const signupsNameSearch = document.getElementById('signups-name-search') as HTMLInputElement;
   const checkinsNameSearch = document.getElementById('checkins-name-search') as HTMLInputElement;
 
-  // Each tab's "Filter by class" rows (OR'd together); filled in once
-  // reloadData() has the class titles and series.
-  let classTitleOptions: string[] = [];
+  // Each tab's "Filter by class" rows (OR'd together). Entries are one per class
+  // series (classFilterOptions.ts), drawn once a load has the series and rows.
+  let classFilterChoices: { value: string; label: string }[] = [];
   const classFilterGroup = (containerId: string, onChange: () => void) =>
     createClassFilterGroup({
       container: document.getElementById(containerId)!,
-      getClassTitles: () => classTitleOptions,
+      getOptions: () => classFilterChoices,
       getSeries: () => classSeries,
       onChange,
     });
   const signupsClassFilters = classFilterGroup('signups-class-filters', () => renderSignups());
   const checkinsClassFilters = classFilterGroup('checkins-class-filters', () => renderCheckins());
   const attendanceClassFilters = classFilterGroup('attendance-class-filters', () => renderAttendance());
+  function refreshClassFilters() {
+    classFilterChoices = classFilterOptions(
+      classFilterRows({ signups: allSignups, checkins: allCheckins, attendance: attendanceEntries, orphanedCheckins: attendanceOrphanedCheckins }),
+      classSeries
+    );
+    for (const group of [signupsClassFilters, checkinsClassFilters, attendanceClassFilters]) group.refresh();
+  }
 
   const signupsBody = document.getElementById('signups-body')!;
   const checkinsBody = document.getElementById('checkins-body')!;
@@ -908,11 +920,6 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     if (!query) return true;
     const full = `${firstName} ${lastName}`.toLowerCase();
     return full.includes(query.toLowerCase());
-  }
-
-  function matchesClass(classText: string | null, filter: string): boolean {
-    if (!filter) return true;
-    return Boolean(classText && classText.includes(filter));
   }
 
   function sortRows<T extends Record<string, unknown>>(rows: T[], sort: { column: string; direction: 'asc' | 'desc' }): T[] {
@@ -1231,20 +1238,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     const nameQuery = signupsNameSearch.value.trim();
     const isLockedByMe = signupsLock.isLocked();
 
-    // A Whole-Series sign-up covers every date of its class; a Drop-In only
-    // the date it was for (one with no recorded date can't be placed).
-    const attendsOccurrence = (s: Signup, classTitle: string, occurrenceId: string) =>
-      s.classRegistrations.some(
-        (e) => e.classTitle === classTitle && (e.seriesMode === 'whole' || e.occurrenceEventId === occurrenceId)
-      );
-
-    const filteredSignups = allSignups.filter(
-      (s) =>
-        matchesName(s.firstName, s.lastName, nameQuery) &&
-        signupsClassFilters.matches(
-          (f) => matchesClass(s.class, f.classTitle) && (!f.occurrenceId || attendsOccurrence(s, f.classTitle, f.occurrenceId))
-        )
-    );
+    const filteredSignups = allSignups.filter((s) => matchesName(s.firstName, s.lastName, nameQuery) && signupsClassFilters.matches((f) => signupMatchesClassPick(s.classRegistrations, f)));
     const sortedSignups = sortRows(filteredSignups, signupSort);
 
     const addSignupRowHtml = addingSignup ? signupEditRowHtml({}, 'add') : '';
@@ -1775,7 +1769,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     const filteredCheckins = allCheckins.filter(
       (c) =>
         matchesName(c.firstName, c.lastName, nameQuery) &&
-        checkinsClassFilters.matches((f) => matchesClass(c.classTitle, f.classTitle) && (!f.occurrenceId || c.eventId === f.occurrenceId))
+        checkinsClassFilters.matches((f) => rowMatchesClassPick(c, c.eventId, f))
     );
     const sortedCheckins = sortRows(filteredCheckins, checkinSort);
 
@@ -1941,22 +1935,21 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
 
     const matchesName_ = (first: string, last: string) => matchesName(first, last, nameQuery);
     // Passes when the row matches any of the class filter rows.
-    const matchesClassFilters = (classTitle: string | null, eventId: string | null) =>
-      attendanceClassFilters.matches((f) => matchesClass(classTitle, f.classTitle) && (!f.occurrenceId || eventId === f.occurrenceId));
+    const matchesClassFilters = (row: { classTitle: string; seriesKey: string | null }, eventId: string | null) => attendanceClassFilters.matches((f) => rowMatchesClassPick(row, eventId, f));
 
     const orphanedSignups = sortRows(
       attendanceEntries.filter(
-        (e) => e.status === 'orphaned' && matchesName_(e.firstName, e.lastName) && matchesClassFilters(e.classTitle, e.occurrenceEventId)
+        (e) => e.status === 'orphaned' && matchesName_(e.firstName, e.lastName) && matchesClassFilters(e, e.occurrenceEventId)
       ),
       attendanceOrphanedSignupsSort
     );
     const orphanedCheckinsFiltered = sortRows(
-      attendanceOrphanedCheckins.filter((c) => matchesName_(c.first_name, c.last_name) && matchesClassFilters(c.class_title, c.event_id)),
+      attendanceOrphanedCheckins.filter((c) => matchesName_(c.first_name, c.last_name) && matchesClassFilters({ classTitle: c.class_title, seriesKey: c.seriesKey }, c.event_id)),
       attendanceOrphanedCheckinsSort
     );
     const otherEntries = sortRows(
       attendanceEntries.filter(
-        (e) => e.status !== 'orphaned' && matchesName_(e.firstName, e.lastName) && matchesClassFilters(e.classTitle, e.occurrenceEventId)
+        (e) => e.status !== 'orphaned' && matchesName_(e.firstName, e.lastName) && matchesClassFilters(e, e.occurrenceEventId)
       ),
       attendanceMatchesSort
     );
@@ -2481,7 +2474,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     });
     if (!dataRes.ok) return false;
 
-    const { signups, eventRegistrations, checkins, classTitles, classSeries: series, eventSeries: events, headcountFrom: linkedHeadcount, bouncedEmails: bounces } = await dataRes.json();
+    const { signups, eventRegistrations, checkins, classSeries: series, eventSeries: events, headcountFrom: linkedHeadcount, bouncedEmails: bounces } = await dataRes.json();
     headcountFrom = linkedHeadcount ?? {};
     bouncedEmails = new Map(((bounces ?? []) as { email: string; bouncedAt: string; reason: string | null }[]).map((b) => [b.email, b]));
     eventSeries = events ?? [];
@@ -2501,8 +2494,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     allCheckins = checkins;
     classSeries = series ?? [];
 
-    classTitleOptions = classTitles as string[];
-    for (const group of [signupsClassFilters, checkinsClassFilters, attendanceClassFilters]) group.refresh();
+    refreshClassFilters();
 
     return true;
   }
@@ -2527,6 +2519,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     const { entries, orphanedCheckins } = await res.json();
     attendanceEntries = entries ?? [];
     attendanceOrphanedCheckins = orphanedCheckins ?? [];
+    refreshClassFilters();
     return true;
   }
 

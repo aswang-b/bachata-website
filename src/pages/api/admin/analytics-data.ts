@@ -102,8 +102,8 @@ export const GET: APIRoute = async ({ request }) => {
       .limit(ANALYTICS_ROW_LIMIT),
     // Admins can attach a check-in to any class occurrence, past or future,
     // so this isn't filtered to upcoming/public like the check-in.astro form.
-    // Also the source for the class-title filter list and each check-in's
-    // class date below, so those don't need their own queries.
+    // Also the source for the class filter's entries and each check-in's
+    // class date and series key below, so those don't need their own queries.
     supabase
       .from('events')
       .select('id, title, start_time, end_time, time_zone, google_recurring_event_id, price_whole_series, price_drop_in')
@@ -246,15 +246,20 @@ export const GET: APIRoute = async ({ request }) => {
 
   // Look up the specific scheduled date/time of the class each check-in was
   // for, and the class's own zone it's shown in (migration 0076).
-  type ClassWhen = { start: string; timeZone: string };
-  const whenOf = (e: { start_time: string; time_zone?: string | null }): ClassWhen => ({ start: e.start_time, timeZone: eventZone(e) });
+  // `seriesKey` is the class's series (google_recurring_event_id ?? id), which the class filters match by.
+  type ClassWhen = { start: string; timeZone: string; seriesKey: string };
+  const whenOf = (e: { id: string; start_time: string; time_zone?: string | null; google_recurring_event_id?: string | null }): ClassWhen => ({
+    start: e.start_time,
+    timeZone: eventZone(e),
+    seriesKey: e.google_recurring_event_id ?? e.id,
+  });
   const eventDateById = new Map<string, ClassWhen>((allClassEvents ?? []).map((e) => [e.id, whenOf(e)]));
 
   // Nearly always empty: a check-in only points at a class event, which is
   // already in the map. Only an id outside it (e.g. a non-class event) costs a query.
   const missingEventIds = [...new Set((checkinRows ?? []).map((r) => r.event_id).filter((id): id is string => Boolean(id) && !eventDateById.has(id as string)))];
   if (missingEventIds.length > 0) {
-    const { data: otherEvents } = await supabase.from('events').select('id, start_time, time_zone').in('id', missingEventIds);
+    const { data: otherEvents } = await supabase.from('events').select('id, start_time, time_zone, google_recurring_event_id').in('id', missingEventIds);
     for (const e of otherEvents ?? []) eventDateById.set(e.id, whenOf(e));
   }
 
@@ -265,14 +270,14 @@ export const GET: APIRoute = async ({ request }) => {
     lastName: row.last_name,
     phone: row.phone,
     classTitle: row.class_title,
+    // The class it was for, by series: what the Check-Ins filter matches (null when no class date was recorded).
+    seriesKey: row.event_id ? eventDateById.get(row.event_id)?.seriesKey ?? null : null,
     eventId: row.event_id,
     classDate: row.event_id ? eventDateById.get(row.event_id)?.start ?? null : null,
     classTimeZone: row.event_id ? eventDateById.get(row.event_id)?.timeZone ?? null : null,
   }));
 
-  const classTitles = [...new Set((allClassEvents ?? []).map((e) => e.title))].sort((a, b) => a.localeCompare(b));
-
-  return new Response(JSON.stringify({ signups, eventRegistrations, checkins, classTitles, classSeries, eventSeries, headcountFrom, bouncedEmails }), {
+  return new Response(JSON.stringify({ signups, eventRegistrations, checkins, classSeries, eventSeries, headcountFrom, bouncedEmails }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
