@@ -2,54 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setServerTimeZone } from '../../src/lib/siteTime';
 import { shareCaption, type CaptionEvent } from '../../src/lib/shareCaption';
 import { previewImageWith, scaleBucketUrl } from '../../src/lib/flyerImage';
-import { classShareUrl, shareLink, type ShareNav } from '../../src/scripts/share';
+import { classShareUrl } from '../../src/scripts/share';
 import { createObjectUrlHolder, flyerFileName, seriesOf, shareFlyer, type FlyerNav } from '../../src/scripts/calendar/editor/shareFlyer';
 import type { SiteEvent } from '../../src/scripts/calendar/types';
 
 afterEach(() => setServerTimeZone('America/Chicago'));
 
 const abort = () => Object.assign(new Error('closed'), { name: 'AbortError' });
-const DATA = { title: 'Bachata Basics', text: 'Bachata Basics · Sat, Aug 8', url: 'https://x.test/register?series=k1' };
 
 describe('a class link', () => {
   it('is the class page for a class and the events page for an event, with the key encoded', () => {
     expect(classShareUrl('https://x.test', 'class', 'k1')).toBe('https://x.test/register?series=k1');
     expect(classShareUrl('https://x.test', 'event', 'a b/c')).toBe('https://x.test/register/events?series=a%20b%2Fc');
-  });
-});
-
-describe('shareLink', () => {
-  it('uses the share sheet when there is one, with the title, text and link', async () => {
-    const share = vi.fn().mockResolvedValue(undefined);
-    const writeText = vi.fn();
-    expect(await shareLink(DATA, { share, clipboard: { writeText } })).toBe('shared');
-    expect(share).toHaveBeenCalledWith(DATA);
-    expect(writeText).not.toHaveBeenCalled();
-  });
-
-  it('says nothing when the sheet is closed (AbortError), and does not copy', async () => {
-    const writeText = vi.fn();
-    const nav: ShareNav = { share: vi.fn().mockRejectedValue(abort()), clipboard: { writeText } };
-    expect(await shareLink(DATA, nav)).toBe('cancelled');
-    expect(writeText).not.toHaveBeenCalled();
-  });
-
-  it('copies the link when the sheet fails any other way', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    const nav: ShareNav = { share: vi.fn().mockRejectedValue(new Error('NotAllowedError')), clipboard: { writeText } };
-    expect(await shareLink(DATA, nav)).toBe('copied');
-    expect(writeText).toHaveBeenCalledWith(DATA.url);
-  });
-
-  it('copies the link when there is no share sheet', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    expect(await shareLink(DATA, { clipboard: { writeText } })).toBe('copied');
-    expect(writeText).toHaveBeenCalledWith(DATA.url);
-  });
-
-  it('asks for the link to be copied by hand when there is neither, or the clipboard refuses', async () => {
-    expect(await shareLink(DATA, {})).toBe('manual');
-    expect(await shareLink(DATA, { clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } })).toBe('manual');
   });
 });
 

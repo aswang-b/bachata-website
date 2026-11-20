@@ -7,12 +7,11 @@ import type { Page } from '@playwright/test';
 // what this file's tests share goes as soon as the file is done.
 test.afterAll(sweepTestData);
 
-// Share buttons (scripts/share.ts, calendar/editor/shareFlyer.ts). Playwright
+// The admin's Share flyer (calendar/editor/shareFlyer.ts, scripts/share.ts). Playwright
 // can't open a real share sheet, so navigator.share, canShare and the clipboard
 // are replaced before the page loads and every call is recorded.
 let klass: Seeded;
 let withFlyer: Seeded;
-let past: Seeded;
 
 // 1x1 JPEG.
 const JPEG = Buffer.from(
@@ -29,9 +28,6 @@ test.beforeAll(async () => {
     state: 'NM',
     dayOffset: 61,
   });
-  past = await seedEvent({ name: 'Share Past', dayOffset: 62 });
-  const { error } = await db.from('events').update({ start_time: '2020-01-01T01:00:00Z', end_time: '2020-01-01T02:00:00Z' }).eq('id', past.ids[0]);
-  if (error) throw new Error(error.message);
 });
 
 interface Stubs {
@@ -65,64 +61,10 @@ async function stubSharing(page: Page, { share = true, canShare = true, clipboar
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls) as Promise<Record<string, any>[]>;
 const row = (page: Page, s: Seeded) => page.locator(`[data-offering-key="${s.key}"]`);
 
-test("a dancer's Share passes on the class's name, schedule and its own link", async ({ page }) => {
-  await stubSharing(page);
+test('the homepage has no Share button for dancers, just Register', async ({ page }) => {
   await page.goto('/');
-  const button = row(page, klass).locator('button[data-share]');
-  await expect(button).toHaveText('Share');
-  await expect(button.locator('svg')).toHaveAttribute('aria-hidden', 'true');
-  await button.click();
-  await expect.poll(() => calls(page)).toHaveLength(1);
-  const [call] = await calls(page);
-  expect(call.api).toBe('share');
-  expect(call.title).toBe(klass.title);
-  expect(call.text).toMatch(new RegExp(`^${klass.title} · .+`));
-  expect(call.url).toBe(`${new URL(page.url()).origin}/register?series=${encodeURIComponent(klass.key)}`);
-  expect(Object.keys(call).filter((k) => call[k] !== undefined).sort()).toEqual(['api', 'text', 'title', 'url']);
-  // Nothing is said when the sheet took it.
-  await expect(row(page, klass).locator('[data-share-status]')).toHaveText('');
-});
-
-test('the Share control is quiet: 44px to tap, and Register does not move or change', async ({ page }) => {
-  await page.goto('/');
-  const register = row(page, klass).locator('a', { hasText: 'Register' });
-  const box = await register.boundingBox();
-  const share = row(page, klass).locator('button[data-share]');
-  await expect(share).toBeVisible();
-  // The tap area (hit-44's ::after on touch screens) is checked by class; the visible control stays small.
-  await expect(share).toHaveClass(/hit-44/);
-  const after = await register.boundingBox();
-  expect(after).toEqual(box);
-  // It sits below the Register button, never beside the flyer or inside the price row.
-  const s = await share.boundingBox();
-  expect(s!.y).toBeGreaterThan(box!.y + box!.height - 1);
-});
-
-test('without a share sheet, Share copies the link and says so for a moment', async ({ page }) => {
-  await stubSharing(page, { share: false });
-  await page.goto('/');
-  await row(page, klass).locator('button[data-share]').click();
-  const status = row(page, klass).locator('[data-share-status]');
-  await expect(status).toHaveText('Link copied');
-  await expect(status).toHaveAttribute('role', 'status');
-  const [call] = await calls(page);
-  expect(call).toEqual({ api: 'copy', text: `${new URL(page.url()).origin}/register?series=${encodeURIComponent(klass.key)}` });
-  await expect(status).toHaveText('', { timeout: 6000 });
-});
-
-test('with neither a share sheet nor a clipboard, the link is shown to copy by hand', async ({ page }) => {
-  await stubSharing(page, { share: false, clipboard: false });
-  await page.goto('/');
-  await row(page, klass).locator('button[data-share]').click();
-  const field = row(page, klass).locator('input[data-share-manual]');
-  await expect(field).toHaveValue(`${new URL(page.url()).origin}/register?series=${encodeURIComponent(klass.key)}`);
-});
-
-test('a class that has passed has no Share button', async ({ page }) => {
-  await page.goto('/');
-  await expect(row(page, klass)).toBeVisible();
-  await expect(row(page, past)).toHaveCount(0);
-  await expect(page.locator(`button[data-share][data-share-key="${past.key}"]`)).toHaveCount(0);
+  await expect(row(page, klass).locator('a', { hasText: 'Register' })).toBeVisible();
+  await expect(page.locator('button[data-share], [data-share-row]')).toHaveCount(0);
 });
 
 async function openDetails(page: Page, s: Seeded, admin = true) {

@@ -19,7 +19,6 @@ import { ASK_SPOT_CLASS, ASK_SPOT_LABEL, askAboutSpotHref, isAskable } from '../
 import { blockDeals, dateRange, formatPrice, groupByFlyer, priceOptions, seriesBounds, venueText } from '../lib/flyerBlocks';
 import PastFlyersGallery from '../components/PastFlyersGallery.astro';
 import FlyerDialog from '../components/FlyerDialog.astro';
-import ShareClass from '../components/ShareClass.astro';
 import { classPath } from '../lib/classLink';
 import { eventSchemas } from '../lib/seoSchema';
 import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
@@ -254,7 +253,6 @@ const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyer
                           )}
                         </div>
                         {ask && <p class="text-right"><a href={askAboutSpotHref(o.key)} data-ask-spot class={ASK_SPOT_CLASS}>{ASK_SPOT_LABEL}</a></p>}
-                        <ShareClass offering={o} bounds={bounds} />
 
                         {inlineDetails && (
                           <div data-desc-preview class="group/desc mt-2 flex min-h-28 flex-col overflow-hidden rounded-xl border border-border bg-bg md:flex-1 data-[fits]:min-h-0 md:data-[fits]:flex-none">
