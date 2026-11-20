@@ -110,9 +110,14 @@ const inputClass =
 
             {pickerItems.length === 0 ? (
               <p class="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
-                {isLinked
-                  ? "This check-in link isn't valid anymore. Ask the front desk for a current QR code."
-                  : 'No classes are scheduled for today or later.'}
+                {isLinked ? (
+                  <>
+                    This check-in link isn't valid anymore.{' '}
+                    <a href="/check-in" class="font-semibold text-accent underline">Check in here</a> instead.
+                  </>
+                ) : (
+                  'No classes are scheduled for today or later.'
+                )}
               </p>
             ) : (
               <div id="class-list" class="flex flex-col gap-2">

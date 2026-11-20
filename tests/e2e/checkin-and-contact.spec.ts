@@ -44,6 +44,16 @@ test('a check-in needs a name, phone and class', async ({ request }) => {
   expect(res.status()).toBe(400);
 });
 
+test('an outdated check-in code offers the general check-in page', async ({ page }) => {
+  const gone = '00000000-0000-4000-8000-000000000000';
+  for (const path of [`/check-in/${gone}`, `/check-in?events=${gone}`]) {
+    await page.goto(path);
+    const note = page.getByText("This check-in link isn't valid anymore.");
+    await expect(note).toContainText('Check in here instead.');
+    await expect(note.getByRole('link', { name: 'Check in here' })).toHaveAttribute('href', '/check-in');
+  }
+});
+
 test('the contact form saves the message (apart from sign-ups) and notifies the admins once', async ({ page, request, adminPage, admin }) => {
   void adminPage;
   await page.goto('/contact');
