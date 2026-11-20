@@ -188,7 +188,7 @@ const dateFormatter = siteFormatter({ month: 'long', day: 'numeric', year: 'nume
                 {paymentAgreementText(submission.payment_method)}
                 {payUrl && (
                   <>
-                    {' '}
+                    <br />
                     <a id="venmo-pay-link" href={payUrl} class="font-semibold text-accent underline">{PAY_LINK_TEXT}</a>.
                   </>
                 )}

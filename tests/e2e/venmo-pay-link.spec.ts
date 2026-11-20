@@ -96,7 +96,9 @@ test('a Venmo sign-up\'s confirmation page and email say "Click here to pay @amu
   expect(confirmationId(page.url())).toBeTruthy();
 
   const line = page.locator('p', { hasText: 'You agreed to pay with Venmo.' });
-  await expect(line).toHaveText('You agreed to pay with Venmo. Click here to pay @amumira.');
+  // The pay link sits on its own line under the sentence.
+  await expect(line).toHaveText('You agreed to pay with Venmo.\nClick here to pay @amumira.', { useInnerText: true });
+  await expect(line.locator('br')).toHaveCount(1);
   const link = line.getByRole('link', { name: 'Click here to pay @amumira' });
   const total = dollars((await page.getByText('Subtotal', { exact: true }).locator('xpath=following-sibling::span').textContent())!);
   expect(total).toBe('40.00');
@@ -107,7 +109,7 @@ test('a Venmo sign-up\'s confirmation page and email say "Click here to pay @amu
   // The email: the same link, absolute, after the same sentence.
   const sent = emailsAbout('ZZZPayLink').filter((e) => e.html.includes(RUN_ID) && recipients(e).includes(email));
   expect(sent).toHaveLength(1);
-  const emailHref = sent[0].html.match(/You agreed to pay with Venmo\. <a href="([^"]*)"[^>]*>Click here to pay @amumira<\/a>\./)?.[1];
+  const emailHref = sent[0].html.match(/You agreed to pay with Venmo\.<br \/><a href="([^"]*)"[^>]*>Click here to pay @amumira<\/a>\./)?.[1];
   expect(emailHref?.replace(/&amp;/g, '&')).toBe(href);
   expect(emailHref).toMatch(/^https:\/\/venmo\.com\//);
 });

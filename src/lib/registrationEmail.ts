@@ -138,7 +138,7 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
           ${subtotalRowHtml}
         </table>
         ${hasReceipt ? receiptHtml(params.receiptLines!, params.subtotal, Boolean(params.isEvent)) : ''}
-        ${params.paymentNote ? `<p style="margin:12px 0 0;font-size:14px;color:${C.ink};">${escapeHtml(params.paymentNote)}${params.payUrl ? ` <a href="${escapeHtml(params.payUrl)}" style="${LINK}">${PAY_LINK_TEXT}</a>.` : ''}</p>` : ''}
+        ${params.paymentNote ? `<p style="margin:12px 0 0;font-size:14px;color:${C.ink};">${escapeHtml(params.paymentNote)}${params.payUrl ? `<br /><a href="${escapeHtml(params.payUrl)}" style="${LINK}">${PAY_LINK_TEXT}</a>.` : ''}</p>` : ''}
       </div>`;
 
 

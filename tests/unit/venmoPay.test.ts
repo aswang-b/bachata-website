@@ -117,10 +117,10 @@ describe('confirmation email pay link', () => {
     paymentNote: 'You agreed to pay with Venmo.',
   };
 
-  it('puts "Click here to pay @amumira." after the Venmo sentence, linking the pre-filled pay link', () => {
+  it('puts "Click here to pay @amumira." on the line under the Venmo sentence, linking the pre-filled pay link', () => {
     const url = venmoPayLink('venmo', lines, 100)!;
     const html = buildRegistrationConfirmationEmailHtml({ ...base, payUrl: url });
-    expect(html).toContain('You agreed to pay with Venmo. <a href="https://venmo.com/amumira?txn=pay&amp;amount=100.00&amp;note=Bachata%201%2C%20Salsa%20%26%20Sol" style="color:');
+    expect(html).toContain('You agreed to pay with Venmo.<br /><a href="https://venmo.com/amumira?txn=pay&amp;amount=100.00&amp;note=Bachata%201%2C%20Salsa%20%26%20Sol" style="color:');
     expect(html).toMatch(/>Click here to pay @amumira<\/a>\.<\/p>/);
   });
 
