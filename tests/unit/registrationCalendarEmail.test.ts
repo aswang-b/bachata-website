@@ -29,10 +29,10 @@ beforeEach(() => {
 });
 
 describe("the dancer's confirmation email", () => {
-  it('has an Add to calendar link carrying only the upcoming class date ids', async () => {
+  it('has an Add to calendar icon in the card, linking only the upcoming class date ids', async () => {
     db.current.seed('events', [salsa(1, 10), salsa(2, 17), salsa(3, -20)]);
     const conf = await buildRegistrationConfirmation('sub');
-    const href = conf!.html.match(/href="(https:\/\/dancewithb\.fun\/calendar\/ics\?[^"]*)"[^>]*>Add to calendar</)?.[1];
+    const href = conf!.html.match(/href="(https:\/\/dancewithb\.fun\/calendar\/ics\?[^"]*)" title="Add to calendar"[^>]*><img src="https:\/\/dancewithb\.fun\/email\/calendar\.png"[^>]*alt="Add to calendar"/)?.[1];
     expect(href).toBe(`https://dancewithb.fun/calendar/ics?e=${ID(1)},${ID(2)}`);
     expect(href).not.toMatch(/dana|555|sub|50/i);
   });

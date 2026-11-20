@@ -16,6 +16,8 @@ export function escapeHtml(str: string): string {
 import { siteFormatter } from './siteTime';
 import { formatPrice, quantityNote, receiptHeading, type ReceiptLine } from './registrationReceipt';
 import { EMAIL_COLORS as C, emailLayout } from './emailLayout';
+import { SITE_URL } from './seoSchema';
+import { PAY_LINK_TEXT } from './venmoPay';
 
 export interface RegistrationEmailParams {
   registrationTypeLabel: string;
@@ -115,26 +117,35 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
     `
     : '';
 
+  // "Add to calendar" as an icon in the card's top right (a hosted PNG: many email apps show no SVG; the alt text shows when images are off).
+  const calendarIcon = params.calendarUrl
+    ? `<td style="vertical-align:top;text-align:right;width:40px;"><a href="${escapeHtml(params.calendarUrl)}" title="Add to calendar" style="display:inline-block;padding:4px;text-decoration:none;"><img src="${SITE_URL}/email/calendar.png" width="24" height="24" alt="Add to calendar" style="border:0;display:block;" /></a></td>`
+    : '';
+
   const card = `
       <div style="border:1px solid ${C.border};border-radius:16px;padding:20px;background:#ffffff;">
-        <p style="margin:0;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:${C.pink};">${escapeHtml(params.registrationTypeLabel)}</p>
-        <p style="margin:4px 0 16px;font-size:12px;color:${C.muted};">Submitted ${escapeHtml(dateLabel)}</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 16px;">
+          <tr>
+            <td style="vertical-align:top;">
+              <p style="margin:0;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:${C.pink};">${escapeHtml(params.registrationTypeLabel)}</p>
+              <p style="margin:4px 0 0;font-size:12px;color:${C.muted};">Submitted ${escapeHtml(dateLabel)}</p>
+            </td>
+            ${calendarIcon}
+          </tr>
+        </table>
         <table cellpadding="0" cellspacing="0" style="font-size:14px;width:100%;">
           ${rowsHtml}
           ${subtotalRowHtml}
         </table>
         ${hasReceipt ? receiptHtml(params.receiptLines!, params.subtotal, Boolean(params.isEvent)) : ''}
-        ${params.paymentNote ? `<p style="margin:12px 0 0;font-size:14px;color:${C.ink};">${escapeHtml(params.paymentNote)}${params.payUrl ? ` <a href="${escapeHtml(params.payUrl)}" style="${LINK}">Click here to pay</a>.` : ''}</p>` : ''}
+        ${params.paymentNote ? `<p style="margin:12px 0 0;font-size:14px;color:${C.ink};">${escapeHtml(params.paymentNote)}${params.payUrl ? ` <a href="${escapeHtml(params.payUrl)}" style="${LINK}">${PAY_LINK_TEXT}</a>.` : ''}</p>` : ''}
       </div>`;
 
-  const calendarHtml = params.calendarUrl
-    ? `<p style="margin:16px 0 0;font-size:14px;text-align:center;"><a href="${escapeHtml(params.calendarUrl)}" style="${LINK}">Add to calendar</a></p>`
-    : '';
 
   return emailLayout({
     heading: 'Your Registration is Confirmed!',
     subheading: params.isEvent ? 'See you there!' : 'See you in class!',
-    bodyHtml: (params.noticeHtml ?? '') + card + calendarHtml + faqsHtml,
+    bodyHtml: (params.noticeHtml ?? '') + card + faqsHtml,
     whatsappUrl: params.whatsappUrl,
   });
 }

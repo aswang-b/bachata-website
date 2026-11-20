@@ -4,6 +4,8 @@
 
 // The account (also named in the form's QR label).
 export const VENMO_USERNAME = 'amumira';
+// The pay link's words on the confirmation page and email: who the dancer pays.
+export const PAY_LINK_TEXT = `Click here to pay @${VENMO_USERNAME}`;
 // The account's code link (no amount): what the form's QR code holds and what the
 // Venmo app's scanner reads. A link of the pay form below doesn't work when scanned.
 export const VENMO_URL = 'https://venmo.com/code?user_id=2024335518728192092&created=1788834419';

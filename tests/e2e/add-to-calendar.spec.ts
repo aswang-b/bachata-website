@@ -28,6 +28,9 @@ test('a confirmation page offers the series dates as a calendar file, and so doe
 
   const link = page.getByRole('link', { name: 'Add to calendar' });
   await expect(link).toBeVisible();
+  // An icon in the top right of the registration card, the page's only link to the file.
+  await expect(link.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.locator('[data-signup-saved]').getByRole('link', { name: 'Add to calendar' })).toHaveCount(1);
   await expect(link).toHaveAttribute('download', /\.ics$/);
   expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   const href = (await link.getAttribute('href'))!;
@@ -62,7 +65,7 @@ test('a confirmation page offers the series dates as a calendar file, and so doe
   // The dancer's confirmation email carries the same link, absolute.
   const sent = emailsAbout('ZZZCal').filter((e) => e.html.includes(RUN_ID) && recipients(e).includes(email));
   expect(sent).toHaveLength(1);
-  const emailHref = sent[0].html.match(/href="([^"]*\/calendar\/ics\?[^"]*)"[^>]*>Add to calendar</)?.[1];
+  const emailHref = sent[0].html.match(/href="([^"]*\/calendar\/ics\?[^"]*)" title="Add to calendar"[^>]*><img [^>]*alt="Add to calendar"/)?.[1];
   expect(emailHref).toBe(`https://dancewithb.fun/calendar/ics?e=${series.ids.join(',')}`);
 });
 

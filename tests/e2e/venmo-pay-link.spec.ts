@@ -85,7 +85,7 @@ test('the form\'s Venmo link follows the subtotal and class names, and the QR co
   expect(await qr.innerHTML()).toBe(qrBefore);
 });
 
-test('a Venmo sign-up\'s confirmation page and email say "Click here to pay." with the same amount as the receipt', async ({ page }) => {
+test('a Venmo sign-up\'s confirmation page and email say "Click here to pay @amumira." with the same amount as the receipt', async ({ page }) => {
   const email = attemptEmail('venmo');
   await page.goto(`/register?series=${classA.key}`);
   await selectSeries(page, classA.key);
@@ -96,18 +96,18 @@ test('a Venmo sign-up\'s confirmation page and email say "Click here to pay." wi
   expect(confirmationId(page.url())).toBeTruthy();
 
   const line = page.locator('p', { hasText: 'You agreed to pay with Venmo.' });
-  await expect(line).toHaveText('You agreed to pay with Venmo. Click here to pay.');
-  const link = line.getByRole('link', { name: 'Click here to pay' });
+  await expect(line).toHaveText('You agreed to pay with Venmo. Click here to pay @amumira.');
+  const link = line.getByRole('link', { name: 'Click here to pay @amumira' });
   const total = dollars((await page.getByText('Subtotal', { exact: true }).locator('xpath=following-sibling::span').textContent())!);
   expect(total).toBe('40.00');
   const href = (await link.getAttribute('href'))!;
   expect(href).toBe(payUrl(total, classA.title));
-  await expect(link).toHaveText('Click here to pay');
+  await expect(link).toHaveText('Click here to pay @amumira');
 
   // The email: the same link, absolute, after the same sentence.
   const sent = emailsAbout('ZZZPayLink').filter((e) => e.html.includes(RUN_ID) && recipients(e).includes(email));
   expect(sent).toHaveLength(1);
-  const emailHref = sent[0].html.match(/You agreed to pay with Venmo\. <a href="([^"]*)"[^>]*>Click here to pay<\/a>\./)?.[1];
+  const emailHref = sent[0].html.match(/You agreed to pay with Venmo\. <a href="([^"]*)"[^>]*>Click here to pay @amumira<\/a>\./)?.[1];
   expect(emailHref?.replace(/&amp;/g, '&')).toBe(href);
   expect(emailHref).toMatch(/^https:\/\/venmo\.com\//);
 });
