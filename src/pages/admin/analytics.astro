@@ -441,6 +441,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   import { createClassFilterGroup } from '../../lib/classFilterGroup';
   import { eventFilterOptions, eventNoteLabel, matchesEventFilter } from '../../lib/eventRegistrationFilter';
   import { classFilterOptions, classFilterRows, rowMatchesClassPick, signupMatchesClassPick } from '../../lib/classFilterOptions';
+  import { stableOrder } from '../../lib/stableOrder';
 
   // The index signatures below exist only so sortRows()'s generic
   // `T extends Record<string, unknown>` constraint is satisfied — they don't
@@ -778,6 +779,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   function signupRowKey(s: Signup): string {
     return `${s.submissionId}:${s.dancerIndex ?? 'x'}`;
   }
+  // Rows stay where they're shown through edits and reloads; a sort, search or filter re-sorts them (stableOrder.ts).
+  const signupsOrder = stableOrder(signupRowKey), eventRegistrationsOrder = stableOrder(signupRowKey), checkinsOrder = stableOrder((c: Checkin) => c.id);
 
   let editingSignupKey: string | null = null;
   let editingEventRegistrationKey: string | null = null;
@@ -883,8 +886,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       getSeries: () => classSeries,
       onChange,
     });
-  const signupsClassFilters = classFilterGroup('signups-class-filters', () => renderSignups());
-  const checkinsClassFilters = classFilterGroup('checkins-class-filters', () => renderCheckins());
+  const signupsClassFilters = classFilterGroup('signups-class-filters', signupsOrder.resorting(renderSignups));
+  const checkinsClassFilters = classFilterGroup('checkins-class-filters', checkinsOrder.resorting(renderCheckins));
   const attendanceClassFilters = classFilterGroup('attendance-class-filters', () => renderAttendance());
   function refreshClassFilters() {
     classFilterChoices = classFilterOptions(
@@ -923,7 +926,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   }
 
   function sortRows<T extends Record<string, unknown>>(rows: T[], sort: { column: string; direction: 'asc' | 'desc' }): T[] {
-    const sorted = [...rows].sort((a, b) => {
+    return [...rows].sort((a, b) => {
       const av = a[sort.column];
       const bv = b[sort.column];
       let cmp: number;
@@ -938,7 +941,6 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
 
       return sort.direction === 'asc' ? cmp : -cmp;
     });
-    return sorted;
   }
 
   function updateSortHeaders(table: string, sort: { column: string; direction: 'asc' | 'desc' }) {
@@ -960,9 +962,9 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   };
   const RENDER_BY_TABLE: Record<string, () => void> = {
     recycling: () => renderRecyclingBin(),
-    signups: () => renderSignups(),
-    'event-registrations': () => renderEventRegistrations(),
-    checkins: () => renderCheckins(),
+    signups: signupsOrder.resorting(renderSignups),
+    'event-registrations': eventRegistrationsOrder.resorting(renderEventRegistrations),
+    checkins: checkinsOrder.resorting(renderCheckins),
     'attendance-orphaned-signups': () => renderAttendance(),
     'attendance-orphaned-checkins': () => renderAttendance(),
     'attendance-matches': () => renderAttendance(),
@@ -974,12 +976,8 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       const column = th.dataset.column ?? '';
       const sort = SORT_STATE_BY_TABLE[table];
       if (!sort) return;
-      if (sort.column === column) {
-        sort.direction = sort.direction === 'asc' ? 'desc' : 'asc';
-      } else {
-        sort.column = column;
-        sort.direction = 'asc';
-      }
+      if (sort.column === column) sort.direction = sort.direction === 'asc' ? 'desc' : 'asc';
+      else Object.assign(sort, { column, direction: 'asc' });
       RENDER_BY_TABLE[table]?.();
     });
   });
@@ -1239,7 +1237,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     const isLockedByMe = signupsLock.isLocked();
 
     const filteredSignups = allSignups.filter((s) => matchesName(s.firstName, s.lastName, nameQuery) && signupsClassFilters.matches((f) => signupMatchesClassPick(s.classRegistrations, f)));
-    const sortedSignups = sortRows(filteredSignups, signupSort);
+    const sortedSignups = signupsOrder.rows(sortRows(filteredSignups, signupSort), allSignups);
 
     const addSignupRowHtml = addingSignup ? signupEditRowHtml({}, 'add') : '';
 
@@ -1481,12 +1479,12 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     updateSortHeaders('signups', signupSort);
   }
 
-  signupsNameSearch.addEventListener('input', renderSignups);
-  document.getElementById('signups-clear-filters')?.addEventListener('click', () => {
+  signupsNameSearch.addEventListener('input', signupsOrder.resorting(renderSignups));
+  document.getElementById('signups-clear-filters')?.addEventListener('click', signupsOrder.resorting(() => {
     signupsNameSearch.value = '';
     signupsClassFilters.reset();
     renderSignups();
-  });
+  }));
 
   // --- Event Registration tab ---
   // For seeing who registered for which event and reconciling payment. This
@@ -1506,6 +1504,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     eventRegistrationsEventFilter.innerHTML =
       '<option value="">All events</option>' + options.map((o) => `<option value="${escapeAttr(o.value)}">${escapeHtml(o.label)}</option>`).join('');
     eventRegistrationsEventFilter.value = options.some((o) => o.value === current) ? current : '';
+    if (eventRegistrationsEventFilter.value !== current) eventRegistrationsOrder.resort();
   }
 
   // Edit row for one dancer's event registration. The event checkboxes start
@@ -1552,7 +1551,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     const filtered = allEventRegistrations.filter(
       (s) => matchesName(s.firstName, s.lastName, nameQuery) && matchesEventFilter(s.classRegistrations, eventFilter)
     );
-    const sorted = sortRows(filtered, eventRegistrationSort);
+    const sorted = eventRegistrationsOrder.rows(sortRows(filtered, eventRegistrationSort), allEventRegistrations);
 
     // One row per event the dancer registered for, like Sign-Ups; continuation
     // rows repeat only the Event and Payment columns.
@@ -1741,13 +1740,13 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     updateSortHeaders('event-registrations', eventRegistrationSort);
   }
 
-  eventRegistrationsNameSearch.addEventListener('input', renderEventRegistrations);
-  eventRegistrationsEventFilter.addEventListener('change', renderEventRegistrations);
-  document.getElementById('event-registrations-clear-filters')?.addEventListener('click', () => {
+  eventRegistrationsNameSearch.addEventListener('input', eventRegistrationsOrder.resorting(renderEventRegistrations));
+  eventRegistrationsEventFilter.addEventListener('change', eventRegistrationsOrder.resorting(renderEventRegistrations));
+  document.getElementById('event-registrations-clear-filters')?.addEventListener('click', eventRegistrationsOrder.resorting(() => {
     eventRegistrationsNameSearch.value = '';
     eventRegistrationsEventFilter.value = '';
     renderEventRegistrations();
-  });
+  }));
 
   addSignupBtn.addEventListener('click', () => {
     editingSignupKey = null;
@@ -1771,7 +1770,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
         matchesName(c.firstName, c.lastName, nameQuery) &&
         checkinsClassFilters.matches((f) => rowMatchesClassPick(c, c.eventId, f))
     );
-    const sortedCheckins = sortRows(filteredCheckins, checkinSort);
+    const sortedCheckins = checkinsOrder.rows(sortRows(filteredCheckins, checkinSort), allCheckins);
 
     const addCheckinRowHtml = addingCheckin ? checkinEditRowHtml({}, 'add') : '';
 
@@ -1904,12 +1903,12 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
     updateSortHeaders('checkins', checkinSort);
   }
 
-  checkinsNameSearch.addEventListener('input', renderCheckins);
-  document.getElementById('checkins-clear-filters')?.addEventListener('click', () => {
+  checkinsNameSearch.addEventListener('input', checkinsOrder.resorting(renderCheckins));
+  document.getElementById('checkins-clear-filters')?.addEventListener('click', checkinsOrder.resorting(() => {
     checkinsNameSearch.value = '';
     checkinsClassFilters.reset();
     renderCheckins();
-  });
+  }));
 
   addCheckinBtn.addEventListener('click', () => {
     editingCheckinKey = null;
