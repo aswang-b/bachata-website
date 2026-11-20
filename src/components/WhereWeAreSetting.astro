@@ -1,11 +1,12 @@
 ---
 // Admin → Admin → Where we are (lib/siteConfig.ts): the city and state the
-// homepage, page titles and search results name, and an optional homepage note.
+// homepage's hidden heading, page titles and search results name, and an
+// optional note (hidden on the homepage too): search engine text only.
 ---
 
 <div class="flex w-full flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-left">
   <p class="text-xs font-bold uppercase tracking-wider text-muted">Where we are</p>
-  <p class="text-xs text-muted">Shown on the homepage and in page titles and search results. Moving? Change this and the Site Time Zone below.</p>
+  <p class="text-xs text-muted">For search engines: used in page titles, search results and a hidden homepage heading. Visitors don't see it on the page. Moving? Change this and the Site Time Zone below.</p>
   <div class="flex flex-col gap-2 sm:flex-row">
     <label class="flex flex-1 flex-col gap-1 text-xs text-muted">
       City
@@ -30,7 +31,7 @@
     </label>
   </div>
   <label class="flex flex-col gap-1 text-xs text-muted">
-    Note on the homepage (optional)
+    Note for search engines (optional, hidden on the homepage)
     <input
       id="site-location-note"
       type="text"

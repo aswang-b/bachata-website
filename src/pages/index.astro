@@ -121,9 +121,9 @@ const shareImage = blocks.find((b) => b.flyerUrl?.startsWith('https://'))?.flyer
     </symbol>
   </svg>
   <section class="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
-    {/* The page's heading, for search engines and screen readers only: the page itself leads with the flyers. */}
+    {/* The page's heading and the Where we are note, for search engines and screen readers only: the page itself leads with the flyers. */}
     <h1 class="sr-only">Bachata with B · {loc.city}: classes and social dance events in {place} with B Li (Belinda Li)</h1>
-    {loc.note && <p id="location-note" class="mb-6 text-center text-sm text-ink sm:mb-8">{loc.note}</p>}
+    {loc.note && <p id="location-note" class="sr-only">{loc.note}</p>}
     {sections.length === 0 && <p class="mx-auto max-w-md text-center text-sm text-muted">No upcoming classes or events right now — check back soon!</p>}
 
     {sections.length > 0 && (
