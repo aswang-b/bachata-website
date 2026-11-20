@@ -4,6 +4,7 @@ import { allVisibilities, hideTestRows } from '../../../lib/testMode';
 import { requireAdmin } from '../../../lib/admin';
 import { buildClassSeriesList } from '../../../lib/classSeries';
 import { isDeletedDancer } from '../../../lib/recyclingBin';
+import { dancerPaid } from '../../../lib/dancerPaid';
 import { rulesForSeries } from '../../../lib/linksStore';
 import { eventZone } from '../../../lib/siteTime';
 
@@ -211,6 +212,8 @@ export const GET: APIRoute = async ({ request }) => {
           : [
               {
                 ...shared,
+                // Each dancer's own Paid (the sign-up's until one is set).
+                paid: dancerPaid(d, row.paid),
                 dancerIndex: i,
                 dancerCount: liveDancerCount,
                 firstName: d.firstName ?? '',

@@ -442,6 +442,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
   import { eventFilterOptions, eventNoteLabel, matchesEventFilter } from '../../lib/eventRegistrationFilter';
   import { classFilterOptions, classFilterRows, rowMatchesClassPick, signupMatchesClassPick } from '../../lib/classFilterOptions';
   import { stableOrder } from '../../lib/stableOrder';
+  import { bindPaidSwitches, paidSwitchData, type PaidChange } from '../../scripts/paidSwitches';
 
   // The index signatures below exist only so sortRows()'s generic
   // `T extends Record<string, unknown>` constraint is satisfied — they don't
@@ -1217,18 +1218,18 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       </tr>`;
   }
 
-  // A Paid switch set back from code (its save failed) fires no change
-  // event, so this tells its row's phone layout to show the real state.
-  function revertedPaid(checkbox: HTMLInputElement) {
-    checkbox.dispatchEvent(new Event('paid-reverted', { bubbles: true }));
-  }
-
   async function withAuthHeader(): Promise<Record<string, string> | null> {
     const {
       data: { session },
     } = await supabaseBrowser.auth.getSession();
     if (!session) return null;
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
+  }
+
+  // One dancer's Paid (the switches: scripts/paidSwitches.ts).
+  async function savePaid(change: PaidChange): Promise<boolean> {
+    const headers = await withAuthHeader();
+    return Boolean(headers && (await fetch('/api/admin/update-signup', { method: 'POST', headers, body: JSON.stringify({ ...change, holderId }) })).ok);
   }
 
   // --- Sign-Ups tab ---
@@ -1280,7 +1281,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
                 : ''
             }</td>
             <td class="px-4 py-2.5 text-ink/70">${paymentSubtotalLabel}</td>
-            <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" role="switch" aria-label="Paid" class="paid-checkbox paid-toggle" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
+            <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" role="switch" aria-label="Paid" class="paid-checkbox paid-toggle" ${paidSwitchData(s)} ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? dateFormatter.format(new Date(s.createdAt)) : ''}</td>
             ${
               isLockedByMe
@@ -1298,32 +1299,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
         })
         .join('');
 
-    document.querySelectorAll<HTMLInputElement>('.paid-checkbox').forEach((checkbox) => {
-      checkbox.addEventListener('change', async () => {
-        const submissionId = checkbox.dataset.submissionId!;
-        const paid = checkbox.checked;
-        checkbox.disabled = true;
-
-        const headers = await withAuthHeader();
-        const res = headers
-          ? await fetch('/api/admin/update-signup', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ submissionId, paid, holderId }),
-            })
-          : null;
-
-        if (res?.ok) {
-          allSignups.forEach((s) => {
-            if (s.submissionId === submissionId) s.paid = paid;
-          });
-        } else {
-          checkbox.checked = !paid;
-          revertedPaid(checkbox);
-        }
-        checkbox.disabled = false;
-      });
-    });
+    bindPaidSwitches(signupsBody.querySelectorAll<HTMLInputElement>('.paid-checkbox'), allSignups, savePaid);
 
     document.querySelectorAll<HTMLButtonElement>('.edit-signup-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -1578,7 +1554,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? contactCell(s.email, s.phone) : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${escapeHtml(entry.classTitle || '—')}</td>
             <td class="px-4 py-2.5 text-ink/70">${paymentSubtotalLabel}</td>
-            <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" role="switch" aria-label="Paid" class="event-paid-checkbox paid-toggle" data-submission-id="${s.submissionId}" ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
+            <td class="px-4 py-2.5">${isFirst ? `<input type="checkbox" role="switch" aria-label="Paid" class="event-paid-checkbox paid-toggle" ${paidSwitchData(s)} ${s.paid ? 'checked' : ''} ${isLockedByMe ? '' : 'disabled title="Click Try Lock to Edit to change payment status"'} />` : ''}</td>
             <td class="px-4 py-2.5 text-ink/70">${isFirst ? dateFormatter.format(new Date(s.createdAt)) : ''}</td>
             ${
               isLockedByMe
@@ -1698,30 +1674,7 @@ import ErrorsQueue from '../../components/ErrorsQueue.astro';
       });
     });
 
-    eventRegistrationsBody.querySelectorAll<HTMLInputElement>('.event-paid-checkbox').forEach((checkbox) => {
-      checkbox.addEventListener('change', async () => {
-        const submissionId = checkbox.dataset.submissionId!;
-        const paid = checkbox.checked;
-        checkbox.disabled = true;
-
-        const headers = await withAuthHeader();
-        const res = headers
-          ? await fetch('/api/admin/update-signup', { method: 'POST', headers, body: JSON.stringify({ submissionId, paid, holderId }) })
-          : null;
-
-        if (res?.ok) {
-          // Every dancer on a group registration shares the submission's paid flag.
-          allEventRegistrations.forEach((s) => {
-            if (s.submissionId === submissionId) s.paid = paid;
-          });
-          renderEventRegistrations();
-        } else {
-          checkbox.checked = !paid;
-          revertedPaid(checkbox);
-          checkbox.disabled = false;
-        }
-      });
-    });
+    bindPaidSwitches(eventRegistrationsBody.querySelectorAll<HTMLInputElement>('.event-paid-checkbox'), allEventRegistrations, savePaid, renderEventRegistrations);
 
     eventRegistrationsEmpty.classList.toggle('hidden', sorted.length > 0);
     // Filtered to an event that others include: who else counts at its door,

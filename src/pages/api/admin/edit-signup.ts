@@ -3,6 +3,8 @@ import { supabase } from '../../../lib/supabase';
 import { requireAdmin } from '../../../lib/admin';
 import { EVENT_REGISTRATIONS_LOCK_RESOURCE, SIGNUPS_LOCK_RESOURCE, requireLock } from '../../../lib/editLock';
 import { RecyclingBinError, isDeletedDancer, softDeleteDancer } from '../../../lib/recyclingBin';
+import { dancerPaid } from '../../../lib/dancerPaid';
+import { DancerPaidError, setDancerPaid } from '../../../lib/dancerPaidStore';
 import {
   ClassRegistrationInputError,
   insertClassRegistrations,
@@ -79,8 +81,8 @@ export const POST: APIRoute = async ({ request }) => {
     }
     const classSelectionsRaw = serializeClassSelections(body.classSelections);
     if (!classSelectionsRaw) return new Response(JSON.stringify({ error: 'Pick an event.' }), { status: 400 });
-    // Saved like a public event registration: one attendee, no role.
-    const dancer = { firstName, lastName, role: '', phone: phone || '', email: email || '' };
+    // Saved like a public event registration: one attendee, no role, with their own Paid.
+    const dancer = { firstName, lastName, role: '', phone: phone || '', email: email || '', paid: Boolean(paid) };
     const { data: newRow, error } = await supabase
       .from('intake_submissions')
       .insert({
@@ -233,15 +235,26 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Writes only this dancer's entry, with the sign-up row locked, so a
     // delete of another dancer from the Attendance tab isn't overwritten.
+    // A dancer's Paid is their own (dancerPaid.ts): the RPC (whose p_paid is
+    // the sign-up's one flag) keeps the sign-up's as it is, and setDancerPaid
+    // saves the dancer's after it, if it changed.
     const { error } = await supabase.rpc('update_signup_dancer', {
       p_submission_id: submissionId,
       p_dancer_index: targetDancerIndex,
       p_dancer: dancer,
       p_payment_method: paymentMethod || null,
-      p_paid: Boolean(paid),
+      p_paid: targetDancerIndex == null ? Boolean(paid) : Boolean(row.paid),
     });
     if (error?.code === 'P0002') return new Response(JSON.stringify({ error: error.message }), { status: 404 });
     if (error) return new Response(JSON.stringify({ error: 'Failed to update sign-up.' }), { status: 500 });
+    if (targetDancerIndex != null && Boolean(paid) !== dancerPaid(dancers![targetDancerIndex], Boolean(row.paid))) {
+      try {
+        await setDancerPaid(submissionId, targetDancerIndex, Boolean(paid));
+      } catch (err) {
+        const status = err instanceof DancerPaidError ? err.status : 500;
+        return new Response(JSON.stringify({ error: 'Saved the details, but not Paid. Please try again.' }), { status });
+      }
+    }
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }
 
