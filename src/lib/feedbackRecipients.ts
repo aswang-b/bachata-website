@@ -153,7 +153,7 @@ async function classAttendees(option: FeedbackOption, series: ClassSeriesEntry[]
   const [registrations, checkinRows, matches, noShows] = await Promise.all([
     fetchAllRows<AttendanceRegistrationRow>((from, to) =>
       hideTestRows(
-        supabase.from('class_registrations').select('id, first_name, last_name, email, phone, class_title, series_mode, price, occurrence_event_id, created_at')
+        supabase.from('class_registrations').select('id, first_name, last_name, email, phone, class_title, series_key, series_mode, price, occurrence_event_id, created_at')
       )
         .eq('class_title', target.title)
         .is('deleted_at', null)

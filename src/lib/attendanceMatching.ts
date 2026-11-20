@@ -73,6 +73,21 @@ function pickClosestSeries(candidates: ClassSeriesEntry[], createdAt: string): C
   });
 }
 
+// The series a registration was for. Two series can share a title, so the
+// recorded series key (or the chosen occurrence) decides first; title plus
+// closest start is only the fallback for legacy rows or a key no longer listed.
+function findRegistrationSeries(reg: AttendanceRegistrationRow, classSeriesList: ClassSeriesEntry[]): ClassSeriesEntry | null {
+  if (reg.series_key) {
+    const byKey = classSeriesList.find((s) => s.key === reg.series_key);
+    if (byKey) return byKey;
+  }
+  if (reg.occurrence_event_id) {
+    const byOccurrence = classSeriesList.find((s) => s.occurrences.some((o) => o.id === reg.occurrence_event_id));
+    if (byOccurrence) return byOccurrence;
+  }
+  return pickClosestSeries(classSeriesList.filter((s) => s.title === reg.class_title), reg.created_at);
+}
+
 // Expands each registration into one "expected attendance" entry per class
 // occurrence for a Whole Series sign-up (so partial attendance is visible),
 // or a single entry for a Drop-In (or legacy/non-series) sign-up, satisfied
@@ -97,12 +112,12 @@ export function expandRegistrationsToEntries(
     };
 
     if (reg.series_mode === 'whole') {
-      // Matched by title alone (not `s.isSeries`) — a series that's been
-      // trimmed down to a single remaining occurrence is still the series
-      // this registration belongs to, and should expand to that occurrence
-      // rather than falling through to the "couldn't expand" branch below.
-      const candidates = classSeriesList.filter((s) => s.title === reg.class_title);
-      const series = pickClosestSeries(candidates, reg.created_at);
+      // Matched by series key first, title as the fallback (never `s.isSeries`) —
+      // a series that's been trimmed down to a single remaining occurrence is
+      // still the series this registration belongs to, and should expand to
+      // that occurrence rather than falling through to the "couldn't expand"
+      // branch below.
+      const series = findRegistrationSeries(reg, classSeriesList);
       if (series) {
         for (const occ of series.occurrences) {
           entries.push({ ...base, seriesKey: reg.series_key ?? series.key, occurrenceEventId: occ.id, occurrenceDate: occ.startTime, occurrenceTimeZone: series.timeZone });
@@ -123,8 +138,7 @@ export function expandRegistrationsToEntries(
     // no stored occurrence fall back to the matching series' last/only
     // occurrence as a best-effort guess, same as before.
     if (reg.occurrence_event_id) {
-      const candidates = classSeriesList.filter((s) => s.title === reg.class_title);
-      const series = pickClosestSeries(candidates, reg.created_at);
+      const series = findRegistrationSeries(reg, classSeriesList);
       const occ = series?.occurrences.find((o) => o.id === reg.occurrence_event_id) ?? null;
       entries.push({
         ...base,
@@ -136,8 +150,7 @@ export function expandRegistrationsToEntries(
       continue;
     }
 
-    const candidates = classSeriesList.filter((s) => s.title === reg.class_title);
-    const series = pickClosestSeries(candidates, reg.created_at);
+    const series = findRegistrationSeries(reg, classSeriesList);
     const lastOccurrence = series?.occurrences[series.occurrences.length - 1] ?? null;
     entries.push({ ...base, seriesKey: reg.series_key ?? series?.key ?? null, occurrenceEventId: null, occurrenceDate: lastOccurrence?.startTime ?? null, occurrenceTimeZone: series?.timeZone ?? null });
   }
