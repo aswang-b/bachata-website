@@ -1,11 +1,13 @@
 import { SITE_URL } from './seoSchema';
 
 // The look every email to a dancer shares: a dark band with the heading (the
-// name is the sender's and the footer's, not repeated here), a thin red line,
+// name is the sender's and the footer's, not repeated here), a thin pink line,
 // the content on a light body, and
 // a dark footer with the wordmark and the site's social links (WhatsApp only
 // when a community link is set). Tables with bgcolor and inline styles, since
 // many email apps ignore anything else; icons are hosted PNGs (no SVG in email).
+// The block's top and bottom corners are rounded like the site's cards; Outlook
+// on Windows ignores border-radius and shows square corners.
 
 export const EMAIL_COLORS = {
   dark: '#170f0d',
@@ -52,22 +54,22 @@ export function emailLayout(p: EmailLayoutParams): string {
     ? `<span style="font-family:${TEXT};font-size:12px;color:${C.mutedOnDark};">${escapeAttr(p.footerNote)}</span>`
     : [icon(INSTAGRAM, 'instagram', 'Instagram'), icon(SPOTIFY, 'spotify', 'Spotify'), p.whatsappUrl ? icon(p.whatsappUrl, 'whatsapp', 'Join our WhatsApp community') : ''].join('');
   return `
-<div style="background:${C.body};padding:0;margin:0;">
+<div style="background:${C.body};padding:16px 8px;margin:0;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;border-collapse:collapse;">
     <tr>
-      <td bgcolor="${C.dark}" style="background:${C.dark};padding:24px 28px 22px;">
+      <td bgcolor="${C.dark}" style="background:${C.dark};padding:24px 28px 22px;border-radius:16px 16px 0 0;">
         <h1 style="margin:0;font-family:${DISPLAY};font-size:24px;line-height:1.2;font-weight:800;color:${C.onDark};">${escapeAttr(p.heading)}</h1>
         ${p.subheading ? `<p style="margin:4px 0 0;font-family:${TEXT};font-size:15px;color:${C.mutedOnDark};">${escapeAttr(p.subheading)}</p>` : ''}
       </td>
     </tr>
-    <tr><td bgcolor="${C.red}" style="background:${C.red};height:4px;line-height:4px;font-size:0;">&nbsp;</td></tr>
+    <tr><td bgcolor="${C.pink}" style="background:${C.pink};height:4px;line-height:4px;font-size:0;">&nbsp;</td></tr>
     <tr>
       <td bgcolor="${C.body}" style="background:${C.body};padding:22px 28px 26px;font-family:${TEXT};color:${C.ink};">
         ${p.bodyHtml}
       </td>
     </tr>
     <tr>
-      <td bgcolor="${C.dark}" style="background:${C.dark};padding:16px 28px;">
+      <td bgcolor="${C.dark}" style="background:${C.dark};padding:16px 28px;border-radius:0 0 16px 16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
             <td style="vertical-align:middle;"><a href="${SITE_URL}" style="text-decoration:none;">${wordmark(15)}</a></td>

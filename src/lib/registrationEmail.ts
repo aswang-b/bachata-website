@@ -48,9 +48,9 @@ export interface RegistrationEmailParams {
 const NOT_CONTACT = new Set(['Name', 'Instagram', 'Class', 'Event', 'Notes', 'Payment method']);
 export const isContactRow = (label: string) => !NOT_CONTACT.has(label);
 
-// Email addresses and phone numbers as the site's red links, instead of the
+// Email addresses and phone numbers as the site's pink links, instead of the
 // blue an email app adds on its own. `text` is already escaped.
-const LINK = `color:${C.red};text-decoration:underline;`;
+const LINK = `color:${C.pink};text-decoration:underline;`;
 export function linkContacts(text: string): string {
   return text
     .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, (email) => `<a href="mailto:${email}" style="${LINK}">${email}</a>`)
@@ -117,7 +117,7 @@ export function buildRegistrationConfirmationEmailHtml(params: RegistrationEmail
 
   const card = `
       <div style="border:1px solid ${C.border};border-radius:16px;padding:20px;background:#ffffff;">
-        <p style="margin:0;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:${C.red};">${escapeHtml(params.registrationTypeLabel)}</p>
+        <p style="margin:0;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:${C.pink};">${escapeHtml(params.registrationTypeLabel)}</p>
         <p style="margin:4px 0 16px;font-size:12px;color:${C.muted};">Submitted ${escapeHtml(dateLabel)}</p>
         <table cellpadding="0" cellspacing="0" style="font-size:14px;width:100%;">
           ${rowsHtml}

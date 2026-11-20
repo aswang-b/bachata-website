@@ -53,7 +53,7 @@ export function buildFeedbackEmailHtml(params: FeedbackEmailParams): string {
   } else if (tap) {
     answers = tap.choices.map((c) => `<a href="${answerLink(c.value)}" style="${buttonStyle}margin:0 auto 8px;max-width:360px;padding:11px 12px;font-size:15px;font-weight:bold;">${escapeHtml(c.label)}</a>`).join('');
   } else {
-    answers = `<a href="${escapeHtml(params.link)}" style="display:inline-block;padding:12px 28px;border-radius:999px;background:${C.red};color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;">Answer</a>`;
+    answers = `<a href="${escapeHtml(params.link)}" style="display:inline-block;padding:12px 28px;border-radius:999px;background:${C.pink};color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;">Answer</a>`;
   }
 
   const more = questions.length - 1;

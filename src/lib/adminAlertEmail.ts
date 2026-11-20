@@ -28,7 +28,7 @@ export function buildContactAlertHtml(p: ContactAlertParams): string {
     .join('');
   const button = (href: string, label: string, primary: boolean) =>
     `<a href="${escapeHtml(href)}" style="display:inline-block;margin:0 8px 8px 0;padding:10px 20px;border-radius:999px;font-size:14px;font-weight:bold;text-decoration:none;${
-      primary ? `background:${C.red};color:#ffffff;` : `background:#ffffff;color:${C.red};border:1px solid ${C.red};`
+      primary ? `background:${C.pink};color:#ffffff;` : `background:#ffffff;color:${C.pink};border:1px solid ${C.pink};`
     }">${label}</a>`;
   const buttons = [p.replyTo ? button(`mailto:${p.replyTo}`, 'Reply by email', true) : '', button(`${SITE_URL}/admin/inbox`, 'Open the inbox', !p.replyTo)].join('');
 
