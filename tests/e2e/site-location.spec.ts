@@ -29,6 +29,8 @@ test('the homepage names the stored city in its heading and title', async ({ pag
   await page.goto('/');
   // The page's own heading: the Astro dev toolbar (outside <main>) has <h1>s of its own once it loads.
   await expect(page.locator('main h1')).toContainText(`Bachata with B · ${loc.city}`);
+  // For search engines and screen readers only: the homepage leads with its flyers.
+  await expect(page.locator('main h1')).toHaveClass(/\bsr-only\b/);
   expect(await page.title()).toContain(place(loc));
 });
 
