@@ -66,7 +66,9 @@ export class BrandedQrError extends Error {
   }
 }
 
-const base = () => (env('QR_API_BASE') || 'https://qr.dancewithb.fun').replace(/\/$/, '');
+// The QR site's own address (QR_API_BASE overrides it), with no slash at the end.
+export const qrSiteBase = () => (env('QR_API_BASE') || 'https://qr.dancewithb.fun').replace(/\/$/, '');
+const base = qrSiteBase;
 const TIMEOUT_MS = 10_000;
 const SVG_CACHE_MS = 5 * 60 * 1000;
 const CODES_CACHE_MS = 60 * 1000;
@@ -211,6 +213,23 @@ export function fakeBatch(linkCodes: string[], replace = false, contrast = VIVID
     }
     return `${code}:${made.id}`;
   });
+}
+
+// What the QR site answers to GET or HEAD /c/<code> (its worker's redirect()):
+// a 302 to the link's address with an explicit "#", counting a scan only on
+// GET; 404 for no such link. `down` (FAKE_QR_DOWN_HEADER) fails like an
+// outage: 'timeout' never answers, anything else is a 503.
+export function fakeShortLinkHit(code: string, method: 'GET' | 'HEAD', down: string | null = null): Response {
+  if (down === 'timeout') throw new DOMException('The operation timed out.', 'TimeoutError');
+  if (down) return new Response('Fake outage', { status: 503 });
+  const found = fakeState.links.find((l) => l.code === code);
+  if (!found) return new Response('Not found', { status: 404 });
+  if (method === 'GET') {
+    found.hits += 1;
+    found.last_hit = Math.floor(Date.now() / 1000);
+  }
+  const location = found.url.includes('#') ? found.url : `${found.url}#`;
+  return new Response(null, { status: 302, headers: { Location: location, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
 }
 
 function fake(method: string, body: Record<string, unknown>): unknown {

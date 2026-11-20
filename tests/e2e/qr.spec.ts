@@ -4,6 +4,7 @@ import jsQR from 'jsqr';
 import { test, expect } from './support/fixtures';
 import { db, seedEvent, sweepTestData, type Seeded } from './support/db';
 import { signInBrowser } from './support/admin';
+import { BASE_URL } from './support/env';
 
 // Door signs (/admin/qr). The test server fakes qr.dancewithb.fun and Venmo
 // (E2E_FAKE_QR): short links, branded codes and saved signs live in its
@@ -14,7 +15,8 @@ import { signInBrowser } from './support/admin';
 test.afterAll(sweepTestData);
 
 const DANCE_WITH_B_VENMO = 'https://venmo.com/code?user_id=2024335518728192092';
-const SHORT = /https:\/\/qr\.example\.test\/c\/\w+/;
+// A sign's short link is this site's own /c/<code> (lib/shortLinks.ts), which opens the installed app.
+const SHORT = new RegExp(`${BASE_URL}/c/[a-z0-9]+`);
 
 // What a drawn code opens, read the way a phone would.
 async function decode(canvas: Locator): Promise<string | null> {

@@ -35,6 +35,12 @@ export function fakeQrServices(): boolean {
   return flag('E2E_FAKE_QR') === '1';
 }
 
+// Sent with a request for a short link (/c/<code>) on the test server, makes
+// the faked QR site fail as an outage would ('timeout', or anything else for a
+// 503), so a test can see the scan fall back to the sign's saved address.
+// Ignored unless the QR site is faked.
+export const FAKE_QR_DOWN_HEADER = 'x-e2e-qr-down';
+
 // Push notifications (lib/push.ts) are kept in memory and never sent, so a run
 // never reaches a real phone or adds to the real subscriber list.
 export function fakePush(): boolean {

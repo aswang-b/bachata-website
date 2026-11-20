@@ -5,7 +5,8 @@ import { supabase } from './supabase';
 // of an open error with the same dedupeKey counts on its line instead.
 
 // link_rule: a sign-up took both of a "Cannot take both" pair of linked classes (not an error, a check).
-export type SiteErrorKind = 'email_bounce' | 'google_api' | 'google_auth' | 'email_send' | 'signup_save' | 'link_rule';
+// short_link: a scanned code (/c/<code>) couldn't ask the QR site where it goes (lib/shortLinks.ts).
+export type SiteErrorKind = 'email_bounce' | 'google_api' | 'google_auth' | 'email_send' | 'signup_save' | 'link_rule' | 'short_link';
 
 export interface SiteError {
   id: string;

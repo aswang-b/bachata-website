@@ -79,6 +79,14 @@ export async function getSign(id: string): Promise<DoorSign | null> {
   return (data as DoorSign | null) ?? null;
 }
 
+// The saved sign holding this short link, if any (each link is on one sign at most).
+export async function signForLink(linkCode: string): Promise<DoorSign | null> {
+  if (fakeQrServices()) return memory.find((s) => s.link_code === linkCode) ?? null;
+  const { data, error } = await supabase.from('door_signs').select('*').eq('link_code', linkCode).maybeSingle();
+  if (error) throw storeError(error.message);
+  return (data as DoorSign | null) ?? null;
+}
+
 // False when the link was taken by another sign at the same moment (its index is unique).
 export async function insertSign(fields: SignFields & Pick<DoorSign, 'link_code' | 'link_short' | 'pointed_url'>): Promise<DoorSign | null> {
   const now = new Date().toISOString();

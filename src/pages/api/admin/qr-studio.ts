@@ -4,6 +4,7 @@ import { CheckinLinkError, buildCheckinLink, eventIdsFrom } from '../../../lib/c
 import { BrandedQrError, MAX_BATCH, batchUrl, cleanCodeStyle, brandedQrConfigured, codeSvg, codesFor, createTicket, embedOrigin, isVivid, pointLink, readLink } from '../../../lib/brandedQr';
 import { DEFAULT_CHECKIN_TITLE, DoorSignError, MAX_SIGNS, nameTaken, signNamed, SPARE_LINKS, addPoolLink, deleteSign, getSign, insertSign, listSigns, poolLinks, updateSign, type DoorSign, type SignVenmo } from '../../../lib/doorSigns';
 import { QrStudioStoreError, loadQrStudio, updateQrStudio, type QrStudio } from '../../../lib/qrStudioStore';
+import { siteShortLink } from '../../../lib/shortLinks';
 import { siteTimeZone } from '../../../lib/siteTime';
 import { VenmoLookupError, cleanVenmoUsername, lookupVenmo, venmoCodeUrl, venmoProfileUrl } from '../../../lib/venmo';
 import { fakeQrServices } from '../../../lib/testMode';
@@ -55,15 +56,21 @@ const siteOrigin = (request: Request) => (fakeQrServices() ? new URL(request.url
 const withLinks = <T extends { username: string; userId: string }>(a: T) => ({ ...a, codeUrl: venmoCodeUrl(a.userId), profileUrl: venmoProfileUrl(a.username) });
 const venmoState = (studio: QrStudio) => ({ venmo: studio.venmo.map(withLinks), defaultVenmo: studio.defaultVenmo });
 
+// A saved sign's short link as shown, copied and put in its plain code: this
+// site's /c/<code> (lib/shortLinks.ts), which opens the installed app on
+// Android, rather than the QR site's own address stored in link_short.
+const shortFor = (request: Request, sign: Pick<DoorSign, 'link_code'>) => siteShortLink(siteOrigin(request), sign.link_code);
+
 // A saved sign as the page shows it: where its link opens now, its scans this week, its branded code.
-async function signView(sign: DoorSign, fresh: boolean) {
-  const view = { ...sign, venmo: sign.venmo ? withLinks(sign.venmo) : null };
+async function signView(request: Request, sign: DoorSign, fresh: boolean) {
+  const short = shortFor(request, sign);
+  const view = { ...sign, link_short: short, venmo: sign.venmo ? withLinks(sign.venmo) : null };
   try {
     const [link, codes] = await Promise.all([readLink(sign.link_code, { tz: siteTimeZone(), days: 7 }), codesFor(sign.link_code, fresh)]);
     const code = codes[0] ?? null;
     return {
       ...view,
-      link: link ? { code: link.code, short: link.short, url: link.url, hits: link.hits, updatedAt: link.updated_at, week: link.stats?.days ?? [] } : null,
+      link: link ? { code: link.code, short, url: link.url, hits: link.hits, updatedAt: link.updated_at, week: link.stats?.days ?? [] } : null,
       code: code ? { id: code.id, name: code.name, svgUrl: code.svg_url, vivid: isVivid(code), style: cleanCodeStyle(code.meta?.settings) } : null,
     };
   } catch (err) {
@@ -72,7 +79,7 @@ async function signView(sign: DoorSign, fresh: boolean) {
 }
 
 // `fresh`: true asks the QR site again about every sign's codes; a sign id, only about that one (just saved).
-async function state(fresh: boolean | string = false): Promise<Record<string, unknown>> {
+async function state(request: Request, fresh: boolean | string = false): Promise<Record<string, unknown>> {
   const { studio, saved } = await loadQrStudio();
   const connected = brandedQrConfigured();
   const base = { saved, connected, ...venmoState(studio), signs: [] as unknown[], signsError: null as string | null, standardCodes: 0 };
@@ -85,7 +92,7 @@ async function state(fresh: boolean | string = false): Promise<Record<string, un
     return base;
   }
   // Each sign stays on the page (with its plain code) even when the QR site can't be reached.
-  base.signs = await Promise.all(signs.map((s) => signView(s, fresh === true || fresh === s.id)));
+  base.signs = await Promise.all(signs.map((s) => signView(request, s, fresh === true || fresh === s.id)));
   try {
     // Codes made before they were all vivid (signs' and spares'), which can be remade. Mostly cached by now.
     const pool = await poolLinks(signs);
@@ -150,7 +157,7 @@ async function save(request: Request, body: Record<string, unknown>): Promise<Re
         throw err;
       }
       const sign = await insertSign({ ...fields, link_code: target.code, link_short: target.short, pointed_url: link.url });
-      if (sign) return json({ saved: sign.id, state: await state(sign.id) });
+      if (sign) return json({ saved: sign.id, state: await state(request, sign.id) });
     }
     throw new DoorSignError('Another sign was saved at the same moment. Try again.', 409);
   }
@@ -158,7 +165,7 @@ async function save(request: Request, body: Record<string, unknown>): Promise<Re
   const sign = await getSign(body.id);
   if (!sign) throw new DoorSignError('That sign was deleted.', 404);
   const current = await readLink(sign.link_code);
-  if (!current) throw new DoorSignError(`Its short link ${sign.link_short} was deleted on the QR site. Delete this sign and save it again.`, 409);
+  if (!current) throw new DoorSignError(`Its short link ${shortFor(request, sign)} was deleted on the QR site. Delete this sign and save it again.`, 409);
   if (current.url !== link.url) {
     const pointedAt = current.updated_at * 1000;
     // A sign made in the last half hour is still being set up, not printed: no need to ask.
@@ -172,7 +179,7 @@ async function save(request: Request, body: Record<string, unknown>): Promise<Re
     }
   }
   await updateSign(sign.id, { ...fields, pointed_url: link.url });
-  return json({ saved: sign.id, state: await state(sign.id) });
+  return json({ saved: sign.id, state: await state(request, sign.id) });
 }
 
 // The generator address that makes branded codes for every pool link without
@@ -234,7 +241,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       if (!code) return json({ error: 'That sign has no branded code yet.' }, 404);
       return new Response(await codeSvg(code.svg_url), { headers: SVG_HEADERS });
     }
-    return json(await state(url.searchParams.get('fresh') === '1'));
+    return json(await state(request, url.searchParams.get('fresh') === '1'));
   } catch (err) {
     return failure(err);
   }
@@ -256,13 +263,13 @@ export const POST: APIRoute = async ({ request }) => {
 
     if (action === 'delete') {
       const sign = typeof body.id === 'string' ? await getSign(body.id) : null;
-      if (!sign) return json({ state: await state() });
+      if (!sign) return json({ state: await state(request) });
       // Printed copies of it now land on the general check-in page. Pointed while the sign
       // still holds the link (so no new sign can have taken it yet), and only if it still
       // opens this sign's classes; then the link is free for the next sign.
       if (sign.pointed_url) await pointLink(sign.link_code, `${siteOrigin(request)}/check-in`, sign.pointed_url).catch(() => {});
       await deleteSign(sign.id);
-      return json({ state: await state() });
+      return json({ state: await state(request) });
     }
 
     if (action === 'codes') return typeof body.signId === 'string' ? await newCodeFor(request, body.signId, body.style) : await codesUrl(request, body.remake === true);

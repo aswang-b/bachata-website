@@ -11,8 +11,10 @@ import { setServerTimeZone } from './lib/siteTime';
 // community link the footer and confirmations show (Astro.locals.whatsappUrl) and
 // where we are (Astro.locals.siteLocation). It doesn't check
 // anything: every admin API route still checks the admin session itself.
+// A short link (/c/<code>, a scanned door sign) needs none of it: only a
+// redirect, so it loads nothing.
 export const onRequest = defineMiddleware(async (context, next) => {
-  if (context.isPrerendered) return next();
+  if (context.isPrerendered || context.url.pathname.startsWith('/c/')) return next();
   const isPage = !context.url.pathname.startsWith('/api/');
   const [timeZone, settings, whatsappUrl, siteLocation] = await Promise.all([loadSiteTimeZone(), isPage ? getSiteSettings() : undefined, isPage ? loadWhatsappUrl() : undefined, isPage ? loadSiteLocation() : undefined]);
   setServerTimeZone(timeZone);
