@@ -21,6 +21,7 @@ import PastFlyersGallery from '../components/PastFlyersGallery.astro';
 import FlyerDialog from '../components/FlyerDialog.astro';
 import { classPath } from '../lib/classLink';
 import { eventSchemas } from '../lib/seoSchema';
+import { openForRegistrationFilter } from '../lib/eventTimes';
 import { DEFAULT_LOCATION, placeLabel } from '../lib/siteLocation';
 import { locationHref } from '../lib/locationLink';
 import { PIN_SVG } from '../lib/locationPin';
@@ -39,7 +40,8 @@ const [{ lessonOverview, cardOrder, sectionOrder, galleryFlyers }, faqs, { data:
     )
     .in('visibility', publicVisibilities())
     .in('event_type', ['class', 'event'])
-    .gte('start_time', now.toISOString())
+    // What still takes registrations: classes until they start, events until 30 minutes after they end (eventTimes.registrationOpen), so a social stays up while people register at the door.
+    .or(openForRegistrationFilter(now.getTime()))
     .order('start_time', { ascending: true }),
   listActiveDeals(now),
 ]);

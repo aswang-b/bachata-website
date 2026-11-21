@@ -159,12 +159,12 @@ test.describe('at the door', () => {
 
   // Events happening now (not far in the future like the others), with fake
   // Google ids so no calendar sync pushes them anywhere.
-  const insertNowEvent = async (name: string, startMinutes: number, endMinutes: number) => {
+  const insertNowEvent = async (name: string, startMinutes: number, endMinutes: number, eventType: 'event' | 'class' = 'event') => {
     const { data, error } = await db
       .from('events')
       .insert({
         title: testTitle(name),
-        event_type: 'event',
+        event_type: eventType,
         visibility: 'test',
         color: 'green',
         start_time: new Date(Date.now() + startMinutes * 60000).toISOString(),
@@ -192,6 +192,22 @@ test.describe('at the door', () => {
     const refused = await postForm(request, '/api/submit-intake', fields(longOver, '6085550402'));
     expect(refused.status()).toBe(400);
     expect(await refused.text()).toContain("isn't open for registration");
+  });
+
+  // The bug: the homepage dropped an event the moment it started, taking its Register button with it.
+  test('the homepage keeps a started event (and its Register button) until registration closes; a started class goes', async ({ page }) => {
+    const underway = await insertNowEvent('Underway Social', -30, 120);
+    const justEnded = await insertNowEvent('Late Social', -180, -10);
+    const longOver = await insertNowEvent('Done Social', -240, -45);
+    const startedClass = await insertNowEvent('Started Class', -15, 45, 'class');
+
+    await page.goto('/');
+    for (const e of [underway, justEnded]) {
+      await expect(page.locator(`a[href="/register/events?series=${e.key}"]`, { hasText: 'Register' })).toHaveCount(1);
+    }
+    await expect(page.getByText(longOver.title)).toHaveCount(0);
+    await expect(page.getByText(startedClass.title)).toHaveCount(0);
+    await expect(page.locator(`[href*="${longOver.key}"], [href*="${startedClass.key}"]`)).toHaveCount(0);
   });
 
   test('an admin adds an event registration from the dashboard', async ({ page, adminPage }) => {

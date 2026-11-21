@@ -71,3 +71,11 @@ export function registrationOpen(e: { event_type?: string | null; start_time: st
 export function lateRegistrationCutoffIso(now = Date.now()): string {
   return new Date(now - EVENT_LATE_REGISTRATION_MS).toISOString();
 }
+
+// registrationOpen's rule as one PostgREST `or` filter, for a list of classes
+// and events together (the homepage): what hasn't started, plus events until
+// 30 minutes after they end (or after they start, with no end time).
+export function openForRegistrationFilter(now = Date.now()): string {
+  const cutoff = lateRegistrationCutoffIso(now);
+  return `start_time.gte.${new Date(now).toISOString()},and(event_type.eq.event,end_time.gte.${cutoff}),and(event_type.eq.event,end_time.is.null,start_time.gte.${cutoff})`;
+}
