@@ -70,8 +70,15 @@ test('the homepage block of a full, closed or role-full class offers the link un
 });
 
 test("the calendar's details panel offers the link beside the button for a full or closed class only", async ({ page }) => {
-  await calendarMonth(page, full);
-  const open = async (s: Seeded) => page.locator('.event-banner', { hasText: s.title }).first().click();
+  // The classes sit on five days in a row, which can cross into the next month (depending on today's date):
+  // open each one's own month, staying on the page while it's the same one.
+  let shownMonth = '';
+  const open = async (s: Seeded) => {
+    const { data } = await db.from('events').select('start_time').eq('id', s.ids[0]).single();
+    const month = await monthOf(data!.start_time);
+    if (month !== shownMonth) await page.goto(`/calendar?month=${(shownMonth = month)}`);
+    await page.locator('.event-banner', { hasText: s.title }).first().click();
+  };
   const ask = page.locator('#detail-ask-spot');
 
   await open(full);
